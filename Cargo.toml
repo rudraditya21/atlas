@@ -1,6 +1,6 @@
 [workspace]
 resolver = "2"
 
-members = ["crates/atlas-constants"]
+members = ["crates/atlas-constants", "crates/atlas-ndarray"]
 
 [workspace.dependencies]
