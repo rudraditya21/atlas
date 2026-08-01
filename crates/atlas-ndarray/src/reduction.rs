@@ -3,8 +3,9 @@ use num_traits::ToPrimitive;
 use super::{
     array::NDArray,
     error::{AtlasNdError, AtlasNdResult},
-    stride::{compute_strides, element_count},
+    stride::element_count,
     traits::Numeric,
+    traversal::{for_each_value, try_for_each_value},
     view::ArrayView,
 };
 
@@ -73,7 +74,7 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
 fn sum_all<T: Numeric>(data: &[T], offset: usize, shape: &[usize], strides: &[usize]) -> T {
     let mut total = T::zero();
     for_each_value(data, offset, shape, strides, |value| {
-        total += value;
+        total += *value;
     });
     total
 }
@@ -81,7 +82,7 @@ fn sum_all<T: Numeric>(data: &[T], offset: usize, shape: &[usize], strides: &[us
 fn prod_all<T: Numeric>(data: &[T], offset: usize, shape: &[usize], strides: &[usize]) -> T {
     let mut total = T::one();
     for_each_value(data, offset, shape, strides, |value| {
-        total *= value;
+        total *= *value;
     });
     total
 }
@@ -94,8 +95,8 @@ where
 
     for_each_value(data, offset, shape, strides, |value| {
         minimum = Some(match minimum {
-            Some(current) if current < value => current,
-            Some(_) | None => value,
+            Some(current) if current < *value => current,
+            Some(_) | None => *value,
         });
     });
 
@@ -110,8 +111,8 @@ where
 
     for_each_value(data, offset, shape, strides, |value| {
         maximum = Some(match maximum {
-            Some(current) if current > value => current,
-            Some(_) | None => value,
+            Some(current) if current > *value => current,
+            Some(_) | None => *value,
         });
     });
 
@@ -137,88 +138,6 @@ where
 
     Ok(total / len as f64)
 }
-
-fn for_each_value<T, F>(data: &[T], offset: usize, shape: &[usize], strides: &[usize], mut f: F)
-where
-    T: Numeric,
-    F: FnMut(T),
-{
-    let len = element_count(shape);
-    if len == 0 {
-        return;
-    }
-
-    if is_contiguous_layout(shape, strides) {
-        let end = offset + len;
-        for &value in &data[offset..end] {
-            f(value);
-        }
-        return;
-    }
-
-    for linear_index in 0..len {
-        let physical_offset = offset_from_linear_index(linear_index, offset, shape, strides);
-        f(data[physical_offset]);
-    }
-}
-
-fn try_for_each_value<T, F>(
-    data: &[T],
-    offset: usize,
-    shape: &[usize],
-    strides: &[usize],
-    mut f: F,
-) -> AtlasNdResult<()>
-where
-    T: Numeric,
-    F: FnMut(T) -> AtlasNdResult<()>,
-{
-    let len = element_count(shape);
-    if len == 0 {
-        return Ok(());
-    }
-
-    if is_contiguous_layout(shape, strides) {
-        let end = offset + len;
-        for &value in &data[offset..end] {
-            f(value)?;
-        }
-        return Ok(());
-    }
-
-    for linear_index in 0..len {
-        let physical_offset = offset_from_linear_index(linear_index, offset, shape, strides);
-        f(data[physical_offset])?;
-    }
-
-    Ok(())
-}
-
-fn is_contiguous_layout(shape: &[usize], strides: &[usize]) -> bool {
-    debug_assert_eq!(shape.len(), strides.len());
-    strides == compute_strides(shape)
-}
-
-fn offset_from_linear_index(
-    mut linear_index: usize,
-    base_offset: usize,
-    shape: &[usize],
-    strides: &[usize],
-) -> usize {
-    debug_assert_eq!(shape.len(), strides.len());
-
-    let mut offset = base_offset;
-
-    for axis in (0..shape.len()).rev() {
-        let dim = shape[axis];
-        let coordinate = if dim == 0 { 0 } else { linear_index % dim };
-        linear_index = if dim == 0 { 0 } else { linear_index / dim };
-        offset += coordinate * strides[axis];
-    }
-
-    offset
-}
-
 #[cfg(test)]
 mod tests {
     use crate::{array::NDArray, error::AtlasNdError};

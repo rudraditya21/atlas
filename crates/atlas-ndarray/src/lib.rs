@@ -12,5 +12,6 @@ pub mod stride;
 pub mod traits;
 pub mod transpose;
 pub mod view;
+pub(crate) mod traversal;
 
 pub use error::{AtlasNdError, AtlasNdResult};

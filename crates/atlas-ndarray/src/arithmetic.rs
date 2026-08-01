@@ -4,7 +4,7 @@ use super::{
     array::NDArray,
     broadcast::broadcast_pair,
     error::AtlasNdResult,
-    stride::element_count,
+    traversal::broadcast_offset_pair_iter,
     traits::Numeric,
 };
 
@@ -112,17 +112,13 @@ impl<T: Numeric> NDArray<T> {
         F: Fn(T, T) -> T + Copy,
     {
         let metadata = broadcast_pair(&self.shape, &self.strides, &rhs.shape, &rhs.strides)?;
-        let output_len = element_count(&metadata.shape);
-        let mut data = Vec::with_capacity(output_len);
+        let mut data = Vec::with_capacity(metadata.shape.iter().product());
 
-        for linear_index in 0..output_len {
-            let (lhs_offset, rhs_offset) = broadcast_offsets(
-                linear_index,
-                &metadata.shape,
-                &metadata.lhs_strides,
-                &metadata.rhs_strides,
-            );
-
+        for (lhs_offset, rhs_offset) in broadcast_offset_pair_iter(
+            &metadata.shape,
+            &metadata.lhs_strides,
+            &metadata.rhs_strides,
+        ) {
             data.push(op(self.data[lhs_offset], rhs.data[rhs_offset]));
         }
 
@@ -214,30 +210,6 @@ impl<T: Numeric> DivOperand<T> for T {
     fn div_into(self, lhs: &NDArray<T>) -> Self::Output {
         lhs.div_scalar(self)
     }
-}
-
-fn broadcast_offsets(
-    mut linear_index: usize,
-    shape: &[usize],
-    lhs_strides: &[usize],
-    rhs_strides: &[usize],
-) -> (usize, usize) {
-    debug_assert_eq!(shape.len(), lhs_strides.len());
-    debug_assert_eq!(shape.len(), rhs_strides.len());
-
-    let mut lhs_offset = 0;
-    let mut rhs_offset = 0;
-
-    for axis in (0..shape.len()).rev() {
-        let dim = shape[axis];
-        let coordinate = if dim == 0 { 0 } else { linear_index % dim };
-        linear_index = if dim == 0 { 0 } else { linear_index / dim };
-
-        lhs_offset += coordinate * lhs_strides[axis];
-        rhs_offset += coordinate * rhs_strides[axis];
-    }
-
-    (lhs_offset, rhs_offset)
 }
 
 impl<T: Numeric> Add for &NDArray<T> {
