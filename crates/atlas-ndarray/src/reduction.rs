@@ -2,6 +2,7 @@ use num_traits::ToPrimitive;
 
 use super::{
     array::NDArray,
+    axis::{normalize_axis, AxisIndex},
     error::{AtlasNdError, AtlasNdResult},
     stride::element_count,
     traits::Numeric,
@@ -59,29 +60,29 @@ impl<T: Numeric> NDArray<T> {
         mean_all(&self.data, 0, &self.shape, &self.strides)
     }
 
-    pub fn sum_axis(&self, axis: usize) -> AtlasNdResult<Self> {
+    pub fn sum_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self> {
         sum_axis_impl(&self.data, 0, &self.shape, &self.strides, axis)
     }
 
-    pub fn prod_axis(&self, axis: usize) -> AtlasNdResult<Self> {
+    pub fn prod_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self> {
         prod_axis_impl(&self.data, 0, &self.shape, &self.strides, axis)
     }
 
-    pub fn min_axis(&self, axis: usize) -> AtlasNdResult<Self>
+    pub fn min_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self>
     where
         T: PartialOrd,
     {
         min_axis_impl(&self.data, 0, &self.shape, &self.strides, axis)
     }
 
-    pub fn max_axis(&self, axis: usize) -> AtlasNdResult<Self>
+    pub fn max_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self>
     where
         T: PartialOrd,
     {
         max_axis_impl(&self.data, 0, &self.shape, &self.strides, axis)
     }
 
-    pub fn mean_axis(&self, axis: usize) -> AtlasNdResult<NDArray<f64>>
+    pub fn mean_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<f64>>
     where
         T: ToPrimitive,
     {
@@ -139,29 +140,29 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
         mean_all(self.data, self.offset, &self.shape, &self.strides)
     }
 
-    pub fn sum_axis(&self, axis: usize) -> AtlasNdResult<NDArray<T>> {
+    pub fn sum_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>> {
         sum_axis_impl(self.data, self.offset, &self.shape, &self.strides, axis)
     }
 
-    pub fn prod_axis(&self, axis: usize) -> AtlasNdResult<NDArray<T>> {
+    pub fn prod_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>> {
         prod_axis_impl(self.data, self.offset, &self.shape, &self.strides, axis)
     }
 
-    pub fn min_axis(&self, axis: usize) -> AtlasNdResult<NDArray<T>>
+    pub fn min_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>>
     where
         T: PartialOrd,
     {
         min_axis_impl(self.data, self.offset, &self.shape, &self.strides, axis)
     }
 
-    pub fn max_axis(&self, axis: usize) -> AtlasNdResult<NDArray<T>>
+    pub fn max_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>>
     where
         T: PartialOrd,
     {
         max_axis_impl(self.data, self.offset, &self.shape, &self.strides, axis)
     }
 
-    pub fn mean_axis(&self, axis: usize) -> AtlasNdResult<NDArray<f64>>
+    pub fn mean_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<f64>>
     where
         T: ToPrimitive,
     {
@@ -253,7 +254,7 @@ fn sum_axis_impl<T: Numeric>(
     base_offset: usize,
     shape: &[usize],
     strides: &[usize],
-    axis: usize,
+    axis: impl AxisIndex,
 ) -> AtlasNdResult<NDArray<T>> {
     let metadata = axis_reduction_metadata(shape, strides, axis)?;
     let mut reduced = Vec::with_capacity(element_count(&metadata.output_shape));
@@ -276,7 +277,7 @@ fn prod_axis_impl<T: Numeric>(
     base_offset: usize,
     shape: &[usize],
     strides: &[usize],
-    axis: usize,
+    axis: impl AxisIndex,
 ) -> AtlasNdResult<NDArray<T>> {
     let metadata = axis_reduction_metadata(shape, strides, axis)?;
     let mut reduced = Vec::with_capacity(element_count(&metadata.output_shape));
@@ -299,7 +300,7 @@ fn min_axis_impl<T>(
     base_offset: usize,
     shape: &[usize],
     strides: &[usize],
-    axis: usize,
+    axis: impl AxisIndex,
 ) -> AtlasNdResult<NDArray<T>>
 where
     T: Numeric + PartialOrd,
@@ -332,7 +333,7 @@ fn max_axis_impl<T>(
     base_offset: usize,
     shape: &[usize],
     strides: &[usize],
-    axis: usize,
+    axis: impl AxisIndex,
 ) -> AtlasNdResult<NDArray<T>>
 where
     T: Numeric + PartialOrd,
@@ -365,7 +366,7 @@ fn mean_axis_impl<T>(
     base_offset: usize,
     shape: &[usize],
     strides: &[usize],
-    axis: usize,
+    axis: impl AxisIndex,
 ) -> AtlasNdResult<NDArray<f64>>
 where
     T: Numeric + ToPrimitive,
@@ -403,9 +404,9 @@ struct AxisReductionMetadata {
 fn axis_reduction_metadata(
     shape: &[usize],
     strides: &[usize],
-    axis: usize,
+    axis: impl AxisIndex,
 ) -> AtlasNdResult<AxisReductionMetadata> {
-    validate_axis(shape, axis)?;
+    let axis = normalize_axis(axis, shape.len())?;
 
     let mut output_shape = Vec::with_capacity(shape.len().saturating_sub(1));
     let mut outer_strides = Vec::with_capacity(strides.len().saturating_sub(1));
@@ -426,17 +427,6 @@ fn axis_reduction_metadata(
         axis_stride: strides[axis],
         axis_len: shape[axis],
     })
-}
-
-fn validate_axis(shape: &[usize], axis: usize) -> AtlasNdResult<()> {
-    if axis >= shape.len() {
-        return Err(AtlasNdError::InvalidAxis {
-            axis,
-            ndim: shape.len(),
-        });
-    }
-
-    Ok(())
 }
 
 fn sum_all<T: Numeric>(data: &[T], offset: usize, shape: &[usize], strides: &[usize]) -> T {
@@ -570,9 +560,9 @@ mod tests {
         let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
         let view = array.view().transpose();
 
-        assert_eq!(view.sum_axis(0).unwrap().data(), &[3, 12]);
-        assert_eq!(view.sum_axis(1).unwrap().data(), &[3, 5, 7]);
-        assert_eq!(view.mean_axis(1).unwrap().data(), &[1.5, 2.5, 3.5]);
+        assert_eq!(view.sum_axis(-2).unwrap().data(), &[3, 12]);
+        assert_eq!(view.sum_axis(-1).unwrap().data(), &[3, 5, 7]);
+        assert_eq!(view.mean_axis(-1).unwrap().data(), &[1.5, 2.5, 3.5]);
     }
 
     #[test]
@@ -582,6 +572,10 @@ mod tests {
         assert_eq!(
             array.sum_axis(2).unwrap_err(),
             AtlasNdError::InvalidAxis { axis: 2, ndim: 2 }
+        );
+        assert_eq!(
+            array.sum_axis(-3).unwrap_err(),
+            AtlasNdError::InvalidAxis { axis: -3, ndim: 2 }
         );
     }
 

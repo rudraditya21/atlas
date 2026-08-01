@@ -6,7 +6,11 @@ use super::{
 };
 
 impl<'a, T: Numeric> ArrayView<'a, T> {
-    pub fn reshape(mut self, new_shape: Vec<usize>) -> AtlasNdResult<Self> {
+    pub fn reshape<S>(mut self, new_shape: S) -> AtlasNdResult<Self>
+    where
+        S: AsRef<[usize]>,
+    {
+        let new_shape = new_shape.as_ref().to_vec();
         let old_size = element_count(&self.shape);
         let new_size = element_count(&new_shape);
 
@@ -39,7 +43,7 @@ mod tests {
     #[test]
     fn reshape_allows_contiguous_views() {
         let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
-        let reshaped = array.view().reshape(vec![3, 2]).unwrap();
+        let reshaped = array.view().reshape([3, 2]).unwrap();
 
         assert_eq!(reshaped.shape(), &[3, 2]);
         assert_eq!(reshaped.strides(), &[2, 1]);
@@ -49,8 +53,8 @@ mod tests {
     #[test]
     fn reshape_rejects_non_contiguous_views() {
         let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
-        let view = array.view().slice(&[0, 1], vec![2, 2]).unwrap();
-        let error = view.reshape(vec![4]).unwrap_err();
+        let view = array.view().slice([0, 1], [2, 2]).unwrap();
+        let error = view.reshape([4]).unwrap_err();
 
         assert_eq!(
             error,
@@ -65,7 +69,7 @@ mod tests {
     #[test]
     fn reshape_rejects_different_element_counts() {
         let array = NDArray::new(vec![2, 3], 0_i32);
-        let error = array.view().reshape(vec![5]).unwrap_err();
+        let error = array.view().reshape([5]).unwrap_err();
 
         assert_eq!(
             error,

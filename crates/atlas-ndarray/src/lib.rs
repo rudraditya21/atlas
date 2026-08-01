@@ -16,6 +16,7 @@
 
 pub mod arithmetic;
 pub mod array;
+pub mod axis;
 pub mod broadcast;
 pub mod constructors;
 pub mod error;
@@ -31,6 +32,7 @@ pub mod view;
 pub(crate) mod traversal;
 
 pub use array::NDArray;
+pub use axis::AxisIndex;
 pub use broadcast::{
     broadcast_pair, broadcast_shape, broadcast_strides, contiguous_broadcast_metadata,
     BroadcastMetadata,

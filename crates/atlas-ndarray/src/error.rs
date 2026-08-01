@@ -11,7 +11,7 @@ pub enum AtlasNdError {
     DimensionMismatch { expected: usize, actual: usize },
 
     #[error("axis {axis} is out of bounds for array with {ndim} dimensions")]
-    InvalidAxis { axis: usize, ndim: usize },
+    InvalidAxis { axis: i64, ndim: usize },
 
     #[error("index {index} is out of bounds for axis {axis} with length {dim}")]
     IndexOutOfBounds {

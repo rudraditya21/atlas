@@ -5,7 +5,13 @@ use super::{
 };
 
 impl<'a, T: Numeric> ArrayView<'a, T> {
-    pub fn slice(&self, starts: &[usize], new_shape: Vec<usize>) -> AtlasNdResult<ArrayView<'a, T>> {
+    pub fn slice<I, S>(&self, starts: I, new_shape: S) -> AtlasNdResult<ArrayView<'a, T>>
+    where
+        I: AsRef<[usize]>,
+        S: AsRef<[usize]>,
+    {
+        let starts = starts.as_ref();
+        let new_shape = new_shape.as_ref().to_vec();
         debug_assert_eq!(self.shape.len(), self.strides.len());
         if starts.len() != self.shape.len() {
             return Err(AtlasNdError::DimensionMismatch {
@@ -66,7 +72,7 @@ mod tests {
     fn slice_builds_a_view_with_checked_bounds() {
         let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
         let view = array.view();
-        let slice = view.slice(&[0, 1], vec![2, 2]).unwrap();
+        let slice = view.slice([0, 1], [2, 2]).unwrap();
 
         assert_eq!(slice.shape(), &[2, 2]);
         assert_eq!(slice.strides(), &[3, 1]);
@@ -79,7 +85,7 @@ mod tests {
     fn slice_rejects_invalid_extent() {
         let array = NDArray::new(vec![2, 3], 0_i32);
         let view = array.view();
-        let error = view.slice(&[0, 2], vec![2, 2]).unwrap_err();
+        let error = view.slice([0, 2], [2, 2]).unwrap_err();
 
         assert_eq!(
             error,
@@ -96,7 +102,7 @@ mod tests {
     fn slice_rejects_rank_mismatch() {
         let array = NDArray::new(vec![2, 3], 0_i32);
         let view = array.view();
-        let error = view.slice(&[0], vec![1, 1]).unwrap_err();
+        let error = view.slice([0], [1, 1]).unwrap_err();
 
         assert_eq!(
             error,
