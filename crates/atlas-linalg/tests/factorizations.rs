@@ -1,4 +1,7 @@
-use atlas_linalg::{AtlasLinalgError, cholesky, lu, matmul, qr};
+use atlas_linalg::{
+    AtlasLinalgError, AtlasLinalgResult, CholeskyFactorization, LUFactorization, QRFactorization,
+    cholesky, lu, matmul, qr,
+};
 use atlas_ndarray::NDArray;
 
 fn assert_close_slice(actual: &[f64], expected: &[f64], tolerance: f64) {
@@ -16,13 +19,17 @@ where
     assert_eq!(array.shape(), expected);
 }
 
+fn expect_ok<T>(result: AtlasLinalgResult<T>) -> T {
+    result.unwrap()
+}
+
 #[test]
 fn lu_reconstructs_permuted_input() {
     let matrix =
         NDArray::from_shape_vec([3, 3], vec![0.0_f64, 2.0, 1.0, 1.0, 1.0, 0.0, 2.0, 1.0, 1.0])
             .unwrap();
 
-    let factors = lu(&matrix).unwrap();
+    let factors: LUFactorization<f64> = expect_ok(lu(&matrix));
 
     assert_shape(&factors.p, &[3, 3]);
     assert_shape(&factors.l, &[3, 3]);
@@ -40,7 +47,7 @@ fn lu_reconstructs_permuted_input() {
 fn qr_reconstructs_tall_input_and_has_reduced_shapes() {
     let matrix = NDArray::from_shape_vec([3, 2], vec![1.0_f64, 1.0, 1.0, 0.0, 0.0, 1.0]).unwrap();
 
-    let factors = qr(&matrix).unwrap();
+    let factors: QRFactorization<f64> = expect_ok(qr(&matrix));
 
     assert_shape(&factors.q, &[3, 2]);
     assert_shape(&factors.r, &[2, 2]);
@@ -58,7 +65,7 @@ fn qr_reconstructs_tall_input_and_has_reduced_shapes() {
 fn cholesky_reconstructs_symmetric_positive_definite_input() {
     let matrix = NDArray::from_shape_vec([2, 2], vec![4.0_f64, 2.0, 2.0, 3.0]).unwrap();
 
-    let factor = cholesky(&matrix).unwrap();
+    let factor: CholeskyFactorization<f64> = expect_ok(cholesky(&matrix));
 
     assert_shape(&factor.l, &[2, 2]);
 
