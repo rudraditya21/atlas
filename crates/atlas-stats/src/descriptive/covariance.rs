@@ -1,9 +1,7 @@
 use atlas_ndarray::Numeric;
 use num_traits::ToPrimitive;
 
-use crate::core::{AtlasStatsResult, StatsOperand};
-
-use super::{collect_values, mean_of, validate_vector_pair};
+use crate::core::{AtlasStatsResult, StatsOperand, collect_values, mean_of, validate_vector_pair};
 
 pub fn covariance<'a, T, L, R>(lhs: L, rhs: R) -> AtlasStatsResult<f64>
 where

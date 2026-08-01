@@ -1,10 +1,7 @@
 use atlas_ndarray::Numeric;
 use num_traits::ToPrimitive;
 
-use crate::core::AtlasStatsResult;
-use crate::core::StatsOperand;
-
-use super::{collect_values, mean_of};
+use crate::core::{AtlasStatsResult, StatsOperand, collect_values, mean_of};
 
 pub fn variance<'a, T, I>(input: I) -> AtlasStatsResult<f64>
 where
