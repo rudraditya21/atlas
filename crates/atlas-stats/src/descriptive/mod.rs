@@ -1,9 +1,4 @@
-mod correlation;
-mod covariance;
-mod stddev;
-mod variance;
-
-pub use correlation::correlation;
-pub use covariance::covariance;
-pub use stddev::stddev;
-pub use variance::variance;
+pub(crate) mod correlation;
+pub(crate) mod covariance;
+pub(crate) mod stddev;
+pub(crate) mod variance;

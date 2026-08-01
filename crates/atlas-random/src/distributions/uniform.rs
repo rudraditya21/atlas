@@ -3,7 +3,7 @@ use rand::distributions::uniform::SampleUniform;
 
 use crate::{
     core::{AtlasRandomResult, element_count},
-    rng::RandomSource,
+    rng::random_source::RandomSource,
 };
 
 pub fn uniform<T, S, R>(shape: S, low: T, high: T, rng: &mut R) -> AtlasRandomResult<NDArray<T>>

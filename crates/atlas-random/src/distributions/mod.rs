@@ -1,5 +1,2 @@
-mod normal;
-mod uniform;
-
-pub use normal::normal;
-pub use uniform::uniform;
+pub(crate) mod normal;
+pub(crate) mod uniform;

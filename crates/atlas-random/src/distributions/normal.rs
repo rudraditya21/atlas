@@ -5,7 +5,7 @@ use rand_distr::StandardNormal;
 
 use crate::{
     core::{AtlasRandomResult, element_count},
-    rng::RandomSource,
+    rng::random_source::RandomSource,
 };
 
 pub fn normal<T, S, R>(shape: S, mean: T, stddev: T, rng: &mut R) -> AtlasRandomResult<NDArray<T>>

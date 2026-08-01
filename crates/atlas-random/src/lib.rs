@@ -2,6 +2,8 @@ mod core;
 mod distributions;
 mod rng;
 
-pub use core::{AtlasRandomError, AtlasRandomResult};
-pub use distributions::{normal, uniform};
-pub use rng::{AtlasRng, RandomSource};
+pub use core::error::{AtlasRandomError, AtlasRandomResult};
+pub use distributions::normal::normal;
+pub use distributions::uniform::uniform;
+pub use rng::atlas_rng::AtlasRng;
+pub use rng::random_source::RandomSource;

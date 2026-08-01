@@ -11,7 +11,7 @@ use crate::core::{
     AtlasRandomError, AtlasRandomResult, validate_normal_parameters, validate_uniform_bounds,
 };
 
-use super::RandomSource;
+use super::random_source::RandomSource;
 
 #[derive(Clone, Debug)]
 pub struct AtlasRng {

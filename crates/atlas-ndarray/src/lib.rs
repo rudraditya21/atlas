@@ -25,9 +25,11 @@ pub use core::array::NDArray;
 pub use core::axis::AxisIndex;
 pub use core::error::{AtlasNdError, AtlasNdResult};
 pub use core::traits::Numeric;
-pub use layout::{
-    BroadcastMetadata, broadcast_pair, broadcast_shape, broadcast_strides, compute_strides,
-    contiguous_broadcast_metadata, element_count,
+pub use layout::broadcast::{
+    BroadcastMetadata, broadcast_pair, broadcast_shape, broadcast_strides,
+    contiguous_broadcast_metadata,
 };
-pub use ops::{AddOperand, DivOperand, MulOperand, SubOperand};
-pub use view::{ArrayView, ArrayViewIter};
+pub use layout::stride::{compute_strides, element_count};
+pub use ops::arithmetic::{AddOperand, DivOperand, MulOperand, SubOperand};
+pub use view::iter::ArrayViewIter;
+pub use view::view::ArrayView;

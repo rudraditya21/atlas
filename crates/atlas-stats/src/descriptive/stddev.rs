@@ -3,7 +3,7 @@ use num_traits::ToPrimitive;
 
 use crate::core::{AtlasStatsResult, StatsOperand};
 
-use super::variance;
+use super::variance::variance;
 
 pub fn stddev<'a, T, I>(input: I) -> AtlasStatsResult<f64>
 where
