@@ -65,9 +65,6 @@ fn constructor_validation_is_consistent() {
 
     assert_eq!(
         NDArray::linspace(f32::NEG_INFINITY, 1.0, 4).unwrap_err(),
-        AtlasNdError::InvalidArgument {
-            op: "linspace",
-            reason: "start and end must be finite",
-        }
+        AtlasNdError::InvalidArgument { op: "linspace", reason: "start and end must be finite" }
     );
 }
