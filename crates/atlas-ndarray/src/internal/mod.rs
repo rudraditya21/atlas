@@ -1,6 +1,6 @@
 use std::slice::Iter;
 
-use crate::stride::{compute_strides, element_count};
+use crate::layout::stride::{compute_strides, element_count};
 
 pub(crate) fn is_contiguous_layout(shape: &[usize], strides: &[usize]) -> bool {
     debug_assert_eq!(shape.len(), strides.len());

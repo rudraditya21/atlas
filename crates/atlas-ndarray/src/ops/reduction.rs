@@ -1,13 +1,10 @@
 use num_traits::ToPrimitive;
 
-use super::{
-    array::NDArray,
-    axis::{AxisIndex, normalize_axis},
-    error::{AtlasNdError, AtlasNdResult},
-    stride::element_count,
-    traits::Numeric,
-    traversal::{for_each_value, offset_iter, try_for_each_value},
-    view::ArrayView,
+use crate::{
+    ArrayView, AtlasNdError, AtlasNdResult, AxisIndex, NDArray, Numeric,
+    core::axis::normalize_axis,
+    internal::{for_each_value, offset_iter, try_for_each_value},
+    layout::stride::element_count,
 };
 
 impl<T: Numeric> NDArray<T> {
@@ -494,7 +491,7 @@ where
 }
 #[cfg(test)]
 mod tests {
-    use crate::{array::NDArray, error::AtlasNdError};
+    use crate::{AtlasNdError, NDArray};
 
     #[test]
     fn whole_array_reductions_work_for_contiguous_arrays() {

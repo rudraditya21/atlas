@@ -1,8 +1,9 @@
 use std::ops::{Add, Div, Mul, Sub};
 
-use super::{
-    array::NDArray, broadcast::broadcast_pair, error::AtlasNdResult, stride::compute_strides,
-    traits::Numeric, traversal::broadcast_offset_pair_iter,
+use crate::{
+    AtlasNdResult, NDArray, Numeric,
+    internal::broadcast_offset_pair_iter,
+    layout::{broadcast::broadcast_pair, stride::compute_strides},
 };
 
 pub trait AddOperand<T: Numeric> {
@@ -269,11 +270,11 @@ impl<T: Numeric> Div<T> for &NDArray<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{AtlasNdError, array::NDArray};
+    use crate::{AtlasNdError, NDArray};
 
     fn assert_array_eq<T>(lhs: &NDArray<T>, rhs: &NDArray<T>)
     where
-        T: crate::traits::Numeric + PartialEq,
+        T: crate::Numeric + PartialEq,
     {
         assert_eq!(lhs.shape(), rhs.shape());
         assert_eq!(lhs.strides(), rhs.strides());

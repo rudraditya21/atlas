@@ -1,7 +1,4 @@
-use crate::{
-    error::{AtlasNdError, AtlasNdResult},
-    stride::compute_strides,
-};
+use crate::{AtlasNdError, AtlasNdResult, layout::stride::compute_strides};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BroadcastMetadata {

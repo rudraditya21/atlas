@@ -1,4 +1,4 @@
-use super::{traits::Numeric, view::ArrayView};
+use crate::{ArrayView, Numeric};
 
 impl<'a, T: Numeric> ArrayView<'a, T> {
     pub fn transpose(mut self) -> Self {
@@ -11,7 +11,7 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::array::NDArray;
+    use crate::NDArray;
 
     #[test]
     fn transpose_reverses_shape_and_strides() {

@@ -1,8 +1,4 @@
-use super::{
-    array::NDArray,
-    error::{AtlasNdError, AtlasNdResult},
-    traits::Numeric,
-};
+use crate::{AtlasNdError, AtlasNdResult, NDArray, Numeric};
 
 impl<T: Numeric> NDArray<T> {
     fn offset(&self, indices: &[usize]) -> AtlasNdResult<usize> {
@@ -40,9 +36,7 @@ impl<T: Numeric> NDArray<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::error::AtlasNdError;
-
-    use super::NDArray;
+    use crate::{AtlasNdError, NDArray};
 
     #[test]
     fn get_uses_row_major_offsets_for_two_dimensional_arrays() {

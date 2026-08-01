@@ -1,8 +1,4 @@
-use super::{
-    error::{AtlasNdError, AtlasNdResult},
-    traits::Numeric,
-    view::ArrayView,
-};
+use crate::{ArrayView, AtlasNdError, AtlasNdResult, Numeric};
 
 impl<'a, T: Numeric> ArrayView<'a, T> {
     pub fn slice<I, S>(&self, starts: I, new_shape: S) -> AtlasNdResult<ArrayView<'a, T>>
@@ -61,7 +57,7 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{array::NDArray, error::AtlasNdError};
+    use crate::{AtlasNdError, NDArray};
 
     #[test]
     fn slice_builds_a_view_with_checked_bounds() {

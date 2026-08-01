@@ -1,8 +1,6 @@
-use super::{
-    array::NDArray,
-    error::{AtlasNdError, AtlasNdResult},
-    stride::{compute_strides, element_count},
-    traits::Numeric,
+use crate::{
+    AtlasNdError, AtlasNdResult, NDArray, Numeric,
+    layout::stride::{compute_strides, element_count},
 };
 
 #[derive(Debug, Clone)]
@@ -89,9 +87,7 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::error::AtlasNdError;
-
-    use super::NDArray;
+    use crate::{AtlasNdError, NDArray};
 
     #[test]
     fn view_preserves_owned_layout_metadata() {

@@ -1,8 +1,6 @@
-use super::{
-    error::{AtlasNdError, AtlasNdResult},
-    stride::element_count,
-    traits::Numeric,
-    view::ArrayView,
+use crate::{
+    ArrayView, AtlasNdError, AtlasNdResult, Numeric,
+    layout::stride::{compute_strides, element_count},
 };
 
 impl<'a, T: Numeric> ArrayView<'a, T> {
@@ -31,14 +29,14 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
         }
 
         self.shape = new_shape;
-        self.strides = super::stride::compute_strides(&self.shape);
+        self.strides = compute_strides(&self.shape);
         Ok(self)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{array::NDArray, error::AtlasNdError};
+    use crate::{AtlasNdError, NDArray};
 
     #[test]
     fn reshape_allows_contiguous_views() {

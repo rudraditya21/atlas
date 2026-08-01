@@ -1,10 +1,10 @@
 use std::slice::{Iter, IterMut};
 use std::vec::IntoIter;
 
-use super::{array::NDArray, traits::Numeric, view::ArrayView};
+use crate::{ArrayView, NDArray, Numeric, internal};
 
 pub struct ArrayViewIter<'a, T> {
-    inner: super::traversal::ValueIter<'a, T>,
+    inner: internal::ValueIter<'a, T>,
 }
 
 impl<'a, T> Iterator for ArrayViewIter<'a, T> {
@@ -28,7 +28,7 @@ impl<T: Numeric> NDArray<T> {
 impl<'a, T: Numeric> ArrayView<'a, T> {
     pub fn iter(&'a self) -> ArrayViewIter<'a, T> {
         ArrayViewIter {
-            inner: super::traversal::value_iter(self.data, self.offset, &self.shape, &self.strides),
+            inner: internal::value_iter(self.data, self.offset, &self.shape, &self.strides),
         }
     }
 }
@@ -71,7 +71,7 @@ impl<'a, T: Numeric> IntoIterator for &'a ArrayView<'a, T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::array::NDArray;
+    use crate::NDArray;
 
     #[test]
     fn array_view_iterates_contiguous_views_in_logical_order() {

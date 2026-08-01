@@ -33,7 +33,7 @@ pub(crate) fn normalize_axis<A: AxisIndex>(axis: A, ndim: usize) -> AtlasNdResul
 
 #[cfg(test)]
 mod tests {
-    use crate::error::AtlasNdError;
+    use crate::AtlasNdError;
 
     use super::normalize_axis;
 

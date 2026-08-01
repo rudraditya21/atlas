@@ -1,5 +1,5 @@
 use super::traits::Numeric;
-use crate::stride::compute_strides;
+use crate::layout::stride::compute_strides;
 
 #[derive(Clone, Debug)]
 pub struct NDArray<T: Numeric> {
@@ -41,7 +41,7 @@ impl<T: Numeric> NDArray<T> {
 
 #[cfg(test)]
 mod tests {
-    use super::NDArray;
+    use crate::NDArray;
 
     #[test]
     fn scalar_arrays_are_contiguous() {

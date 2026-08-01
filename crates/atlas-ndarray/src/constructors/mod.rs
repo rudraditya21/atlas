@@ -1,8 +1,6 @@
-use super::{
-    array::NDArray,
-    error::{AtlasNdError, AtlasNdResult},
-    stride::{compute_strides, element_count},
-    traits::Numeric,
+use crate::{
+    AtlasNdError, AtlasNdResult, NDArray, Numeric,
+    layout::stride::{compute_strides, element_count},
 };
 use num_traits::Float;
 
@@ -163,9 +161,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::error::AtlasNdError;
-
-    use super::NDArray;
+    use crate::{AtlasNdError, NDArray};
 
     #[test]
     fn new_builds_a_contiguous_row_major_array() {
