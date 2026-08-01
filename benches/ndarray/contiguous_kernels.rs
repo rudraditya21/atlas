@@ -4,7 +4,7 @@ use criterion::{black_box, criterion_group, criterion_main, BenchmarkId, Criteri
 const BENCH_SIZES: [usize; 4] = [1 << 10, 1 << 14, 1 << 18, 1 << 20];
 
 fn bench_contiguous_add(c: &mut Criterion) {
-    let mut group = c.benchmark_group("contiguous_add");
+    let mut group = c.benchmark_group("ndarray/contiguous_add");
 
     for size in BENCH_SIZES {
         let lhs = NDArray::from_vec(vec![size], vec![1.0_f64; size]).unwrap();
@@ -19,7 +19,7 @@ fn bench_contiguous_add(c: &mut Criterion) {
 }
 
 fn bench_scalar_add(c: &mut Criterion) {
-    let mut group = c.benchmark_group("scalar_add");
+    let mut group = c.benchmark_group("ndarray/scalar_add");
 
     for size in BENCH_SIZES {
         let array = NDArray::from_vec(vec![size], vec![1.0_f64; size]).unwrap();
@@ -33,7 +33,7 @@ fn bench_scalar_add(c: &mut Criterion) {
 }
 
 fn bench_sum(c: &mut Criterion) {
-    let mut group = c.benchmark_group("sum");
+    let mut group = c.benchmark_group("ndarray/sum");
 
     for size in BENCH_SIZES {
         let array = NDArray::from_vec(vec![size], vec![1.0_f64; size]).unwrap();
@@ -47,7 +47,7 @@ fn bench_sum(c: &mut Criterion) {
 }
 
 fn bench_mean(c: &mut Criterion) {
-    let mut group = c.benchmark_group("mean");
+    let mut group = c.benchmark_group("ndarray/mean");
 
     for size in BENCH_SIZES {
         let array = NDArray::from_vec(vec![size], vec![1.0_f64; size]).unwrap();
@@ -61,10 +61,10 @@ fn bench_mean(c: &mut Criterion) {
 }
 
 criterion_group!(
-    contiguous_kernels,
+    ndarray_contiguous_kernels,
     bench_contiguous_add,
     bench_scalar_add,
     bench_sum,
     bench_mean
 );
-criterion_main!(contiguous_kernels);
+criterion_main!(ndarray_contiguous_kernels);

@@ -24,6 +24,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "940b3a0ca603d1eade50a4846a2afffd5ef57a9feac2c0e2ec2e14f9ead76000"
 
 [[package]]
+name = "atlas-benchmarks"
+version = "0.1.0"
+dependencies = [
+ "atlas-ndarray",
+ "criterion",
+]
+
+[[package]]
 name = "atlas-constants"
 version = "0.1.0"
 
@@ -31,7 +39,6 @@ version = "0.1.0"
 name = "atlas-ndarray"
 version = "0.1.0"
 dependencies = [
- "criterion",
  "num-traits",
  "thiserror",
 ]

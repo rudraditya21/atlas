@@ -1,6 +1,23 @@
+[package]
+name = "atlas-benchmarks"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
 [workspace]
 resolver = "2"
 
 members = ["crates/atlas-constants", "crates/atlas-ndarray"]
 
 [workspace.dependencies]
+
+[dependencies]
+atlas-ndarray = { path = "crates/atlas-ndarray" }
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "ndarray_contiguous_kernels"
+harness = false
+path = "benches/ndarray/contiguous_kernels.rs"
