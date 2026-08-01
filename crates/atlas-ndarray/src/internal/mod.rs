@@ -48,8 +48,8 @@ pub(crate) fn pair_layout_kind(
 pub(crate) fn value_iter<'a, T>(
     data: &'a [T],
     base_offset: usize,
-    shape: &[usize],
-    strides: &[usize],
+    shape: &'a [usize],
+    strides: &'a [usize],
 ) -> ValueIter<'a, T> {
     let len = element_count(shape);
 
@@ -61,14 +61,7 @@ pub(crate) fn value_iter<'a, T>(
         return ValueIter::Contiguous(contiguous_values(data, base_offset, len).iter());
     }
 
-    ValueIter::Strided(StridedIter {
-        data,
-        shape: shape.to_vec(),
-        strides: strides.to_vec(),
-        base_offset,
-        linear_index: 0,
-        len,
-    })
+    ValueIter::Strided(StridedIter { data, shape, strides, base_offset, linear_index: 0, len })
 }
 
 pub(crate) fn for_each_value<T, F>(
@@ -120,6 +113,7 @@ where
     Ok(())
 }
 
+#[cfg(test)]
 pub(crate) fn lane_value_iter<'a, T>(
     data: &'a [T],
     base_offset: usize,
@@ -229,12 +223,14 @@ impl<'a, T> Iterator for ValueIter<'a, T> {
     }
 }
 
+#[cfg(test)]
 pub(crate) enum LaneValueIter<'a, T> {
     Empty,
     Contiguous(Iter<'a, T>),
     Strided(StridedLaneIter<'a, T>),
 }
 
+#[cfg(test)]
 impl<'a, T> Iterator for LaneValueIter<'a, T> {
     type Item = &'a T;
 
@@ -305,8 +301,8 @@ impl Iterator for OffsetPairIter<'_> {
 
 pub(crate) struct StridedIter<'a, T> {
     data: &'a [T],
-    shape: Vec<usize>,
-    strides: Vec<usize>,
+    shape: &'a [usize],
+    strides: &'a [usize],
     base_offset: usize,
     linear_index: usize,
     len: usize,
@@ -320,18 +316,15 @@ impl<'a, T> Iterator for StridedIter<'a, T> {
             return None;
         }
 
-        let offset = offset_from_linear_index(
-            self.linear_index,
-            self.base_offset,
-            &self.shape,
-            &self.strides,
-        );
+        let offset =
+            offset_from_linear_index(self.linear_index, self.base_offset, self.shape, self.strides);
         self.linear_index += 1;
 
         Some(&self.data[offset])
     }
 }
 
+#[cfg(test)]
 pub(crate) struct StridedLaneIter<'a, T> {
     data: &'a [T],
     base_offset: usize,
@@ -340,6 +333,7 @@ pub(crate) struct StridedLaneIter<'a, T> {
     len: usize,
 }
 
+#[cfg(test)]
 impl<'a, T> Iterator for StridedLaneIter<'a, T> {
     type Item = &'a T;
 

@@ -96,12 +96,10 @@ impl<T: Numeric> NDArray<T> {
         F: Fn(T, T) -> T + Copy,
     {
         let len = self.data.len();
-        let lhs = &self.data;
-        let rhs = &rhs.data;
-        let mut data = Vec::with_capacity(len);
+        let mut data = vec![T::zero(); len];
 
-        for index in 0..len {
-            data.push(op(lhs[index], rhs[index]));
+        for (slot, (&lhs, &rhs)) in data.iter_mut().zip(self.data.iter().zip(rhs.data.iter())) {
+            *slot = op(lhs, rhs);
         }
 
         Self::from_owned_parts(self.shape.clone(), data)
@@ -116,16 +114,16 @@ impl<T: Numeric> NDArray<T> {
     where
         F: Fn(T, T) -> T + Copy,
     {
-        let mut data = Vec::with_capacity(metadata.shape.iter().product());
+        let mut data = vec![T::zero(); metadata.shape.iter().product()];
 
-        for (lhs_offset, rhs_offset) in broadcast_offset_pair_iter(
+        for (slot, (lhs_offset, rhs_offset)) in data.iter_mut().zip(broadcast_offset_pair_iter(
             0,
             0,
             &metadata.shape,
             &metadata.lhs_strides,
             &metadata.rhs_strides,
-        ) {
-            data.push(op(self.data[lhs_offset], rhs.data[rhs_offset]));
+        )) {
+            *slot = op(self.data[lhs_offset], rhs.data[rhs_offset]);
         }
 
         Self::from_owned_parts(metadata.shape.clone(), data)
@@ -135,12 +133,16 @@ impl<T: Numeric> NDArray<T> {
     where
         F: Fn(T, T) -> T + Copy,
     {
-        let mut data = Vec::with_capacity(metadata.shape.iter().product());
+        let mut data = vec![T::zero(); metadata.shape.iter().product()];
 
-        for (lhs_offset, rhs_offset) in
-            offset_pair_iter(0, 0, &metadata.shape, &metadata.lhs_strides, &metadata.rhs_strides)
-        {
-            data.push(op(self.data[lhs_offset], rhs.data[rhs_offset]));
+        for (slot, (lhs_offset, rhs_offset)) in data.iter_mut().zip(offset_pair_iter(
+            0,
+            0,
+            &metadata.shape,
+            &metadata.lhs_strides,
+            &metadata.rhs_strides,
+        )) {
+            *slot = op(self.data[lhs_offset], rhs.data[rhs_offset]);
         }
 
         Self::from_owned_parts(metadata.shape.clone(), data)
@@ -151,11 +153,10 @@ impl<T: Numeric> NDArray<T> {
         F: Fn(T, T) -> T + Copy,
     {
         let len = self.data.len();
-        let values = &self.data;
-        let mut data = Vec::with_capacity(len);
+        let mut data = vec![T::zero(); len];
 
-        for &value in values {
-            data.push(op(value, scalar));
+        for (slot, &value) in data.iter_mut().zip(self.data.iter()) {
+            *slot = op(value, scalar);
         }
 
         Self::from_owned_parts(self.shape.clone(), data)

@@ -3,7 +3,7 @@ use num_traits::ToPrimitive;
 use crate::{
     AtlasNdError, AtlasNdResult, AxisIndex, NDArray, Numeric,
     core::axis::normalize_axis,
-    internal::{LayoutKind, for_each_value, lane_value_iter, offset_iter, try_for_each_value},
+    internal::{LayoutKind, for_each_value, offset_iter, try_for_each_value},
     layout::element_count,
     view::ArrayView,
 };
@@ -340,8 +340,8 @@ where
 
 struct AxisReductionMetadata {
     output_shape: Vec<usize>,
-    outer_shape: Vec<usize>,
     outer_strides: Vec<usize>,
+    output_len: usize,
     axis_stride: usize,
     axis_len: usize,
     axis_layout: LayoutKind,
@@ -366,10 +366,12 @@ fn axis_reduction_metadata(
         outer_strides.push(stride);
     }
 
+    let output_len = element_count(&output_shape);
+
     Ok(AxisReductionMetadata {
-        outer_shape: output_shape.clone(),
         output_shape,
         outer_strides,
+        output_len,
         axis_stride: strides[axis],
         axis_len: shape[axis],
         axis_layout: if strides[axis] == 1 { LayoutKind::Contiguous } else { LayoutKind::Strided },
@@ -381,10 +383,14 @@ fn sum_axis_contiguous<T: Numeric>(
     base_offset: usize,
     metadata: &AxisReductionMetadata,
 ) -> AtlasNdResult<NDArray<T>> {
-    let mut reduced = Vec::with_capacity(element_count(&metadata.output_shape));
+    let mut reduced = vec![T::zero(); metadata.output_len];
 
-    for lane_offset in offset_iter(base_offset, &metadata.outer_shape, &metadata.outer_strides) {
-        reduced.push(sum_contiguous(contiguous_lane(data, lane_offset, metadata.axis_len)));
+    for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
+        base_offset,
+        &metadata.output_shape,
+        &metadata.outer_strides,
+    )) {
+        *slot = sum_contiguous(contiguous_lane(data, lane_offset, metadata.axis_len));
     }
 
     NDArray::from_shape_vec(metadata.output_shape.clone(), reduced)
@@ -395,16 +401,14 @@ fn sum_axis_strided<T: Numeric>(
     base_offset: usize,
     metadata: &AxisReductionMetadata,
 ) -> AtlasNdResult<NDArray<T>> {
-    let mut reduced = Vec::with_capacity(element_count(&metadata.output_shape));
+    let mut reduced = vec![T::zero(); metadata.output_len];
 
-    for lane_offset in offset_iter(base_offset, &metadata.outer_shape, &metadata.outer_strides) {
-        let mut total = T::zero();
-
-        for value in lane_value_iter(data, lane_offset, metadata.axis_len, metadata.axis_stride) {
-            total += *value;
-        }
-
-        reduced.push(total);
+    for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
+        base_offset,
+        &metadata.output_shape,
+        &metadata.outer_strides,
+    )) {
+        *slot = sum_strided_lane(data, lane_offset, metadata.axis_len, metadata.axis_stride);
     }
 
     NDArray::from_shape_vec(metadata.output_shape.clone(), reduced)
@@ -415,10 +419,14 @@ fn prod_axis_contiguous<T: Numeric>(
     base_offset: usize,
     metadata: &AxisReductionMetadata,
 ) -> AtlasNdResult<NDArray<T>> {
-    let mut reduced = Vec::with_capacity(element_count(&metadata.output_shape));
+    let mut reduced = vec![T::zero(); metadata.output_len];
 
-    for lane_offset in offset_iter(base_offset, &metadata.outer_shape, &metadata.outer_strides) {
-        reduced.push(prod_contiguous(contiguous_lane(data, lane_offset, metadata.axis_len)));
+    for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
+        base_offset,
+        &metadata.output_shape,
+        &metadata.outer_strides,
+    )) {
+        *slot = prod_contiguous(contiguous_lane(data, lane_offset, metadata.axis_len));
     }
 
     NDArray::from_shape_vec(metadata.output_shape.clone(), reduced)
@@ -429,16 +437,14 @@ fn prod_axis_strided<T: Numeric>(
     base_offset: usize,
     metadata: &AxisReductionMetadata,
 ) -> AtlasNdResult<NDArray<T>> {
-    let mut reduced = Vec::with_capacity(element_count(&metadata.output_shape));
+    let mut reduced = vec![T::zero(); metadata.output_len];
 
-    for lane_offset in offset_iter(base_offset, &metadata.outer_shape, &metadata.outer_strides) {
-        let mut total = T::one();
-
-        for value in lane_value_iter(data, lane_offset, metadata.axis_len, metadata.axis_stride) {
-            total *= *value;
-        }
-
-        reduced.push(total);
+    for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
+        base_offset,
+        &metadata.output_shape,
+        &metadata.outer_strides,
+    )) {
+        *slot = prod_strided_lane(data, lane_offset, metadata.axis_len, metadata.axis_stride);
     }
 
     NDArray::from_shape_vec(metadata.output_shape.clone(), reduced)
@@ -452,10 +458,14 @@ fn min_axis_contiguous<T>(
 where
     T: Numeric + PartialOrd,
 {
-    let mut reduced = Vec::with_capacity(element_count(&metadata.output_shape));
+    let mut reduced = vec![T::zero(); metadata.output_len];
 
-    for lane_offset in offset_iter(base_offset, &metadata.outer_shape, &metadata.outer_strides) {
-        reduced.push(min_contiguous(contiguous_lane(data, lane_offset, metadata.axis_len), "min")?);
+    for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
+        base_offset,
+        &metadata.output_shape,
+        &metadata.outer_strides,
+    )) {
+        *slot = min_contiguous(contiguous_lane(data, lane_offset, metadata.axis_len), "min")?;
     }
 
     NDArray::from_shape_vec(metadata.output_shape.clone(), reduced)
@@ -469,20 +479,14 @@ fn min_axis_strided<T>(
 where
     T: Numeric + PartialOrd,
 {
-    let mut reduced = Vec::with_capacity(element_count(&metadata.output_shape));
+    let mut reduced = vec![T::zero(); metadata.output_len];
 
-    for lane_offset in offset_iter(base_offset, &metadata.outer_shape, &metadata.outer_strides) {
-        let mut values =
-            lane_value_iter(data, lane_offset, metadata.axis_len, metadata.axis_stride);
-        let mut current = *values.next().ok_or(AtlasNdError::EmptyReduction { op: "min" })?;
-
-        for value in values {
-            if *value < current {
-                current = *value;
-            }
-        }
-
-        reduced.push(current);
+    for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
+        base_offset,
+        &metadata.output_shape,
+        &metadata.outer_strides,
+    )) {
+        *slot = min_strided_lane(data, lane_offset, metadata.axis_len, metadata.axis_stride);
     }
 
     NDArray::from_shape_vec(metadata.output_shape.clone(), reduced)
@@ -496,10 +500,14 @@ fn max_axis_contiguous<T>(
 where
     T: Numeric + PartialOrd,
 {
-    let mut reduced = Vec::with_capacity(element_count(&metadata.output_shape));
+    let mut reduced = vec![T::zero(); metadata.output_len];
 
-    for lane_offset in offset_iter(base_offset, &metadata.outer_shape, &metadata.outer_strides) {
-        reduced.push(max_contiguous(contiguous_lane(data, lane_offset, metadata.axis_len), "max")?);
+    for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
+        base_offset,
+        &metadata.output_shape,
+        &metadata.outer_strides,
+    )) {
+        *slot = max_contiguous(contiguous_lane(data, lane_offset, metadata.axis_len), "max")?;
     }
 
     NDArray::from_shape_vec(metadata.output_shape.clone(), reduced)
@@ -513,20 +521,14 @@ fn max_axis_strided<T>(
 where
     T: Numeric + PartialOrd,
 {
-    let mut reduced = Vec::with_capacity(element_count(&metadata.output_shape));
+    let mut reduced = vec![T::zero(); metadata.output_len];
 
-    for lane_offset in offset_iter(base_offset, &metadata.outer_shape, &metadata.outer_strides) {
-        let mut values =
-            lane_value_iter(data, lane_offset, metadata.axis_len, metadata.axis_stride);
-        let mut current = *values.next().ok_or(AtlasNdError::EmptyReduction { op: "max" })?;
-
-        for value in values {
-            if *value > current {
-                current = *value;
-            }
-        }
-
-        reduced.push(current);
+    for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
+        base_offset,
+        &metadata.output_shape,
+        &metadata.outer_strides,
+    )) {
+        *slot = max_strided_lane(data, lane_offset, metadata.axis_len, metadata.axis_stride);
     }
 
     NDArray::from_shape_vec(metadata.output_shape.clone(), reduced)
@@ -540,11 +542,14 @@ fn mean_axis_contiguous<T>(
 where
     T: Numeric + ToPrimitive,
 {
-    let mut reduced = Vec::with_capacity(element_count(&metadata.output_shape));
+    let mut reduced = vec![0.0_f64; metadata.output_len];
 
-    for lane_offset in offset_iter(base_offset, &metadata.outer_shape, &metadata.outer_strides) {
-        reduced
-            .push(mean_contiguous(contiguous_lane(data, lane_offset, metadata.axis_len), "mean")?);
+    for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
+        base_offset,
+        &metadata.output_shape,
+        &metadata.outer_strides,
+    )) {
+        *slot = mean_contiguous(contiguous_lane(data, lane_offset, metadata.axis_len), "mean")?;
     }
 
     NDArray::from_shape_vec(metadata.output_shape.clone(), reduced)
@@ -558,16 +563,15 @@ fn mean_axis_strided<T>(
 where
     T: Numeric + ToPrimitive,
 {
-    let mut reduced = Vec::with_capacity(element_count(&metadata.output_shape));
+    let mut reduced = vec![0.0_f64; metadata.output_len];
 
-    for lane_offset in offset_iter(base_offset, &metadata.outer_shape, &metadata.outer_strides) {
-        let mut total = 0.0_f64;
-
-        for value in lane_value_iter(data, lane_offset, metadata.axis_len, metadata.axis_stride) {
-            total += value.to_f64().ok_or(AtlasNdError::NumericConversionFailed { op: "mean" })?;
-        }
-
-        reduced.push(total / metadata.axis_len as f64);
+    for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
+        base_offset,
+        &metadata.output_shape,
+        &metadata.outer_strides,
+    )) {
+        *slot =
+            mean_strided_lane(data, lane_offset, metadata.axis_len, metadata.axis_stride, "mean")?;
     }
 
     NDArray::from_shape_vec(metadata.output_shape.clone(), reduced)
@@ -575,6 +579,99 @@ where
 
 fn contiguous_lane<T>(data: &[T], lane_offset: usize, axis_len: usize) -> &[T] {
     &data[lane_offset..lane_offset + axis_len]
+}
+
+fn sum_strided_lane<T: Numeric>(
+    data: &[T],
+    lane_offset: usize,
+    axis_len: usize,
+    axis_stride: usize,
+) -> T {
+    let mut total = T::zero();
+    let mut offset = lane_offset;
+
+    for _ in 0..axis_len {
+        total += data[offset];
+        offset += axis_stride;
+    }
+
+    total
+}
+
+fn prod_strided_lane<T: Numeric>(
+    data: &[T],
+    lane_offset: usize,
+    axis_len: usize,
+    axis_stride: usize,
+) -> T {
+    let mut total = T::one();
+    let mut offset = lane_offset;
+
+    for _ in 0..axis_len {
+        total *= data[offset];
+        offset += axis_stride;
+    }
+
+    total
+}
+
+fn min_strided_lane<T>(data: &[T], lane_offset: usize, axis_len: usize, axis_stride: usize) -> T
+where
+    T: Numeric + PartialOrd,
+{
+    let mut offset = lane_offset;
+    let mut current = data[offset];
+    offset += axis_stride;
+
+    for _ in 1..axis_len {
+        let value = data[offset];
+        if value < current {
+            current = value;
+        }
+        offset += axis_stride;
+    }
+
+    current
+}
+
+fn max_strided_lane<T>(data: &[T], lane_offset: usize, axis_len: usize, axis_stride: usize) -> T
+where
+    T: Numeric + PartialOrd,
+{
+    let mut offset = lane_offset;
+    let mut current = data[offset];
+    offset += axis_stride;
+
+    for _ in 1..axis_len {
+        let value = data[offset];
+        if value > current {
+            current = value;
+        }
+        offset += axis_stride;
+    }
+
+    current
+}
+
+fn mean_strided_lane<T>(
+    data: &[T],
+    lane_offset: usize,
+    axis_len: usize,
+    axis_stride: usize,
+    op: &'static str,
+) -> AtlasNdResult<f64>
+where
+    T: Numeric + ToPrimitive,
+{
+    let mut total = 0.0_f64;
+    let mut offset = lane_offset;
+
+    for _ in 0..axis_len {
+        total += data[offset].to_f64().ok_or(AtlasNdError::NumericConversionFailed { op })?;
+        offset += axis_stride;
+    }
+
+    Ok(total / axis_len as f64)
 }
 
 fn sum_all<T: Numeric>(data: &[T], offset: usize, shape: &[usize], strides: &[usize]) -> T {
