@@ -467,7 +467,48 @@ fn matmul_matrix_matrix_generic<T: Numeric>(
 mod tests {
     use atlas_ndarray::NDArray;
 
-    use crate::{dot, error::AtlasLinalgError, matmul};
+    use super::{
+        VectorRef, dot_contiguous, dot_kernel, dot_strided, matmul_matrix_matrix_generic,
+        matmul_matrix_matrix_lhs_col_major, matmul_matrix_matrix_rhs_col_major,
+        matmul_matrix_matrix_row_major, matmul_matrix_vector_col_major,
+        matmul_matrix_vector_generic, matmul_matrix_vector_row_major,
+        matmul_vector_matrix_col_major, matmul_vector_matrix_generic,
+        matmul_vector_matrix_row_major, matrix_ref, vector_ref,
+    };
+    use crate::{dot, error::AtlasLinalgError, matmul, operand::LinalgOperand};
+
+    fn vector_row_major(values: &[i32]) -> NDArray<i32> {
+        NDArray::from_shape_vec([values.len()], values.to_vec()).unwrap()
+    }
+
+    fn matrix_row_major(rows: usize, cols: usize, values: &[i32]) -> NDArray<i32> {
+        NDArray::from_shape_vec([rows, cols], values.to_vec()).unwrap()
+    }
+
+    fn matrix_col_major_from_rows(rows: usize, cols: usize, values: &[i32]) -> NDArray<i32> {
+        let mut data = Vec::with_capacity(rows * cols);
+
+        for col in 0..cols {
+            for row in 0..rows {
+                data.push(values[row * cols + col]);
+            }
+        }
+
+        NDArray::from_shape_vec([cols, rows], data).unwrap()
+    }
+
+    fn matrix_generic_from_rows(rows: usize, cols: usize, values: &[i32]) -> NDArray<i32> {
+        let padded_cols = cols + 1;
+        let mut data = vec![0_i32; rows * padded_cols];
+
+        for row in 0..rows {
+            for col in 0..cols {
+                data[row * padded_cols + col] = values[row * cols + col];
+            }
+        }
+
+        NDArray::from_shape_vec([rows, padded_cols], data).unwrap()
+    }
 
     #[test]
     fn dot_rejects_non_vector_inputs_and_mismatched_lengths() {
@@ -555,5 +596,127 @@ mod tests {
         assert_eq!(owned.shape(), &[] as &[usize]);
         assert_eq!(owned.shape(), viewed.shape());
         assert_eq!(owned.data(), viewed.data());
+    }
+
+    #[test]
+    fn dot_fast_and_strided_kernels_are_equivalent() {
+        let lhs_contiguous = [1_i32, 2, 3, 4];
+        let rhs_contiguous = [5_i32, 6, 7, 8];
+        let lhs_strided_data = [1_i32, -1, 2, -1, 3, -1, 4];
+        let rhs_strided_data = [5_i32, -1, 6, -1, 7, -1, 8];
+
+        let lhs_strided =
+            VectorRef { data: &lhs_strided_data, offset: 0, len: lhs_contiguous.len(), stride: 2 };
+        let rhs_strided =
+            VectorRef { data: &rhs_strided_data, offset: 0, len: rhs_contiguous.len(), stride: 2 };
+
+        let expected = dot_contiguous(&lhs_contiguous, &rhs_contiguous);
+
+        assert_eq!(expected, dot_strided(lhs_strided, rhs_strided));
+        assert_eq!(expected, dot_kernel(lhs_strided, rhs_strided));
+    }
+
+    #[test]
+    fn vector_matrix_kernels_match_row_major_col_major_and_generic_layouts() {
+        let lhs = vector_row_major(&[1, 2, 3]);
+        let rhs_values = [7_i32, 8, 9, 10, 11, 12];
+        let rhs_row_major = matrix_row_major(3, 2, &rhs_values);
+        let rhs_col_major_base = matrix_col_major_from_rows(3, 2, &rhs_values);
+        let rhs_generic_base = matrix_generic_from_rows(3, 2, &rhs_values);
+
+        let lhs_operand = LinalgOperand::from(&lhs);
+        let rhs_row_major_operand = LinalgOperand::from(&rhs_row_major);
+        let rhs_col_major_operand = LinalgOperand::from(rhs_col_major_base.view().transpose());
+        let rhs_generic_operand =
+            LinalgOperand::from(rhs_generic_base.view().slice([0, 0], [3, 2]).unwrap());
+
+        let row_major = matmul_vector_matrix_row_major(
+            vector_ref(&lhs_operand),
+            matrix_ref(&rhs_row_major_operand),
+        );
+        let col_major = matmul_vector_matrix_col_major(
+            vector_ref(&lhs_operand),
+            matrix_ref(&rhs_col_major_operand),
+        );
+        let generic = matmul_vector_matrix_generic(
+            vector_ref(&lhs_operand),
+            matrix_ref(&rhs_generic_operand),
+        );
+
+        assert_eq!(row_major, col_major);
+        assert_eq!(row_major, generic);
+    }
+
+    #[test]
+    fn matrix_vector_kernels_match_row_major_col_major_and_generic_layouts() {
+        let lhs_values = [1_i32, 2, 3, 4, 5, 6];
+        let lhs_row_major = matrix_row_major(2, 3, &lhs_values);
+        let lhs_col_major_base = matrix_col_major_from_rows(2, 3, &lhs_values);
+        let lhs_generic_base = matrix_generic_from_rows(2, 3, &lhs_values);
+        let rhs = vector_row_major(&[7, 8, 9]);
+
+        let lhs_row_major_operand = LinalgOperand::from(&lhs_row_major);
+        let lhs_col_major_operand = LinalgOperand::from(lhs_col_major_base.view().transpose());
+        let lhs_generic_operand =
+            LinalgOperand::from(lhs_generic_base.view().slice([0, 0], [2, 3]).unwrap());
+        let rhs_operand = LinalgOperand::from(&rhs);
+
+        let row_major = matmul_matrix_vector_row_major(
+            matrix_ref(&lhs_row_major_operand),
+            vector_ref(&rhs_operand),
+        );
+        let col_major = matmul_matrix_vector_col_major(
+            matrix_ref(&lhs_col_major_operand),
+            vector_ref(&rhs_operand),
+        );
+        let generic = matmul_matrix_vector_generic(
+            matrix_ref(&lhs_generic_operand),
+            vector_ref(&rhs_operand),
+        );
+
+        assert_eq!(row_major, col_major);
+        assert_eq!(row_major, generic);
+    }
+
+    #[test]
+    fn matrix_matrix_kernels_match_specialized_and_generic_layouts() {
+        let lhs_values = [1_i32, 2, 3, 4, 5, 6];
+        let rhs_values = [7_i32, 8, 9, 10, 11, 12];
+        let lhs_row_major = matrix_row_major(2, 3, &lhs_values);
+        let rhs_row_major = matrix_row_major(3, 2, &rhs_values);
+        let lhs_col_major_base = matrix_col_major_from_rows(2, 3, &lhs_values);
+        let rhs_col_major_base = matrix_col_major_from_rows(3, 2, &rhs_values);
+        let lhs_generic_base = matrix_generic_from_rows(2, 3, &lhs_values);
+        let rhs_generic_base = matrix_generic_from_rows(3, 2, &rhs_values);
+
+        let lhs_row_major_operand = LinalgOperand::from(&lhs_row_major);
+        let rhs_row_major_operand = LinalgOperand::from(&rhs_row_major);
+        let lhs_col_major_operand = LinalgOperand::from(lhs_col_major_base.view().transpose());
+        let rhs_col_major_operand = LinalgOperand::from(rhs_col_major_base.view().transpose());
+        let lhs_generic_operand =
+            LinalgOperand::from(lhs_generic_base.view().slice([0, 0], [2, 3]).unwrap());
+        let rhs_generic_operand =
+            LinalgOperand::from(rhs_generic_base.view().slice([0, 0], [3, 2]).unwrap());
+
+        let row_major = matmul_matrix_matrix_row_major(
+            matrix_ref(&lhs_row_major_operand),
+            matrix_ref(&rhs_row_major_operand),
+        );
+        let lhs_col_major = matmul_matrix_matrix_lhs_col_major(
+            matrix_ref(&lhs_col_major_operand),
+            matrix_ref(&rhs_row_major_operand),
+        );
+        let rhs_col_major = matmul_matrix_matrix_rhs_col_major(
+            matrix_ref(&lhs_row_major_operand),
+            matrix_ref(&rhs_col_major_operand),
+        );
+        let generic = matmul_matrix_matrix_generic(
+            matrix_ref(&lhs_generic_operand),
+            matrix_ref(&rhs_generic_operand),
+        );
+
+        assert_eq!(row_major, lhs_col_major);
+        assert_eq!(row_major, rhs_col_major);
+        assert_eq!(row_major, generic);
     }
 }
