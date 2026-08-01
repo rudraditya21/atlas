@@ -5,6 +5,17 @@ fn assert_close(actual: f64, expected: f64) {
     assert!((actual - expected).abs() <= 1e-10);
 }
 
+fn assert_result_close(
+    actual: Result<f64, AtlasStatsError>,
+    expected: Result<f64, AtlasStatsError>,
+) {
+    match (actual, expected) {
+        (Ok(actual), Ok(expected)) => assert_close(actual, expected),
+        (Err(actual), Err(expected)) => assert_eq!(actual, expected),
+        (actual, expected) => panic!("result mismatch: actual={actual:?}, expected={expected:?}"),
+    }
+}
+
 #[test]
 fn variance_and_stddev_use_population_definition() {
     let values = NDArray::from_shape_vec([4], vec![1.0_f64, 2.0, 3.0, 4.0]).unwrap();
@@ -48,6 +59,61 @@ fn covariance_and_correlation_support_vector_views() {
 
     assert_close(covariance(lhs.clone(), rhs.clone()).unwrap(), 2.5);
     assert_close(correlation(lhs, rhs).unwrap(), 1.0);
+}
+
+#[test]
+fn variance_and_stddev_match_between_owned_arrays_and_strided_views() {
+    let owned = NDArray::from_shape_vec([3, 2], vec![0.0_f64, 3.0, 1.0, 4.0, 2.0, 5.0]).unwrap();
+    let base = NDArray::from_shape_vec([2, 3], vec![0.0_f64, 1.0, 2.0, 3.0, 4.0, 5.0]).unwrap();
+    let view = base.view().transpose();
+
+    assert_result_close(variance(&owned), variance(view.clone()));
+    assert_result_close(stddev(&owned), stddev(view));
+}
+
+#[test]
+fn covariance_and_correlation_match_between_owned_arrays_and_views() {
+    let lhs_owned = NDArray::from_shape_vec([4], vec![1.0_f64, 2.0, 3.0, 4.0]).unwrap();
+    let rhs_owned = NDArray::from_shape_vec([4], vec![2.0_f64, 4.0, 6.0, 8.0]).unwrap();
+    let lhs_base = NDArray::from_shape_vec([5], vec![0.0_f64, 1.0, 2.0, 3.0, 4.0]).unwrap();
+    let rhs_base = NDArray::from_shape_vec([5], vec![0.0_f64, 2.0, 4.0, 6.0, 8.0]).unwrap();
+    let lhs_view = lhs_base.view().slice([1], [4]).unwrap();
+    let rhs_view = rhs_base.view().slice([1], [4]).unwrap();
+
+    assert_result_close(
+        covariance(&lhs_owned, &rhs_owned),
+        covariance(lhs_view.clone(), rhs_view.clone()),
+    );
+    assert_result_close(correlation(&lhs_owned, &rhs_owned), correlation(lhs_view, rhs_view));
+}
+
+#[test]
+fn stats_validation_errors_match_between_owned_arrays_and_views() {
+    let matrix_owned = NDArray::from_shape_vec([2, 2], vec![1.0_f64, 2.0, 3.0, 4.0]).unwrap();
+    let matrix_view = matrix_owned.view().transpose();
+    let vector_owned = NDArray::from_shape_vec([2], vec![5.0_f64, 6.0]).unwrap();
+    let lhs_owned = NDArray::from_shape_vec([3], vec![1.0_f64, 2.0, 3.0]).unwrap();
+    let rhs_owned = NDArray::from_shape_vec([2], vec![4.0_f64, 5.0]).unwrap();
+    let lhs_view_base = NDArray::from_shape_vec([4], vec![0.0_f64, 1.0, 2.0, 3.0]).unwrap();
+    let rhs_view_base = NDArray::from_shape_vec([3], vec![0.0_f64, 4.0, 5.0]).unwrap();
+    let lhs_view = lhs_view_base.view().slice([1], [3]).unwrap();
+    let rhs_view = rhs_view_base.view().slice([1], [2]).unwrap();
+    let constant_owned = NDArray::from_shape_vec([3], vec![7.0_f64, 7.0, 7.0]).unwrap();
+    let constant_view_base = NDArray::from_shape_vec([4], vec![0.0_f64, 7.0, 7.0, 7.0]).unwrap();
+    let constant_view = constant_view_base.view().slice([1], [3]).unwrap();
+
+    assert_eq!(
+        covariance(&matrix_owned, &vector_owned).unwrap_err(),
+        covariance(matrix_view, &vector_owned).unwrap_err()
+    );
+    assert_eq!(
+        correlation(&lhs_owned, &rhs_owned).unwrap_err(),
+        correlation(lhs_view, rhs_view).unwrap_err()
+    );
+    assert_eq!(
+        correlation(&constant_owned, &lhs_owned).unwrap_err(),
+        correlation(constant_view, lhs_view_base.view().slice([1], [3]).unwrap()).unwrap_err()
+    );
 }
 
 #[test]
