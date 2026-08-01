@@ -253,7 +253,7 @@ mod tests {
     }
 
     #[test]
-    fn descriptive_stats_return_structured_errors() {
+    fn descriptive_stats_report_expected_validation_errors() {
         let empty = NDArray::from_shape_vec([0], Vec::<f64>::new()).unwrap();
         let matrix = NDArray::from_shape_vec([2, 2], vec![1.0_f64, 2.0, 3.0, 4.0]).unwrap();
         let lhs = NDArray::from_shape_vec([3], vec![1.0_f64, 2.0, 3.0]).unwrap();

@@ -372,7 +372,7 @@ mod tests {
     }
 
     #[test]
-    fn factorizations_return_structured_errors() {
+    fn factorizations_report_expected_validation_errors() {
         let vector = NDArray::from_shape_vec([3], vec![1.0_f64, 2.0, 3.0]).unwrap();
         let wide = NDArray::from_shape_vec([2, 3], vec![1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
         let non_spd = NDArray::from_shape_vec([2, 2], vec![1.0_f64, 2.0, 2.0, 1.0]).unwrap();

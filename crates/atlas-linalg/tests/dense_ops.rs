@@ -38,7 +38,7 @@ fn matmul_vector_vector_returns_scalar_shaped_array() {
 }
 
 #[test]
-fn matmul_reports_shape_mismatch_cleanly() {
+fn matmul_reports_exact_shape_mismatch_error() {
     let lhs = NDArray::from_shape_vec([2, 3], vec![1_i32, 2, 3, 4, 5, 6]).unwrap();
     let rhs = NDArray::from_shape_vec([4, 2], vec![1_i32, 2, 3, 4, 5, 6, 7, 8]).unwrap();
 

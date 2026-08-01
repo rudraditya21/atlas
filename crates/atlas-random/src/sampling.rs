@@ -72,7 +72,7 @@ mod tests {
     }
 
     #[test]
-    fn sampling_rejects_invalid_parameters() {
+    fn sampling_reports_expected_validation_errors() {
         let mut rng = AtlasRng::seed_from_u64(23);
 
         assert!(matches!(

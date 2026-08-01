@@ -10,7 +10,7 @@ where
     assert_eq!(array.len(), element_count(expected_shape));
     assert_eq!(array.ndim(), expected_shape.len());
     assert!(array.is_contiguous());
-    assert_eq!(array.is_empty(), array.len() == 0);
+    assert_eq!(array.is_empty(), expected_shape.iter().product::<usize>() == 0);
 }
 
 #[test]
