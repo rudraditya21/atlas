@@ -7,7 +7,7 @@ publish = false
 [workspace]
 resolver = "2"
 
-members = ["crates/atlas-constants", "crates/atlas-ndarray"]
+members = ["crates/atlas-constants", "crates/atlas-linalg", "crates/atlas-ndarray"]
 
 [workspace.dependencies]
 

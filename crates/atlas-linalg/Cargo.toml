@@ -1,0 +1,8 @@
+[package]
+name = "atlas-linalg"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+atlas-ndarray = { path = "../atlas-ndarray" }
+thiserror = "2"

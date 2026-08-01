@@ -36,6 +36,14 @@ name = "atlas-constants"
 version = "0.1.0"
 
 [[package]]
+name = "atlas-linalg"
+version = "0.1.0"
+dependencies = [
+ "atlas-ndarray",
+ "thiserror",
+]
+
+[[package]]
 name = "atlas-ndarray"
 version = "0.1.0"
 dependencies = [
