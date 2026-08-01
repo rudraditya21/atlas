@@ -1,5 +1,15 @@
 use atlas_ndarray::{AtlasNdError, array::NDArray};
 
+fn assert_array_eq<T>(lhs: &NDArray<T>, rhs: &NDArray<T>)
+where
+    T: atlas_ndarray::Numeric + PartialEq,
+{
+    assert_eq!(lhs.shape(), rhs.shape());
+    assert_eq!(lhs.strides(), rhs.strides());
+    assert_eq!(lhs.data(), rhs.data());
+    assert_eq!(lhs.is_contiguous(), rhs.is_contiguous());
+}
+
 #[test]
 fn elementwise_add_broadcasts_singleton_dimensions() {
     let lhs = NDArray::from_vec(vec![2, 1], vec![1_i32, 2]).unwrap();
@@ -48,4 +58,26 @@ fn elementwise_methods_dispatch_to_scalar_paths() {
     assert_eq!(array.sub(1).data(), &[0, 1, 2]);
     assert_eq!(array.mul(2).data(), &[2, 4, 6]);
     assert_eq!(array.div(2).data(), &[0, 1, 1]);
+}
+
+#[test]
+fn scalar_values_match_scalar_shaped_array_results() {
+    let array = NDArray::from_vec([2, 2], vec![2_i32, 4, 6, 8]).unwrap();
+    let scalar = NDArray::from_shape_vec([], vec![2_i32]).unwrap();
+
+    assert_array_eq(&array.add(2), &array.add(&scalar).unwrap());
+    assert_array_eq(&array.sub(2), &array.sub(&scalar).unwrap());
+    assert_array_eq(&array.mul(2), &array.mul(&scalar).unwrap());
+    assert_array_eq(&array.div(2), &array.div(&scalar).unwrap());
+}
+
+#[test]
+fn scalar_and_scalar_shaped_array_paths_match_for_empty_outputs() {
+    let empty = NDArray::<i32>::zeros([0, 3]);
+    let scalar = NDArray::from_shape_vec([], vec![7_i32]).unwrap();
+
+    assert_array_eq(&empty.add(7), &empty.add(&scalar).unwrap());
+    assert_array_eq(&empty.sub(7), &empty.sub(&scalar).unwrap());
+    assert_array_eq(&empty.mul(7), &empty.mul(&scalar).unwrap());
+    assert_array_eq(&empty.div(7), &empty.div(&scalar).unwrap());
 }

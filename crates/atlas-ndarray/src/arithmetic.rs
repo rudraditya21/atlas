@@ -1,7 +1,8 @@
 use std::ops::{Add, Div, Mul, Sub};
 
 use super::{
-    array::NDArray, broadcast::broadcast_pair, error::AtlasNdResult, traits::Numeric,
+    array::NDArray, broadcast::broadcast_pair, error::AtlasNdResult, stride::compute_strides,
+    traits::Numeric,
     traversal::broadcast_offset_pair_iter,
 };
 
@@ -98,7 +99,7 @@ impl<T: Numeric> NDArray<T> {
             data.push(op(lhs[index], rhs[index]));
         }
 
-        Self { data, shape: self.shape.clone(), strides: self.strides.clone() }
+        Self::from_owned_parts(self.shape.clone(), data)
     }
 
     fn elementwise_binary_broadcast<F>(&self, rhs: &Self, op: F) -> AtlasNdResult<Self>
@@ -116,11 +117,7 @@ impl<T: Numeric> NDArray<T> {
             data.push(op(self.data[lhs_offset], rhs.data[rhs_offset]));
         }
 
-        Ok(Self {
-            data,
-            shape: metadata.shape.clone(),
-            strides: super::stride::compute_strides(&metadata.shape),
-        })
+        Ok(Self::from_owned_parts(metadata.shape, data))
     }
 
     fn elementwise_scalar<F>(&self, scalar: T, op: F) -> Self
@@ -135,7 +132,11 @@ impl<T: Numeric> NDArray<T> {
             data.push(op(value, scalar));
         }
 
-        Self { data, shape: self.shape.clone(), strides: self.strides.clone() }
+        Self::from_owned_parts(self.shape.clone(), data)
+    }
+
+    fn from_owned_parts(shape: Vec<usize>, data: Vec<T>) -> Self {
+        Self { strides: compute_strides(&shape), shape, data }
     }
 }
 
@@ -271,6 +272,16 @@ impl<T: Numeric> Div<T> for &NDArray<T> {
 mod tests {
     use crate::{AtlasNdError, array::NDArray};
 
+    fn assert_array_eq<T>(lhs: &NDArray<T>, rhs: &NDArray<T>)
+    where
+        T: crate::traits::Numeric + PartialEq,
+    {
+        assert_eq!(lhs.shape(), rhs.shape());
+        assert_eq!(lhs.strides(), rhs.strides());
+        assert_eq!(lhs.data(), rhs.data());
+        assert_eq!(lhs.is_contiguous(), rhs.is_contiguous());
+    }
+
     #[test]
     fn add_uses_contiguous_fast_path_for_equal_shapes() {
         let lhs = NDArray::from_vec(vec![2, 2], vec![1_i32, 2, 3, 4]).unwrap();
@@ -360,5 +371,29 @@ mod tests {
         assert_eq!((&array - 1).data(), &[0, 1, 2]);
         assert_eq!((&array * 2).data(), &[2, 4, 6]);
         assert_eq!((&array / 2).data(), &[0, 1, 1]);
+    }
+
+    #[test]
+    fn scalar_rhs_values_match_scalar_shaped_array_semantics() {
+        let array = NDArray::from_vec([2, 2], vec![2_i32, 4, 6, 8]).unwrap();
+        let scalar = NDArray::from_shape_vec([], vec![2_i32]).unwrap();
+
+        assert_array_eq(&array.add(2), &array.add(&scalar).unwrap());
+        assert_array_eq(&array.sub(2), &array.sub(&scalar).unwrap());
+        assert_array_eq(&array.mul(2), &array.mul(&scalar).unwrap());
+        assert_array_eq(&array.div(2), &array.div(&scalar).unwrap());
+    }
+
+    #[test]
+    fn scalar_paths_match_broadcast_array_paths_for_scalar_and_empty_outputs() {
+        let scalar_array = NDArray::from_shape_vec([], vec![9_i32]).unwrap();
+        let scalar_rhs = NDArray::from_shape_vec([], vec![3_i32]).unwrap();
+        let empty_array = NDArray::<i32>::zeros([0, 3]);
+        let empty_rhs = NDArray::from_shape_vec([], vec![5_i32]).unwrap();
+
+        assert_array_eq(&scalar_array.add(3), &scalar_array.add(&scalar_rhs).unwrap());
+        assert_array_eq(&scalar_array.sub(3), &scalar_array.sub(&scalar_rhs).unwrap());
+        assert_array_eq(&empty_array.mul(5), &empty_array.mul(&empty_rhs).unwrap());
+        assert_array_eq(&empty_array.div(5), &empty_array.div(&empty_rhs).unwrap());
     }
 }
