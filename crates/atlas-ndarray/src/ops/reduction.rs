@@ -3,7 +3,9 @@ use num_traits::ToPrimitive;
 use crate::{
     AtlasNdError, AtlasNdResult, AxisIndex, NDArray, Numeric,
     core::axis::normalize_axis,
-    internal::{LayoutKind, for_each_value, is_contiguous_layout, offset_iter, try_for_each_value},
+    internal::{
+        LayoutKind, for_each_value, is_contiguous_layout, offset_iter, simd, try_for_each_value,
+    },
     layout::element_count,
     view::ArrayView,
 };
@@ -177,72 +179,32 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
 }
 
 fn sum_contiguous<T: Numeric>(values: &[T]) -> T {
-    let mut total = T::zero();
-
-    for &value in values {
-        total += value;
-    }
-
-    total
+    simd::sum_contiguous(values)
 }
 
 fn prod_contiguous<T: Numeric>(values: &[T]) -> T {
-    let mut total = T::one();
-
-    for &value in values {
-        total *= value;
-    }
-
-    total
+    simd::prod_contiguous(values)
 }
 
 fn min_contiguous<T>(values: &[T], op: &'static str) -> AtlasNdResult<T>
 where
     T: Numeric + PartialOrd,
 {
-    let mut iter = values.iter().copied();
-    let mut minimum = iter.next().ok_or(AtlasNdError::EmptyReduction { op })?;
-
-    for value in iter {
-        if value < minimum {
-            minimum = value;
-        }
-    }
-
-    Ok(minimum)
+    simd::min_contiguous(values, op)
 }
 
 fn max_contiguous<T>(values: &[T], op: &'static str) -> AtlasNdResult<T>
 where
     T: Numeric + PartialOrd,
 {
-    let mut iter = values.iter().copied();
-    let mut maximum = iter.next().ok_or(AtlasNdError::EmptyReduction { op })?;
-
-    for value in iter {
-        if value > maximum {
-            maximum = value;
-        }
-    }
-
-    Ok(maximum)
+    simd::max_contiguous(values, op)
 }
 
 fn mean_contiguous<T>(values: &[T], op: &'static str) -> AtlasNdResult<f64>
 where
     T: Numeric + ToPrimitive,
 {
-    if values.is_empty() {
-        return Err(AtlasNdError::EmptyReduction { op });
-    }
-
-    let mut total = 0.0_f64;
-
-    for &value in values {
-        total += value.to_f64().ok_or(AtlasNdError::NumericConversionFailed { op })?;
-    }
-
-    Ok(total / values.len() as f64)
+    simd::mean_contiguous(values, op)
 }
 
 fn sum_axis_impl<T: Numeric>(

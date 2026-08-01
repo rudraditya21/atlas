@@ -1,3 +1,5 @@
+pub(crate) mod simd;
+
 use std::slice::Iter;
 
 use crate::layout::{compute_strides, element_count};

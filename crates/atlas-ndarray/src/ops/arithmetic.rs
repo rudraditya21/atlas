@@ -2,7 +2,9 @@ use std::ops::{Add, Div, Mul, Sub};
 
 use crate::{
     AtlasNdResult, NDArray, Numeric,
-    internal::{PairLayoutKind, broadcast_offset_pair_iter, offset_pair_iter, pair_layout_kind},
+    internal::{
+        PairLayoutKind, broadcast_offset_pair_iter, offset_pair_iter, pair_layout_kind, simd,
+    },
     layout::{
         broadcast::{BroadcastMetadata, broadcast_pair},
         stride::compute_strides,
@@ -99,10 +101,7 @@ impl<T: Numeric> NDArray<T> {
     {
         let len = self.data.len();
         let mut data = vec![T::zero(); len];
-
-        for (slot, (&lhs, &rhs)) in data.iter_mut().zip(self.data.iter().zip(rhs.data.iter())) {
-            *slot = op(lhs, rhs);
-        }
+        simd::map_binary_contiguous(&self.data, &rhs.data, &mut data, op);
 
         Self::from_owned_parts(self.shape.clone(), data)
     }
@@ -156,10 +155,7 @@ impl<T: Numeric> NDArray<T> {
     {
         let len = self.data.len();
         let mut data = vec![T::zero(); len];
-
-        for (slot, &value) in data.iter_mut().zip(self.data.iter()) {
-            *slot = op(value, scalar);
-        }
+        simd::map_scalar_contiguous(&self.data, scalar, &mut data, op);
 
         Self::from_owned_parts(self.shape.clone(), data)
     }

@@ -1,6 +1,7 @@
 use atlas_ndarray::Numeric;
 
 use crate::core::LinalgOperand;
+use crate::internal::simd;
 
 #[derive(Clone, Copy)]
 pub(crate) struct VectorRef<'a, T: Numeric> {
@@ -99,30 +100,7 @@ pub(crate) fn dot_kernel<T: Numeric>(lhs: VectorRef<'_, T>, rhs: VectorRef<'_, T
 }
 
 pub(crate) fn dot_contiguous<T: Numeric>(lhs: &[T], rhs: &[T]) -> T {
-    let len = lhs.len();
-    let mut acc0 = T::zero();
-    let mut acc1 = T::zero();
-    let mut acc2 = T::zero();
-    let mut acc3 = T::zero();
-    let mut index = 0;
-
-    while index + 4 <= len {
-        acc0 += lhs[index] * rhs[index];
-        acc1 += lhs[index + 1] * rhs[index + 1];
-        acc2 += lhs[index + 2] * rhs[index + 2];
-        acc3 += lhs[index + 3] * rhs[index + 3];
-        index += 4;
-    }
-
-    let mut total = acc0 + acc1;
-    total += acc2 + acc3;
-
-    while index < len {
-        total += lhs[index] * rhs[index];
-        index += 1;
-    }
-
-    total
+    simd::dot_contiguous(lhs, rhs)
 }
 
 pub(crate) fn dot_strided<T: Numeric>(lhs: VectorRef<'_, T>, rhs: VectorRef<'_, T>) -> T {

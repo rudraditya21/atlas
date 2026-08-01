@@ -4,6 +4,7 @@ use crate::core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand};
 use crate::internal::dense::{
     MatrixRef, VectorRef, dot_contiguous, dot_kernel, matrix_ref, vector_ref,
 };
+use crate::internal::simd;
 
 const ROW_MAJOR_MATMUL_BLOCK_SIZE: usize = 32;
 const ROW_MAJOR_MATMUL_BLOCK_THRESHOLD: usize = 64 * 64 * 64;
@@ -146,9 +147,7 @@ fn matmul_vector_matrix_row_major<T: Numeric>(
     let mut data = vec![T::zero(); rhs.cols];
 
     for (lhs_value, rhs_row) in lhs_values.iter().copied().zip(rhs_values.chunks_exact(rhs.cols)) {
-        for (output, rhs_value) in data.iter_mut().zip(rhs_row.iter().copied()) {
-            *output += lhs_value * rhs_value;
-        }
+        simd::scaled_accumulate_contiguous(&mut data, rhs_row, lhs_value);
     }
 
     data
@@ -262,10 +261,7 @@ fn matmul_matrix_matrix_row_major_simple<T: Numeric>(
     {
         for (k, lhs_value) in lhs_row.iter().copied().enumerate() {
             let rhs_row = &rhs_values[k * rhs.cols..(k + 1) * rhs.cols];
-
-            for (output, rhs_value) in out_row.iter_mut().zip(rhs_row.iter().copied()) {
-                *output += lhs_value * rhs_value;
-            }
+            simd::scaled_accumulate_contiguous(out_row, rhs_row, lhs_value);
         }
     }
 
@@ -298,10 +294,7 @@ fn matmul_matrix_matrix_row_major_blocked<T: Numeric>(
                     {
                         let k = k_block + local_k;
                         let rhs_row = &rhs_values[k * rhs.cols + col_block..k * rhs.cols + col_end];
-
-                        for (output, rhs_value) in out_row.iter_mut().zip(rhs_row.iter().copied()) {
-                            *output += lhs_value * rhs_value;
-                        }
+                        simd::scaled_accumulate_contiguous(out_row, rhs_row, lhs_value);
                     }
                 }
             }
@@ -331,10 +324,7 @@ fn matmul_matrix_matrix_lhs_col_major<T: Numeric>(
         for row in 0..lhs.rows {
             let lhs_value = lhs_col[row];
             let out_row = &mut data[row * rhs.cols..(row + 1) * rhs.cols];
-
-            for col in 0..rhs.cols {
-                out_row[col] += lhs_value * rhs_row[col];
-            }
+            simd::scaled_accumulate_contiguous(out_row, rhs_row, lhs_value);
         }
     }
 
