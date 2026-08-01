@@ -1,6 +1,7 @@
 use crate::{
-    ArrayView, AtlasNdError, AtlasNdResult, Numeric,
+    AtlasNdError, AtlasNdResult, Numeric,
     layout::stride::{compute_strides, element_count},
+    view::ArrayView,
 };
 
 impl<'a, T: Numeric> ArrayView<'a, T> {

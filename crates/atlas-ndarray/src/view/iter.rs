@@ -1,7 +1,7 @@
 use std::slice::{Iter, IterMut};
 use std::vec::IntoIter;
 
-use crate::{ArrayView, NDArray, Numeric, internal};
+use crate::{NDArray, Numeric, internal, view::ArrayView};
 
 pub struct ArrayViewIter<'a, T> {
     inner: internal::ValueIter<'a, T>,

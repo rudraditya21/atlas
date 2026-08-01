@@ -1,4 +1,4 @@
-use crate::{ArrayView, Numeric};
+use crate::{Numeric, view::ArrayView};
 
 impl<'a, T: Numeric> ArrayView<'a, T> {
     pub fn transpose(mut self) -> Self {

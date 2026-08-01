@@ -1,4 +1,4 @@
-use crate::{ArrayView, AtlasNdError, AtlasNdResult, Numeric};
+use crate::{AtlasNdError, AtlasNdResult, Numeric, view::ArrayView};
 
 impl<'a, T: Numeric> ArrayView<'a, T> {
     pub fn slice<I, S>(&self, starts: I, new_shape: S) -> AtlasNdResult<ArrayView<'a, T>>

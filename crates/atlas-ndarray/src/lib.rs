@@ -31,5 +31,4 @@ pub use layout::broadcast::{
 };
 pub use layout::stride::{compute_strides, element_count};
 pub use ops::arithmetic::{AddOperand, DivOperand, MulOperand, SubOperand};
-pub use view::iter::ArrayViewIter;
-pub use view::view::ArrayView;
+pub use view::{ArrayView, ArrayViewIter};

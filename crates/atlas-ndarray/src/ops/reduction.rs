@@ -1,10 +1,11 @@
 use num_traits::ToPrimitive;
 
 use crate::{
-    ArrayView, AtlasNdError, AtlasNdResult, AxisIndex, NDArray, Numeric,
+    AtlasNdError, AtlasNdResult, AxisIndex, NDArray, Numeric,
     core::axis::normalize_axis,
     internal::{for_each_value, offset_iter, try_for_each_value},
     layout::stride::element_count,
+    view::ArrayView,
 };
 
 impl<T: Numeric> NDArray<T> {
