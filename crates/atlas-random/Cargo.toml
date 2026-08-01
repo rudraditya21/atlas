@@ -1,0 +1,11 @@
+[package]
+name = "atlas-random"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+atlas-ndarray = { path = "../atlas-ndarray" }
+num-traits = "0.2"
+rand = "0.8"
+rand_distr = "0.4"
+thiserror = "2"

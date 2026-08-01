@@ -11,6 +11,7 @@ members = [
     "crates/atlas-constants",
     "crates/atlas-linalg",
     "crates/atlas-ndarray",
+    "crates/atlas-random",
     "crates/atlas-stats",
 ]
 
