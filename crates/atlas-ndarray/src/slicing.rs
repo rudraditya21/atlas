@@ -1,25 +1,109 @@
-use super::{traits::Numeric, view::ArrayView};
+use super::{
+    error::{AtlasNdError, AtlasNdResult},
+    traits::Numeric,
+    view::ArrayView,
+};
 
 impl<'a, T: Numeric> ArrayView<'a, T> {
-    pub fn slice(&self, starts: &[usize], new_shape: Vec<usize>) -> ArrayView<'a, T> {
-        assert_eq!(starts.len(), self.shape.len());
+    pub fn slice(&self, starts: &[usize], new_shape: Vec<usize>) -> AtlasNdResult<ArrayView<'a, T>> {
+        debug_assert_eq!(self.shape.len(), self.strides.len());
+        if starts.len() != self.shape.len() {
+            return Err(AtlasNdError::DimensionMismatch {
+                expected: self.shape.len(),
+                actual: starts.len(),
+            });
+        }
+
+        if new_shape.len() != self.shape.len() {
+            return Err(AtlasNdError::DimensionMismatch {
+                expected: self.shape.len(),
+                actual: new_shape.len(),
+            });
+        }
 
         let mut offset = self.offset;
 
-        for ((start, dim), stride) in starts
+        for (axis, (((start, len), dim), stride)) in starts
             .iter()
+            .zip(new_shape.iter())
             .zip(self.shape.iter())
             .zip(self.strides.iter())
+            .enumerate()
         {
-            assert!(*start < *dim);
+            let end = start.checked_add(*len).ok_or(AtlasNdError::InvalidSlice {
+                axis,
+                start: *start,
+                len: *len,
+                dim: *dim,
+            })?;
+
+            if *start > *dim || end > *dim {
+                return Err(AtlasNdError::InvalidSlice {
+                    axis,
+                    start: *start,
+                    len: *len,
+                    dim: *dim,
+                });
+            }
+
             offset += start * stride;
         }
 
-        ArrayView {
+        Ok(ArrayView {
             data: self.data,
             offset,
             shape: new_shape,
             strides: self.strides.clone(),
-        }
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{array::NDArray, error::AtlasNdError};
+
+    #[test]
+    fn slice_builds_a_view_with_checked_bounds() {
+        let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+        let view = array.view();
+        let slice = view.slice(&[0, 1], vec![2, 2]).unwrap();
+
+        assert_eq!(slice.shape(), &[2, 2]);
+        assert_eq!(slice.strides(), &[3, 1]);
+        assert!(!slice.is_contiguous());
+        assert_eq!(*slice.get(&[0, 0]).unwrap(), 1);
+        assert_eq!(*slice.get(&[1, 1]).unwrap(), 5);
+    }
+
+    #[test]
+    fn slice_rejects_invalid_extent() {
+        let array = NDArray::new(vec![2, 3], 0_i32);
+        let view = array.view();
+        let error = view.slice(&[0, 2], vec![2, 2]).unwrap_err();
+
+        assert_eq!(
+            error,
+            AtlasNdError::InvalidSlice {
+                axis: 1,
+                start: 2,
+                len: 2,
+                dim: 3,
+            }
+        );
+    }
+
+    #[test]
+    fn slice_rejects_rank_mismatch() {
+        let array = NDArray::new(vec![2, 3], 0_i32);
+        let view = array.view();
+        let error = view.slice(&[0], vec![1, 1]).unwrap_err();
+
+        assert_eq!(
+            error,
+            AtlasNdError::DimensionMismatch {
+                expected: 2,
+                actual: 1,
+            }
+        );
     }
 }

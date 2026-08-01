@@ -17,6 +17,23 @@ pub enum AtlasNdError {
         dim: usize,
     },
 
+    #[error(
+        "invalid slice on axis {axis}: start {start}, length {len}, axis length {dim}"
+    )]
+    InvalidSlice {
+        axis: usize,
+        start: usize,
+        len: usize,
+        dim: usize,
+    },
+
+    #[error("invalid reshape from {from:?} to {to:?}: {reason}")]
+    InvalidReshape {
+        from: Vec<usize>,
+        to: Vec<usize>,
+        reason: &'static str,
+    },
+
     #[error("invalid shape")]
     InvalidShape,
 }

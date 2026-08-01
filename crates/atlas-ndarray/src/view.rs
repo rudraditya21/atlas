@@ -1,4 +1,9 @@
-use super::{array::NDArray, traits::Numeric};
+use super::{
+    array::NDArray,
+    error::{AtlasNdError, AtlasNdResult},
+    stride::{compute_strides, element_count},
+    traits::Numeric,
+};
 
 #[derive(Debug, Clone)]
 pub struct ArrayView<'a, T: Numeric> {
@@ -20,25 +25,106 @@ impl<T: Numeric> NDArray<T> {
 }
 
 impl<'a, T: Numeric> ArrayView<'a, T> {
-    fn offset(&self, index: &[usize]) -> usize {
-        assert_eq!(index.len(), self.shape.len());
+    fn offset(&self, index: &[usize]) -> AtlasNdResult<usize> {
+        debug_assert_eq!(self.shape.len(), self.strides.len());
+        if index.len() != self.shape.len() {
+            return Err(AtlasNdError::DimensionMismatch {
+                expected: self.shape.len(),
+                actual: index.len(),
+            });
+        }
 
         let mut offset = self.offset;
 
-        for ((i, dim), stride) in index.iter().zip(self.shape.iter()).zip(self.strides.iter()) {
-            assert!(*i < *dim, "Index out of bounds");
-            offset += i * stride;
+        for (axis, ((index, dim), stride)) in index
+            .iter()
+            .zip(self.shape.iter())
+            .zip(self.strides.iter())
+            .enumerate()
+        {
+            if *index >= *dim {
+                return Err(AtlasNdError::IndexOutOfBounds {
+                    axis,
+                    index: *index,
+                    dim: *dim,
+                });
+            }
+            offset += index * stride;
         }
 
-        offset
+        Ok(offset)
     }
 
-    pub fn get(&self, index: &[usize]) -> &T {
-        let idx = self.offset(index);
-        &self.data[idx]
+    pub fn get(&self, index: &[usize]) -> AtlasNdResult<&T> {
+        let idx = self.offset(index)?;
+        Ok(&self.data[idx])
     }
 
     pub fn shape(&self) -> &[usize] {
         &self.shape
+    }
+
+    pub fn strides(&self) -> &[usize] {
+        &self.strides
+    }
+
+    pub fn len(&self) -> usize {
+        element_count(&self.shape)
+    }
+
+    pub fn ndim(&self) -> usize {
+        self.shape.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn is_contiguous(&self) -> bool {
+        debug_assert_eq!(self.shape.len(), self.strides.len());
+        self.strides == compute_strides(&self.shape)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::error::AtlasNdError;
+
+    use super::NDArray;
+
+    #[test]
+    fn view_preserves_owned_layout_metadata() {
+        let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+        let view = array.view();
+
+        assert_eq!(view.shape(), &[2, 3]);
+        assert_eq!(view.strides(), &[3, 1]);
+        assert_eq!(view.len(), 6);
+        assert_eq!(view.ndim(), 2);
+        assert!(view.is_contiguous());
+    }
+
+    #[test]
+    fn view_get_uses_underlying_array_storage() {
+        let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+        let view = array.view();
+
+        assert_eq!(*view.get(&[1, 2]).unwrap(), 5);
+    }
+
+    #[test]
+    fn view_get_rejects_dimension_mismatch() {
+        let array = NDArray::new(vec![2, 3], 0_i32);
+        let view = array.view();
+
+        let error = view.get(&[0]).unwrap_err();
+
+        assert_eq!(
+            error,
+            AtlasNdError::DimensionMismatch {
+                expected: 2,
+                actual: 1,
+            }
+        );
     }
 }
