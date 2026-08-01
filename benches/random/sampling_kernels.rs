@@ -1,13 +1,14 @@
-use atlas_random::{AtlasRng, normal, uniform};
-use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
+#[path = "../support/mod.rs"]
+mod common;
 
-const VECTOR_SIZES: [usize; 4] = [1 << 10, 1 << 14, 1 << 18, 1 << 20];
+use atlas_random::{AtlasRng, normal, uniform};
+use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 
 fn bench_uniform(c: &mut Criterion) {
-    let mut group = c.benchmark_group("random/uniform");
+    let mut group = c.benchmark_group("random/uniform/contiguous");
 
-    for size in VECTOR_SIZES {
-        group.throughput(Throughput::Elements(size as u64));
+    for size in common::VECTOR_SIZES {
+        common::configure_group(&mut group, size);
         group.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, &size| {
             let mut rng = AtlasRng::seed_from_u64(1_000 + size as u64);
 
@@ -22,10 +23,10 @@ fn bench_uniform(c: &mut Criterion) {
 }
 
 fn bench_normal(c: &mut Criterion) {
-    let mut group = c.benchmark_group("random/normal");
+    let mut group = c.benchmark_group("random/normal/contiguous");
 
-    for size in VECTOR_SIZES {
-        group.throughput(Throughput::Elements(size as u64));
+    for size in common::VECTOR_SIZES {
+        common::configure_group(&mut group, size);
         group.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, &size| {
             let mut rng = AtlasRng::seed_from_u64(2_000 + size as u64);
 
