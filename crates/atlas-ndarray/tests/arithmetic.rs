@@ -1,8 +1,8 @@
-use atlas_ndarray::{AtlasNdError, array::NDArray};
+use atlas_ndarray::{AtlasNdError, NDArray, Numeric};
 
 fn assert_array_eq<T>(lhs: &NDArray<T>, rhs: &NDArray<T>)
 where
-    T: atlas_ndarray::Numeric + PartialEq,
+    T: Numeric + PartialEq,
 {
     assert_eq!(lhs.shape(), rhs.shape());
     assert_eq!(lhs.strides(), rhs.strides());

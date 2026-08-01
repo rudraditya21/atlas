@@ -1,4 +1,4 @@
-use atlas_ndarray::array::NDArray;
+use atlas_ndarray::NDArray;
 
 #[test]
 fn view_iteration_preserves_logical_order_for_contiguous_layouts() {

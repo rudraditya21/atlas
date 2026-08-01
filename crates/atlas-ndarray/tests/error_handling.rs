@@ -1,4 +1,4 @@
-use atlas_ndarray::{AtlasNdError, array::NDArray};
+use atlas_ndarray::{AtlasNdError, NDArray};
 
 #[test]
 fn from_vec_returns_shape_mismatch_error() {

@@ -1,4 +1,4 @@
-use atlas_ndarray::{AtlasNdError, array::NDArray};
+use atlas_ndarray::{AtlasNdError, NDArray};
 
 #[test]
 fn array_reductions_match_expected_values() {

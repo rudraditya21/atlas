@@ -14,23 +14,24 @@
 //! - reshape is allowed only when the view is contiguous and element count is unchanged
 //! - broadcast compatibility follows trailing-dimension alignment with singleton expansion
 
-pub mod arithmetic;
-pub mod array;
-pub mod axis;
-pub mod broadcast;
-pub mod constructors;
-pub mod error;
-pub mod indexing;
-pub mod iter;
-pub mod reduction;
-pub mod reshape;
-pub mod slicing;
-pub mod stride;
-pub mod traits;
-pub mod transpose;
+mod arithmetic;
+mod array;
+mod axis;
+mod broadcast;
+mod constructors;
+mod error;
+mod indexing;
+mod iter;
+mod reduction;
+mod reshape;
+mod slicing;
+mod stride;
+mod traits;
+mod transpose;
 pub(crate) mod traversal;
-pub mod view;
+mod view;
 
+pub use arithmetic::{AddOperand, DivOperand, MulOperand, SubOperand};
 pub use array::NDArray;
 pub use axis::AxisIndex;
 pub use broadcast::{
@@ -38,5 +39,7 @@ pub use broadcast::{
     contiguous_broadcast_metadata,
 };
 pub use error::{AtlasNdError, AtlasNdResult};
+pub use iter::ArrayViewIter;
+pub use stride::{compute_strides, element_count};
 pub use traits::Numeric;
 pub use view::ArrayView;

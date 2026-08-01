@@ -1,5 +1,4 @@
-use atlas_ndarray::array::NDArray;
-use atlas_ndarray::stride::compute_strides;
+use atlas_ndarray::{NDArray, compute_strides};
 
 #[test]
 fn compute_strides_matches_row_major_layout() {

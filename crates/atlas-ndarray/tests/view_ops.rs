@@ -1,4 +1,4 @@
-use atlas_ndarray::{AtlasNdError, array::NDArray};
+use atlas_ndarray::{AtlasNdError, NDArray};
 
 #[test]
 fn slicing_and_indexing_preserve_underlying_mapping() {

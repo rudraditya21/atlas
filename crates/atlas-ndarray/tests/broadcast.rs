@@ -1,6 +1,5 @@
 use atlas_ndarray::{
-    AtlasNdError,
-    broadcast::{BroadcastMetadata, broadcast_pair, broadcast_shape, broadcast_strides},
+    AtlasNdError, BroadcastMetadata, broadcast_pair, broadcast_shape, broadcast_strides,
 };
 
 #[test]
