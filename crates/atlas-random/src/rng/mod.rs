@@ -9,7 +9,7 @@ use rand::{
 };
 use rand_distr::{Normal, StandardNormal};
 
-use crate::error::{AtlasRandomError, AtlasRandomResult};
+use crate::core::{AtlasRandomError, AtlasRandomResult};
 
 pub trait RandomSource {
     fn sample_uniform<T>(&mut self, low: T, high: T) -> AtlasRandomResult<T>

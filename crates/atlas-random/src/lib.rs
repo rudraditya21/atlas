@@ -1,7 +1,7 @@
-mod error;
+mod core;
+mod distributions;
 mod rng;
-mod sampling;
 
-pub use error::{AtlasRandomError, AtlasRandomResult};
+pub use core::{AtlasRandomError, AtlasRandomResult};
+pub use distributions::{normal, uniform};
 pub use rng::{AtlasRng, RandomSource};
-pub use sampling::{normal, uniform};

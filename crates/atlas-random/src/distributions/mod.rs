@@ -3,7 +3,7 @@ use num_traits::Float;
 use rand::distributions::{Distribution, uniform::SampleUniform};
 use rand_distr::StandardNormal;
 
-use crate::{error::AtlasRandomResult, rng::RandomSource};
+use crate::{core::AtlasRandomResult, rng::RandomSource};
 
 pub fn uniform<T, S, R>(shape: S, low: T, high: T, rng: &mut R) -> AtlasRandomResult<NDArray<T>>
 where
