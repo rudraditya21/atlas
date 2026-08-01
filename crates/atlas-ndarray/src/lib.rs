@@ -5,6 +5,7 @@ pub mod constructors;
 pub mod error;
 pub mod indexing;
 pub mod iter;
+pub mod reduction;
 pub mod reshape;
 pub mod slicing;
 pub mod stride;

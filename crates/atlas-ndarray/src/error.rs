@@ -45,6 +45,12 @@ pub enum AtlasNdError {
         rhs_dim: usize,
     },
 
+    #[error("cannot reduce empty array for operation {op}")]
+    EmptyReduction { op: &'static str },
+
+    #[error("numeric conversion failed during operation {op}")]
+    NumericConversionFailed { op: &'static str },
+
     #[error("invalid shape")]
     InvalidShape,
 }
