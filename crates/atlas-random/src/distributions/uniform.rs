@@ -1,9 +1,10 @@
 use atlas_ndarray::{NDArray, Numeric};
 use rand::distributions::uniform::SampleUniform;
 
-use crate::{core::AtlasRandomResult, rng::RandomSource};
-
-use super::element_count;
+use crate::{
+    core::{AtlasRandomResult, element_count},
+    rng::RandomSource,
+};
 
 pub fn uniform<T, S, R>(shape: S, low: T, high: T, rng: &mut R) -> AtlasRandomResult<NDArray<T>>
 where

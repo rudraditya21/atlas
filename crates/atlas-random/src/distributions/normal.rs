@@ -3,9 +3,10 @@ use num_traits::Float;
 use rand::distributions::Distribution;
 use rand_distr::StandardNormal;
 
-use crate::{core::AtlasRandomResult, rng::RandomSource};
-
-use super::element_count;
+use crate::{
+    core::{AtlasRandomResult, element_count},
+    rng::RandomSource,
+};
 
 pub fn normal<T, S, R>(shape: S, mean: T, stddev: T, rng: &mut R) -> AtlasRandomResult<NDArray<T>>
 where

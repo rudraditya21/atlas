@@ -1,5 +1,3 @@
-use core::cmp::Ordering;
-
 use atlas_ndarray::Numeric;
 use num_traits::Float;
 use rand::{
@@ -9,7 +7,9 @@ use rand::{
 };
 use rand_distr::{Normal, StandardNormal};
 
-use crate::core::{AtlasRandomError, AtlasRandomResult};
+use crate::core::{
+    AtlasRandomError, AtlasRandomResult, validate_normal_parameters, validate_uniform_bounds,
+};
 
 use super::RandomSource;
 
@@ -39,12 +39,7 @@ impl RandomSource for AtlasRng {
     where
         T: Numeric + SampleUniform + PartialOrd,
     {
-        if low.partial_cmp(&high) != Some(Ordering::Less) {
-            return Err(AtlasRandomError::InvalidArgument {
-                op: "uniform",
-                reason: "low must be strictly less than high",
-            });
-        }
+        validate_uniform_bounds(low, high)?;
 
         let distribution = Uniform::new(low, high);
 
@@ -56,19 +51,7 @@ impl RandomSource for AtlasRng {
         T: Numeric + Float,
         StandardNormal: Distribution<T>,
     {
-        if !mean.is_finite() || !stddev.is_finite() {
-            return Err(AtlasRandomError::InvalidArgument {
-                op: "normal",
-                reason: "mean and stddev must be finite",
-            });
-        }
-
-        if stddev <= T::zero() {
-            return Err(AtlasRandomError::InvalidArgument {
-                op: "normal",
-                reason: "stddev must be strictly positive",
-            });
-        }
+        validate_normal_parameters(mean, stddev)?;
 
         let distribution = Normal::new(mean, stddev).map_err(|_| {
             AtlasRandomError::DistributionInitializationFailed {
