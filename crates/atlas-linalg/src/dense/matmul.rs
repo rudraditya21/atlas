@@ -5,6 +5,9 @@ use crate::internal::dense::{
     MatrixRef, VectorRef, dot_contiguous, dot_kernel, matrix_ref, vector_ref,
 };
 
+const ROW_MAJOR_MATMUL_BLOCK_SIZE: usize = 32;
+const ROW_MAJOR_MATMUL_BLOCK_THRESHOLD: usize = 64 * 64 * 64;
+
 pub fn matmul<'a, T, L, R>(lhs: L, rhs: R) -> AtlasLinalgResult<NDArray<T>>
 where
     T: Numeric + 'a,
@@ -240,6 +243,17 @@ fn matmul_matrix_matrix_row_major<T: Numeric>(
     lhs: MatrixRef<'_, T>,
     rhs: MatrixRef<'_, T>,
 ) -> Vec<T> {
+    if should_use_blocked_row_major_matmul(lhs, rhs) {
+        return matmul_matrix_matrix_row_major_blocked(lhs, rhs);
+    }
+
+    matmul_matrix_matrix_row_major_simple(lhs, rhs)
+}
+
+fn matmul_matrix_matrix_row_major_simple<T: Numeric>(
+    lhs: MatrixRef<'_, T>,
+    rhs: MatrixRef<'_, T>,
+) -> Vec<T> {
     let lhs_values = lhs.row_major_region();
     let rhs_values = rhs.row_major_region();
     let mut data = vec![T::zero(); lhs.rows * rhs.cols];
@@ -256,6 +270,52 @@ fn matmul_matrix_matrix_row_major<T: Numeric>(
     }
 
     data
+}
+
+fn matmul_matrix_matrix_row_major_blocked<T: Numeric>(
+    lhs: MatrixRef<'_, T>,
+    rhs: MatrixRef<'_, T>,
+) -> Vec<T> {
+    let lhs_values = lhs.row_major_region();
+    let rhs_values = rhs.row_major_region();
+    let mut data = vec![T::zero(); lhs.rows * rhs.cols];
+    let block = ROW_MAJOR_MATMUL_BLOCK_SIZE;
+
+    for row_block in (0..lhs.rows).step_by(block) {
+        let row_end = (row_block + block).min(lhs.rows);
+
+        for k_block in (0..lhs.cols).step_by(block) {
+            let k_end = (k_block + block).min(lhs.cols);
+
+            for col_block in (0..rhs.cols).step_by(block) {
+                let col_end = (col_block + block).min(rhs.cols);
+
+                for row in row_block..row_end {
+                    let lhs_row = &lhs_values[row * lhs.cols..(row + 1) * lhs.cols];
+                    let out_row = &mut data[row * rhs.cols + col_block..row * rhs.cols + col_end];
+
+                    for (local_k, lhs_value) in lhs_row[k_block..k_end].iter().copied().enumerate()
+                    {
+                        let k = k_block + local_k;
+                        let rhs_row = &rhs_values[k * rhs.cols + col_block..k * rhs.cols + col_end];
+
+                        for (output, rhs_value) in out_row.iter_mut().zip(rhs_row.iter().copied()) {
+                            *output += lhs_value * rhs_value;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    data
+}
+
+fn should_use_blocked_row_major_matmul<T: Numeric>(
+    lhs: MatrixRef<'_, T>,
+    rhs: MatrixRef<'_, T>,
+) -> bool {
+    lhs.rows * lhs.cols * rhs.cols >= ROW_MAJOR_MATMUL_BLOCK_THRESHOLD
 }
 
 fn matmul_matrix_matrix_lhs_col_major<T: Numeric>(
@@ -519,6 +579,36 @@ mod tests {
 
         assert_eq!(row_major, lhs_col_major);
         assert_eq!(row_major, rhs_col_major);
+        assert_eq!(row_major, generic);
+    }
+
+    #[test]
+    fn matrix_matrix_row_major_blocked_path_matches_generic_for_larger_inputs() {
+        let side = 80;
+        let lhs_values: Vec<i32> = (0..side * side).map(|index| (index % 7) as i32 - 3).collect();
+        let rhs_values: Vec<i32> = (0..side * side).map(|index| (index % 5) as i32 + 1).collect();
+
+        let lhs_row_major = matrix_row_major(side, side, &lhs_values);
+        let rhs_row_major = matrix_row_major(side, side, &rhs_values);
+        let lhs_generic_base = matrix_generic_from_rows(side, side, &lhs_values);
+        let rhs_generic_base = matrix_generic_from_rows(side, side, &rhs_values);
+
+        let lhs_row_major_operand = LinalgOperand::from(&lhs_row_major);
+        let rhs_row_major_operand = LinalgOperand::from(&rhs_row_major);
+        let lhs_generic_operand =
+            LinalgOperand::from(lhs_generic_base.view().slice([0, 0], [side, side]).unwrap());
+        let rhs_generic_operand =
+            LinalgOperand::from(rhs_generic_base.view().slice([0, 0], [side, side]).unwrap());
+
+        let row_major = matmul_matrix_matrix_row_major(
+            matrix_ref(&lhs_row_major_operand),
+            matrix_ref(&rhs_row_major_operand),
+        );
+        let generic = matmul_matrix_matrix_generic(
+            matrix_ref(&lhs_generic_operand),
+            matrix_ref(&rhs_generic_operand),
+        );
+
         assert_eq!(row_major, generic);
     }
 }
