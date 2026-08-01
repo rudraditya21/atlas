@@ -1,13 +1,13 @@
-use crate::{AtlasNdError, AtlasNdResult, Numeric, view::ArrayView};
+use crate::{AtlasNdError, AtlasNdResult, Numeric, ShapeArg, view::ArrayView};
 
 impl<'a, T: Numeric> ArrayView<'a, T> {
     pub fn slice<I, S>(&self, starts: I, new_shape: S) -> AtlasNdResult<ArrayView<'a, T>>
     where
         I: AsRef<[usize]>,
-        S: AsRef<[usize]>,
+        S: ShapeArg,
     {
         let starts = starts.as_ref();
-        let new_shape = new_shape.as_ref().to_vec();
+        let new_shape = new_shape.into_shape_vec();
         debug_assert_eq!(self.shape.len(), self.strides.len());
         if starts.len() != self.shape.len() {
             return Err(AtlasNdError::DimensionMismatch {

@@ -1,5 +1,5 @@
 use crate::{
-    AtlasNdError, AtlasNdResult, NDArray, Numeric,
+    AtlasNdError, AtlasNdResult, NDArray, Numeric, ShapeArg,
     layout::{compute_strides, element_count},
 };
 
@@ -7,7 +7,7 @@ impl<T: Numeric> NDArray<T> {
     /// Creates a dense row-major array filled with `value`.
     pub fn new<S>(shape: S, value: T) -> Self
     where
-        S: AsRef<[usize]>,
+        S: ShapeArg,
     {
         Self::full(shape, value)
     }
@@ -15,9 +15,9 @@ impl<T: Numeric> NDArray<T> {
     /// Creates a dense row-major array filled with `value`.
     pub fn full<S>(shape: S, value: T) -> Self
     where
-        S: AsRef<[usize]>,
+        S: ShapeArg,
     {
-        let shape = shape.as_ref().to_vec();
+        let shape = shape.into_shape_vec();
         let size = element_count(&shape);
 
         Self { data: vec![value; size], strides: compute_strides(&shape), shape }
@@ -26,7 +26,7 @@ impl<T: Numeric> NDArray<T> {
     /// Creates a dense row-major array filled with zeros.
     pub fn zeros<S>(shape: S) -> Self
     where
-        S: AsRef<[usize]>,
+        S: ShapeArg,
     {
         Self::full(shape, T::zero())
     }
@@ -34,7 +34,7 @@ impl<T: Numeric> NDArray<T> {
     /// Creates a dense row-major array filled with ones.
     pub fn ones<S>(shape: S) -> Self
     where
-        S: AsRef<[usize]>,
+        S: ShapeArg,
     {
         Self::full(shape, T::one())
     }
@@ -53,9 +53,9 @@ impl<T: Numeric> NDArray<T> {
     /// Creates a dense row-major array from an explicit shape and backing data.
     pub fn from_shape_vec<S>(shape: S, data: Vec<T>) -> AtlasNdResult<Self>
     where
-        S: AsRef<[usize]>,
+        S: ShapeArg,
     {
-        let shape = shape.as_ref().to_vec();
+        let shape = shape.into_shape_vec();
         let expected = element_count(&shape);
 
         if expected != data.len() {
@@ -68,7 +68,7 @@ impl<T: Numeric> NDArray<T> {
     /// Creates a dense row-major array from an explicit shape and backing data.
     pub fn from_vec<S>(shape: S, data: Vec<T>) -> AtlasNdResult<Self>
     where
-        S: AsRef<[usize]>,
+        S: ShapeArg,
     {
         Self::from_shape_vec(shape, data)
     }

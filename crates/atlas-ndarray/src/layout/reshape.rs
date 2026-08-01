@@ -1,5 +1,5 @@
 use crate::{
-    AtlasNdError, AtlasNdResult, Numeric,
+    AtlasNdError, AtlasNdResult, Numeric, ShapeArg,
     layout::{compute_strides, element_count},
     view::ArrayView,
 };
@@ -7,9 +7,9 @@ use crate::{
 impl<'a, T: Numeric> ArrayView<'a, T> {
     pub fn reshape<S>(mut self, new_shape: S) -> AtlasNdResult<Self>
     where
-        S: AsRef<[usize]>,
+        S: ShapeArg,
     {
-        let new_shape = new_shape.as_ref().to_vec();
+        let new_shape = new_shape.into_shape_vec();
         let old_size = element_count(&self.shape);
         let new_size = element_count(&new_shape);
 

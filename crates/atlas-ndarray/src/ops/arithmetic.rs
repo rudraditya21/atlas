@@ -83,11 +83,13 @@ impl<T: Numeric> NDArray<T> {
         F: Fn(T, T) -> T + Copy,
     {
         let metadata = broadcast_pair(&self.shape, &self.strides, &rhs.shape, &rhs.strides)?;
+        let layout_kind =
+            pair_layout_kind(&metadata.shape, &metadata.lhs_strides, &metadata.rhs_strides);
 
-        match pair_layout_kind(&metadata.shape, &metadata.lhs_strides, &metadata.rhs_strides) {
+        match layout_kind {
             PairLayoutKind::Contiguous => Ok(self.elementwise_binary_contiguous(rhs, op)),
-            PairLayoutKind::Broadcast => Ok(self.elementwise_binary_broadcast(rhs, &metadata, op)),
-            PairLayoutKind::Strided => Ok(self.elementwise_binary_strided(rhs, &metadata, op)),
+            PairLayoutKind::Broadcast => Ok(self.elementwise_binary_broadcast(rhs, metadata, op)),
+            PairLayoutKind::Strided => Ok(self.elementwise_binary_strided(rhs, metadata, op)),
         }
     }
 
@@ -108,7 +110,7 @@ impl<T: Numeric> NDArray<T> {
     fn elementwise_binary_broadcast<F>(
         &self,
         rhs: &Self,
-        metadata: &BroadcastMetadata,
+        metadata: BroadcastMetadata,
         op: F,
     ) -> Self
     where
@@ -126,10 +128,10 @@ impl<T: Numeric> NDArray<T> {
             *slot = op(self.data[lhs_offset], rhs.data[rhs_offset]);
         }
 
-        Self::from_owned_parts(metadata.shape.clone(), data)
+        Self::from_owned_parts(metadata.shape, data)
     }
 
-    fn elementwise_binary_strided<F>(&self, rhs: &Self, metadata: &BroadcastMetadata, op: F) -> Self
+    fn elementwise_binary_strided<F>(&self, rhs: &Self, metadata: BroadcastMetadata, op: F) -> Self
     where
         F: Fn(T, T) -> T + Copy,
     {
@@ -145,7 +147,7 @@ impl<T: Numeric> NDArray<T> {
             *slot = op(self.data[lhs_offset], rhs.data[rhs_offset]);
         }
 
-        Self::from_owned_parts(metadata.shape.clone(), data)
+        Self::from_owned_parts(metadata.shape, data)
     }
 
     fn elementwise_scalar<F>(&self, scalar: T, op: F) -> Self

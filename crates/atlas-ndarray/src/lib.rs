@@ -24,7 +24,7 @@ mod view;
 pub use core::array::NDArray;
 pub use core::axis::AxisIndex;
 pub use core::error::{AtlasNdError, AtlasNdResult};
-pub use core::traits::Numeric;
+pub use core::traits::{Numeric, ShapeArg};
 pub use layout::broadcast::{
     BroadcastMetadata, broadcast_pair, broadcast_shape, broadcast_strides,
     contiguous_broadcast_metadata,
