@@ -3,7 +3,7 @@ use num_traits::ToPrimitive;
 use crate::{
     AtlasNdError, AtlasNdResult, AxisIndex, NDArray, Numeric,
     core::axis::normalize_axis,
-    internal::{LayoutKind, for_each_value, offset_iter, try_for_each_value},
+    internal::{LayoutKind, for_each_value, is_contiguous_layout, offset_iter, try_for_each_value},
     layout::element_count,
     view::ArrayView,
 };
@@ -254,9 +254,12 @@ fn sum_axis_impl<T: Numeric>(
 ) -> AtlasNdResult<NDArray<T>> {
     let metadata = axis_reduction_metadata(shape, strides, axis)?;
 
-    match metadata.axis_layout {
-        LayoutKind::Contiguous => sum_axis_contiguous(data, base_offset, &metadata),
-        LayoutKind::Strided => sum_axis_strided(data, base_offset, &metadata),
+    match metadata.source_layout {
+        LayoutKind::Contiguous => sum_axis_dense_contiguous(data, base_offset, &metadata),
+        LayoutKind::Strided => match metadata.axis_layout {
+            LayoutKind::Contiguous => sum_axis_contiguous(data, base_offset, &metadata),
+            LayoutKind::Strided => sum_axis_strided(data, base_offset, &metadata),
+        },
     }
 }
 
@@ -269,9 +272,12 @@ fn prod_axis_impl<T: Numeric>(
 ) -> AtlasNdResult<NDArray<T>> {
     let metadata = axis_reduction_metadata(shape, strides, axis)?;
 
-    match metadata.axis_layout {
-        LayoutKind::Contiguous => prod_axis_contiguous(data, base_offset, &metadata),
-        LayoutKind::Strided => prod_axis_strided(data, base_offset, &metadata),
+    match metadata.source_layout {
+        LayoutKind::Contiguous => prod_axis_dense_contiguous(data, base_offset, &metadata),
+        LayoutKind::Strided => match metadata.axis_layout {
+            LayoutKind::Contiguous => prod_axis_contiguous(data, base_offset, &metadata),
+            LayoutKind::Strided => prod_axis_strided(data, base_offset, &metadata),
+        },
     }
 }
 
@@ -290,9 +296,12 @@ where
         return Err(AtlasNdError::EmptyReduction { op: "min" });
     }
 
-    match metadata.axis_layout {
-        LayoutKind::Contiguous => min_axis_contiguous(data, base_offset, &metadata),
-        LayoutKind::Strided => min_axis_strided(data, base_offset, &metadata),
+    match metadata.source_layout {
+        LayoutKind::Contiguous => min_axis_dense_contiguous(data, base_offset, &metadata),
+        LayoutKind::Strided => match metadata.axis_layout {
+            LayoutKind::Contiguous => min_axis_contiguous(data, base_offset, &metadata),
+            LayoutKind::Strided => min_axis_strided(data, base_offset, &metadata),
+        },
     }
 }
 
@@ -311,9 +320,12 @@ where
         return Err(AtlasNdError::EmptyReduction { op: "max" });
     }
 
-    match metadata.axis_layout {
-        LayoutKind::Contiguous => max_axis_contiguous(data, base_offset, &metadata),
-        LayoutKind::Strided => max_axis_strided(data, base_offset, &metadata),
+    match metadata.source_layout {
+        LayoutKind::Contiguous => max_axis_dense_contiguous(data, base_offset, &metadata),
+        LayoutKind::Strided => match metadata.axis_layout {
+            LayoutKind::Contiguous => max_axis_contiguous(data, base_offset, &metadata),
+            LayoutKind::Strided => max_axis_strided(data, base_offset, &metadata),
+        },
     }
 }
 
@@ -332,9 +344,12 @@ where
         return Err(AtlasNdError::EmptyReduction { op: "mean" });
     }
 
-    match metadata.axis_layout {
-        LayoutKind::Contiguous => mean_axis_contiguous(data, base_offset, &metadata),
-        LayoutKind::Strided => mean_axis_strided(data, base_offset, &metadata),
+    match metadata.source_layout {
+        LayoutKind::Contiguous => mean_axis_dense_contiguous(data, base_offset, &metadata),
+        LayoutKind::Strided => match metadata.axis_layout {
+            LayoutKind::Contiguous => mean_axis_contiguous(data, base_offset, &metadata),
+            LayoutKind::Strided => mean_axis_strided(data, base_offset, &metadata),
+        },
     }
 }
 
@@ -344,6 +359,9 @@ struct AxisReductionMetadata {
     output_len: usize,
     axis_stride: usize,
     axis_len: usize,
+    contiguous_outer_len: usize,
+    contiguous_inner_len: usize,
+    source_layout: LayoutKind,
     axis_layout: LayoutKind,
 }
 
@@ -367,6 +385,8 @@ fn axis_reduction_metadata(
     }
 
     let output_len = element_count(&output_shape);
+    let contiguous_outer_len = element_count(&shape[..axis]);
+    let contiguous_inner_len = element_count(&shape[axis + 1..]);
 
     Ok(AxisReductionMetadata {
         output_shape,
@@ -374,8 +394,179 @@ fn axis_reduction_metadata(
         output_len,
         axis_stride: strides[axis],
         axis_len: shape[axis],
+        contiguous_outer_len,
+        contiguous_inner_len,
+        source_layout: if is_contiguous_layout(shape, strides) {
+            LayoutKind::Contiguous
+        } else {
+            LayoutKind::Strided
+        },
         axis_layout: if strides[axis] == 1 { LayoutKind::Contiguous } else { LayoutKind::Strided },
     })
+}
+
+fn sum_axis_dense_contiguous<T: Numeric>(
+    data: &[T],
+    base_offset: usize,
+    metadata: &AxisReductionMetadata,
+) -> AtlasNdResult<NDArray<T>> {
+    let values =
+        contiguous_region(data, base_offset, metadata.output_len.saturating_mul(metadata.axis_len));
+    let mut reduced = vec![T::zero(); metadata.output_len];
+
+    for outer in 0..metadata.contiguous_outer_len {
+        let block_start = outer * metadata.axis_len * metadata.contiguous_inner_len;
+        let output_start = outer * metadata.contiguous_inner_len;
+
+        for inner in 0..metadata.contiguous_inner_len {
+            let mut total = T::zero();
+            let mut offset = block_start + inner;
+
+            for _ in 0..metadata.axis_len {
+                total += values[offset];
+                offset += metadata.contiguous_inner_len;
+            }
+
+            reduced[output_start + inner] = total;
+        }
+    }
+
+    NDArray::from_shape_vec(metadata.output_shape.clone(), reduced)
+}
+
+fn prod_axis_dense_contiguous<T: Numeric>(
+    data: &[T],
+    base_offset: usize,
+    metadata: &AxisReductionMetadata,
+) -> AtlasNdResult<NDArray<T>> {
+    let values =
+        contiguous_region(data, base_offset, metadata.output_len.saturating_mul(metadata.axis_len));
+    let mut reduced = vec![T::zero(); metadata.output_len];
+
+    for outer in 0..metadata.contiguous_outer_len {
+        let block_start = outer * metadata.axis_len * metadata.contiguous_inner_len;
+        let output_start = outer * metadata.contiguous_inner_len;
+
+        for inner in 0..metadata.contiguous_inner_len {
+            let mut total = T::one();
+            let mut offset = block_start + inner;
+
+            for _ in 0..metadata.axis_len {
+                total *= values[offset];
+                offset += metadata.contiguous_inner_len;
+            }
+
+            reduced[output_start + inner] = total;
+        }
+    }
+
+    NDArray::from_shape_vec(metadata.output_shape.clone(), reduced)
+}
+
+fn min_axis_dense_contiguous<T>(
+    data: &[T],
+    base_offset: usize,
+    metadata: &AxisReductionMetadata,
+) -> AtlasNdResult<NDArray<T>>
+where
+    T: Numeric + PartialOrd,
+{
+    let values =
+        contiguous_region(data, base_offset, metadata.output_len.saturating_mul(metadata.axis_len));
+    let mut reduced = vec![T::zero(); metadata.output_len];
+
+    for outer in 0..metadata.contiguous_outer_len {
+        let block_start = outer * metadata.axis_len * metadata.contiguous_inner_len;
+        let output_start = outer * metadata.contiguous_inner_len;
+
+        for inner in 0..metadata.contiguous_inner_len {
+            let mut offset = block_start + inner;
+            let mut current = values[offset];
+            offset += metadata.contiguous_inner_len;
+
+            for _ in 1..metadata.axis_len {
+                let value = values[offset];
+                if value < current {
+                    current = value;
+                }
+                offset += metadata.contiguous_inner_len;
+            }
+
+            reduced[output_start + inner] = current;
+        }
+    }
+
+    NDArray::from_shape_vec(metadata.output_shape.clone(), reduced)
+}
+
+fn max_axis_dense_contiguous<T>(
+    data: &[T],
+    base_offset: usize,
+    metadata: &AxisReductionMetadata,
+) -> AtlasNdResult<NDArray<T>>
+where
+    T: Numeric + PartialOrd,
+{
+    let values =
+        contiguous_region(data, base_offset, metadata.output_len.saturating_mul(metadata.axis_len));
+    let mut reduced = vec![T::zero(); metadata.output_len];
+
+    for outer in 0..metadata.contiguous_outer_len {
+        let block_start = outer * metadata.axis_len * metadata.contiguous_inner_len;
+        let output_start = outer * metadata.contiguous_inner_len;
+
+        for inner in 0..metadata.contiguous_inner_len {
+            let mut offset = block_start + inner;
+            let mut current = values[offset];
+            offset += metadata.contiguous_inner_len;
+
+            for _ in 1..metadata.axis_len {
+                let value = values[offset];
+                if value > current {
+                    current = value;
+                }
+                offset += metadata.contiguous_inner_len;
+            }
+
+            reduced[output_start + inner] = current;
+        }
+    }
+
+    NDArray::from_shape_vec(metadata.output_shape.clone(), reduced)
+}
+
+fn mean_axis_dense_contiguous<T>(
+    data: &[T],
+    base_offset: usize,
+    metadata: &AxisReductionMetadata,
+) -> AtlasNdResult<NDArray<f64>>
+where
+    T: Numeric + ToPrimitive,
+{
+    let values =
+        contiguous_region(data, base_offset, metadata.output_len.saturating_mul(metadata.axis_len));
+    let mut reduced = vec![0.0_f64; metadata.output_len];
+
+    for outer in 0..metadata.contiguous_outer_len {
+        let block_start = outer * metadata.axis_len * metadata.contiguous_inner_len;
+        let output_start = outer * metadata.contiguous_inner_len;
+
+        for inner in 0..metadata.contiguous_inner_len {
+            let mut total = 0.0_f64;
+            let mut offset = block_start + inner;
+
+            for _ in 0..metadata.axis_len {
+                total += values[offset]
+                    .to_f64()
+                    .ok_or(AtlasNdError::NumericConversionFailed { op: "mean" })?;
+                offset += metadata.contiguous_inner_len;
+            }
+
+            reduced[output_start + inner] = total / metadata.axis_len as f64;
+        }
+    }
+
+    NDArray::from_shape_vec(metadata.output_shape.clone(), reduced)
 }
 
 fn sum_axis_contiguous<T: Numeric>(
@@ -579,6 +770,10 @@ where
 
 fn contiguous_lane<T>(data: &[T], lane_offset: usize, axis_len: usize) -> &[T] {
     &data[lane_offset..lane_offset + axis_len]
+}
+
+fn contiguous_region<T>(data: &[T], base_offset: usize, len: usize) -> &[T] {
+    &data[base_offset..base_offset + len]
 }
 
 fn sum_strided_lane<T: Numeric>(
