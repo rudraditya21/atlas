@@ -54,6 +54,12 @@ pub enum AtlasNdError {
     #[error("numeric conversion failed during operation {op}")]
     NumericConversionFailed { op: &'static str },
 
+    #[error("invalid argument for {op}: {reason}")]
+    InvalidArgument {
+        op: &'static str,
+        reason: &'static str,
+    },
+
     #[error("invalid shape")]
     InvalidShape,
 }
