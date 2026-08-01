@@ -2,8 +2,9 @@ use atlas_ndarray::{NDArray, Numeric};
 use num_traits::Float;
 
 use crate::core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand};
-
-use super::{copy_matrix_row_major, is_symmetric, tolerance, validate_rank_two, zero_matrix_data};
+use crate::internal::factorization::{
+    copy_matrix_row_major, is_symmetric, tolerance, validate_rank_two, zero_matrix_data,
+};
 
 #[derive(Clone, Debug)]
 pub struct CholeskyFactorization<T: Numeric> {

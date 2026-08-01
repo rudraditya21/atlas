@@ -1,8 +1,7 @@
 use atlas_ndarray::Numeric;
 
 use crate::core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand};
-
-use super::{VectorRef, vector_ref};
+use crate::internal::dense::{dot_kernel, vector_ref};
 
 pub fn dot<'a, T, L, R>(lhs: L, rhs: R) -> AtlasLinalgResult<T>
 where
@@ -36,42 +35,13 @@ where
     }
 }
 
-pub(super) fn dot_kernel<T: Numeric>(lhs: VectorRef<'_, T>, rhs: VectorRef<'_, T>) -> T {
-    if lhs.is_contiguous() && rhs.is_contiguous() {
-        dot_contiguous(lhs.contiguous_slice(), rhs.contiguous_slice())
-    } else {
-        dot_strided(lhs, rhs)
-    }
-}
-
-pub(super) fn dot_contiguous<T: Numeric>(lhs: &[T], rhs: &[T]) -> T {
-    let mut total = T::zero();
-
-    for index in 0..lhs.len() {
-        total += lhs[index] * rhs[index];
-    }
-
-    total
-}
-
-fn dot_strided<T: Numeric>(lhs: VectorRef<'_, T>, rhs: VectorRef<'_, T>) -> T {
-    let mut total = T::zero();
-
-    for index in 0..lhs.len {
-        total += lhs.value_at(index) * rhs.value_at(index);
-    }
-
-    total
-}
-
 #[cfg(test)]
 mod tests {
     use atlas_ndarray::NDArray;
 
-    use super::{dot, dot_contiguous, dot_kernel, dot_strided};
+    use super::dot;
+    use crate::internal::dense::{VectorRef, dot_contiguous, dot_kernel, dot_strided, vector_ref};
     use crate::{AtlasLinalgError, LinalgOperand};
-
-    use crate::dense::{VectorRef, vector_ref};
 
     #[test]
     fn dot_rejects_non_vector_inputs_and_mismatched_lengths() {

@@ -1,9 +1,9 @@
 use atlas_ndarray::{NDArray, Numeric};
 
 use crate::core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand};
-
-use super::dot::{dot_contiguous, dot_kernel};
-use super::{MatrixRef, VectorRef, matrix_ref, vector_ref};
+use crate::internal::dense::{
+    MatrixRef, VectorRef, dot_contiguous, dot_kernel, matrix_ref, vector_ref,
+};
 
 pub fn matmul<'a, T, L, R>(lhs: L, rhs: R) -> AtlasLinalgResult<NDArray<T>>
 where
@@ -333,7 +333,7 @@ mod tests {
         matmul_matrix_vector_row_major, matmul_vector_matrix_col_major,
         matmul_vector_matrix_generic, matmul_vector_matrix_row_major,
     };
-    use crate::dense::{matrix_ref, vector_ref};
+    use crate::internal::dense::{matrix_ref, vector_ref};
     use crate::{AtlasLinalgError, LinalgOperand};
 
     fn vector_row_major(values: &[i32]) -> NDArray<i32> {

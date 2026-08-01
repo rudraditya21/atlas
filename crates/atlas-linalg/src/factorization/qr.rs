@@ -2,8 +2,7 @@ use atlas_ndarray::{NDArray, Numeric};
 use num_traits::Float;
 
 use crate::core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand};
-
-use super::{
+use crate::internal::factorization::{
     column_from_storage, copy_matrix_row_major, dot_slice, extract_column, tolerance,
     validate_rank_two, vector_norm, zero_matrix_data,
 };
