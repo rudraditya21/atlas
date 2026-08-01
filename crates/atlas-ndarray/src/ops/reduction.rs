@@ -4,7 +4,7 @@ use crate::{
     AtlasNdError, AtlasNdResult, AxisIndex, NDArray, Numeric,
     core::axis::normalize_axis,
     internal::{for_each_value, offset_iter, try_for_each_value},
-    layout::stride::element_count,
+    layout::element_count,
     view::ArrayView,
 };
 

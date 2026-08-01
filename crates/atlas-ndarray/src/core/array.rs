@@ -1,5 +1,5 @@
 use super::traits::Numeric;
-use crate::layout::stride::compute_strides;
+use crate::layout::compute_strides;
 
 #[derive(Clone, Debug)]
 pub struct NDArray<T: Numeric> {

@@ -1,6 +1,6 @@
 use crate::{
     AtlasNdError, AtlasNdResult, NDArray, Numeric,
-    layout::stride::{compute_strides, element_count},
+    layout::{compute_strides, element_count},
 };
 
 #[derive(Debug, Clone)]
