@@ -27,14 +27,30 @@ fn matmul_supports_vector_matrix_matrix_vector_and_matrix_matrix() {
 }
 
 #[test]
+fn matmul_vector_vector_returns_scalar_shaped_array() {
+    let lhs = NDArray::from_shape_vec([3], vec![1_i32, 2, 3]).unwrap();
+    let rhs = NDArray::from_shape_vec([3], vec![4_i32, 5, 6]).unwrap();
+
+    let result = matmul(&lhs, &rhs).unwrap();
+
+    assert_eq!(result.shape(), &[] as &[usize]);
+    assert_eq!(result.data(), &[32]);
+}
+
+#[test]
 fn matmul_reports_shape_mismatch_cleanly() {
     let lhs = NDArray::from_shape_vec([2, 3], vec![1_i32, 2, 3, 4, 5, 6]).unwrap();
     let rhs = NDArray::from_shape_vec([4, 2], vec![1_i32, 2, 3, 4, 5, 6, 7, 8]).unwrap();
 
-    assert!(matches!(
+    assert_eq!(
         matmul(&lhs, &rhs).unwrap_err(),
-        AtlasLinalgError::ShapeMismatch { op: "matmul", .. }
-    ));
+        AtlasLinalgError::ShapeMismatch {
+            op: "matmul",
+            left: vec![2, 3],
+            right: vec![4, 2],
+            reason: "left matrix column count must match right matrix row count",
+        }
+    );
 }
 
 #[test]
@@ -42,8 +58,33 @@ fn matmul_rejects_ranks_above_two() {
     let lhs = NDArray::<i32>::zeros([2, 2, 2]);
     let rhs = NDArray::<i32>::zeros([2, 2]);
 
-    assert!(matches!(
+    assert_eq!(
         matmul(&lhs, &rhs).unwrap_err(),
-        AtlasLinalgError::InvalidOperandRank { op: "matmul", .. }
-    ));
+        AtlasLinalgError::InvalidOperandRank { op: "matmul", left: 3, right: 2 }
+    );
+}
+
+#[test]
+fn dot_and_matmul_vector_vector_report_exact_mismatch_errors() {
+    let lhs = NDArray::from_shape_vec([3], vec![1_i32, 2, 3]).unwrap();
+    let rhs = NDArray::from_shape_vec([2], vec![4_i32, 5]).unwrap();
+
+    assert_eq!(
+        dot(&lhs, &rhs).unwrap_err(),
+        AtlasLinalgError::ShapeMismatch {
+            op: "dot",
+            left: vec![3],
+            right: vec![2],
+            reason: "vector lengths must match",
+        }
+    );
+    assert_eq!(
+        matmul(&lhs, &rhs).unwrap_err(),
+        AtlasLinalgError::ShapeMismatch {
+            op: "matmul",
+            left: vec![3],
+            right: vec![2],
+            reason: "vector lengths must match",
+        }
+    );
 }

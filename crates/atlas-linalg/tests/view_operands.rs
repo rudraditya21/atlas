@@ -1,4 +1,4 @@
-use atlas_linalg::{dot, matmul};
+use atlas_linalg::{AtlasLinalgError, dot, matmul};
 use atlas_ndarray::NDArray;
 
 #[test]
@@ -28,4 +28,24 @@ fn matmul_accepts_non_contiguous_sliced_views() {
     let lhs = lhs_base.view().slice([0, 1], [2, 2]).unwrap();
 
     assert_eq!(matmul(lhs, &rhs).unwrap().data(), &[50, 140]);
+}
+
+#[test]
+fn dense_validation_errors_match_for_owned_and_view_vectors() {
+    let lhs = NDArray::from_shape_vec([4], vec![1_i32, 2, 3, 4]).unwrap();
+    let rhs = NDArray::from_shape_vec([3], vec![5_i32, 6, 7]).unwrap();
+    let lhs_view = lhs.view().slice([0], [4]).unwrap();
+    let rhs_view = rhs.view().slice([0], [3]).unwrap();
+
+    assert_eq!(dot(&lhs, &rhs).unwrap_err(), dot(lhs_view.clone(), rhs_view.clone()).unwrap_err());
+    assert_eq!(
+        matmul(&lhs, &rhs).unwrap_err(),
+        AtlasLinalgError::ShapeMismatch {
+            op: "matmul",
+            left: vec![4],
+            right: vec![3],
+            reason: "vector lengths must match",
+        }
+    );
+    assert_eq!(matmul(&lhs, &rhs).unwrap_err(), matmul(lhs_view, rhs_view).unwrap_err());
 }

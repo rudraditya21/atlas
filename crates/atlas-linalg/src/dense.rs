@@ -63,7 +63,19 @@ fn matmul_vector_vector<T: Numeric>(
     lhs: &LinalgOperand<'_, T>,
     rhs: &LinalgOperand<'_, T>,
 ) -> AtlasLinalgResult<NDArray<T>> {
-    let value = dot(lhs.clone(), rhs.clone())?;
+    let lhs = vector_ref(lhs);
+    let rhs = vector_ref(rhs);
+
+    if lhs.len != rhs.len {
+        return Err(AtlasLinalgError::ShapeMismatch {
+            op: "matmul",
+            left: vec![lhs.len],
+            right: vec![rhs.len],
+            reason: "vector lengths must match",
+        });
+    }
+
+    let value = dot_kernel(lhs, rhs);
     wrap_scalar(value)
 }
 
@@ -463,14 +475,19 @@ mod tests {
         let rhs = NDArray::from_shape_vec([2], vec![4_i32, 5]).unwrap();
         let matrix = NDArray::from_shape_vec([1, 3], vec![1_i32, 2, 3]).unwrap();
 
-        assert!(matches!(
+        assert_eq!(
             dot(&lhs, &rhs).unwrap_err(),
-            AtlasLinalgError::ShapeMismatch { op: "dot", .. }
-        ));
-        assert!(matches!(
+            AtlasLinalgError::ShapeMismatch {
+                op: "dot",
+                left: vec![3],
+                right: vec![2],
+                reason: "vector lengths must match",
+            }
+        );
+        assert_eq!(
             dot(&lhs, &matrix).unwrap_err(),
-            AtlasLinalgError::InvalidOperandRank { op: "dot", .. }
-        ));
+            AtlasLinalgError::InvalidOperandRank { op: "dot", left: 1, right: 2 }
+        );
     }
 
     #[test]
@@ -482,11 +499,28 @@ mod tests {
         let right_matrix = NDArray::from_shape_vec([3, 2], vec![7_i32, 8, 9, 10, 11, 12]).unwrap();
 
         assert_eq!(dot(&lhs_vec, &rhs_vec).unwrap(), 32);
+        assert_eq!(matmul(&lhs_vec, &rhs_vec).unwrap().shape(), &[] as &[usize]);
         assert_eq!(matmul(&lhs_vec, &rhs_vec).unwrap().data(), &[32]);
         assert_eq!(matmul(&lhs_vec, &matrix).unwrap().data(), &[22, 28]);
         assert_eq!(matmul(&left_matrix, &rhs_vec).unwrap().data(), &[32, 77]);
         assert_eq!(matmul(&left_matrix, &right_matrix).unwrap().shape(), &[2, 2]);
         assert_eq!(matmul(&left_matrix, &right_matrix).unwrap().data(), &[58, 64, 139, 154]);
+    }
+
+    #[test]
+    fn matmul_vector_vector_reports_matmul_shape_mismatch() {
+        let lhs = NDArray::from_shape_vec([3], vec![1_i32, 2, 3]).unwrap();
+        let rhs = NDArray::from_shape_vec([2], vec![4_i32, 5]).unwrap();
+
+        assert_eq!(
+            matmul(&lhs, &rhs).unwrap_err(),
+            AtlasLinalgError::ShapeMismatch {
+                op: "matmul",
+                left: vec![3],
+                right: vec![2],
+                reason: "vector lengths must match",
+            }
+        );
     }
 
     #[test]
@@ -504,5 +538,22 @@ mod tests {
         assert_eq!(matmul(left_transposed, &rhs).unwrap().data(), &[43, 48, 59, 66, 75, 84]);
         assert_eq!(matmul(&left_base, right_transposed).unwrap().data(), &[58, 64, 139, 154]);
         assert_eq!(matmul(sliced, &vector).unwrap().data(), &[50, 140]);
+    }
+
+    #[test]
+    fn dot_and_matmul_match_for_owned_and_view_vector_operands() {
+        let lhs = NDArray::from_shape_vec([4], vec![1_i32, 2, 3, 4]).unwrap();
+        let rhs = NDArray::from_shape_vec([4], vec![5_i32, 6, 7, 8]).unwrap();
+        let lhs_view = lhs.view().slice([0], [4]).unwrap();
+        let rhs_view = rhs.view().slice([0], [4]).unwrap();
+
+        assert_eq!(dot(&lhs, &rhs).unwrap(), dot(lhs_view.clone(), rhs_view.clone()).unwrap());
+
+        let owned = matmul(&lhs, &rhs).unwrap();
+        let viewed = matmul(lhs_view, rhs_view).unwrap();
+
+        assert_eq!(owned.shape(), &[] as &[usize]);
+        assert_eq!(owned.shape(), viewed.shape());
+        assert_eq!(owned.data(), viewed.data());
     }
 }

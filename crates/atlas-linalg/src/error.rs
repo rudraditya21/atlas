@@ -4,7 +4,7 @@ use atlas_ndarray::AtlasNdError;
 
 pub type AtlasLinalgResult<T> = Result<T, AtlasLinalgError>;
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum AtlasLinalgError {
     #[error("invalid operand rank for {op}: left rank {left}, right rank {right}")]
     InvalidOperandRank { op: &'static str, left: usize, right: usize },
