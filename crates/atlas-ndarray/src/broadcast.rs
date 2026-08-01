@@ -125,6 +125,19 @@ mod tests {
         assert_eq!(broadcast_shape(&[3, 1], &[2, 3, 4]).unwrap(), vec![2, 3, 4]);
         assert_eq!(broadcast_shape(&[4], &[2, 3, 4]).unwrap(), vec![2, 3, 4]);
         assert_eq!(broadcast_shape(&[], &[2, 3]).unwrap(), vec![2, 3]);
+        assert_eq!(broadcast_shape(&[1, 5, 1], &[7, 1, 3]).unwrap(), vec![7, 5, 3]);
+        assert_eq!(broadcast_shape(&[2, 1, 4], &[1, 3, 1]).unwrap(), vec![2, 3, 4]);
+        assert_eq!(broadcast_shape(&[2, 0, 4], &[1, 0, 1]).unwrap(), vec![2, 0, 4]);
+        assert_eq!(broadcast_shape(&[0, 4], &[1, 4]).unwrap(), vec![0, 4]);
+        assert_eq!(broadcast_shape(&[1], &[0]).unwrap(), vec![0]);
+    }
+
+    #[test]
+    fn broadcast_shape_supports_equal_rank_and_scalar_cases() {
+        assert_eq!(broadcast_shape(&[2, 3], &[2, 3]).unwrap(), vec![2, 3]);
+        assert_eq!(broadcast_shape(&[], &[]).unwrap(), Vec::<usize>::new());
+        assert_eq!(broadcast_shape(&[], &[0, 2, 3]).unwrap(), vec![0, 2, 3]);
+        assert_eq!(broadcast_shape(&[4, 1, 1], &[]).unwrap(), vec![4, 1, 1]);
     }
 
     #[test]
@@ -141,6 +154,27 @@ mod tests {
                 rhs_dim: 4,
             }
         );
+
+        assert_eq!(
+            broadcast_shape(&[2, 0], &[2, 3]).unwrap_err(),
+            AtlasNdError::InvalidBroadcast {
+                lhs: vec![2, 0],
+                rhs: vec![2, 3],
+                axis: 1,
+                lhs_dim: 0,
+                rhs_dim: 3,
+            }
+        );
+        assert_eq!(
+            broadcast_shape(&[3, 1, 2], &[4, 5, 2]).unwrap_err(),
+            AtlasNdError::InvalidBroadcast {
+                lhs: vec![3, 1, 2],
+                rhs: vec![4, 5, 2],
+                axis: 0,
+                lhs_dim: 3,
+                rhs_dim: 4,
+            }
+        );
     }
 
     #[test]
@@ -148,6 +182,45 @@ mod tests {
         assert_eq!(broadcast_strides(&[3, 1], &[1, 1], &[2, 3, 4]).unwrap(), vec![0, 1, 0]);
         assert_eq!(broadcast_strides(&[4], &[1], &[2, 3, 4]).unwrap(), vec![0, 0, 1]);
         assert_eq!(broadcast_strides(&[], &[], &[2, 3]).unwrap(), vec![0, 0]);
+        assert_eq!(broadcast_strides(&[2, 1, 4], &[4, 4, 1], &[2, 3, 4]).unwrap(), vec![4, 0, 1]);
+        assert_eq!(broadcast_strides(&[1, 0, 1], &[0, 1, 1], &[2, 0, 4]).unwrap(), vec![0, 1, 0]);
+        assert_eq!(broadcast_strides(&[2, 3], &[3, 1], &[2, 3]).unwrap(), vec![3, 1]);
+        assert_eq!(broadcast_strides(&[], &[], &[]).unwrap(), Vec::<usize>::new());
+    }
+
+    #[test]
+    fn broadcast_strides_reject_invalid_shape_metadata_and_incompatible_targets() {
+        assert_eq!(broadcast_strides(&[2, 3], &[3], &[2, 3]).unwrap_err(), AtlasNdError::InvalidShape);
+        assert_eq!(
+            broadcast_strides(&[2, 3, 4], &[12, 4, 1], &[3, 4]).unwrap_err(),
+            AtlasNdError::InvalidBroadcast {
+                lhs: vec![2, 3, 4],
+                rhs: vec![3, 4],
+                axis: 0,
+                lhs_dim: 2,
+                rhs_dim: 1,
+            }
+        );
+        assert_eq!(
+            broadcast_strides(&[2, 3], &[3, 1], &[2, 4]).unwrap_err(),
+            AtlasNdError::InvalidBroadcast {
+                lhs: vec![2, 3],
+                rhs: vec![2, 4],
+                axis: 1,
+                lhs_dim: 3,
+                rhs_dim: 4,
+            }
+        );
+        assert_eq!(
+            broadcast_strides(&[0, 4], &[4, 1], &[2, 4]).unwrap_err(),
+            AtlasNdError::InvalidBroadcast {
+                lhs: vec![0, 4],
+                rhs: vec![2, 4],
+                axis: 0,
+                lhs_dim: 0,
+                rhs_dim: 2,
+            }
+        );
     }
 
     #[test]
@@ -165,6 +238,26 @@ mod tests {
     }
 
     #[test]
+    fn broadcast_pair_handles_scalar_and_zero_sized_shapes() {
+        assert_eq!(
+            broadcast_pair(&[], &[], &[2, 3], &[3, 1]).unwrap(),
+            BroadcastMetadata {
+                shape: vec![2, 3],
+                lhs_strides: vec![0, 0],
+                rhs_strides: vec![3, 1],
+            }
+        );
+        assert_eq!(
+            broadcast_pair(&[2, 0, 4], &[0, 4, 1], &[1, 0, 1], &[0, 1, 1]).unwrap(),
+            BroadcastMetadata {
+                shape: vec![2, 0, 4],
+                lhs_strides: vec![0, 4, 1],
+                rhs_strides: vec![0, 1, 0],
+            }
+        );
+    }
+
+    #[test]
     fn contiguous_broadcast_metadata_uses_row_major_strides() {
         let metadata = contiguous_broadcast_metadata(&[2, 1, 4], &[3, 4]).unwrap();
 
@@ -174,6 +267,26 @@ mod tests {
                 shape: vec![2, 3, 4],
                 lhs_strides: vec![4, 0, 1],
                 rhs_strides: vec![0, 4, 1],
+            }
+        );
+    }
+
+    #[test]
+    fn contiguous_broadcast_metadata_matches_row_major_rules_across_cases() {
+        assert_eq!(
+            contiguous_broadcast_metadata(&[1, 5, 1], &[7, 1, 3]).unwrap(),
+            BroadcastMetadata {
+                shape: vec![7, 5, 3],
+                lhs_strides: vec![0, 1, 0],
+                rhs_strides: vec![3, 0, 1],
+            }
+        );
+        assert_eq!(
+            contiguous_broadcast_metadata(&[], &[2, 3, 4]).unwrap(),
+            BroadcastMetadata {
+                shape: vec![2, 3, 4],
+                lhs_strides: vec![0, 0, 0],
+                rhs_strides: vec![12, 4, 1],
             }
         );
     }
