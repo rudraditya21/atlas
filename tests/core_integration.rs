@@ -1,4 +1,4 @@
-use atlas_linalg::matmul;
+use atlas_linalg::{cholesky, matmul, qr};
 use atlas_ndarray::NDArray;
 use atlas_random::{AtlasRng, normal, uniform};
 use atlas_stats::{correlation, covariance, stddev, variance};
@@ -55,4 +55,33 @@ fn random_linalg_stats_pipeline_produces_finite_statistical_outputs() {
     assert!(product_variance >= 0.0);
     assert!(product_stddev.is_finite());
     assert!(product_stddev >= 0.0);
+}
+
+#[test]
+fn ndarray_qr_stats_pipeline_preserves_reconstruction_statistics() {
+    let matrix = NDArray::from_shape_vec([3, 2], vec![1.0_f64, 1.0, 1.0, 0.0, 0.0, 1.0]).unwrap();
+
+    let factors = qr(&matrix).unwrap();
+    let reconstructed = matmul(&factors.q, &factors.r).unwrap();
+
+    assert_eq!(factors.q.shape(), &[3, 2]);
+    assert_eq!(factors.r.shape(), &[2, 2]);
+    assert_eq!(reconstructed.shape(), matrix.shape());
+    assert!(reconstructed.data().iter().all(|value| value.is_finite()));
+    assert_close(variance(&reconstructed).unwrap(), variance(&matrix).unwrap());
+    assert_close(stddev(reconstructed.view().transpose()).unwrap(), stddev(&matrix).unwrap());
+}
+
+#[test]
+fn ndarray_cholesky_stats_pipeline_preserves_reconstruction_statistics() {
+    let matrix = NDArray::from_shape_vec([2, 2], vec![4.0_f64, 2.0, 2.0, 3.0]).unwrap();
+
+    let factor = cholesky(&matrix).unwrap();
+    let reconstructed = matmul(&factor.l, factor.l.view().transpose()).unwrap();
+
+    assert_eq!(factor.l.shape(), &[2, 2]);
+    assert_eq!(reconstructed.shape(), matrix.shape());
+    assert!(reconstructed.data().iter().all(|value| value.is_finite()));
+    assert_close(variance(&reconstructed).unwrap(), variance(&matrix).unwrap());
+    assert_close(stddev(reconstructed.view()).unwrap(), stddev(&matrix).unwrap());
 }
