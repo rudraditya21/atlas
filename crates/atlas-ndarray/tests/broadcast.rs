@@ -40,11 +40,7 @@ fn broadcast_pair_returns_metadata_for_compatible_shapes() {
 fn broadcast_pair_supports_scalar_and_zero_extent_operands() {
     assert_eq!(
         broadcast_pair(&[], &[], &[2, 3], &[3, 1]).unwrap(),
-        BroadcastMetadata {
-            shape: vec![2, 3],
-            lhs_strides: vec![0, 0],
-            rhs_strides: vec![3, 1],
-        }
+        BroadcastMetadata { shape: vec![2, 3], lhs_strides: vec![0, 0], rhs_strides: vec![3, 1] }
     );
     assert_eq!(
         broadcast_pair(&[2, 0, 4], &[0, 4, 1], &[1, 0, 1], &[0, 1, 1]).unwrap(),

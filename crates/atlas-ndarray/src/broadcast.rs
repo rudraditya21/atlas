@@ -190,7 +190,10 @@ mod tests {
 
     #[test]
     fn broadcast_strides_reject_invalid_shape_metadata_and_incompatible_targets() {
-        assert_eq!(broadcast_strides(&[2, 3], &[3], &[2, 3]).unwrap_err(), AtlasNdError::InvalidShape);
+        assert_eq!(
+            broadcast_strides(&[2, 3], &[3], &[2, 3]).unwrap_err(),
+            AtlasNdError::InvalidShape
+        );
         assert_eq!(
             broadcast_strides(&[2, 3, 4], &[12, 4, 1], &[3, 4]).unwrap_err(),
             AtlasNdError::InvalidBroadcast {

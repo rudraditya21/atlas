@@ -586,7 +586,10 @@ mod tests {
             AtlasNdError::InvalidAxis { axis: -3, ndim: 2 }
         );
         assert_eq!(array.mean_axis(2).unwrap_err(), AtlasNdError::InvalidAxis { axis: 2, ndim: 2 });
-        assert_eq!(array.max_axis(-3).unwrap_err(), AtlasNdError::InvalidAxis { axis: -3, ndim: 2 });
+        assert_eq!(
+            array.max_axis(-3).unwrap_err(),
+            AtlasNdError::InvalidAxis { axis: -3, ndim: 2 }
+        );
     }
 
     #[test]

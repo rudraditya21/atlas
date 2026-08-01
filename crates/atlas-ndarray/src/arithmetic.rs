@@ -2,8 +2,7 @@ use std::ops::{Add, Div, Mul, Sub};
 
 use super::{
     array::NDArray, broadcast::broadcast_pair, error::AtlasNdResult, stride::compute_strides,
-    traits::Numeric,
-    traversal::broadcast_offset_pair_iter,
+    traits::Numeric, traversal::broadcast_offset_pair_iter,
 };
 
 pub trait AddOperand<T: Numeric> {
