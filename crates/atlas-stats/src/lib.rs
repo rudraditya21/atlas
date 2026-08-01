@@ -1,7 +1,5 @@
+mod core;
 mod descriptive;
-mod error;
-mod operand;
 
+pub use core::{AtlasStatsError, AtlasStatsResult, StatsOperand};
 pub use descriptive::{correlation, covariance, stddev, variance};
-pub use error::{AtlasStatsError, AtlasStatsResult};
-pub use operand::StatsOperand;
