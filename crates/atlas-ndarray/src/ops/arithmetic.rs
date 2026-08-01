@@ -65,7 +65,11 @@ impl<T: Numeric> NDArray<T> {
     }
 
     pub fn add_scalar(&self, scalar: T) -> Self {
-        self.elementwise_scalar(scalar, |value, scalar| value + scalar)
+        let len = self.data.len();
+        let mut data = vec![T::zero(); len];
+        simd::add_scalar_contiguous(&self.data, scalar, &mut data);
+
+        Self::from_owned_parts(self.shape.clone(), data)
     }
 
     pub fn sub_scalar(&self, scalar: T) -> Self {
@@ -73,7 +77,11 @@ impl<T: Numeric> NDArray<T> {
     }
 
     pub fn mul_scalar(&self, scalar: T) -> Self {
-        self.elementwise_scalar(scalar, |value, scalar| value * scalar)
+        let len = self.data.len();
+        let mut data = vec![T::zero(); len];
+        simd::mul_scalar_contiguous(&self.data, scalar, &mut data);
+
+        Self::from_owned_parts(self.shape.clone(), data)
     }
 
     pub fn div_scalar(&self, scalar: T) -> Self {
@@ -163,13 +171,66 @@ impl<T: Numeric> NDArray<T> {
     fn from_owned_parts(shape: Vec<usize>, data: Vec<T>) -> Self {
         Self { strides: compute_strides(&shape), shape, data }
     }
+
+    fn add_array(&self, rhs: &Self) -> AtlasNdResult<Self> {
+        self.elementwise_binary_with_contiguous(
+            rhs,
+            Self::elementwise_add_contiguous,
+            |lhs, rhs| lhs + rhs,
+        )
+    }
+
+    fn mul_array(&self, rhs: &Self) -> AtlasNdResult<Self> {
+        self.elementwise_binary_with_contiguous(
+            rhs,
+            Self::elementwise_mul_contiguous,
+            |lhs, rhs| lhs * rhs,
+        )
+    }
+
+    fn elementwise_binary_with_contiguous<F, C>(
+        &self,
+        rhs: &Self,
+        contiguous_op: C,
+        op: F,
+    ) -> AtlasNdResult<Self>
+    where
+        F: Fn(T, T) -> T + Copy,
+        C: Fn(&Self, &Self) -> Self,
+    {
+        let metadata = broadcast_pair(&self.shape, &self.strides, &rhs.shape, &rhs.strides)?;
+        let layout_kind =
+            pair_layout_kind(&metadata.shape, &metadata.lhs_strides, &metadata.rhs_strides);
+
+        match layout_kind {
+            PairLayoutKind::Contiguous => Ok(contiguous_op(self, rhs)),
+            PairLayoutKind::Broadcast => Ok(self.elementwise_binary_broadcast(rhs, metadata, op)),
+            PairLayoutKind::Strided => Ok(self.elementwise_binary_strided(rhs, metadata, op)),
+        }
+    }
+
+    fn elementwise_add_contiguous(&self, rhs: &Self) -> Self {
+        let len = self.data.len();
+        let mut data = vec![T::zero(); len];
+        simd::add_contiguous(&self.data, &rhs.data, &mut data);
+
+        Self::from_owned_parts(self.shape.clone(), data)
+    }
+
+    fn elementwise_mul_contiguous(&self, rhs: &Self) -> Self {
+        let len = self.data.len();
+        let mut data = vec![T::zero(); len];
+        simd::mul_contiguous(&self.data, &rhs.data, &mut data);
+
+        Self::from_owned_parts(self.shape.clone(), data)
+    }
 }
 
 impl<T: Numeric> AddOperand<T> for &NDArray<T> {
     type Output = AtlasNdResult<NDArray<T>>;
 
     fn add_to(self, lhs: &NDArray<T>) -> Self::Output {
-        lhs.elementwise_binary(self, |lhs, rhs| lhs + rhs)
+        lhs.add_array(self)
     }
 }
 
@@ -201,7 +262,7 @@ impl<T: Numeric> MulOperand<T> for &NDArray<T> {
     type Output = AtlasNdResult<NDArray<T>>;
 
     fn mul_with(self, lhs: &NDArray<T>) -> Self::Output {
-        lhs.elementwise_binary(self, |lhs, rhs| lhs * rhs)
+        lhs.mul_array(self)
     }
 }
 

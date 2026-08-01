@@ -8,5 +8,15 @@ version.workspace = true
 num-traits.workspace = true
 thiserror.workspace = true
 
-[lints]
-workspace = true
+[lints.rust]
+rust_2018_idioms = { level = "warn", priority = -1 }
+unsafe_op_in_unsafe_fn = "allow"
+unreachable_pub = "warn"
+unsafe_code = "allow"
+unused_lifetimes = "warn"
+unused_qualifications = "warn"
+
+[lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+unimplemented = "warn"

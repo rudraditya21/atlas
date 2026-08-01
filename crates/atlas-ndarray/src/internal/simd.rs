@@ -1,17 +1,258 @@
+use std::any::type_name;
+
 use num_traits::ToPrimitive;
 
 use crate::{AtlasNdError, AtlasNdResult, Numeric};
 
-const CONTIGUOUS_LANES: usize = 8;
+const SIMD_LANES: usize = 8;
+
+pub(crate) fn add_contiguous<T: Numeric>(lhs: &[T], rhs: &[T], out: &mut [T]) {
+    debug_assert_eq!(lhs.len(), rhs.len());
+    debug_assert_eq!(lhs.len(), out.len());
+
+    #[cfg(target_arch = "x86_64")]
+    {
+        if is_f32::<T>() && std::is_x86_feature_detected!("avx") {
+            // SAFETY: The type check guarantees exact element layout.
+            unsafe {
+                x86_64::add_f32(cast_slice(lhs), cast_slice(rhs), cast_mut_slice(out));
+            }
+            return;
+        }
+
+        if is_f64::<T>() && std::is_x86_feature_detected!("avx") {
+            // SAFETY: The type check guarantees exact element layout.
+            unsafe {
+                x86_64::add_f64(cast_slice(lhs), cast_slice(rhs), cast_mut_slice(out));
+            }
+            return;
+        }
+    }
+
+    map_binary_scalar(lhs, rhs, out, |left, right| left + right);
+}
+
+pub(crate) fn mul_contiguous<T: Numeric>(lhs: &[T], rhs: &[T], out: &mut [T]) {
+    debug_assert_eq!(lhs.len(), rhs.len());
+    debug_assert_eq!(lhs.len(), out.len());
+
+    #[cfg(target_arch = "x86_64")]
+    {
+        if is_f32::<T>() && std::is_x86_feature_detected!("avx") {
+            // SAFETY: The type check guarantees exact element layout.
+            unsafe {
+                x86_64::mul_f32(cast_slice(lhs), cast_slice(rhs), cast_mut_slice(out));
+            }
+            return;
+        }
+
+        if is_f64::<T>() && std::is_x86_feature_detected!("avx") {
+            // SAFETY: The type check guarantees exact element layout.
+            unsafe {
+                x86_64::mul_f64(cast_slice(lhs), cast_slice(rhs), cast_mut_slice(out));
+            }
+            return;
+        }
+    }
+
+    map_binary_scalar(lhs, rhs, out, |left, right| left * right);
+}
+
+pub(crate) fn add_scalar_contiguous<T: Numeric>(input: &[T], scalar: T, out: &mut [T]) {
+    debug_assert_eq!(input.len(), out.len());
+
+    #[cfg(target_arch = "x86_64")]
+    {
+        if is_f32::<T>() && std::is_x86_feature_detected!("avx") {
+            // SAFETY: The type check guarantees exact element layout.
+            unsafe {
+                x86_64::add_scalar_f32(cast_slice(input), to_f32(scalar), cast_mut_slice(out));
+            }
+            return;
+        }
+
+        if is_f64::<T>() && std::is_x86_feature_detected!("avx") {
+            // SAFETY: The type check guarantees exact element layout.
+            unsafe {
+                x86_64::add_scalar_f64(cast_slice(input), to_f64(scalar), cast_mut_slice(out));
+            }
+            return;
+        }
+    }
+
+    map_scalar_scalar(input, scalar, out, |value, rhs| value + rhs);
+}
+
+pub(crate) fn mul_scalar_contiguous<T: Numeric>(input: &[T], scalar: T, out: &mut [T]) {
+    debug_assert_eq!(input.len(), out.len());
+
+    #[cfg(target_arch = "x86_64")]
+    {
+        if is_f32::<T>() && std::is_x86_feature_detected!("avx") {
+            // SAFETY: The type check guarantees exact element layout.
+            unsafe {
+                x86_64::mul_scalar_f32(cast_slice(input), to_f32(scalar), cast_mut_slice(out));
+            }
+            return;
+        }
+
+        if is_f64::<T>() && std::is_x86_feature_detected!("avx") {
+            // SAFETY: The type check guarantees exact element layout.
+            unsafe {
+                x86_64::mul_scalar_f64(cast_slice(input), to_f64(scalar), cast_mut_slice(out));
+            }
+            return;
+        }
+    }
+
+    map_scalar_scalar(input, scalar, out, |value, rhs| value * rhs);
+}
 
 pub(crate) fn map_binary_contiguous<T, F>(lhs: &[T], rhs: &[T], out: &mut [T], op: F)
 where
     T: Numeric,
     F: Fn(T, T) -> T + Copy,
 {
-    debug_assert_eq!(lhs.len(), rhs.len());
-    debug_assert_eq!(lhs.len(), out.len());
+    map_binary_scalar(lhs, rhs, out, op);
+}
 
+pub(crate) fn map_scalar_contiguous<T, F>(input: &[T], scalar: T, out: &mut [T], op: F)
+where
+    T: Numeric,
+    F: Fn(T, T) -> T + Copy,
+{
+    map_scalar_scalar(input, scalar, out, op);
+}
+
+pub(crate) fn sum_contiguous<T: Numeric>(values: &[T]) -> T {
+    #[cfg(target_arch = "x86_64")]
+    {
+        if is_f32::<T>() && std::is_x86_feature_detected!("avx") {
+            // SAFETY: The type check guarantees exact element layout.
+            let value = unsafe { x86_64::sum_f32(cast_slice(values)) };
+            return cast_value(value);
+        }
+
+        if is_f64::<T>() && std::is_x86_feature_detected!("avx") {
+            // SAFETY: The type check guarantees exact element layout.
+            let value = unsafe { x86_64::sum_f64(cast_slice(values)) };
+            return cast_value(value);
+        }
+    }
+
+    sum_scalar(values)
+}
+
+pub(crate) fn prod_contiguous<T: Numeric>(values: &[T]) -> T {
+    #[cfg(target_arch = "x86_64")]
+    {
+        if is_f32::<T>() && std::is_x86_feature_detected!("avx") {
+            // SAFETY: The type check guarantees exact element layout.
+            let value = unsafe { x86_64::prod_f32(cast_slice(values)) };
+            return cast_value(value);
+        }
+
+        if is_f64::<T>() && std::is_x86_feature_detected!("avx") {
+            // SAFETY: The type check guarantees exact element layout.
+            let value = unsafe { x86_64::prod_f64(cast_slice(values)) };
+            return cast_value(value);
+        }
+    }
+
+    prod_scalar(values)
+}
+
+pub(crate) fn min_contiguous<T>(values: &[T], op: &'static str) -> AtlasNdResult<T>
+where
+    T: Numeric + PartialOrd,
+{
+    #[cfg(target_arch = "x86_64")]
+    {
+        if is_f32::<T>() && std::is_x86_feature_detected!("avx") {
+            if values.is_empty() {
+                return Err(AtlasNdError::EmptyReduction { op });
+            }
+
+            // SAFETY: The type check guarantees exact element layout.
+            let value = unsafe { x86_64::min_f32(cast_slice(values)) };
+            return Ok(cast_value(value));
+        }
+
+        if is_f64::<T>() && std::is_x86_feature_detected!("avx") {
+            if values.is_empty() {
+                return Err(AtlasNdError::EmptyReduction { op });
+            }
+
+            // SAFETY: The type check guarantees exact element layout.
+            let value = unsafe { x86_64::min_f64(cast_slice(values)) };
+            return Ok(cast_value(value));
+        }
+    }
+
+    min_scalar(values, op)
+}
+
+pub(crate) fn max_contiguous<T>(values: &[T], op: &'static str) -> AtlasNdResult<T>
+where
+    T: Numeric + PartialOrd,
+{
+    #[cfg(target_arch = "x86_64")]
+    {
+        if is_f32::<T>() && std::is_x86_feature_detected!("avx") {
+            if values.is_empty() {
+                return Err(AtlasNdError::EmptyReduction { op });
+            }
+
+            // SAFETY: The type check guarantees exact element layout.
+            let value = unsafe { x86_64::max_f32(cast_slice(values)) };
+            return Ok(cast_value(value));
+        }
+
+        if is_f64::<T>() && std::is_x86_feature_detected!("avx") {
+            if values.is_empty() {
+                return Err(AtlasNdError::EmptyReduction { op });
+            }
+
+            // SAFETY: The type check guarantees exact element layout.
+            let value = unsafe { x86_64::max_f64(cast_slice(values)) };
+            return Ok(cast_value(value));
+        }
+    }
+
+    max_scalar(values, op)
+}
+
+pub(crate) fn mean_contiguous<T>(values: &[T], op: &'static str) -> AtlasNdResult<f64>
+where
+    T: Numeric + ToPrimitive,
+{
+    if values.is_empty() {
+        return Err(AtlasNdError::EmptyReduction { op });
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    {
+        if is_f32::<T>() && std::is_x86_feature_detected!("avx") {
+            // SAFETY: The type check guarantees exact element layout.
+            let total = unsafe { x86_64::sum_f32(cast_slice(values)) };
+            return Ok(total as f64 / values.len() as f64);
+        }
+
+        if is_f64::<T>() && std::is_x86_feature_detected!("avx") {
+            // SAFETY: The type check guarantees exact element layout.
+            let total = unsafe { x86_64::sum_f64(cast_slice(values)) };
+            return Ok(total / values.len() as f64);
+        }
+    }
+
+    mean_scalar(values, op)
+}
+
+fn map_binary_scalar<T, F>(lhs: &[T], rhs: &[T], out: &mut [T], op: F)
+where
+    T: Numeric,
+    F: Fn(T, T) -> T + Copy,
+{
     let len = out.len();
     let body_len = body_len(len);
     let mut index = 0;
@@ -25,7 +266,7 @@ where
         out[index + 5] = op(lhs[index + 5], rhs[index + 5]);
         out[index + 6] = op(lhs[index + 6], rhs[index + 6]);
         out[index + 7] = op(lhs[index + 7], rhs[index + 7]);
-        index += CONTIGUOUS_LANES;
+        index += SIMD_LANES;
     }
 
     while index < len {
@@ -34,13 +275,11 @@ where
     }
 }
 
-pub(crate) fn map_scalar_contiguous<T, F>(input: &[T], scalar: T, out: &mut [T], op: F)
+fn map_scalar_scalar<T, F>(input: &[T], scalar: T, out: &mut [T], op: F)
 where
     T: Numeric,
     F: Fn(T, T) -> T + Copy,
 {
-    debug_assert_eq!(input.len(), out.len());
-
     let len = out.len();
     let body_len = body_len(len);
     let mut index = 0;
@@ -54,7 +293,7 @@ where
         out[index + 5] = op(input[index + 5], scalar);
         out[index + 6] = op(input[index + 6], scalar);
         out[index + 7] = op(input[index + 7], scalar);
-        index += CONTIGUOUS_LANES;
+        index += SIMD_LANES;
     }
 
     while index < len {
@@ -63,7 +302,7 @@ where
     }
 }
 
-pub(crate) fn sum_contiguous<T: Numeric>(values: &[T]) -> T {
+fn sum_scalar<T: Numeric>(values: &[T]) -> T {
     let len = values.len();
     let body_len = body_len(len);
     let mut acc0 = T::zero();
@@ -85,7 +324,7 @@ pub(crate) fn sum_contiguous<T: Numeric>(values: &[T]) -> T {
         acc5 += values[index + 5];
         acc6 += values[index + 6];
         acc7 += values[index + 7];
-        index += CONTIGUOUS_LANES;
+        index += SIMD_LANES;
     }
 
     let mut total = acc0 + acc1;
@@ -101,7 +340,7 @@ pub(crate) fn sum_contiguous<T: Numeric>(values: &[T]) -> T {
     total
 }
 
-pub(crate) fn prod_contiguous<T: Numeric>(values: &[T]) -> T {
+fn prod_scalar<T: Numeric>(values: &[T]) -> T {
     let len = values.len();
     let body_len = body_len(len);
     let mut acc0 = T::one();
@@ -123,7 +362,7 @@ pub(crate) fn prod_contiguous<T: Numeric>(values: &[T]) -> T {
         acc5 *= values[index + 5];
         acc6 *= values[index + 6];
         acc7 *= values[index + 7];
-        index += CONTIGUOUS_LANES;
+        index += SIMD_LANES;
     }
 
     let mut total = acc0 * acc1;
@@ -139,7 +378,7 @@ pub(crate) fn prod_contiguous<T: Numeric>(values: &[T]) -> T {
     total
 }
 
-pub(crate) fn min_contiguous<T>(values: &[T], op: &'static str) -> AtlasNdResult<T>
+fn min_scalar<T>(values: &[T], op: &'static str) -> AtlasNdResult<T>
 where
     T: Numeric + PartialOrd,
 {
@@ -155,7 +394,7 @@ where
     Ok(minimum)
 }
 
-pub(crate) fn max_contiguous<T>(values: &[T], op: &'static str) -> AtlasNdResult<T>
+fn max_scalar<T>(values: &[T], op: &'static str) -> AtlasNdResult<T>
 where
     T: Numeric + PartialOrd,
 {
@@ -171,52 +410,496 @@ where
     Ok(maximum)
 }
 
-pub(crate) fn mean_contiguous<T>(values: &[T], op: &'static str) -> AtlasNdResult<f64>
+fn mean_scalar<T>(values: &[T], op: &'static str) -> AtlasNdResult<f64>
 where
     T: Numeric + ToPrimitive,
 {
-    if values.is_empty() {
-        return Err(AtlasNdError::EmptyReduction { op });
+    let mut total = 0.0_f64;
+
+    for &value in values {
+        total += value.to_f64().ok_or(AtlasNdError::NumericConversionFailed { op })?;
     }
 
-    let len = values.len();
-    let body_len = body_len(len);
-    let mut acc0 = 0.0_f64;
-    let mut acc1 = 0.0_f64;
-    let mut acc2 = 0.0_f64;
-    let mut acc3 = 0.0_f64;
-    let mut acc4 = 0.0_f64;
-    let mut acc5 = 0.0_f64;
-    let mut acc6 = 0.0_f64;
-    let mut acc7 = 0.0_f64;
-    let mut index = 0;
-
-    while index < body_len {
-        acc0 += values[index].to_f64().ok_or(AtlasNdError::NumericConversionFailed { op })?;
-        acc1 += values[index + 1].to_f64().ok_or(AtlasNdError::NumericConversionFailed { op })?;
-        acc2 += values[index + 2].to_f64().ok_or(AtlasNdError::NumericConversionFailed { op })?;
-        acc3 += values[index + 3].to_f64().ok_or(AtlasNdError::NumericConversionFailed { op })?;
-        acc4 += values[index + 4].to_f64().ok_or(AtlasNdError::NumericConversionFailed { op })?;
-        acc5 += values[index + 5].to_f64().ok_or(AtlasNdError::NumericConversionFailed { op })?;
-        acc6 += values[index + 6].to_f64().ok_or(AtlasNdError::NumericConversionFailed { op })?;
-        acc7 += values[index + 7].to_f64().ok_or(AtlasNdError::NumericConversionFailed { op })?;
-        index += CONTIGUOUS_LANES;
-    }
-
-    let mut total = acc0 + acc1;
-    total += acc2 + acc3;
-    total += acc4 + acc5;
-    total += acc6 + acc7;
-
-    while index < len {
-        total += values[index].to_f64().ok_or(AtlasNdError::NumericConversionFailed { op })?;
-        index += 1;
-    }
-
-    Ok(total / len as f64)
+    Ok(total / values.len() as f64)
 }
 
 #[inline]
 fn body_len(len: usize) -> usize {
-    len / CONTIGUOUS_LANES * CONTIGUOUS_LANES
+    len / SIMD_LANES * SIMD_LANES
+}
+
+#[inline]
+fn is_f32<T>() -> bool {
+    type_name::<T>() == "f32"
+}
+
+#[inline]
+fn is_f64<T>() -> bool {
+    type_name::<T>() == "f64"
+}
+
+#[inline]
+fn to_f32<T: Numeric>(value: T) -> f32 {
+    // SAFETY: Callers only use this after an exact type check for f32.
+    unsafe { std::mem::transmute_copy::<T, f32>(&value) }
+}
+
+#[inline]
+fn to_f64<T: Numeric>(value: T) -> f64 {
+    // SAFETY: Callers only use this after an exact type check for f64.
+    unsafe { std::mem::transmute_copy::<T, f64>(&value) }
+}
+
+#[inline]
+fn cast_value<U, T>(value: U) -> T
+where
+    U: Copy,
+    T: Copy,
+{
+    // SAFETY: Callers only use this after an exact type match between U and T.
+    unsafe { std::mem::transmute_copy::<U, T>(&value) }
+}
+
+#[inline]
+fn cast_slice<T, U>(data: &[T]) -> &[U] {
+    // SAFETY: Callers only use this after an exact type match between T and U.
+    unsafe { std::slice::from_raw_parts(data.as_ptr() as *const U, data.len()) }
+}
+
+#[inline]
+fn cast_mut_slice<T, U>(data: &mut [T]) -> &mut [U] {
+    // SAFETY: Callers only use this after an exact type match between T and U.
+    unsafe { std::slice::from_raw_parts_mut(data.as_mut_ptr() as *mut U, data.len()) }
+}
+
+#[cfg(target_arch = "x86_64")]
+mod x86_64 {
+    use std::arch::x86_64::*;
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn add_f32(lhs: &[f32], rhs: &[f32], out: &mut [f32]) {
+        map_f32(lhs, rhs, out, _mm256_add_ps);
+    }
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn mul_f32(lhs: &[f32], rhs: &[f32], out: &mut [f32]) {
+        map_f32(lhs, rhs, out, _mm256_mul_ps);
+    }
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn add_scalar_f32(input: &[f32], scalar: f32, out: &mut [f32]) {
+        map_scalar_f32(input, scalar, out, _mm256_add_ps);
+    }
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn mul_scalar_f32(input: &[f32], scalar: f32, out: &mut [f32]) {
+        map_scalar_f32(input, scalar, out, _mm256_mul_ps);
+    }
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn add_f64(lhs: &[f64], rhs: &[f64], out: &mut [f64]) {
+        map_f64(lhs, rhs, out, _mm256_add_pd);
+    }
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn mul_f64(lhs: &[f64], rhs: &[f64], out: &mut [f64]) {
+        map_f64(lhs, rhs, out, _mm256_mul_pd);
+    }
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn add_scalar_f64(input: &[f64], scalar: f64, out: &mut [f64]) {
+        map_scalar_f64(input, scalar, out, _mm256_add_pd);
+    }
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn mul_scalar_f64(input: &[f64], scalar: f64, out: &mut [f64]) {
+        map_scalar_f64(input, scalar, out, _mm256_mul_pd);
+    }
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn sum_f32(values: &[f32]) -> f32 {
+        if values.len() < 8 {
+            return values.iter().copied().sum();
+        }
+
+        let body_len = values.len() / 8 * 8;
+        let mut acc = _mm256_setzero_ps();
+        let mut index = 0;
+
+        while index < body_len {
+            let vector = _mm256_loadu_ps(values.as_ptr().add(index));
+            acc = _mm256_add_ps(acc, vector);
+            index += 8;
+        }
+
+        let mut lanes = [0.0_f32; 8];
+        _mm256_storeu_ps(lanes.as_mut_ptr(), acc);
+        let mut total: f32 = lanes.into_iter().sum();
+
+        while index < values.len() {
+            total += values[index];
+            index += 1;
+        }
+
+        total
+    }
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn prod_f32(values: &[f32]) -> f32 {
+        if values.len() < 8 {
+            return values.iter().copied().product();
+        }
+
+        let body_len = values.len() / 8 * 8;
+        let mut acc = _mm256_set1_ps(1.0);
+        let mut index = 0;
+
+        while index < body_len {
+            let vector = _mm256_loadu_ps(values.as_ptr().add(index));
+            acc = _mm256_mul_ps(acc, vector);
+            index += 8;
+        }
+
+        let mut lanes = [1.0_f32; 8];
+        _mm256_storeu_ps(lanes.as_mut_ptr(), acc);
+        let mut total: f32 = lanes.into_iter().product();
+
+        while index < values.len() {
+            total *= values[index];
+            index += 1;
+        }
+
+        total
+    }
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn min_f32(values: &[f32]) -> f32 {
+        if values.len() < 8 {
+            return values.iter().copied().fold(f32::INFINITY, f32::min);
+        }
+
+        let body_len = values.len() / 8 * 8;
+        let mut index = 0;
+        let mut acc = _mm256_loadu_ps(values.as_ptr());
+        index += 8;
+
+        while index < body_len {
+            let vector = _mm256_loadu_ps(values.as_ptr().add(index));
+            acc = _mm256_min_ps(acc, vector);
+            index += 8;
+        }
+
+        let mut lanes = [0.0_f32; 8];
+        _mm256_storeu_ps(lanes.as_mut_ptr(), acc);
+        let mut minimum = lanes.into_iter().fold(f32::INFINITY, f32::min);
+
+        while index < values.len() {
+            minimum = minimum.min(values[index]);
+            index += 1;
+        }
+
+        minimum
+    }
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn max_f32(values: &[f32]) -> f32 {
+        if values.len() < 8 {
+            return values.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+        }
+
+        let body_len = values.len() / 8 * 8;
+        let mut index = 0;
+        let mut acc = _mm256_loadu_ps(values.as_ptr());
+        index += 8;
+
+        while index < body_len {
+            let vector = _mm256_loadu_ps(values.as_ptr().add(index));
+            acc = _mm256_max_ps(acc, vector);
+            index += 8;
+        }
+
+        let mut lanes = [0.0_f32; 8];
+        _mm256_storeu_ps(lanes.as_mut_ptr(), acc);
+        let mut maximum = lanes.into_iter().fold(f32::NEG_INFINITY, f32::max);
+
+        while index < values.len() {
+            maximum = maximum.max(values[index]);
+            index += 1;
+        }
+
+        maximum
+    }
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn sum_f64(values: &[f64]) -> f64 {
+        if values.len() < 4 {
+            return values.iter().copied().sum();
+        }
+
+        let body_len = values.len() / 4 * 4;
+        let mut acc = _mm256_setzero_pd();
+        let mut index = 0;
+
+        while index < body_len {
+            let vector = _mm256_loadu_pd(values.as_ptr().add(index));
+            acc = _mm256_add_pd(acc, vector);
+            index += 4;
+        }
+
+        let mut lanes = [0.0_f64; 4];
+        _mm256_storeu_pd(lanes.as_mut_ptr(), acc);
+        let mut total: f64 = lanes.into_iter().sum();
+
+        while index < values.len() {
+            total += values[index];
+            index += 1;
+        }
+
+        total
+    }
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn prod_f64(values: &[f64]) -> f64 {
+        if values.len() < 4 {
+            return values.iter().copied().product();
+        }
+
+        let body_len = values.len() / 4 * 4;
+        let mut acc = _mm256_set1_pd(1.0);
+        let mut index = 0;
+
+        while index < body_len {
+            let vector = _mm256_loadu_pd(values.as_ptr().add(index));
+            acc = _mm256_mul_pd(acc, vector);
+            index += 4;
+        }
+
+        let mut lanes = [1.0_f64; 4];
+        _mm256_storeu_pd(lanes.as_mut_ptr(), acc);
+        let mut total: f64 = lanes.into_iter().product();
+
+        while index < values.len() {
+            total *= values[index];
+            index += 1;
+        }
+
+        total
+    }
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn min_f64(values: &[f64]) -> f64 {
+        if values.len() < 4 {
+            return values.iter().copied().fold(f64::INFINITY, f64::min);
+        }
+
+        let body_len = values.len() / 4 * 4;
+        let mut index = 0;
+        let mut acc = _mm256_loadu_pd(values.as_ptr());
+        index += 4;
+
+        while index < body_len {
+            let vector = _mm256_loadu_pd(values.as_ptr().add(index));
+            acc = _mm256_min_pd(acc, vector);
+            index += 4;
+        }
+
+        let mut lanes = [0.0_f64; 4];
+        _mm256_storeu_pd(lanes.as_mut_ptr(), acc);
+        let mut minimum = lanes.into_iter().fold(f64::INFINITY, f64::min);
+
+        while index < values.len() {
+            minimum = minimum.min(values[index]);
+            index += 1;
+        }
+
+        minimum
+    }
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn max_f64(values: &[f64]) -> f64 {
+        if values.len() < 4 {
+            return values.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+        }
+
+        let body_len = values.len() / 4 * 4;
+        let mut index = 0;
+        let mut acc = _mm256_loadu_pd(values.as_ptr());
+        index += 4;
+
+        while index < body_len {
+            let vector = _mm256_loadu_pd(values.as_ptr().add(index));
+            acc = _mm256_max_pd(acc, vector);
+            index += 4;
+        }
+
+        let mut lanes = [0.0_f64; 4];
+        _mm256_storeu_pd(lanes.as_mut_ptr(), acc);
+        let mut maximum = lanes.into_iter().fold(f64::NEG_INFINITY, f64::max);
+
+        while index < values.len() {
+            maximum = maximum.max(values[index]);
+            index += 1;
+        }
+
+        maximum
+    }
+
+    #[target_feature(enable = "avx")]
+    unsafe fn map_f32(
+        lhs: &[f32],
+        rhs: &[f32],
+        out: &mut [f32],
+        op: unsafe fn(__m256, __m256) -> __m256,
+    ) {
+        let body_len = lhs.len() / 8 * 8;
+        let mut index = 0;
+
+        while index < body_len {
+            let left = _mm256_loadu_ps(lhs.as_ptr().add(index));
+            let right = _mm256_loadu_ps(rhs.as_ptr().add(index));
+            let result = op(left, right);
+            _mm256_storeu_ps(out.as_mut_ptr().add(index), result);
+            index += 8;
+        }
+
+        while index < lhs.len() {
+            out[index] = op_scalar_f32(lhs[index], rhs[index], op);
+            index += 1;
+        }
+    }
+
+    #[target_feature(enable = "avx")]
+    unsafe fn map_scalar_f32(
+        input: &[f32],
+        scalar: f32,
+        out: &mut [f32],
+        op: unsafe fn(__m256, __m256) -> __m256,
+    ) {
+        let body_len = input.len() / 8 * 8;
+        let scalar_vector = _mm256_set1_ps(scalar);
+        let mut index = 0;
+
+        while index < body_len {
+            let values = _mm256_loadu_ps(input.as_ptr().add(index));
+            let result = op(values, scalar_vector);
+            _mm256_storeu_ps(out.as_mut_ptr().add(index), result);
+            index += 8;
+        }
+
+        while index < input.len() {
+            out[index] = op_scalar_f32(input[index], scalar, op);
+            index += 1;
+        }
+    }
+
+    #[target_feature(enable = "avx")]
+    unsafe fn map_f64(
+        lhs: &[f64],
+        rhs: &[f64],
+        out: &mut [f64],
+        op: unsafe fn(__m256d, __m256d) -> __m256d,
+    ) {
+        let body_len = lhs.len() / 4 * 4;
+        let mut index = 0;
+
+        while index < body_len {
+            let left = _mm256_loadu_pd(lhs.as_ptr().add(index));
+            let right = _mm256_loadu_pd(rhs.as_ptr().add(index));
+            let result = op(left, right);
+            _mm256_storeu_pd(out.as_mut_ptr().add(index), result);
+            index += 4;
+        }
+
+        while index < lhs.len() {
+            out[index] = op_scalar_f64(lhs[index], rhs[index], op);
+            index += 1;
+        }
+    }
+
+    #[target_feature(enable = "avx")]
+    unsafe fn map_scalar_f64(
+        input: &[f64],
+        scalar: f64,
+        out: &mut [f64],
+        op: unsafe fn(__m256d, __m256d) -> __m256d,
+    ) {
+        let body_len = input.len() / 4 * 4;
+        let scalar_vector = _mm256_set1_pd(scalar);
+        let mut index = 0;
+
+        while index < body_len {
+            let values = _mm256_loadu_pd(input.as_ptr().add(index));
+            let result = op(values, scalar_vector);
+            _mm256_storeu_pd(out.as_mut_ptr().add(index), result);
+            index += 4;
+        }
+
+        while index < input.len() {
+            out[index] = op_scalar_f64(input[index], scalar, op);
+            index += 1;
+        }
+    }
+
+    #[inline]
+    unsafe fn op_scalar_f32(lhs: f32, rhs: f32, op: unsafe fn(__m256, __m256) -> __m256) -> f32 {
+        if std::ptr::fn_addr_eq(op, _mm256_add_ps as unsafe fn(__m256, __m256) -> __m256) {
+            lhs + rhs
+        } else {
+            lhs * rhs
+        }
+    }
+
+    #[inline]
+    unsafe fn op_scalar_f64(lhs: f64, rhs: f64, op: unsafe fn(__m256d, __m256d) -> __m256d) -> f64 {
+        if std::ptr::fn_addr_eq(op, _mm256_add_pd as unsafe fn(__m256d, __m256d) -> __m256d) {
+            lhs + rhs
+        } else {
+            lhs * rhs
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        add_contiguous, add_scalar_contiguous, max_contiguous, mean_contiguous, min_contiguous,
+        mul_contiguous, mul_scalar_contiguous, prod_contiguous, sum_contiguous,
+    };
+
+    #[test]
+    fn f32_simd_candidates_match_expected_results() {
+        let lhs = vec![1.0_f32; 19];
+        let rhs = vec![2.0_f32; 19];
+        let mut add_out = vec![0.0_f32; 19];
+        let mut mul_out = vec![0.0_f32; 19];
+
+        add_contiguous(&lhs, &rhs, &mut add_out);
+        mul_contiguous(&lhs, &rhs, &mut mul_out);
+
+        assert!(add_out.iter().all(|&value| value == 3.0));
+        assert!(mul_out.iter().all(|&value| value == 2.0));
+        assert_eq!(sum_contiguous(&rhs), 38.0);
+        assert_eq!(prod_contiguous(&vec![2.0_f32; 4]), 16.0);
+        assert_eq!(min_contiguous(&rhs, "min").unwrap(), 2.0);
+        assert_eq!(max_contiguous(&rhs, "max").unwrap(), 2.0);
+        assert_eq!(mean_contiguous(&rhs, "mean").unwrap(), 2.0);
+    }
+
+    #[test]
+    fn scalar_paths_cover_integer_fallbacks() {
+        let lhs = vec![1_i32, 2, 3, 4, 5];
+        let rhs = vec![2_i32, 3, 4, 5, 6];
+        let mut add_out = vec![0_i32; 5];
+        let mut mul_out = vec![0_i32; 5];
+
+        add_contiguous(&lhs, &rhs, &mut add_out);
+        mul_contiguous(&lhs, &rhs, &mut mul_out);
+        add_scalar_contiguous(&lhs, 2, &mut add_out);
+        mul_scalar_contiguous(&lhs, 2, &mut mul_out);
+
+        assert_eq!(sum_contiguous(&lhs), 15);
+        assert_eq!(prod_contiguous(&[1_i32, 2, 3, 4]), 24);
+        assert_eq!(add_out, vec![3, 4, 5, 6, 7]);
+        assert_eq!(mul_out, vec![2, 4, 6, 8, 10]);
+    }
 }
