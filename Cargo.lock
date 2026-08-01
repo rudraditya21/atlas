@@ -44,6 +44,7 @@ version = "0.1.0"
 dependencies = [
  "atlas-ndarray",
  "num-traits",
+ "rayon",
  "thiserror",
 ]
 
@@ -52,6 +53,7 @@ name = "atlas-ndarray"
 version = "0.1.0"
 dependencies = [
  "num-traits",
+ "rayon",
  "thiserror",
 ]
 
@@ -63,6 +65,7 @@ dependencies = [
  "num-traits",
  "rand",
  "rand_distr",
+ "rayon",
  "thiserror",
 ]
 

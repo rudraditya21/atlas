@@ -1,4 +1,5 @@
 use num_traits::ToPrimitive;
+use rayon::prelude::*;
 
 use crate::{
     AtlasNdError, AtlasNdResult, AxisIndex, NDArray, Numeric,
@@ -9,6 +10,9 @@ use crate::{
     layout::element_count,
     view::ArrayView,
 };
+
+const PARALLEL_REDUCTION_THRESHOLD: usize = 1 << 18;
+const PARALLEL_REDUCTION_CHUNK_LEN: usize = 1 << 14;
 
 impl<T: Numeric> NDArray<T> {
     pub fn sum(&self) -> T {
@@ -179,10 +183,24 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
 }
 
 fn sum_contiguous<T: Numeric>(values: &[T]) -> T {
+    if should_parallelize_reduction(values.len()) {
+        let partials: Vec<T> =
+            values.par_chunks(PARALLEL_REDUCTION_CHUNK_LEN).map(simd::sum_contiguous).collect();
+
+        return partials.into_iter().fold(T::zero(), |total, partial| total + partial);
+    }
+
     simd::sum_contiguous(values)
 }
 
 fn prod_contiguous<T: Numeric>(values: &[T]) -> T {
+    if should_parallelize_reduction(values.len()) {
+        let partials: Vec<T> =
+            values.par_chunks(PARALLEL_REDUCTION_CHUNK_LEN).map(simd::prod_contiguous).collect();
+
+        return partials.into_iter().fold(T::one(), |total, partial| total * partial);
+    }
+
     simd::prod_contiguous(values)
 }
 
@@ -190,6 +208,17 @@ fn min_contiguous<T>(values: &[T], op: &'static str) -> AtlasNdResult<T>
 where
     T: Numeric + PartialOrd,
 {
+    if should_parallelize_reduction(values.len()) {
+        let partials: Vec<T> = values
+            .par_chunks(PARALLEL_REDUCTION_CHUNK_LEN)
+            .map(|chunk| {
+                simd::min_contiguous(chunk, op).expect("parallel reduction chunks are non-empty")
+            })
+            .collect();
+
+        return fold_min(partials.into_iter(), op);
+    }
+
     simd::min_contiguous(values, op)
 }
 
@@ -197,6 +226,17 @@ fn max_contiguous<T>(values: &[T], op: &'static str) -> AtlasNdResult<T>
 where
     T: Numeric + PartialOrd,
 {
+    if should_parallelize_reduction(values.len()) {
+        let partials: Vec<T> = values
+            .par_chunks(PARALLEL_REDUCTION_CHUNK_LEN)
+            .map(|chunk| {
+                simd::max_contiguous(chunk, op).expect("parallel reduction chunks are non-empty")
+            })
+            .collect();
+
+        return fold_max(partials.into_iter(), op);
+    }
+
     simd::max_contiguous(values, op)
 }
 
@@ -204,6 +244,21 @@ fn mean_contiguous<T>(values: &[T], op: &'static str) -> AtlasNdResult<f64>
 where
     T: Numeric + ToPrimitive,
 {
+    if should_parallelize_reduction(values.len()) {
+        if values.is_empty() {
+            return Err(AtlasNdError::EmptyReduction { op });
+        }
+
+        let partials: Vec<AtlasNdResult<f64>> = values
+            .par_chunks(PARALLEL_REDUCTION_CHUNK_LEN)
+            .map(|chunk| sum_chunk_as_f64(chunk, op))
+            .collect();
+        let total =
+            partials.into_iter().try_fold(0.0_f64, |total, partial| Ok(total + partial?))?;
+
+        return Ok(total / values.len() as f64);
+    }
+
     simd::mean_contiguous(values, op)
 }
 
@@ -390,20 +445,42 @@ fn sum_axis_dense_contiguous<T: Numeric>(
         contiguous_region(data, base_offset, metadata.output_len.saturating_mul(metadata.axis_len));
     let mut reduced = vec![T::zero(); metadata.output_len];
 
-    for outer in 0..metadata.contiguous_outer_len {
-        let block_start = outer * metadata.axis_len * metadata.contiguous_inner_len;
-        let output_start = outer * metadata.contiguous_inner_len;
+    if should_parallelize_reduction(metadata.output_len.saturating_mul(metadata.axis_len))
+        && !reduced.is_empty()
+    {
+        reduced.par_chunks_mut(metadata.contiguous_inner_len).enumerate().for_each(
+            |(outer, output_row)| {
+                let block_start = outer * metadata.axis_len * metadata.contiguous_inner_len;
 
-        for inner in 0..metadata.contiguous_inner_len {
-            let mut total = T::zero();
-            let mut offset = block_start + inner;
+                for (inner, slot) in output_row.iter_mut().enumerate() {
+                    let mut total = T::zero();
+                    let mut offset = block_start + inner;
 
-            for _ in 0..metadata.axis_len {
-                total += values[offset];
-                offset += metadata.contiguous_inner_len;
+                    for _ in 0..metadata.axis_len {
+                        total += values[offset];
+                        offset += metadata.contiguous_inner_len;
+                    }
+
+                    *slot = total;
+                }
+            },
+        );
+    } else {
+        for outer in 0..metadata.contiguous_outer_len {
+            let block_start = outer * metadata.axis_len * metadata.contiguous_inner_len;
+            let output_start = outer * metadata.contiguous_inner_len;
+
+            for inner in 0..metadata.contiguous_inner_len {
+                let mut total = T::zero();
+                let mut offset = block_start + inner;
+
+                for _ in 0..metadata.axis_len {
+                    total += values[offset];
+                    offset += metadata.contiguous_inner_len;
+                }
+
+                reduced[output_start + inner] = total;
             }
-
-            reduced[output_start + inner] = total;
         }
     }
 
@@ -419,20 +496,42 @@ fn prod_axis_dense_contiguous<T: Numeric>(
         contiguous_region(data, base_offset, metadata.output_len.saturating_mul(metadata.axis_len));
     let mut reduced = vec![T::zero(); metadata.output_len];
 
-    for outer in 0..metadata.contiguous_outer_len {
-        let block_start = outer * metadata.axis_len * metadata.contiguous_inner_len;
-        let output_start = outer * metadata.contiguous_inner_len;
+    if should_parallelize_reduction(metadata.output_len.saturating_mul(metadata.axis_len))
+        && !reduced.is_empty()
+    {
+        reduced.par_chunks_mut(metadata.contiguous_inner_len).enumerate().for_each(
+            |(outer, output_row)| {
+                let block_start = outer * metadata.axis_len * metadata.contiguous_inner_len;
 
-        for inner in 0..metadata.contiguous_inner_len {
-            let mut total = T::one();
-            let mut offset = block_start + inner;
+                for (inner, slot) in output_row.iter_mut().enumerate() {
+                    let mut total = T::one();
+                    let mut offset = block_start + inner;
 
-            for _ in 0..metadata.axis_len {
-                total *= values[offset];
-                offset += metadata.contiguous_inner_len;
+                    for _ in 0..metadata.axis_len {
+                        total *= values[offset];
+                        offset += metadata.contiguous_inner_len;
+                    }
+
+                    *slot = total;
+                }
+            },
+        );
+    } else {
+        for outer in 0..metadata.contiguous_outer_len {
+            let block_start = outer * metadata.axis_len * metadata.contiguous_inner_len;
+            let output_start = outer * metadata.contiguous_inner_len;
+
+            for inner in 0..metadata.contiguous_inner_len {
+                let mut total = T::one();
+                let mut offset = block_start + inner;
+
+                for _ in 0..metadata.axis_len {
+                    total *= values[offset];
+                    offset += metadata.contiguous_inner_len;
+                }
+
+                reduced[output_start + inner] = total;
             }
-
-            reduced[output_start + inner] = total;
         }
     }
 
@@ -451,24 +550,50 @@ where
         contiguous_region(data, base_offset, metadata.output_len.saturating_mul(metadata.axis_len));
     let mut reduced = vec![T::zero(); metadata.output_len];
 
-    for outer in 0..metadata.contiguous_outer_len {
-        let block_start = outer * metadata.axis_len * metadata.contiguous_inner_len;
-        let output_start = outer * metadata.contiguous_inner_len;
+    if should_parallelize_reduction(metadata.output_len.saturating_mul(metadata.axis_len))
+        && !reduced.is_empty()
+    {
+        reduced.par_chunks_mut(metadata.contiguous_inner_len).enumerate().for_each(
+            |(outer, output_row)| {
+                let block_start = outer * metadata.axis_len * metadata.contiguous_inner_len;
 
-        for inner in 0..metadata.contiguous_inner_len {
-            let mut offset = block_start + inner;
-            let mut current = values[offset];
-            offset += metadata.contiguous_inner_len;
+                for (inner, slot) in output_row.iter_mut().enumerate() {
+                    let mut offset = block_start + inner;
+                    let mut current = values[offset];
+                    offset += metadata.contiguous_inner_len;
 
-            for _ in 1..metadata.axis_len {
-                let value = values[offset];
-                if value < current {
-                    current = value;
+                    for _ in 1..metadata.axis_len {
+                        let value = values[offset];
+                        if value < current {
+                            current = value;
+                        }
+                        offset += metadata.contiguous_inner_len;
+                    }
+
+                    *slot = current;
                 }
-                offset += metadata.contiguous_inner_len;
-            }
+            },
+        );
+    } else {
+        for outer in 0..metadata.contiguous_outer_len {
+            let block_start = outer * metadata.axis_len * metadata.contiguous_inner_len;
+            let output_start = outer * metadata.contiguous_inner_len;
 
-            reduced[output_start + inner] = current;
+            for inner in 0..metadata.contiguous_inner_len {
+                let mut offset = block_start + inner;
+                let mut current = values[offset];
+                offset += metadata.contiguous_inner_len;
+
+                for _ in 1..metadata.axis_len {
+                    let value = values[offset];
+                    if value < current {
+                        current = value;
+                    }
+                    offset += metadata.contiguous_inner_len;
+                }
+
+                reduced[output_start + inner] = current;
+            }
         }
     }
 
@@ -487,24 +612,50 @@ where
         contiguous_region(data, base_offset, metadata.output_len.saturating_mul(metadata.axis_len));
     let mut reduced = vec![T::zero(); metadata.output_len];
 
-    for outer in 0..metadata.contiguous_outer_len {
-        let block_start = outer * metadata.axis_len * metadata.contiguous_inner_len;
-        let output_start = outer * metadata.contiguous_inner_len;
+    if should_parallelize_reduction(metadata.output_len.saturating_mul(metadata.axis_len))
+        && !reduced.is_empty()
+    {
+        reduced.par_chunks_mut(metadata.contiguous_inner_len).enumerate().for_each(
+            |(outer, output_row)| {
+                let block_start = outer * metadata.axis_len * metadata.contiguous_inner_len;
 
-        for inner in 0..metadata.contiguous_inner_len {
-            let mut offset = block_start + inner;
-            let mut current = values[offset];
-            offset += metadata.contiguous_inner_len;
+                for (inner, slot) in output_row.iter_mut().enumerate() {
+                    let mut offset = block_start + inner;
+                    let mut current = values[offset];
+                    offset += metadata.contiguous_inner_len;
 
-            for _ in 1..metadata.axis_len {
-                let value = values[offset];
-                if value > current {
-                    current = value;
+                    for _ in 1..metadata.axis_len {
+                        let value = values[offset];
+                        if value > current {
+                            current = value;
+                        }
+                        offset += metadata.contiguous_inner_len;
+                    }
+
+                    *slot = current;
                 }
-                offset += metadata.contiguous_inner_len;
-            }
+            },
+        );
+    } else {
+        for outer in 0..metadata.contiguous_outer_len {
+            let block_start = outer * metadata.axis_len * metadata.contiguous_inner_len;
+            let output_start = outer * metadata.contiguous_inner_len;
 
-            reduced[output_start + inner] = current;
+            for inner in 0..metadata.contiguous_inner_len {
+                let mut offset = block_start + inner;
+                let mut current = values[offset];
+                offset += metadata.contiguous_inner_len;
+
+                for _ in 1..metadata.axis_len {
+                    let value = values[offset];
+                    if value > current {
+                        current = value;
+                    }
+                    offset += metadata.contiguous_inner_len;
+                }
+
+                reduced[output_start + inner] = current;
+            }
         }
     }
 
@@ -523,22 +674,48 @@ where
         contiguous_region(data, base_offset, metadata.output_len.saturating_mul(metadata.axis_len));
     let mut reduced = vec![0.0_f64; metadata.output_len];
 
-    for outer in 0..metadata.contiguous_outer_len {
-        let block_start = outer * metadata.axis_len * metadata.contiguous_inner_len;
-        let output_start = outer * metadata.contiguous_inner_len;
+    if should_parallelize_reduction(metadata.output_len.saturating_mul(metadata.axis_len))
+        && !reduced.is_empty()
+    {
+        reduced.par_chunks_mut(metadata.contiguous_inner_len).enumerate().try_for_each(
+            |(outer, output_row)| -> AtlasNdResult<()> {
+                let block_start = outer * metadata.axis_len * metadata.contiguous_inner_len;
 
-        for inner in 0..metadata.contiguous_inner_len {
-            let mut total = 0.0_f64;
-            let mut offset = block_start + inner;
+                for (inner, slot) in output_row.iter_mut().enumerate() {
+                    let mut total = 0.0_f64;
+                    let mut offset = block_start + inner;
 
-            for _ in 0..metadata.axis_len {
-                total += values[offset]
-                    .to_f64()
-                    .ok_or(AtlasNdError::NumericConversionFailed { op: "mean" })?;
-                offset += metadata.contiguous_inner_len;
+                    for _ in 0..metadata.axis_len {
+                        total += values[offset]
+                            .to_f64()
+                            .ok_or(AtlasNdError::NumericConversionFailed { op: "mean" })?;
+                        offset += metadata.contiguous_inner_len;
+                    }
+
+                    *slot = total / metadata.axis_len as f64;
+                }
+
+                Ok(())
+            },
+        )?;
+    } else {
+        for outer in 0..metadata.contiguous_outer_len {
+            let block_start = outer * metadata.axis_len * metadata.contiguous_inner_len;
+            let output_start = outer * metadata.contiguous_inner_len;
+
+            for inner in 0..metadata.contiguous_inner_len {
+                let mut total = 0.0_f64;
+                let mut offset = block_start + inner;
+
+                for _ in 0..metadata.axis_len {
+                    total += values[offset]
+                        .to_f64()
+                        .ok_or(AtlasNdError::NumericConversionFailed { op: "mean" })?;
+                    offset += metadata.contiguous_inner_len;
+                }
+
+                reduced[output_start + inner] = total / metadata.axis_len as f64;
             }
-
-            reduced[output_start + inner] = total / metadata.axis_len as f64;
         }
     }
 
@@ -552,12 +729,22 @@ fn sum_axis_contiguous<T: Numeric>(
 ) -> AtlasNdResult<NDArray<T>> {
     let mut reduced = vec![T::zero(); metadata.output_len];
 
-    for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
-        base_offset,
-        &metadata.output_shape,
-        &metadata.outer_strides,
-    )) {
-        *slot = sum_contiguous(contiguous_lane(data, lane_offset, metadata.axis_len));
+    if should_parallelize_reduction(metadata.output_len.saturating_mul(metadata.axis_len))
+        && !reduced.is_empty()
+    {
+        reduced.par_iter_mut().enumerate().for_each(|(index, slot)| {
+            let lane_offset =
+                linear_offset(base_offset, &metadata.output_shape, &metadata.outer_strides, index);
+            *slot = sum_contiguous(contiguous_lane(data, lane_offset, metadata.axis_len));
+        });
+    } else {
+        for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
+            base_offset,
+            &metadata.output_shape,
+            &metadata.outer_strides,
+        )) {
+            *slot = sum_contiguous(contiguous_lane(data, lane_offset, metadata.axis_len));
+        }
     }
 
     NDArray::from_shape_vec(metadata.output_shape, reduced)
@@ -570,12 +757,22 @@ fn sum_axis_strided<T: Numeric>(
 ) -> AtlasNdResult<NDArray<T>> {
     let mut reduced = vec![T::zero(); metadata.output_len];
 
-    for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
-        base_offset,
-        &metadata.output_shape,
-        &metadata.outer_strides,
-    )) {
-        *slot = sum_strided_lane(data, lane_offset, metadata.axis_len, metadata.axis_stride);
+    if should_parallelize_reduction(metadata.output_len.saturating_mul(metadata.axis_len))
+        && !reduced.is_empty()
+    {
+        reduced.par_iter_mut().enumerate().for_each(|(index, slot)| {
+            let lane_offset =
+                linear_offset(base_offset, &metadata.output_shape, &metadata.outer_strides, index);
+            *slot = sum_strided_lane(data, lane_offset, metadata.axis_len, metadata.axis_stride);
+        });
+    } else {
+        for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
+            base_offset,
+            &metadata.output_shape,
+            &metadata.outer_strides,
+        )) {
+            *slot = sum_strided_lane(data, lane_offset, metadata.axis_len, metadata.axis_stride);
+        }
     }
 
     NDArray::from_shape_vec(metadata.output_shape, reduced)
@@ -588,12 +785,22 @@ fn prod_axis_contiguous<T: Numeric>(
 ) -> AtlasNdResult<NDArray<T>> {
     let mut reduced = vec![T::zero(); metadata.output_len];
 
-    for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
-        base_offset,
-        &metadata.output_shape,
-        &metadata.outer_strides,
-    )) {
-        *slot = prod_contiguous(contiguous_lane(data, lane_offset, metadata.axis_len));
+    if should_parallelize_reduction(metadata.output_len.saturating_mul(metadata.axis_len))
+        && !reduced.is_empty()
+    {
+        reduced.par_iter_mut().enumerate().for_each(|(index, slot)| {
+            let lane_offset =
+                linear_offset(base_offset, &metadata.output_shape, &metadata.outer_strides, index);
+            *slot = prod_contiguous(contiguous_lane(data, lane_offset, metadata.axis_len));
+        });
+    } else {
+        for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
+            base_offset,
+            &metadata.output_shape,
+            &metadata.outer_strides,
+        )) {
+            *slot = prod_contiguous(contiguous_lane(data, lane_offset, metadata.axis_len));
+        }
     }
 
     NDArray::from_shape_vec(metadata.output_shape, reduced)
@@ -606,12 +813,22 @@ fn prod_axis_strided<T: Numeric>(
 ) -> AtlasNdResult<NDArray<T>> {
     let mut reduced = vec![T::zero(); metadata.output_len];
 
-    for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
-        base_offset,
-        &metadata.output_shape,
-        &metadata.outer_strides,
-    )) {
-        *slot = prod_strided_lane(data, lane_offset, metadata.axis_len, metadata.axis_stride);
+    if should_parallelize_reduction(metadata.output_len.saturating_mul(metadata.axis_len))
+        && !reduced.is_empty()
+    {
+        reduced.par_iter_mut().enumerate().for_each(|(index, slot)| {
+            let lane_offset =
+                linear_offset(base_offset, &metadata.output_shape, &metadata.outer_strides, index);
+            *slot = prod_strided_lane(data, lane_offset, metadata.axis_len, metadata.axis_stride);
+        });
+    } else {
+        for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
+            base_offset,
+            &metadata.output_shape,
+            &metadata.outer_strides,
+        )) {
+            *slot = prod_strided_lane(data, lane_offset, metadata.axis_len, metadata.axis_stride);
+        }
     }
 
     NDArray::from_shape_vec(metadata.output_shape, reduced)
@@ -627,12 +844,23 @@ where
 {
     let mut reduced = vec![T::zero(); metadata.output_len];
 
-    for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
-        base_offset,
-        &metadata.output_shape,
-        &metadata.outer_strides,
-    )) {
-        *slot = min_contiguous(contiguous_lane(data, lane_offset, metadata.axis_len), "min")?;
+    if should_parallelize_reduction(metadata.output_len.saturating_mul(metadata.axis_len))
+        && !reduced.is_empty()
+    {
+        reduced.par_iter_mut().enumerate().try_for_each(|(index, slot)| -> AtlasNdResult<()> {
+            let lane_offset =
+                linear_offset(base_offset, &metadata.output_shape, &metadata.outer_strides, index);
+            *slot = min_contiguous(contiguous_lane(data, lane_offset, metadata.axis_len), "min")?;
+            Ok(())
+        })?;
+    } else {
+        for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
+            base_offset,
+            &metadata.output_shape,
+            &metadata.outer_strides,
+        )) {
+            *slot = min_contiguous(contiguous_lane(data, lane_offset, metadata.axis_len), "min")?;
+        }
     }
 
     NDArray::from_shape_vec(metadata.output_shape, reduced)
@@ -648,12 +876,22 @@ where
 {
     let mut reduced = vec![T::zero(); metadata.output_len];
 
-    for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
-        base_offset,
-        &metadata.output_shape,
-        &metadata.outer_strides,
-    )) {
-        *slot = min_strided_lane(data, lane_offset, metadata.axis_len, metadata.axis_stride);
+    if should_parallelize_reduction(metadata.output_len.saturating_mul(metadata.axis_len))
+        && !reduced.is_empty()
+    {
+        reduced.par_iter_mut().enumerate().for_each(|(index, slot)| {
+            let lane_offset =
+                linear_offset(base_offset, &metadata.output_shape, &metadata.outer_strides, index);
+            *slot = min_strided_lane(data, lane_offset, metadata.axis_len, metadata.axis_stride);
+        });
+    } else {
+        for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
+            base_offset,
+            &metadata.output_shape,
+            &metadata.outer_strides,
+        )) {
+            *slot = min_strided_lane(data, lane_offset, metadata.axis_len, metadata.axis_stride);
+        }
     }
 
     NDArray::from_shape_vec(metadata.output_shape, reduced)
@@ -669,12 +907,23 @@ where
 {
     let mut reduced = vec![T::zero(); metadata.output_len];
 
-    for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
-        base_offset,
-        &metadata.output_shape,
-        &metadata.outer_strides,
-    )) {
-        *slot = max_contiguous(contiguous_lane(data, lane_offset, metadata.axis_len), "max")?;
+    if should_parallelize_reduction(metadata.output_len.saturating_mul(metadata.axis_len))
+        && !reduced.is_empty()
+    {
+        reduced.par_iter_mut().enumerate().try_for_each(|(index, slot)| -> AtlasNdResult<()> {
+            let lane_offset =
+                linear_offset(base_offset, &metadata.output_shape, &metadata.outer_strides, index);
+            *slot = max_contiguous(contiguous_lane(data, lane_offset, metadata.axis_len), "max")?;
+            Ok(())
+        })?;
+    } else {
+        for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
+            base_offset,
+            &metadata.output_shape,
+            &metadata.outer_strides,
+        )) {
+            *slot = max_contiguous(contiguous_lane(data, lane_offset, metadata.axis_len), "max")?;
+        }
     }
 
     NDArray::from_shape_vec(metadata.output_shape, reduced)
@@ -690,12 +939,22 @@ where
 {
     let mut reduced = vec![T::zero(); metadata.output_len];
 
-    for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
-        base_offset,
-        &metadata.output_shape,
-        &metadata.outer_strides,
-    )) {
-        *slot = max_strided_lane(data, lane_offset, metadata.axis_len, metadata.axis_stride);
+    if should_parallelize_reduction(metadata.output_len.saturating_mul(metadata.axis_len))
+        && !reduced.is_empty()
+    {
+        reduced.par_iter_mut().enumerate().for_each(|(index, slot)| {
+            let lane_offset =
+                linear_offset(base_offset, &metadata.output_shape, &metadata.outer_strides, index);
+            *slot = max_strided_lane(data, lane_offset, metadata.axis_len, metadata.axis_stride);
+        });
+    } else {
+        for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
+            base_offset,
+            &metadata.output_shape,
+            &metadata.outer_strides,
+        )) {
+            *slot = max_strided_lane(data, lane_offset, metadata.axis_len, metadata.axis_stride);
+        }
     }
 
     NDArray::from_shape_vec(metadata.output_shape, reduced)
@@ -711,12 +970,23 @@ where
 {
     let mut reduced = vec![0.0_f64; metadata.output_len];
 
-    for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
-        base_offset,
-        &metadata.output_shape,
-        &metadata.outer_strides,
-    )) {
-        *slot = mean_contiguous(contiguous_lane(data, lane_offset, metadata.axis_len), "mean")?;
+    if should_parallelize_reduction(metadata.output_len.saturating_mul(metadata.axis_len))
+        && !reduced.is_empty()
+    {
+        reduced.par_iter_mut().enumerate().try_for_each(|(index, slot)| -> AtlasNdResult<()> {
+            let lane_offset =
+                linear_offset(base_offset, &metadata.output_shape, &metadata.outer_strides, index);
+            *slot = mean_contiguous(contiguous_lane(data, lane_offset, metadata.axis_len), "mean")?;
+            Ok(())
+        })?;
+    } else {
+        for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
+            base_offset,
+            &metadata.output_shape,
+            &metadata.outer_strides,
+        )) {
+            *slot = mean_contiguous(contiguous_lane(data, lane_offset, metadata.axis_len), "mean")?;
+        }
     }
 
     NDArray::from_shape_vec(metadata.output_shape, reduced)
@@ -732,16 +1002,100 @@ where
 {
     let mut reduced = vec![0.0_f64; metadata.output_len];
 
-    for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
-        base_offset,
-        &metadata.output_shape,
-        &metadata.outer_strides,
-    )) {
-        *slot =
-            mean_strided_lane(data, lane_offset, metadata.axis_len, metadata.axis_stride, "mean")?;
+    if should_parallelize_reduction(metadata.output_len.saturating_mul(metadata.axis_len))
+        && !reduced.is_empty()
+    {
+        reduced.par_iter_mut().enumerate().try_for_each(|(index, slot)| -> AtlasNdResult<()> {
+            let lane_offset =
+                linear_offset(base_offset, &metadata.output_shape, &metadata.outer_strides, index);
+            *slot = mean_strided_lane(
+                data,
+                lane_offset,
+                metadata.axis_len,
+                metadata.axis_stride,
+                "mean",
+            )?;
+            Ok(())
+        })?;
+    } else {
+        for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
+            base_offset,
+            &metadata.output_shape,
+            &metadata.outer_strides,
+        )) {
+            *slot = mean_strided_lane(
+                data,
+                lane_offset,
+                metadata.axis_len,
+                metadata.axis_stride,
+                "mean",
+            )?;
+        }
     }
 
     NDArray::from_shape_vec(metadata.output_shape, reduced)
+}
+
+fn should_parallelize_reduction(work_items: usize) -> bool {
+    work_items >= PARALLEL_REDUCTION_THRESHOLD && rayon::current_num_threads() > 1
+}
+
+fn linear_offset(
+    base_offset: usize,
+    shape: &[usize],
+    strides: &[usize],
+    mut linear_index: usize,
+) -> usize {
+    let mut offset = base_offset;
+
+    for axis in (0..shape.len()).rev() {
+        let index = linear_index % shape[axis];
+        linear_index /= shape[axis];
+        offset += index * strides[axis];
+    }
+
+    offset
+}
+
+fn sum_chunk_as_f64<T>(values: &[T], op: &'static str) -> AtlasNdResult<f64>
+where
+    T: Numeric + ToPrimitive,
+{
+    values.iter().try_fold(0.0_f64, |total, value| {
+        Ok(total + value.to_f64().ok_or(AtlasNdError::NumericConversionFailed { op })?)
+    })
+}
+
+fn fold_min<T>(values: impl IntoIterator<Item = T>, op: &'static str) -> AtlasNdResult<T>
+where
+    T: Numeric + PartialOrd,
+{
+    let mut iter = values.into_iter();
+    let mut current = iter.next().ok_or(AtlasNdError::EmptyReduction { op })?;
+
+    for value in iter {
+        if value < current {
+            current = value;
+        }
+    }
+
+    Ok(current)
+}
+
+fn fold_max<T>(values: impl IntoIterator<Item = T>, op: &'static str) -> AtlasNdResult<T>
+where
+    T: Numeric + PartialOrd,
+{
+    let mut iter = values.into_iter();
+    let mut current = iter.next().ok_or(AtlasNdError::EmptyReduction { op })?;
+
+    for value in iter {
+        if value > current {
+            current = value;
+        }
+    }
+
+    Ok(current)
 }
 
 fn contiguous_lane<T>(data: &[T], lane_offset: usize, axis_len: usize) -> &[T] {
@@ -1048,5 +1402,31 @@ mod tests {
         assert_eq!(array.min_axis(-1).unwrap().data(), &[1]);
         assert_eq!(array.max_axis(-1).unwrap().data(), &[4]);
         assert_eq!(array.mean_axis(-1).unwrap().data(), &[2.5]);
+    }
+
+    #[test]
+    fn whole_array_reductions_remain_correct_for_parallel_sized_inputs() {
+        let values = vec![2_i32; super::PARALLEL_REDUCTION_THRESHOLD];
+        let array = NDArray::from_shape_vec([super::PARALLEL_REDUCTION_THRESHOLD], values).unwrap();
+
+        assert_eq!(array.sum(), (super::PARALLEL_REDUCTION_THRESHOLD as i32) * 2);
+        assert_eq!(array.min().unwrap(), 2);
+        assert_eq!(array.max().unwrap(), 2);
+        assert_eq!(array.mean().unwrap(), 2.0);
+    }
+
+    #[test]
+    fn axis_reductions_remain_correct_for_parallel_sized_inputs() {
+        let rows = 512;
+        let cols = super::PARALLEL_REDUCTION_THRESHOLD / rows;
+        let array = NDArray::from_shape_vec([rows, cols], vec![1.0_f64; rows * cols]).unwrap();
+
+        let sum_axis_zero = array.sum_axis(0).unwrap();
+        let mean_axis_one = array.mean_axis(1).unwrap();
+
+        assert_eq!(sum_axis_zero.shape(), &[cols]);
+        assert!(sum_axis_zero.data().iter().all(|value| *value == rows as f64));
+        assert_eq!(mean_axis_one.shape(), &[rows]);
+        assert!(mean_axis_one.data().iter().all(|value| *value == 1.0));
     }
 }

@@ -6,6 +6,7 @@ version.workspace = true
 
 [dependencies]
 num-traits.workspace = true
+rayon.workspace = true
 thiserror.workspace = true
 
 [lints.rust]
