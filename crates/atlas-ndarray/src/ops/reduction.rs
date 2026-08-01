@@ -11,8 +11,9 @@ use crate::{
     view::ArrayView,
 };
 
-const PARALLEL_REDUCTION_THRESHOLD: usize = 1 << 18;
+const PARALLEL_REDUCTION_THRESHOLD: usize = 1 << 20;
 const PARALLEL_REDUCTION_CHUNK_LEN: usize = 1 << 14;
+const PARALLEL_REDUCTION_MIN_CHUNKS_PER_THREAD: usize = 2;
 
 impl<T: Numeric> NDArray<T> {
     pub fn sum(&self) -> T {
@@ -1037,7 +1038,17 @@ where
 }
 
 fn should_parallelize_reduction(work_items: usize) -> bool {
-    work_items >= PARALLEL_REDUCTION_THRESHOLD && rayon::current_num_threads() > 1
+    should_parallelize_reduction_for_threads(work_items, rayon::current_num_threads())
+}
+
+fn should_parallelize_reduction_for_threads(work_items: usize, thread_count: usize) -> bool {
+    if thread_count <= 1 || work_items < PARALLEL_REDUCTION_THRESHOLD {
+        return false;
+    }
+
+    let chunk_count = work_items.div_ceil(PARALLEL_REDUCTION_CHUNK_LEN);
+
+    chunk_count >= thread_count.saturating_mul(PARALLEL_REDUCTION_MIN_CHUNKS_PER_THREAD)
 }
 
 fn linear_offset(
@@ -1428,5 +1439,20 @@ mod tests {
         assert!(sum_axis_zero.data().iter().all(|value| *value == rows as f64));
         assert_eq!(mean_axis_one.shape(), &[rows]);
         assert!(mean_axis_one.data().iter().all(|value| *value == 1.0));
+    }
+
+    #[test]
+    fn reduction_dispatch_stays_serial_for_small_and_medium_inputs() {
+        assert!(!super::should_parallelize_reduction_for_threads(1 << 18, 8));
+        assert!(!super::should_parallelize_reduction_for_threads((1 << 20) - 1, 8));
+        assert!(!super::should_parallelize_reduction_for_threads(1 << 20, 1));
+    }
+
+    #[test]
+    fn reduction_dispatch_requires_enough_chunks_per_thread() {
+        let work_items = super::PARALLEL_REDUCTION_THRESHOLD;
+
+        assert!(super::should_parallelize_reduction_for_threads(work_items, 4));
+        assert!(!super::should_parallelize_reduction_for_threads(work_items, 33));
     }
 }

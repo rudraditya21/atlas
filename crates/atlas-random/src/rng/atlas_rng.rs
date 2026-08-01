@@ -14,8 +14,9 @@ use crate::core::{
 
 use super::random_source::RandomSource;
 
-const PARALLEL_SAMPLING_THRESHOLD: usize = 1 << 18;
-const PARALLEL_SAMPLING_CHUNK_LEN: usize = 1 << 14;
+const PARALLEL_SAMPLING_THRESHOLD: usize = 1 << 20;
+const PARALLEL_SAMPLING_CHUNK_LEN: usize = 1 << 15;
+const PARALLEL_SAMPLING_MIN_CHUNKS_PER_THREAD: usize = 2;
 
 #[derive(Clone, Debug)]
 pub struct AtlasRng {
@@ -32,7 +33,7 @@ impl AtlasRng {
     }
 
     fn should_parallelize_fill(len: usize) -> bool {
-        len >= PARALLEL_SAMPLING_THRESHOLD && rayon::current_num_threads() > 1
+        should_parallelize_fill_for_threads(len, rayon::current_num_threads())
     }
 
     fn chunk_seeds(&mut self, len: usize) -> Vec<u64> {
@@ -45,6 +46,16 @@ impl AtlasRng {
 
         seeds
     }
+}
+
+fn should_parallelize_fill_for_threads(len: usize, thread_count: usize) -> bool {
+    if thread_count <= 1 || len < PARALLEL_SAMPLING_THRESHOLD {
+        return false;
+    }
+
+    let chunk_count = len.div_ceil(PARALLEL_SAMPLING_CHUNK_LEN);
+
+    chunk_count >= thread_count.saturating_mul(PARALLEL_SAMPLING_MIN_CHUNKS_PER_THREAD)
 }
 
 impl Default for AtlasRng {
@@ -206,5 +217,20 @@ mod tests {
             left.sample_normal(0.0_f64, 1.0).unwrap(),
             right.sample_normal(0.0_f64, 1.0).unwrap()
         );
+    }
+
+    #[test]
+    fn sampling_dispatch_stays_serial_for_small_and_medium_outputs() {
+        assert!(!super::should_parallelize_fill_for_threads(1 << 18, 8));
+        assert!(!super::should_parallelize_fill_for_threads((1 << 20) - 1, 8));
+        assert!(!super::should_parallelize_fill_for_threads(1 << 20, 1));
+    }
+
+    #[test]
+    fn sampling_dispatch_requires_enough_chunks_per_thread() {
+        let len = super::PARALLEL_SAMPLING_THRESHOLD;
+
+        assert!(super::should_parallelize_fill_for_threads(len, 4));
+        assert!(!super::should_parallelize_fill_for_threads(len, 17));
     }
 }

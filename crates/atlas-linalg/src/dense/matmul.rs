@@ -9,7 +9,8 @@ use crate::internal::simd;
 
 const ROW_MAJOR_MATMUL_BLOCK_SIZE: usize = 32;
 const ROW_MAJOR_MATMUL_BLOCK_THRESHOLD: usize = 64 * 64 * 64;
-const PARALLEL_MATMUL_THRESHOLD: usize = 64 * 64 * 64;
+const PARALLEL_MATMUL_THRESHOLD: usize = 128 * 128 * 128;
+const PARALLEL_MATMUL_MIN_ROWS_PER_THREAD: usize = 16;
 
 pub fn matmul<'a, T, L, R>(lhs: L, rhs: R) -> AtlasLinalgResult<NDArray<T>>
 where
@@ -361,8 +362,23 @@ fn should_use_blocked_row_major_matmul<T: Numeric>(
 }
 
 fn should_parallelize_matmul(rows: usize, inner: usize, cols: usize) -> bool {
-    rows.saturating_mul(inner).saturating_mul(cols) >= PARALLEL_MATMUL_THRESHOLD
-        && rayon::current_num_threads() > 1
+    should_parallelize_matmul_for_threads(rows, inner, cols, rayon::current_num_threads())
+}
+
+fn should_parallelize_matmul_for_threads(
+    rows: usize,
+    inner: usize,
+    cols: usize,
+    thread_count: usize,
+) -> bool {
+    if thread_count <= 1 {
+        return false;
+    }
+
+    let work_items = rows.saturating_mul(inner).saturating_mul(cols);
+
+    work_items >= PARALLEL_MATMUL_THRESHOLD
+        && rows >= thread_count.saturating_mul(PARALLEL_MATMUL_MIN_ROWS_PER_THREAD)
 }
 
 fn matmul_matrix_matrix_lhs_col_major<T: Numeric>(
@@ -688,5 +704,18 @@ mod tests {
         );
 
         assert_eq!(row_major, generic);
+    }
+
+    #[test]
+    fn matmul_dispatch_stays_serial_for_small_and_medium_inputs() {
+        assert!(!super::should_parallelize_matmul_for_threads(64, 64, 64, 8));
+        assert!(!super::should_parallelize_matmul_for_threads(128, 128, 128, 16));
+        assert!(!super::should_parallelize_matmul_for_threads(128, 128, 128, 1));
+    }
+
+    #[test]
+    fn matmul_dispatch_requires_enough_rows_per_thread() {
+        assert!(super::should_parallelize_matmul_for_threads(128, 128, 128, 8));
+        assert!(!super::should_parallelize_matmul_for_threads(120, 128, 128, 8));
     }
 }
