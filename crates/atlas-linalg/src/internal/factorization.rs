@@ -25,11 +25,19 @@ pub(crate) fn copy_matrix_row_major<T: Numeric>(operand: &LinalgOperand<'_, T>) 
     let col_stride = operand.strides()[1];
     let offset = operand.offset();
     let data = operand.data();
-    let mut copied = Vec::with_capacity(rows * cols);
+
+    if col_stride == 1 && row_stride == cols {
+        return data[offset..offset + rows * cols].to_vec();
+    }
+
+    let mut copied = vec![T::zero(); rows * cols];
 
     for row in 0..rows {
+        let dst_row = &mut copied[row * cols..(row + 1) * cols];
+        let src_row_offset = offset + row * row_stride;
+
         for col in 0..cols {
-            copied.push(data[offset + row * row_stride + col * col_stride]);
+            dst_row[col] = data[src_row_offset + col * col_stride];
         }
     }
 
@@ -67,9 +75,17 @@ pub(crate) fn find_pivot_row<T: Float>(matrix: &[T], n: usize, pivot_col: usize)
 }
 
 pub(crate) fn swap_rows<T>(matrix: &mut [T], cols: usize, left: usize, right: usize) {
-    for col in 0..cols {
-        matrix.swap(left * cols + col, right * cols + col);
+    if left == right {
+        return;
     }
+
+    let left_start = left * cols;
+    let right_start = right * cols;
+    let (head, tail) = matrix.split_at_mut(right_start);
+    let left_row = &mut head[left_start..left_start + cols];
+    let right_row = &mut tail[..cols];
+
+    left_row.swap_with_slice(right_row);
 }
 
 pub(crate) fn swap_l_prefix_rows<T>(
@@ -79,46 +95,41 @@ pub(crate) fn swap_l_prefix_rows<T>(
     right: usize,
     end: usize,
 ) {
-    for col in 0..end {
-        matrix.swap(left * cols + col, right * cols + col);
-    }
-}
-
-pub(crate) fn extract_column<T: Copy>(
-    matrix: &[T],
-    rows: usize,
-    cols: usize,
-    column: usize,
-) -> Vec<T> {
-    let mut values = Vec::with_capacity(rows);
-
-    for row in 0..rows {
-        values.push(matrix[row * cols + column]);
+    if left == right || end == 0 {
+        return;
     }
 
-    values
-}
+    let left_start = left * cols;
+    let right_start = right * cols;
+    let (head, tail) = matrix.split_at_mut(right_start);
+    let left_prefix = &mut head[left_start..left_start + end];
+    let right_prefix = &mut tail[..end];
 
-pub(crate) fn column_from_storage<T: Copy>(
-    matrix: &[T],
-    rows: usize,
-    cols: usize,
-    column: usize,
-) -> Vec<T> {
-    let mut values = Vec::with_capacity(rows);
-
-    for row in 0..rows {
-        values.push(matrix[row * cols + column]);
-    }
-
-    values
+    left_prefix.swap_with_slice(right_prefix);
 }
 
 pub(crate) fn dot_slice<T: Numeric>(lhs: &[T], rhs: &[T]) -> T {
-    let mut total = T::zero();
+    let len = lhs.len();
+    let mut acc0 = T::zero();
+    let mut acc1 = T::zero();
+    let mut acc2 = T::zero();
+    let mut acc3 = T::zero();
+    let mut index = 0;
 
-    for index in 0..lhs.len() {
+    while index + 4 <= len {
+        acc0 += lhs[index] * rhs[index];
+        acc1 += lhs[index + 1] * rhs[index + 1];
+        acc2 += lhs[index + 2] * rhs[index + 2];
+        acc3 += lhs[index + 3] * rhs[index + 3];
+        index += 4;
+    }
+
+    let mut total = acc0 + acc1;
+    total += acc2 + acc3;
+
+    while index < len {
         total += lhs[index] * rhs[index];
+        index += 1;
     }
 
     total

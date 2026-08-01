@@ -3,7 +3,7 @@ use num_traits::Float;
 
 use crate::core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand};
 use crate::internal::factorization::{
-    copy_matrix_row_major, is_symmetric, tolerance, validate_rank_two, zero_matrix_data,
+    copy_matrix_row_major, dot_slice, is_symmetric, tolerance, validate_rank_two, zero_matrix_data,
 };
 
 #[derive(Clone, Debug)]
@@ -42,26 +42,24 @@ where
     let mut l = zero_matrix_data(n, n);
 
     for row in 0..n {
-        for col in 0..=row {
-            let mut value = a[row * n + col];
+        let a_row = &a[row * n..(row + 1) * n];
+        let (head, tail) = l.split_at_mut(row * n);
+        let l_row = &mut tail[..n];
 
-            for inner in 0..col {
-                value -= l[row * n + inner] * l[col * n + inner];
-            }
+        for col in 0..row {
+            let l_col = &head[col * n..(col + 1) * n];
+            let value = a_row[col] - dot_slice(&l_row[..col], &l_col[..col]);
 
-            if row == col {
-                if value <= tolerance {
-                    return Err(AtlasLinalgError::NotPositiveDefinite {
-                        op: "cholesky",
-                        index: row,
-                    });
-                }
-
-                l[row * n + col] = value.sqrt();
-            } else {
-                l[row * n + col] = value / l[col * n + col];
-            }
+            l_row[col] = value / l_col[col];
         }
+
+        let diagonal = a_row[row] - dot_slice(&l_row[..row], &l_row[..row]);
+
+        if diagonal <= tolerance {
+            return Err(AtlasLinalgError::NotPositiveDefinite { op: "cholesky", index: row });
+        }
+
+        l_row[row] = diagonal.sqrt();
     }
 
     Ok(CholeskyFactorization { l: NDArray::from_shape_vec([n, n], l)? })

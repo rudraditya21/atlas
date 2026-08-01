@@ -54,13 +54,22 @@ where
             swap_l_prefix_rows(&mut l, n, k, pivot_row, k);
         }
 
-        for row in (k + 1)..n {
-            let factor = a[row * n + k] / a[k * n + k];
-            l[row * n + k] = factor;
-            a[row * n + k] = T::zero();
+        let pivot_diagonal = a[k * n + k];
 
-            for col in (k + 1)..n {
-                a[row * n + col] = a[row * n + col] - factor * a[k * n + col];
+        for row in (k + 1)..n {
+            let row_start = row * n;
+            let (head, tail) = a.split_at_mut(row_start);
+            let pivot_row = &head[k * n..(k + 1) * n];
+            let row_slice = &mut tail[..n];
+            let factor = row_slice[k] / pivot_diagonal;
+
+            l[row * n + k] = factor;
+            row_slice[k] = T::zero();
+
+            for (value, &pivot_value) in
+                row_slice[k + 1..].iter_mut().zip(pivot_row[k + 1..].iter())
+            {
+                *value -= factor * pivot_value;
             }
         }
     }

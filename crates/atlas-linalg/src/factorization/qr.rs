@@ -3,8 +3,7 @@ use num_traits::Float;
 
 use crate::core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand};
 use crate::internal::factorization::{
-    column_from_storage, copy_matrix_row_major, dot_slice, extract_column, tolerance,
-    validate_rank_two, vector_norm, zero_matrix_data,
+    copy_matrix_row_major, dot_slice, tolerance, validate_rank_two, vector_norm, zero_matrix_data,
 };
 
 #[derive(Clone, Debug)]
@@ -33,17 +32,20 @@ where
     let a = copy_matrix_row_major(&matrix);
     let mut q_columns = vec![T::zero(); rows * cols];
     let mut r = zero_matrix_data(cols, cols);
+    let mut v = vec![T::zero(); rows];
 
     for col in 0..cols {
-        let mut v = extract_column(&a, rows, cols, col);
+        for row in 0..rows {
+            v[row] = a[row * cols + col];
+        }
 
         for prior in 0..col {
-            let q_col = column_from_storage(&q_columns, rows, cols, prior);
-            let projection = dot_slice(&q_col, &v);
+            let q_col = &q_columns[prior * rows..(prior + 1) * rows];
+            let projection = dot_slice(q_col, &v);
             r[prior * cols + col] = projection;
 
-            for row in 0..rows {
-                v[row] -= projection * q_columns[row * cols + prior];
+            for (value, &basis) in v.iter_mut().zip(q_col.iter()) {
+                *value -= projection * basis;
             }
         }
 
@@ -54,16 +56,33 @@ where
         }
 
         r[col * cols + col] = norm;
+        let q_col = &mut q_columns[col * rows..(col + 1) * rows];
 
-        for row in 0..rows {
-            q_columns[row * cols + col] = v[row] / norm;
+        for (slot, &value) in q_col.iter_mut().zip(v.iter()) {
+            *slot = value / norm;
         }
     }
 
+    let q = column_major_to_row_major(&q_columns, rows, cols);
+
     Ok(QrFactorization {
-        q: NDArray::from_shape_vec([rows, cols], q_columns)?,
+        q: NDArray::from_shape_vec([rows, cols], q)?,
         r: NDArray::from_shape_vec([cols, cols], r)?,
     })
+}
+
+fn column_major_to_row_major<T: Numeric>(data: &[T], rows: usize, cols: usize) -> Vec<T> {
+    let mut reordered = vec![T::zero(); rows * cols];
+
+    for col in 0..cols {
+        let source = &data[col * rows..(col + 1) * rows];
+
+        for row in 0..rows {
+            reordered[row * cols + col] = source[row];
+        }
+    }
+
+    reordered
 }
 
 #[cfg(test)]
