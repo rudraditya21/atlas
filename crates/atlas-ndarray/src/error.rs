@@ -4,26 +4,26 @@ pub type AtlasNdResult<T> = Result<T, AtlasNdError>;
 
 #[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum AtlasNdError {
-    #[error("shape does not match data length: expected {expected} elements, got {actual}")]
+    #[error("shape mismatch: expected {expected} elements, got {actual}")]
     ShapeMismatch { expected: usize, actual: usize },
 
-    #[error("dimension mismatch: expected {expected} dimensions, got {actual}")]
+    #[error("dimension mismatch: expected {expected}, got {actual}")]
     DimensionMismatch { expected: usize, actual: usize },
 
-    #[error("axis {axis} is out of bounds for array with {ndim} dimensions")]
+    #[error("invalid axis: axis {axis} is out of bounds for ndim {ndim}")]
     InvalidAxis { axis: i64, ndim: usize },
 
-    #[error("index {index} is out of bounds for axis {axis} with length {dim}")]
+    #[error("index out of bounds on axis {axis}: index {index}, length {dim}")]
     IndexOutOfBounds { axis: usize, index: usize, dim: usize },
 
-    #[error("invalid slice on axis {axis}: start {start}, length {len}, axis length {dim}")]
+    #[error("invalid slice on axis {axis}: start {start}, len {len}, dim {dim}")]
     InvalidSlice { axis: usize, start: usize, len: usize, dim: usize },
 
     #[error("invalid reshape from {from:?} to {to:?}: {reason}")]
     InvalidReshape { from: Vec<usize>, to: Vec<usize>, reason: &'static str },
 
     #[error(
-        "cannot broadcast shapes {lhs:?} and {rhs:?}: axis {axis} has incompatible dimensions {lhs_dim} and {rhs_dim}"
+        "invalid broadcast between {lhs:?} and {rhs:?}: axis {axis} has incompatible dimensions {lhs_dim} and {rhs_dim}"
     )]
     InvalidBroadcast {
         lhs: Vec<usize>,
@@ -33,10 +33,10 @@ pub enum AtlasNdError {
         rhs_dim: usize,
     },
 
-    #[error("cannot reduce empty array for operation {op}")]
+    #[error("empty input for {op}")]
     EmptyReduction { op: &'static str },
 
-    #[error("numeric conversion failed during operation {op}")]
+    #[error("numeric conversion failed for {op}")]
     NumericConversionFailed { op: &'static str },
 
     #[error("invalid argument for {op}: {reason}")]
@@ -44,4 +44,22 @@ pub enum AtlasNdError {
 
     #[error("invalid shape")]
     InvalidShape,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::AtlasNdError;
+
+    #[test]
+    fn error_messages_follow_consistent_style() {
+        assert_eq!(
+            AtlasNdError::ShapeMismatch { expected: 4, actual: 3 }.to_string(),
+            "shape mismatch: expected 4 elements, got 3"
+        );
+        assert_eq!(AtlasNdError::EmptyReduction { op: "mean" }.to_string(), "empty input for mean");
+        assert_eq!(
+            AtlasNdError::NumericConversionFailed { op: "mean" }.to_string(),
+            "numeric conversion failed for mean"
+        );
+    }
 }
