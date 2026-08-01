@@ -14,11 +14,8 @@ where
 {
     let shape = shape.as_ref().to_vec();
     let len = element_count(&shape);
-    let mut data = Vec::with_capacity(len);
-
-    for _ in 0..len {
-        data.push(rng.sample_uniform(low, high)?);
-    }
+    let mut data = vec![T::zero(); len];
+    rng.fill_uniform(low, high, &mut data)?;
 
     Ok(NDArray::from_shape_vec(shape, data)?)
 }

@@ -10,7 +10,16 @@ pub trait RandomSource {
     where
         T: Numeric + SampleUniform + PartialOrd;
 
+    fn fill_uniform<T>(&mut self, low: T, high: T, output: &mut [T]) -> AtlasRandomResult<()>
+    where
+        T: Numeric + SampleUniform + PartialOrd;
+
     fn sample_normal<T>(&mut self, mean: T, stddev: T) -> AtlasRandomResult<T>
+    where
+        T: Numeric + Float,
+        StandardNormal: Distribution<T>;
+
+    fn fill_normal<T>(&mut self, mean: T, stddev: T, output: &mut [T]) -> AtlasRandomResult<()>
     where
         T: Numeric + Float,
         StandardNormal: Distribution<T>;

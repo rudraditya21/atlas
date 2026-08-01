@@ -46,6 +46,25 @@ impl RandomSource for AtlasRng {
         Ok(distribution.sample(&mut self.inner))
     }
 
+    fn fill_uniform<T>(&mut self, low: T, high: T, output: &mut [T]) -> AtlasRandomResult<()>
+    where
+        T: Numeric + SampleUniform + PartialOrd,
+    {
+        validate_uniform_bounds(low, high)?;
+
+        if output.is_empty() {
+            return Ok(());
+        }
+
+        let distribution = Uniform::new(low, high);
+
+        for value in output.iter_mut() {
+            *value = distribution.sample(&mut self.inner);
+        }
+
+        Ok(())
+    }
+
     fn sample_normal<T>(&mut self, mean: T, stddev: T) -> AtlasRandomResult<T>
     where
         T: Numeric + Float,
@@ -61,6 +80,31 @@ impl RandomSource for AtlasRng {
         })?;
 
         Ok(distribution.sample(&mut self.inner))
+    }
+
+    fn fill_normal<T>(&mut self, mean: T, stddev: T, output: &mut [T]) -> AtlasRandomResult<()>
+    where
+        T: Numeric + Float,
+        StandardNormal: Distribution<T>,
+    {
+        validate_normal_parameters(mean, stddev)?;
+
+        if output.is_empty() {
+            return Ok(());
+        }
+
+        let distribution = Normal::new(mean, stddev).map_err(|_| {
+            AtlasRandomError::DistributionInitializationFailed {
+                op: "normal",
+                reason: "failed to build normal distribution",
+            }
+        })?;
+
+        for value in output.iter_mut() {
+            *value = distribution.sample(&mut self.inner);
+        }
+
+        Ok(())
     }
 }
 
