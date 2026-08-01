@@ -54,6 +54,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "atlas-stats"
+version = "0.1.0"
+dependencies = [
+ "atlas-ndarray",
+ "num-traits",
+ "thiserror",
+]
+
+[[package]]
 name = "autocfg"
 version = "1.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
