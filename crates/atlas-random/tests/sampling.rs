@@ -1,10 +1,16 @@
+use atlas_ndarray::{NDArray, compute_strides, element_count};
 use atlas_random::{AtlasRandomError, AtlasRng, normal, uniform};
 
-fn assert_shape<T>(array: &atlas_ndarray::NDArray<T>, expected: &[usize])
+fn assert_layout_invariants<T>(array: &NDArray<T>, expected_shape: &[usize])
 where
     T: atlas_ndarray::Numeric,
 {
-    assert_eq!(array.shape(), expected);
+    assert_eq!(array.shape(), expected_shape);
+    assert_eq!(array.strides(), compute_strides(expected_shape));
+    assert_eq!(array.len(), element_count(expected_shape));
+    assert_eq!(array.ndim(), expected_shape.len());
+    assert!(array.is_contiguous());
+    assert_eq!(array.is_empty(), array.len() == 0);
 }
 
 #[test]
@@ -18,6 +24,22 @@ fn uniform_is_reproducible_for_seeded_rngs() {
     assert_eq!(lhs.shape(), &[3, 2]);
     assert_eq!(lhs.data(), rhs.data());
     assert!(lhs.data().iter().all(|value| *value >= 5 && *value < 15));
+}
+
+#[test]
+fn uniform_outputs_satisfy_bounds_and_layout_invariants() {
+    let mut rng = AtlasRng::seed_from_u64(909);
+
+    let matrix = uniform([2, 3], -3.0_f64, 2.0, &mut rng).unwrap();
+    let scalar = uniform([], 10_i32, 20_i32, &mut rng).unwrap();
+    let empty = uniform([0, 2], 0_i32, 10_i32, &mut rng).unwrap();
+
+    assert_layout_invariants(&matrix, &[2, 3]);
+    assert!(matrix.data().iter().all(|value| *value >= -3.0 && *value < 2.0));
+    assert_layout_invariants(&scalar, &[] as &[usize]);
+    assert!(scalar.data()[0] >= 10 && scalar.data()[0] < 20);
+    assert_layout_invariants(&empty, &[0, 2]);
+    assert!(empty.data().is_empty());
 }
 
 #[test]
@@ -35,6 +57,25 @@ fn mixed_seeded_sampling_is_repeatable_across_calls() {
     assert_eq!(left_normal.shape(), &[2, 2]);
     assert_eq!(left_normal.data(), right_normal.data());
     assert!(left_normal.data().iter().all(|value| value.is_finite()));
+}
+
+#[test]
+fn normal_outputs_are_finite_and_layout_correct() {
+    let mut rng = AtlasRng::seed_from_u64(1001);
+
+    let matrix = normal([2, 2], 1.0_f64, 0.5, &mut rng).unwrap();
+    let tensor = normal([2, 1, 2], 0.0_f64, 1.0, &mut rng).unwrap();
+    let scalar = normal([], 0.0_f64, 1.0, &mut rng).unwrap();
+    let empty = normal([0], 0.0_f64, 1.0, &mut rng).unwrap();
+
+    assert_layout_invariants(&matrix, &[2, 2]);
+    assert!(matrix.data().iter().all(|value| value.is_finite()));
+    assert_layout_invariants(&tensor, &[2, 1, 2]);
+    assert!(tensor.data().iter().all(|value| value.is_finite()));
+    assert_layout_invariants(&scalar, &[] as &[usize]);
+    assert!(scalar.data()[0].is_finite());
+    assert_layout_invariants(&empty, &[0]);
+    assert!(empty.data().is_empty());
 }
 
 #[test]
@@ -64,14 +105,10 @@ fn sampling_preserves_requested_shapes() {
     let uniform_scalar = uniform([], 0_i32, 10_i32, &mut rng).unwrap();
     let normal_empty = normal([0, 2], 0.0_f64, 1.0, &mut rng).unwrap();
 
-    assert_shape(&uniform_matrix, &[2, 3]);
-    assert_eq!(uniform_matrix.len(), 6);
-    assert_shape(&normal_tensor, &[2, 1, 2]);
-    assert_eq!(normal_tensor.len(), 4);
-    assert_shape(&uniform_scalar, &[] as &[usize]);
-    assert_eq!(uniform_scalar.len(), 1);
-    assert_shape(&normal_empty, &[0, 2]);
-    assert_eq!(normal_empty.len(), 0);
+    assert_layout_invariants(&uniform_matrix, &[2, 3]);
+    assert_layout_invariants(&normal_tensor, &[2, 1, 2]);
+    assert_layout_invariants(&uniform_scalar, &[] as &[usize]);
+    assert_layout_invariants(&normal_empty, &[0, 2]);
 }
 
 #[test]
