@@ -64,3 +64,18 @@ path = "benches/ndarray/contiguous_kernels.rs"
 name = "linalg_dense_kernels"
 harness = false
 path = "benches/linalg/dense_kernels.rs"
+
+[[bench]]
+name = "linalg_factorization_kernels"
+harness = false
+path = "benches/linalg/factorization_kernels.rs"
+
+[[bench]]
+name = "stats_descriptive_kernels"
+harness = false
+path = "benches/stats/descriptive_kernels.rs"
+
+[[bench]]
+name = "random_sampling_kernels"
+harness = false
+path = "benches/random/sampling_kernels.rs"

@@ -3,7 +3,7 @@ SHELL := /bin/sh
 CARGO ?= cargo
 WORKSPACE_FLAGS := --workspace --locked
 ROOT_PACKAGE := atlas-benchmarks
-BENCH_TARGETS := linalg_dense_kernels ndarray_contiguous_kernels
+BENCH_TARGETS := linalg_dense_kernels linalg_factorization_kernels ndarray_contiguous_kernels random_sampling_kernels stats_descriptive_kernels
 
 .PHONY: help build check test bench bench-one clean
 
