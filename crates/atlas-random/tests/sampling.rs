@@ -1,5 +1,12 @@
 use atlas_random::{AtlasRandomError, AtlasRng, normal, uniform};
 
+fn assert_shape<T>(array: &atlas_ndarray::NDArray<T>, expected: &[usize])
+where
+    T: atlas_ndarray::Numeric,
+{
+    assert_eq!(array.shape(), expected);
+}
+
 #[test]
 fn uniform_is_reproducible_for_seeded_rngs() {
     let mut left = AtlasRng::seed_from_u64(101);
@@ -49,6 +56,25 @@ fn scalar_shapes_are_seeded_and_repeatable() {
 }
 
 #[test]
+fn sampling_preserves_requested_shapes() {
+    let mut rng = AtlasRng::seed_from_u64(606);
+
+    let uniform_matrix = uniform([2, 3], 0_i32, 10_i32, &mut rng).unwrap();
+    let normal_tensor = normal([2, 1, 2], 0.0_f64, 1.0, &mut rng).unwrap();
+    let uniform_scalar = uniform([], 0_i32, 10_i32, &mut rng).unwrap();
+    let normal_empty = normal([0, 2], 0.0_f64, 1.0, &mut rng).unwrap();
+
+    assert_shape(&uniform_matrix, &[2, 3]);
+    assert_eq!(uniform_matrix.len(), 6);
+    assert_shape(&normal_tensor, &[2, 1, 2]);
+    assert_eq!(normal_tensor.len(), 4);
+    assert_shape(&uniform_scalar, &[] as &[usize]);
+    assert_eq!(uniform_scalar.len(), 1);
+    assert_shape(&normal_empty, &[0, 2]);
+    assert_eq!(normal_empty.len(), 0);
+}
+
+#[test]
 fn empty_shapes_return_empty_arrays_without_sampling_values() {
     let mut left = AtlasRng::seed_from_u64(505);
     let mut right = AtlasRng::seed_from_u64(505);
@@ -68,7 +94,7 @@ fn empty_shapes_return_empty_arrays_without_sampling_values() {
 }
 
 #[test]
-fn invalid_sampling_arguments_return_exact_errors() {
+fn uniform_rejects_invalid_bounds_with_exact_errors() {
     let mut rng = AtlasRng::seed_from_u64(303);
 
     assert_eq!(
@@ -79,10 +105,78 @@ fn invalid_sampling_arguments_return_exact_errors() {
         }
     );
     assert_eq!(
+        uniform([1], 5_i32, 4_i32, &mut rng).unwrap_err(),
+        AtlasRandomError::InvalidArgument {
+            op: "uniform",
+            reason: "low must be strictly less than high",
+        }
+    );
+    assert_eq!(
+        uniform([1], f64::NAN, 1.0_f64, &mut rng).unwrap_err(),
+        AtlasRandomError::InvalidArgument {
+            op: "uniform",
+            reason: "low must be strictly less than high",
+        }
+    );
+    assert_eq!(
+        uniform([1], 0.0_f64, f64::NAN, &mut rng).unwrap_err(),
+        AtlasRandomError::InvalidArgument {
+            op: "uniform",
+            reason: "low must be strictly less than high",
+        }
+    );
+}
+
+#[test]
+fn normal_rejects_invalid_stddev_with_exact_errors() {
+    let mut rng = AtlasRng::seed_from_u64(707);
+
+    assert_eq!(
+        normal([1], 0.0_f64, 0.0, &mut rng).unwrap_err(),
+        AtlasRandomError::InvalidArgument {
+            op: "normal",
+            reason: "stddev must be strictly positive",
+        }
+    );
+    assert_eq!(
         normal([1], 0.0_f64, -1.0, &mut rng).unwrap_err(),
         AtlasRandomError::InvalidArgument {
             op: "normal",
             reason: "stddev must be strictly positive",
+        }
+    );
+}
+
+#[test]
+fn normal_rejects_non_finite_parameters_with_exact_errors() {
+    let mut rng = AtlasRng::seed_from_u64(808);
+
+    assert_eq!(
+        normal([1], f64::NAN, 1.0, &mut rng).unwrap_err(),
+        AtlasRandomError::InvalidArgument {
+            op: "normal",
+            reason: "mean and stddev must be finite",
+        }
+    );
+    assert_eq!(
+        normal([1], 0.0_f64, f64::NAN, &mut rng).unwrap_err(),
+        AtlasRandomError::InvalidArgument {
+            op: "normal",
+            reason: "mean and stddev must be finite",
+        }
+    );
+    assert_eq!(
+        normal([1], f64::INFINITY, 1.0, &mut rng).unwrap_err(),
+        AtlasRandomError::InvalidArgument {
+            op: "normal",
+            reason: "mean and stddev must be finite",
+        }
+    );
+    assert_eq!(
+        normal([1], 0.0_f64, f64::NEG_INFINITY, &mut rng).unwrap_err(),
+        AtlasRandomError::InvalidArgument {
+            op: "normal",
+            reason: "mean and stddev must be finite",
         }
     );
 }
