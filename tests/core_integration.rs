@@ -1,7 +1,7 @@
-use atlas_linalg::{cholesky, matmul, qr};
+use atlas_linalg::{AtlasLinalgError, cholesky, matmul, qr};
 use atlas_ndarray::NDArray;
-use atlas_random::{AtlasRng, normal, uniform};
-use atlas_stats::{correlation, covariance, stddev, variance};
+use atlas_random::{AtlasRandomError, AtlasRng, normal, uniform};
+use atlas_stats::{AtlasStatsError, correlation, covariance, stddev, variance};
 
 fn assert_close(actual: f64, expected: f64) {
     assert!((actual - expected).abs() <= 1e-10);
@@ -84,4 +84,70 @@ fn ndarray_cholesky_stats_pipeline_preserves_reconstruction_statistics() {
     assert!(reconstructed.data().iter().all(|value| value.is_finite()));
     assert_close(variance(&reconstructed).unwrap(), variance(&matrix).unwrap());
     assert_close(stddev(reconstructed.view()).unwrap(), stddev(&matrix).unwrap());
+}
+
+#[test]
+fn random_pipeline_reports_exact_boundary_errors() {
+    let mut rng = AtlasRng::seed_from_u64(4_096);
+
+    assert_eq!(
+        normal([2], 0.0_f64, 0.0, &mut rng).unwrap_err(),
+        AtlasRandomError::InvalidArgument {
+            op: "normal",
+            reason: "stddev must be strictly positive",
+        }
+    );
+    assert_eq!(
+        uniform([2], 1.0_f64, 1.0, &mut rng).unwrap_err(),
+        AtlasRandomError::InvalidArgument {
+            op: "uniform",
+            reason: "low must be strictly less than high",
+        }
+    );
+}
+
+#[test]
+fn ndarray_linalg_pipeline_reports_exact_boundary_errors() {
+    let lhs = NDArray::from_shape_vec([2, 3], vec![1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+    let rhs = NDArray::from_shape_vec([2, 2], vec![7.0_f64, 8.0, 9.0, 10.0]).unwrap();
+    let tensor =
+        NDArray::from_shape_vec([1, 2, 3], vec![1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+
+    assert_eq!(
+        matmul(&lhs, &rhs).unwrap_err(),
+        AtlasLinalgError::ShapeMismatch {
+            op: "matmul",
+            left: vec![2, 3],
+            right: vec![2, 2],
+            reason: "left matrix column count must match right matrix row count",
+        }
+    );
+    assert_eq!(
+        matmul(&tensor, &rhs).unwrap_err(),
+        AtlasLinalgError::InvalidOperandRank { op: "matmul", left: 3, right: 2 }
+    );
+}
+
+#[test]
+fn linalg_stats_pipeline_reports_exact_stats_boundary_errors() {
+    let lhs = NDArray::from_shape_vec([2, 2], vec![1.0_f64, 0.0, 1.0, 0.0]).unwrap();
+    let rhs = NDArray::from_shape_vec([2], vec![5.0_f64, 5.0]).unwrap();
+    let expected = NDArray::from_shape_vec([2], vec![1.0_f64, 2.0]).unwrap();
+    let mismatched = NDArray::from_shape_vec([1], vec![3.0_f64]).unwrap();
+
+    let projected = matmul(&lhs, &rhs).unwrap();
+
+    assert_eq!(
+        correlation(&projected, &expected).unwrap_err(),
+        AtlasStatsError::ZeroVariance { op: "correlation" }
+    );
+    assert_eq!(
+        covariance(&projected, &mismatched).unwrap_err(),
+        AtlasStatsError::ShapeMismatch {
+            op: "covariance",
+            left: vec![2],
+            right: vec![1],
+            reason: "vector lengths must match",
+        }
+    );
 }
