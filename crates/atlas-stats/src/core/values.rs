@@ -1,3 +1,5 @@
+use std::any::type_name;
+
 use atlas_ndarray::Numeric;
 use num_traits::ToPrimitive;
 
@@ -102,6 +104,14 @@ where
         return Ok(());
     }
 
+    if is_f32::<T>() {
+        return try_for_each_f64_f32(operand, &mut f);
+    }
+
+    if is_f64::<T>() {
+        return try_for_each_f64_f64(operand, &mut f);
+    }
+
     let shape = operand.shape();
     let strides = operand.strides();
     let data = operand.data();
@@ -169,6 +179,14 @@ where
     T: Numeric + ToPrimitive,
     F: FnMut(f64, f64) -> AtlasStatsResult<()>,
 {
+    if is_f32::<T>() {
+        return try_for_each_vector_pair_f64_f32(lhs, rhs, &mut f);
+    }
+
+    if is_f64::<T>() {
+        return try_for_each_vector_pair_f64_f64(lhs, rhs, &mut f);
+    }
+
     let len = lhs.shape()[0];
     let lhs_data = lhs.data();
     let rhs_data = rhs.data();
@@ -220,4 +238,190 @@ fn is_contiguous(shape: &[usize], strides: &[usize]) -> bool {
     }
 
     true
+}
+
+fn try_for_each_f64_f32<T, F>(operand: &StatsOperand<'_, T>, f: &mut F) -> AtlasStatsResult<()>
+where
+    T: Numeric,
+    F: FnMut(f64) -> AtlasStatsResult<()>,
+{
+    let len = operand.len();
+    if len == 0 {
+        return Ok(());
+    }
+
+    let shape = operand.shape();
+    let strides = operand.strides();
+    let data = cast_slice::<T, f32>(operand.data());
+    let base_offset = operand.offset();
+
+    if shape.is_empty() {
+        f(data[base_offset] as f64)?;
+        return Ok(());
+    }
+
+    if shape.len() == 1 {
+        let mut offset = base_offset;
+        let stride = strides[0];
+
+        for _ in 0..shape[0] {
+            f(data[offset] as f64)?;
+            offset += stride;
+        }
+
+        return Ok(());
+    }
+
+    if is_contiguous(shape, strides) {
+        for &value in &data[base_offset..base_offset + len] {
+            f(value as f64)?;
+        }
+
+        return Ok(());
+    }
+
+    let mut index = vec![0usize; shape.len()];
+
+    loop {
+        let mut offset = base_offset;
+
+        for axis in 0..shape.len() {
+            offset += index[axis] * strides[axis];
+        }
+
+        f(data[offset] as f64)?;
+
+        if !advance_index(&mut index, shape) {
+            break;
+        }
+    }
+
+    Ok(())
+}
+
+fn try_for_each_f64_f64<T, F>(operand: &StatsOperand<'_, T>, f: &mut F) -> AtlasStatsResult<()>
+where
+    T: Numeric,
+    F: FnMut(f64) -> AtlasStatsResult<()>,
+{
+    let len = operand.len();
+    if len == 0 {
+        return Ok(());
+    }
+
+    let shape = operand.shape();
+    let strides = operand.strides();
+    let data = cast_slice::<T, f64>(operand.data());
+    let base_offset = operand.offset();
+
+    if shape.is_empty() {
+        f(data[base_offset])?;
+        return Ok(());
+    }
+
+    if shape.len() == 1 {
+        let mut offset = base_offset;
+        let stride = strides[0];
+
+        for _ in 0..shape[0] {
+            f(data[offset])?;
+            offset += stride;
+        }
+
+        return Ok(());
+    }
+
+    if is_contiguous(shape, strides) {
+        for &value in &data[base_offset..base_offset + len] {
+            f(value)?;
+        }
+
+        return Ok(());
+    }
+
+    let mut index = vec![0usize; shape.len()];
+
+    loop {
+        let mut offset = base_offset;
+
+        for axis in 0..shape.len() {
+            offset += index[axis] * strides[axis];
+        }
+
+        f(data[offset])?;
+
+        if !advance_index(&mut index, shape) {
+            break;
+        }
+    }
+
+    Ok(())
+}
+
+fn try_for_each_vector_pair_f64_f32<T, F>(
+    lhs: &StatsOperand<'_, T>,
+    rhs: &StatsOperand<'_, T>,
+    f: &mut F,
+) -> AtlasStatsResult<()>
+where
+    T: Numeric,
+    F: FnMut(f64, f64) -> AtlasStatsResult<()>,
+{
+    let len = lhs.shape()[0];
+    let lhs_data = cast_slice::<T, f32>(lhs.data());
+    let rhs_data = cast_slice::<T, f32>(rhs.data());
+    let mut lhs_offset = lhs.offset();
+    let mut rhs_offset = rhs.offset();
+    let lhs_stride = lhs.strides()[0];
+    let rhs_stride = rhs.strides()[0];
+
+    for _ in 0..len {
+        f(lhs_data[lhs_offset] as f64, rhs_data[rhs_offset] as f64)?;
+        lhs_offset += lhs_stride;
+        rhs_offset += rhs_stride;
+    }
+
+    Ok(())
+}
+
+fn try_for_each_vector_pair_f64_f64<T, F>(
+    lhs: &StatsOperand<'_, T>,
+    rhs: &StatsOperand<'_, T>,
+    f: &mut F,
+) -> AtlasStatsResult<()>
+where
+    T: Numeric,
+    F: FnMut(f64, f64) -> AtlasStatsResult<()>,
+{
+    let len = lhs.shape()[0];
+    let lhs_data = cast_slice::<T, f64>(lhs.data());
+    let rhs_data = cast_slice::<T, f64>(rhs.data());
+    let mut lhs_offset = lhs.offset();
+    let mut rhs_offset = rhs.offset();
+    let lhs_stride = lhs.strides()[0];
+    let rhs_stride = rhs.strides()[0];
+
+    for _ in 0..len {
+        f(lhs_data[lhs_offset], rhs_data[rhs_offset])?;
+        lhs_offset += lhs_stride;
+        rhs_offset += rhs_stride;
+    }
+
+    Ok(())
+}
+
+#[inline]
+fn is_f32<T>() -> bool {
+    type_name::<T>() == "f32"
+}
+
+#[inline]
+fn is_f64<T>() -> bool {
+    type_name::<T>() == "f64"
+}
+
+#[inline]
+fn cast_slice<T, U>(data: &[T]) -> &[U] {
+    // SAFETY: Callers only use this after an exact type match between T and U.
+    unsafe { std::slice::from_raw_parts(data.as_ptr() as *const U, data.len()) }
 }

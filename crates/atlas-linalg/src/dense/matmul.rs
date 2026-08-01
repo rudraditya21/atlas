@@ -149,6 +149,34 @@ fn matmul_vector_matrix_row_major<T: Numeric>(
     let rhs_values = rhs.row_major_region();
     let mut data = vec![T::zero(); rhs.cols];
 
+    if simd::is_f32::<T>() {
+        let lhs_values = simd::cast_slice::<T, f32>(lhs_values);
+        let rhs_values = simd::cast_slice::<T, f32>(rhs_values);
+        {
+            let data_f32 = simd::cast_mut_slice::<T, f32>(data.as_mut_slice());
+
+            for (&lhs_value, rhs_row) in lhs_values.iter().zip(rhs_values.chunks_exact(rhs.cols)) {
+                simd::scaled_accumulate_contiguous_f32(data_f32, rhs_row, lhs_value);
+            }
+        }
+
+        return data;
+    }
+
+    if simd::is_f64::<T>() {
+        let lhs_values = simd::cast_slice::<T, f64>(lhs_values);
+        let rhs_values = simd::cast_slice::<T, f64>(rhs_values);
+        {
+            let data_f64 = simd::cast_mut_slice::<T, f64>(data.as_mut_slice());
+
+            for (&lhs_value, rhs_row) in lhs_values.iter().zip(rhs_values.chunks_exact(rhs.cols)) {
+                simd::scaled_accumulate_contiguous_f64(data_f64, rhs_row, lhs_value);
+            }
+        }
+
+        return data;
+    }
+
     for (lhs_value, rhs_row) in lhs_values.iter().copied().zip(rhs_values.chunks_exact(rhs.cols)) {
         simd::scaled_accumulate_contiguous(&mut data, rhs_row, lhs_value);
     }
@@ -162,6 +190,38 @@ fn matmul_vector_matrix_col_major<T: Numeric>(
 ) -> Vec<T> {
     let lhs = lhs.contiguous_slice();
     let mut data = vec![T::zero(); rhs.cols];
+
+    if simd::is_f32::<T>() {
+        let lhs = simd::cast_slice::<T, f32>(lhs);
+        {
+            let data_f32 = simd::cast_mut_slice::<T, f32>(data.as_mut_slice());
+
+            for (col, output) in data_f32.iter_mut().enumerate() {
+                *output = simd::dot_contiguous_f32(
+                    lhs,
+                    simd::cast_slice::<T, f32>(rhs.contiguous_col_slice(col)),
+                );
+            }
+        }
+
+        return data;
+    }
+
+    if simd::is_f64::<T>() {
+        let lhs = simd::cast_slice::<T, f64>(lhs);
+        {
+            let data_f64 = simd::cast_mut_slice::<T, f64>(data.as_mut_slice());
+
+            for (col, output) in data_f64.iter_mut().enumerate() {
+                *output = simd::dot_contiguous_f64(
+                    lhs,
+                    simd::cast_slice::<T, f64>(rhs.contiguous_col_slice(col)),
+                );
+            }
+        }
+
+        return data;
+    }
 
     for (col, output) in data.iter_mut().enumerate() {
         *output = dot_contiguous(lhs, rhs.contiguous_col_slice(col));
@@ -196,6 +256,34 @@ fn matmul_matrix_vector_row_major<T: Numeric>(
     let lhs_values = lhs.row_major_region();
     let rhs = rhs.contiguous_slice();
     let mut data = vec![T::zero(); lhs.rows];
+
+    if simd::is_f32::<T>() {
+        let lhs_values = simd::cast_slice::<T, f32>(lhs_values);
+        let rhs = simd::cast_slice::<T, f32>(rhs);
+        {
+            let data_f32 = simd::cast_mut_slice::<T, f32>(data.as_mut_slice());
+
+            for (output, lhs_row) in data_f32.iter_mut().zip(lhs_values.chunks_exact(lhs.cols)) {
+                *output = simd::dot_contiguous_f32(lhs_row, rhs);
+            }
+        }
+
+        return data;
+    }
+
+    if simd::is_f64::<T>() {
+        let lhs_values = simd::cast_slice::<T, f64>(lhs_values);
+        let rhs = simd::cast_slice::<T, f64>(rhs);
+        {
+            let data_f64 = simd::cast_mut_slice::<T, f64>(data.as_mut_slice());
+
+            for (output, lhs_row) in data_f64.iter_mut().zip(lhs_values.chunks_exact(lhs.cols)) {
+                *output = simd::dot_contiguous_f64(lhs_row, rhs);
+            }
+        }
+
+        return data;
+    }
 
     for (output, lhs_row) in data.iter_mut().zip(lhs_values.chunks_exact(lhs.cols)) {
         *output = dot_contiguous(lhs_row, rhs);
@@ -260,6 +348,14 @@ fn matmul_matrix_matrix_row_major_simple<T: Numeric>(
     let rhs_values = rhs.row_major_region();
     let mut data = vec![T::zero(); lhs.rows * rhs.cols];
 
+    if simd::is_f32::<T>() {
+        return matmul_matrix_matrix_row_major_simple_f32(lhs, rhs, lhs_values, rhs_values, data);
+    }
+
+    if simd::is_f64::<T>() {
+        return matmul_matrix_matrix_row_major_simple_f64(lhs, rhs, lhs_values, rhs_values, data);
+    }
+
     if should_parallelize_matmul(lhs.rows, lhs.cols, rhs.cols) {
         data.par_chunks_mut(rhs.cols).enumerate().for_each(|(row, out_row)| {
             let lhs_row = &lhs_values[row * lhs.cols..(row + 1) * lhs.cols];
@@ -291,6 +387,18 @@ fn matmul_matrix_matrix_row_major_blocked<T: Numeric>(
     let rhs_values = rhs.row_major_region();
     let mut data = vec![T::zero(); lhs.rows * rhs.cols];
     let block = ROW_MAJOR_MATMUL_BLOCK_SIZE;
+
+    if simd::is_f32::<T>() {
+        return matmul_matrix_matrix_row_major_blocked_f32(
+            lhs, rhs, lhs_values, rhs_values, data, block,
+        );
+    }
+
+    if simd::is_f64::<T>() {
+        return matmul_matrix_matrix_row_major_blocked_f64(
+            lhs, rhs, lhs_values, rhs_values, data, block,
+        );
+    }
 
     if should_parallelize_matmul(lhs.rows, lhs.cols, rhs.cols) {
         data.par_chunks_mut(rhs.cols * block).enumerate().for_each(|(block_index, out_block)| {
@@ -387,6 +495,14 @@ fn matmul_matrix_matrix_lhs_col_major<T: Numeric>(
 ) -> Vec<T> {
     let mut data = vec![T::zero(); lhs.rows * rhs.cols];
 
+    if simd::is_f32::<T>() {
+        return matmul_matrix_matrix_lhs_col_major_f32(lhs, rhs, data);
+    }
+
+    if simd::is_f64::<T>() {
+        return matmul_matrix_matrix_lhs_col_major_f64(lhs, rhs, data);
+    }
+
     if should_parallelize_matmul(lhs.rows, lhs.cols, rhs.cols) {
         data.par_chunks_mut(rhs.cols).enumerate().for_each(|(row, out_row)| {
             for k in 0..lhs.cols {
@@ -416,6 +532,14 @@ fn matmul_matrix_matrix_rhs_col_major<T: Numeric>(
     rhs: MatrixRef<'_, T>,
 ) -> Vec<T> {
     let mut data = vec![T::zero(); lhs.rows * rhs.cols];
+
+    if simd::is_f32::<T>() {
+        return matmul_matrix_matrix_rhs_col_major_f32(lhs, rhs, data);
+    }
+
+    if simd::is_f64::<T>() {
+        return matmul_matrix_matrix_rhs_col_major_f64(lhs, rhs, data);
+    }
 
     if should_parallelize_matmul(lhs.rows, lhs.cols, rhs.cols) {
         data.par_chunks_mut(rhs.cols).enumerate().for_each(|(row, out_row)| {
@@ -469,6 +593,376 @@ fn matmul_matrix_matrix_generic<T: Numeric>(
                 }
 
                 *output = total;
+            }
+        }
+    }
+
+    data
+}
+
+fn matmul_matrix_matrix_row_major_simple_f32<T: Numeric>(
+    lhs: MatrixRef<'_, T>,
+    rhs: MatrixRef<'_, T>,
+    lhs_values: &[T],
+    rhs_values: &[T],
+    mut data: Vec<T>,
+) -> Vec<T> {
+    let lhs_values = simd::cast_slice::<T, f32>(lhs_values);
+    let rhs_values = simd::cast_slice::<T, f32>(rhs_values);
+    {
+        let data_f32 = simd::cast_mut_slice::<T, f32>(data.as_mut_slice());
+
+        if should_parallelize_matmul(lhs.rows, lhs.cols, rhs.cols) {
+            data_f32.par_chunks_mut(rhs.cols).enumerate().for_each(|(row, out_row)| {
+                let lhs_row = &lhs_values[row * lhs.cols..(row + 1) * lhs.cols];
+
+                for (k, lhs_value) in lhs_row.iter().copied().enumerate() {
+                    let rhs_row = &rhs_values[k * rhs.cols..(k + 1) * rhs.cols];
+                    simd::scaled_accumulate_contiguous_f32(out_row, rhs_row, lhs_value);
+                }
+            });
+        } else {
+            for (lhs_row, out_row) in
+                lhs_values.chunks_exact(lhs.cols).zip(data_f32.chunks_exact_mut(rhs.cols))
+            {
+                for (k, lhs_value) in lhs_row.iter().copied().enumerate() {
+                    let rhs_row = &rhs_values[k * rhs.cols..(k + 1) * rhs.cols];
+                    simd::scaled_accumulate_contiguous_f32(out_row, rhs_row, lhs_value);
+                }
+            }
+        }
+    }
+
+    data
+}
+
+fn matmul_matrix_matrix_row_major_simple_f64<T: Numeric>(
+    lhs: MatrixRef<'_, T>,
+    rhs: MatrixRef<'_, T>,
+    lhs_values: &[T],
+    rhs_values: &[T],
+    mut data: Vec<T>,
+) -> Vec<T> {
+    let lhs_values = simd::cast_slice::<T, f64>(lhs_values);
+    let rhs_values = simd::cast_slice::<T, f64>(rhs_values);
+    {
+        let data_f64 = simd::cast_mut_slice::<T, f64>(data.as_mut_slice());
+
+        if should_parallelize_matmul(lhs.rows, lhs.cols, rhs.cols) {
+            data_f64.par_chunks_mut(rhs.cols).enumerate().for_each(|(row, out_row)| {
+                let lhs_row = &lhs_values[row * lhs.cols..(row + 1) * lhs.cols];
+
+                for (k, lhs_value) in lhs_row.iter().copied().enumerate() {
+                    let rhs_row = &rhs_values[k * rhs.cols..(k + 1) * rhs.cols];
+                    simd::scaled_accumulate_contiguous_f64(out_row, rhs_row, lhs_value);
+                }
+            });
+        } else {
+            for (lhs_row, out_row) in
+                lhs_values.chunks_exact(lhs.cols).zip(data_f64.chunks_exact_mut(rhs.cols))
+            {
+                for (k, lhs_value) in lhs_row.iter().copied().enumerate() {
+                    let rhs_row = &rhs_values[k * rhs.cols..(k + 1) * rhs.cols];
+                    simd::scaled_accumulate_contiguous_f64(out_row, rhs_row, lhs_value);
+                }
+            }
+        }
+    }
+
+    data
+}
+
+fn matmul_matrix_matrix_row_major_blocked_f32<T: Numeric>(
+    lhs: MatrixRef<'_, T>,
+    rhs: MatrixRef<'_, T>,
+    lhs_values: &[T],
+    rhs_values: &[T],
+    mut data: Vec<T>,
+    block: usize,
+) -> Vec<T> {
+    let lhs_values = simd::cast_slice::<T, f32>(lhs_values);
+    let rhs_values = simd::cast_slice::<T, f32>(rhs_values);
+    {
+        let data_f32 = simd::cast_mut_slice::<T, f32>(data.as_mut_slice());
+
+        if should_parallelize_matmul(lhs.rows, lhs.cols, rhs.cols) {
+            data_f32.par_chunks_mut(rhs.cols * block).enumerate().for_each(
+                |(block_index, out_block)| {
+                    let row_block = block_index * block;
+                    let row_count = out_block.len() / rhs.cols;
+                    let row_end = row_block + row_count;
+
+                    for k_block in (0..lhs.cols).step_by(block) {
+                        let k_end = (k_block + block).min(lhs.cols);
+
+                        for col_block in (0..rhs.cols).step_by(block) {
+                            let col_end = (col_block + block).min(rhs.cols);
+
+                            for row in row_block..row_end {
+                                let lhs_row = &lhs_values[row * lhs.cols..(row + 1) * lhs.cols];
+                                let local_row = row - row_block;
+                                let out_row = &mut out_block[local_row * rhs.cols + col_block
+                                    ..local_row * rhs.cols + col_end];
+
+                                for (local_k, lhs_value) in
+                                    lhs_row[k_block..k_end].iter().copied().enumerate()
+                                {
+                                    let k = k_block + local_k;
+                                    let rhs_row = &rhs_values
+                                        [k * rhs.cols + col_block..k * rhs.cols + col_end];
+                                    simd::scaled_accumulate_contiguous_f32(
+                                        out_row, rhs_row, lhs_value,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                },
+            );
+        } else {
+            for row_block in (0..lhs.rows).step_by(block) {
+                let row_end = (row_block + block).min(lhs.rows);
+
+                for k_block in (0..lhs.cols).step_by(block) {
+                    let k_end = (k_block + block).min(lhs.cols);
+
+                    for col_block in (0..rhs.cols).step_by(block) {
+                        let col_end = (col_block + block).min(rhs.cols);
+
+                        for row in row_block..row_end {
+                            let lhs_row = &lhs_values[row * lhs.cols..(row + 1) * lhs.cols];
+                            let out_row =
+                                &mut data_f32[row * rhs.cols + col_block..row * rhs.cols + col_end];
+
+                            for (local_k, lhs_value) in
+                                lhs_row[k_block..k_end].iter().copied().enumerate()
+                            {
+                                let k = k_block + local_k;
+                                let rhs_row =
+                                    &rhs_values[k * rhs.cols + col_block..k * rhs.cols + col_end];
+                                simd::scaled_accumulate_contiguous_f32(out_row, rhs_row, lhs_value);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    data
+}
+
+fn matmul_matrix_matrix_row_major_blocked_f64<T: Numeric>(
+    lhs: MatrixRef<'_, T>,
+    rhs: MatrixRef<'_, T>,
+    lhs_values: &[T],
+    rhs_values: &[T],
+    mut data: Vec<T>,
+    block: usize,
+) -> Vec<T> {
+    let lhs_values = simd::cast_slice::<T, f64>(lhs_values);
+    let rhs_values = simd::cast_slice::<T, f64>(rhs_values);
+    {
+        let data_f64 = simd::cast_mut_slice::<T, f64>(data.as_mut_slice());
+
+        if should_parallelize_matmul(lhs.rows, lhs.cols, rhs.cols) {
+            data_f64.par_chunks_mut(rhs.cols * block).enumerate().for_each(
+                |(block_index, out_block)| {
+                    let row_block = block_index * block;
+                    let row_count = out_block.len() / rhs.cols;
+                    let row_end = row_block + row_count;
+
+                    for k_block in (0..lhs.cols).step_by(block) {
+                        let k_end = (k_block + block).min(lhs.cols);
+
+                        for col_block in (0..rhs.cols).step_by(block) {
+                            let col_end = (col_block + block).min(rhs.cols);
+
+                            for row in row_block..row_end {
+                                let lhs_row = &lhs_values[row * lhs.cols..(row + 1) * lhs.cols];
+                                let local_row = row - row_block;
+                                let out_row = &mut out_block[local_row * rhs.cols + col_block
+                                    ..local_row * rhs.cols + col_end];
+
+                                for (local_k, lhs_value) in
+                                    lhs_row[k_block..k_end].iter().copied().enumerate()
+                                {
+                                    let k = k_block + local_k;
+                                    let rhs_row = &rhs_values
+                                        [k * rhs.cols + col_block..k * rhs.cols + col_end];
+                                    simd::scaled_accumulate_contiguous_f64(
+                                        out_row, rhs_row, lhs_value,
+                                    );
+                                }
+                            }
+                        }
+                    }
+                },
+            );
+        } else {
+            for row_block in (0..lhs.rows).step_by(block) {
+                let row_end = (row_block + block).min(lhs.rows);
+
+                for k_block in (0..lhs.cols).step_by(block) {
+                    let k_end = (k_block + block).min(lhs.cols);
+
+                    for col_block in (0..rhs.cols).step_by(block) {
+                        let col_end = (col_block + block).min(rhs.cols);
+
+                        for row in row_block..row_end {
+                            let lhs_row = &lhs_values[row * lhs.cols..(row + 1) * lhs.cols];
+                            let out_row =
+                                &mut data_f64[row * rhs.cols + col_block..row * rhs.cols + col_end];
+
+                            for (local_k, lhs_value) in
+                                lhs_row[k_block..k_end].iter().copied().enumerate()
+                            {
+                                let k = k_block + local_k;
+                                let rhs_row =
+                                    &rhs_values[k * rhs.cols + col_block..k * rhs.cols + col_end];
+                                simd::scaled_accumulate_contiguous_f64(out_row, rhs_row, lhs_value);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    data
+}
+
+fn matmul_matrix_matrix_lhs_col_major_f32<T: Numeric>(
+    lhs: MatrixRef<'_, T>,
+    rhs: MatrixRef<'_, T>,
+    mut data: Vec<T>,
+) -> Vec<T> {
+    {
+        let data_f32 = simd::cast_mut_slice::<T, f32>(data.as_mut_slice());
+
+        if should_parallelize_matmul(lhs.rows, lhs.cols, rhs.cols) {
+            data_f32.par_chunks_mut(rhs.cols).enumerate().for_each(|(row, out_row)| {
+                for k in 0..lhs.cols {
+                    let lhs_value = simd::cast_slice::<T, f32>(lhs.contiguous_col_slice(k))[row];
+                    let rhs_row = simd::cast_slice::<T, f32>(rhs.contiguous_row_slice(k));
+                    simd::scaled_accumulate_contiguous_f32(out_row, rhs_row, lhs_value);
+                }
+            });
+        } else {
+            for k in 0..lhs.cols {
+                let lhs_col = simd::cast_slice::<T, f32>(lhs.contiguous_col_slice(k));
+                let rhs_row = simd::cast_slice::<T, f32>(rhs.contiguous_row_slice(k));
+
+                for row in 0..lhs.rows {
+                    let out_row = &mut data_f32[row * rhs.cols..(row + 1) * rhs.cols];
+                    simd::scaled_accumulate_contiguous_f32(out_row, rhs_row, lhs_col[row]);
+                }
+            }
+        }
+    }
+
+    data
+}
+
+fn matmul_matrix_matrix_lhs_col_major_f64<T: Numeric>(
+    lhs: MatrixRef<'_, T>,
+    rhs: MatrixRef<'_, T>,
+    mut data: Vec<T>,
+) -> Vec<T> {
+    {
+        let data_f64 = simd::cast_mut_slice::<T, f64>(data.as_mut_slice());
+
+        if should_parallelize_matmul(lhs.rows, lhs.cols, rhs.cols) {
+            data_f64.par_chunks_mut(rhs.cols).enumerate().for_each(|(row, out_row)| {
+                for k in 0..lhs.cols {
+                    let lhs_value = simd::cast_slice::<T, f64>(lhs.contiguous_col_slice(k))[row];
+                    let rhs_row = simd::cast_slice::<T, f64>(rhs.contiguous_row_slice(k));
+                    simd::scaled_accumulate_contiguous_f64(out_row, rhs_row, lhs_value);
+                }
+            });
+        } else {
+            for k in 0..lhs.cols {
+                let lhs_col = simd::cast_slice::<T, f64>(lhs.contiguous_col_slice(k));
+                let rhs_row = simd::cast_slice::<T, f64>(rhs.contiguous_row_slice(k));
+
+                for row in 0..lhs.rows {
+                    let out_row = &mut data_f64[row * rhs.cols..(row + 1) * rhs.cols];
+                    simd::scaled_accumulate_contiguous_f64(out_row, rhs_row, lhs_col[row]);
+                }
+            }
+        }
+    }
+
+    data
+}
+
+fn matmul_matrix_matrix_rhs_col_major_f32<T: Numeric>(
+    lhs: MatrixRef<'_, T>,
+    rhs: MatrixRef<'_, T>,
+    mut data: Vec<T>,
+) -> Vec<T> {
+    {
+        let data_f32 = simd::cast_mut_slice::<T, f32>(data.as_mut_slice());
+
+        if should_parallelize_matmul(lhs.rows, lhs.cols, rhs.cols) {
+            data_f32.par_chunks_mut(rhs.cols).enumerate().for_each(|(row, out_row)| {
+                let lhs_row = simd::cast_slice::<T, f32>(lhs.contiguous_row_slice(row));
+
+                for (col, output) in out_row.iter_mut().enumerate() {
+                    *output = simd::dot_contiguous_f32(
+                        lhs_row,
+                        simd::cast_slice::<T, f32>(rhs.contiguous_col_slice(col)),
+                    );
+                }
+            });
+        } else {
+            for row in 0..lhs.rows {
+                let lhs_row = simd::cast_slice::<T, f32>(lhs.contiguous_row_slice(row));
+                let out_row = &mut data_f32[row * rhs.cols..(row + 1) * rhs.cols];
+
+                for (col, output) in out_row.iter_mut().enumerate() {
+                    *output = simd::dot_contiguous_f32(
+                        lhs_row,
+                        simd::cast_slice::<T, f32>(rhs.contiguous_col_slice(col)),
+                    );
+                }
+            }
+        }
+    }
+
+    data
+}
+
+fn matmul_matrix_matrix_rhs_col_major_f64<T: Numeric>(
+    lhs: MatrixRef<'_, T>,
+    rhs: MatrixRef<'_, T>,
+    mut data: Vec<T>,
+) -> Vec<T> {
+    {
+        let data_f64 = simd::cast_mut_slice::<T, f64>(data.as_mut_slice());
+
+        if should_parallelize_matmul(lhs.rows, lhs.cols, rhs.cols) {
+            data_f64.par_chunks_mut(rhs.cols).enumerate().for_each(|(row, out_row)| {
+                let lhs_row = simd::cast_slice::<T, f64>(lhs.contiguous_row_slice(row));
+
+                for (col, output) in out_row.iter_mut().enumerate() {
+                    *output = simd::dot_contiguous_f64(
+                        lhs_row,
+                        simd::cast_slice::<T, f64>(rhs.contiguous_col_slice(col)),
+                    );
+                }
+            });
+        } else {
+            for row in 0..lhs.rows {
+                let lhs_row = simd::cast_slice::<T, f64>(lhs.contiguous_row_slice(row));
+                let out_row = &mut data_f64[row * rhs.cols..(row + 1) * rhs.cols];
+
+                for (col, output) in out_row.iter_mut().enumerate() {
+                    *output = simd::dot_contiguous_f64(
+                        lhs_row,
+                        simd::cast_slice::<T, f64>(rhs.contiguous_col_slice(col)),
+                    );
+                }
             }
         }
     }

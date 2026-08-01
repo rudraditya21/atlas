@@ -429,12 +429,12 @@ fn body_len(len: usize) -> usize {
 }
 
 #[inline]
-fn is_f32<T>() -> bool {
+pub(crate) fn is_f32<T>() -> bool {
     type_name::<T>() == "f32"
 }
 
 #[inline]
-fn is_f64<T>() -> bool {
+pub(crate) fn is_f64<T>() -> bool {
     type_name::<T>() == "f64"
 }
 
@@ -461,7 +461,7 @@ where
 }
 
 #[inline]
-fn cast_slice<T, U>(data: &[T]) -> &[U] {
+pub(crate) fn cast_slice<T, U>(data: &[T]) -> &[U] {
     // SAFETY: Callers only use this after an exact type match between T and U.
     unsafe { std::slice::from_raw_parts(data.as_ptr() as *const U, data.len()) }
 }

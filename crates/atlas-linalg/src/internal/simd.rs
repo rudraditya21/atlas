@@ -80,17 +80,17 @@ fn scaled_accumulate_scalar<T: Numeric>(output: &mut [T], input: &[T], scale: T)
 }
 
 #[inline]
-fn is_f32<T>() -> bool {
+pub(crate) fn is_f32<T>() -> bool {
     type_name::<T>() == "f32"
 }
 
 #[inline]
-fn is_f64<T>() -> bool {
+pub(crate) fn is_f64<T>() -> bool {
     type_name::<T>() == "f64"
 }
 
 #[inline]
-fn cast_value<U, T>(value: U) -> T
+pub(crate) fn cast_value<U, T>(value: U) -> T
 where
     U: Copy,
     T: Copy,
@@ -100,15 +100,81 @@ where
 }
 
 #[inline]
-fn cast_slice<T, U>(data: &[T]) -> &[U] {
+pub(crate) fn cast_slice<T, U>(data: &[T]) -> &[U] {
     // SAFETY: Callers only use this after an exact type match between T and U.
     unsafe { std::slice::from_raw_parts(data.as_ptr() as *const U, data.len()) }
 }
 
 #[inline]
-fn cast_mut_slice<T, U>(data: &mut [T]) -> &mut [U] {
+pub(crate) fn cast_mut_slice<T, U>(data: &mut [T]) -> &mut [U] {
     // SAFETY: Callers only use this after an exact type match between T and U.
     unsafe { std::slice::from_raw_parts_mut(data.as_mut_ptr() as *mut U, data.len()) }
+}
+
+pub(crate) fn dot_contiguous_f32(lhs: &[f32], rhs: &[f32]) -> f32 {
+    debug_assert_eq!(lhs.len(), rhs.len());
+
+    #[cfg(target_arch = "x86_64")]
+    {
+        if std::is_x86_feature_detected!("avx") {
+            // SAFETY: AVX support is verified at runtime.
+            return unsafe { x86_64::dot_f32(lhs, rhs) };
+        }
+    }
+
+    lhs.iter().zip(rhs).map(|(&left, &right)| left * right).sum()
+}
+
+pub(crate) fn dot_contiguous_f64(lhs: &[f64], rhs: &[f64]) -> f64 {
+    debug_assert_eq!(lhs.len(), rhs.len());
+
+    #[cfg(target_arch = "x86_64")]
+    {
+        if std::is_x86_feature_detected!("avx") {
+            // SAFETY: AVX support is verified at runtime.
+            return unsafe { x86_64::dot_f64(lhs, rhs) };
+        }
+    }
+
+    lhs.iter().zip(rhs).map(|(&left, &right)| left * right).sum()
+}
+
+pub(crate) fn scaled_accumulate_contiguous_f32(output: &mut [f32], input: &[f32], scale: f32) {
+    debug_assert_eq!(output.len(), input.len());
+
+    #[cfg(target_arch = "x86_64")]
+    {
+        if std::is_x86_feature_detected!("avx") {
+            // SAFETY: AVX support is verified at runtime.
+            unsafe {
+                x86_64::scaled_accumulate_f32(output, input, scale);
+            }
+            return;
+        }
+    }
+
+    for (dst, &src) in output.iter_mut().zip(input) {
+        *dst += scale * src;
+    }
+}
+
+pub(crate) fn scaled_accumulate_contiguous_f64(output: &mut [f64], input: &[f64], scale: f64) {
+    debug_assert_eq!(output.len(), input.len());
+
+    #[cfg(target_arch = "x86_64")]
+    {
+        if std::is_x86_feature_detected!("avx") {
+            // SAFETY: AVX support is verified at runtime.
+            unsafe {
+                x86_64::scaled_accumulate_f64(output, input, scale);
+            }
+            return;
+        }
+    }
+
+    for (dst, &src) in output.iter_mut().zip(input) {
+        *dst += scale * src;
+    }
 }
 
 #[cfg(target_arch = "x86_64")]
