@@ -2,8 +2,11 @@ use std::ops::{Add, Div, Mul, Sub};
 
 use crate::{
     AtlasNdResult, NDArray, Numeric,
-    internal::broadcast_offset_pair_iter,
-    layout::{broadcast::broadcast_pair, stride::compute_strides},
+    internal::{PairLayoutKind, broadcast_offset_pair_iter, offset_pair_iter, pair_layout_kind},
+    layout::{
+        broadcast::{BroadcastMetadata, broadcast_pair},
+        stride::compute_strides,
+    },
 };
 
 pub trait AddOperand<T: Numeric> {
@@ -79,11 +82,13 @@ impl<T: Numeric> NDArray<T> {
     where
         F: Fn(T, T) -> T + Copy,
     {
-        if self.is_contiguous() && rhs.is_contiguous() && self.shape == rhs.shape {
-            return Ok(self.elementwise_binary_contiguous(rhs, op));
-        }
+        let metadata = broadcast_pair(&self.shape, &self.strides, &rhs.shape, &rhs.strides)?;
 
-        self.elementwise_binary_broadcast(rhs, op)
+        match pair_layout_kind(&metadata.shape, &metadata.lhs_strides, &metadata.rhs_strides) {
+            PairLayoutKind::Contiguous => Ok(self.elementwise_binary_contiguous(rhs, op)),
+            PairLayoutKind::Broadcast => Ok(self.elementwise_binary_broadcast(rhs, &metadata, op)),
+            PairLayoutKind::Strided => Ok(self.elementwise_binary_strided(rhs, &metadata, op)),
+        }
     }
 
     fn elementwise_binary_contiguous<F>(&self, rhs: &Self, op: F) -> Self
@@ -102,14 +107,20 @@ impl<T: Numeric> NDArray<T> {
         Self::from_owned_parts(self.shape.clone(), data)
     }
 
-    fn elementwise_binary_broadcast<F>(&self, rhs: &Self, op: F) -> AtlasNdResult<Self>
+    fn elementwise_binary_broadcast<F>(
+        &self,
+        rhs: &Self,
+        metadata: &BroadcastMetadata,
+        op: F,
+    ) -> Self
     where
         F: Fn(T, T) -> T + Copy,
     {
-        let metadata = broadcast_pair(&self.shape, &self.strides, &rhs.shape, &rhs.strides)?;
         let mut data = Vec::with_capacity(metadata.shape.iter().product());
 
         for (lhs_offset, rhs_offset) in broadcast_offset_pair_iter(
+            0,
+            0,
             &metadata.shape,
             &metadata.lhs_strides,
             &metadata.rhs_strides,
@@ -117,7 +128,22 @@ impl<T: Numeric> NDArray<T> {
             data.push(op(self.data[lhs_offset], rhs.data[rhs_offset]));
         }
 
-        Ok(Self::from_owned_parts(metadata.shape, data))
+        Self::from_owned_parts(metadata.shape.clone(), data)
+    }
+
+    fn elementwise_binary_strided<F>(&self, rhs: &Self, metadata: &BroadcastMetadata, op: F) -> Self
+    where
+        F: Fn(T, T) -> T + Copy,
+    {
+        let mut data = Vec::with_capacity(metadata.shape.iter().product());
+
+        for (lhs_offset, rhs_offset) in
+            offset_pair_iter(0, 0, &metadata.shape, &metadata.lhs_strides, &metadata.rhs_strides)
+        {
+            data.push(op(self.data[lhs_offset], rhs.data[rhs_offset]));
+        }
+
+        Self::from_owned_parts(metadata.shape.clone(), data)
     }
 
     fn elementwise_scalar<F>(&self, scalar: T, op: F) -> Self
