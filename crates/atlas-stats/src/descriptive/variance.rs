@@ -1,24 +1,25 @@
 use atlas_ndarray::Numeric;
 use num_traits::ToPrimitive;
 
-use crate::core::{AtlasStatsResult, StatsOperand, collect_values, mean_of};
+use crate::core::{AtlasStatsResult, StatsOperand, mean, try_for_each_f64, validate_non_empty};
 
 pub fn variance<'a, T, I>(input: I) -> AtlasStatsResult<f64>
 where
     T: Numeric + ToPrimitive + 'a,
     I: Into<StatsOperand<'a, T>>,
 {
-    let values = collect_values(&input.into(), "variance")?;
-    let mean = mean_of(&values);
+    let input = input.into();
+    let len = validate_non_empty(&input, "variance")?;
+    let mean = mean(&input, "variance")?;
+    let mut total = 0.0_f64;
 
-    Ok(values
-        .iter()
-        .map(|value| {
-            let delta = *value - mean;
-            delta * delta
-        })
-        .sum::<f64>()
-        / values.len() as f64)
+    try_for_each_f64(&input, "variance", |value| {
+        let delta = value - mean;
+        total += delta * delta;
+        Ok(())
+    })?;
+
+    Ok(total / len as f64)
 }
 
 #[cfg(test)]

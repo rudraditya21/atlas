@@ -4,4 +4,7 @@ pub(crate) mod values;
 
 pub(crate) use error::{AtlasStatsError, AtlasStatsResult};
 pub(crate) use operand::StatsOperand;
-pub(crate) use values::{collect_values, mean_of, validate_vector_pair};
+pub(crate) use values::{
+    mean, means, try_for_each_f64, try_for_each_vector_pair_f64, validate_non_empty,
+    validate_vector_pair,
+};

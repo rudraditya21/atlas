@@ -2,7 +2,8 @@ use atlas_ndarray::Numeric;
 use num_traits::ToPrimitive;
 
 use crate::core::{
-    AtlasStatsError, AtlasStatsResult, StatsOperand, collect_values, mean_of, validate_vector_pair,
+    AtlasStatsError, AtlasStatsResult, StatsOperand, means, try_for_each_vector_pair_f64,
+    validate_vector_pair,
 };
 
 pub fn correlation<'a, T, L, R>(lhs: L, rhs: R) -> AtlasStatsResult<f64>
@@ -16,23 +17,20 @@ where
 
     validate_vector_pair(&lhs, &rhs, "correlation")?;
 
-    let lhs_values = collect_values(&lhs, "correlation")?;
-    let rhs_values = collect_values(&rhs, "correlation")?;
-    let lhs_mean = mean_of(&lhs_values);
-    let rhs_mean = mean_of(&rhs_values);
-
+    let (lhs_mean, rhs_mean, _) = means(&lhs, &rhs, "correlation")?;
     let mut covariance_total = 0.0_f64;
     let mut lhs_variance_total = 0.0_f64;
     let mut rhs_variance_total = 0.0_f64;
 
-    for index in 0..lhs_values.len() {
-        let lhs_delta = lhs_values[index] - lhs_mean;
-        let rhs_delta = rhs_values[index] - rhs_mean;
+    try_for_each_vector_pair_f64(&lhs, &rhs, "correlation", |left, right| {
+        let lhs_delta = left - lhs_mean;
+        let rhs_delta = right - rhs_mean;
 
         covariance_total += lhs_delta * rhs_delta;
         lhs_variance_total += lhs_delta * lhs_delta;
         rhs_variance_total += rhs_delta * rhs_delta;
-    }
+        Ok(())
+    })?;
 
     if lhs_variance_total == 0.0 || rhs_variance_total == 0.0 {
         return Err(AtlasStatsError::ZeroVariance { op: "correlation" });

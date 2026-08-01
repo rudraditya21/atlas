@@ -1,7 +1,9 @@
 use atlas_ndarray::Numeric;
 use num_traits::ToPrimitive;
 
-use crate::core::{AtlasStatsResult, StatsOperand, collect_values, mean_of, validate_vector_pair};
+use crate::core::{
+    AtlasStatsResult, StatsOperand, means, try_for_each_vector_pair_f64, validate_vector_pair,
+};
 
 pub fn covariance<'a, T, L, R>(lhs: L, rhs: R) -> AtlasStatsResult<f64>
 where
@@ -14,18 +16,15 @@ where
 
     validate_vector_pair(&lhs, &rhs, "covariance")?;
 
-    let lhs_values = collect_values(&lhs, "covariance")?;
-    let rhs_values = collect_values(&rhs, "covariance")?;
-    let lhs_mean = mean_of(&lhs_values);
-    let rhs_mean = mean_of(&rhs_values);
-
+    let (lhs_mean, rhs_mean, len) = means(&lhs, &rhs, "covariance")?;
     let mut total = 0.0_f64;
 
-    for index in 0..lhs_values.len() {
-        total += (lhs_values[index] - lhs_mean) * (rhs_values[index] - rhs_mean);
-    }
+    try_for_each_vector_pair_f64(&lhs, &rhs, "covariance", |left, right| {
+        total += (left - lhs_mean) * (right - rhs_mean);
+        Ok(())
+    })?;
 
-    Ok(total / lhs_values.len() as f64)
+    Ok(total / len as f64)
 }
 
 #[cfg(test)]
