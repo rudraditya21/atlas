@@ -3,7 +3,7 @@ use thiserror::Error;
 
 pub type AtlasStatsResult<T> = Result<T, AtlasStatsError>;
 
-#[derive(Debug, Error)]
+#[derive(Debug, Error, Clone, PartialEq, Eq)]
 pub enum AtlasStatsError {
     #[error("invalid input rank for {op}: expected {expected}, got rank {rank}")]
     InvalidInputRank { op: &'static str, expected: &'static str, rank: usize },

@@ -58,24 +58,79 @@ fn singleton_population_statistics_reduce_to_zero_except_correlation() {
     assert_close(variance(&lhs).unwrap(), 0.0);
     assert_close(stddev(&lhs).unwrap(), 0.0);
     assert_close(covariance(&lhs, &rhs).unwrap(), 0.0);
-    assert!(matches!(
+    assert_eq!(
         correlation(&lhs, &rhs).unwrap_err(),
         AtlasStatsError::ZeroVariance { op: "correlation" }
-    ));
+    );
 }
 
 #[test]
-fn descriptive_stats_report_errors_cleanly() {
+fn descriptive_stats_report_exact_empty_input_errors() {
+    let empty = NDArray::from_shape_vec([0], Vec::<f64>::new()).unwrap();
+
+    assert_eq!(variance(&empty).unwrap_err(), AtlasStatsError::EmptyInput { op: "variance" });
+    assert_eq!(stddev(&empty).unwrap_err(), AtlasStatsError::EmptyInput { op: "variance" });
+}
+
+#[test]
+fn descriptive_stats_report_exact_rank_mismatch_errors() {
     let matrix = NDArray::from_shape_vec([2, 2], vec![1.0_f64, 2.0, 3.0, 4.0]).unwrap();
+    let vector = NDArray::from_shape_vec([2], vec![5.0_f64, 6.0]).unwrap();
+
+    assert_eq!(
+        covariance(&matrix, &vector).unwrap_err(),
+        AtlasStatsError::InvalidInputRank { op: "covariance", expected: "rank-1 vector", rank: 2 }
+    );
+    assert_eq!(
+        covariance(&vector, &matrix).unwrap_err(),
+        AtlasStatsError::InvalidInputRank { op: "covariance", expected: "rank-1 vector", rank: 2 }
+    );
+    assert_eq!(
+        correlation(&matrix, &vector).unwrap_err(),
+        AtlasStatsError::InvalidInputRank { op: "correlation", expected: "rank-1 vector", rank: 2 }
+    );
+    assert_eq!(
+        correlation(&vector, &matrix).unwrap_err(),
+        AtlasStatsError::InvalidInputRank { op: "correlation", expected: "rank-1 vector", rank: 2 }
+    );
+}
+
+#[test]
+fn descriptive_stats_report_exact_length_mismatch_errors() {
     let lhs = NDArray::from_shape_vec([3], vec![1.0_f64, 2.0, 3.0]).unwrap();
     let rhs = NDArray::from_shape_vec([2], vec![4.0_f64, 5.0]).unwrap();
 
-    assert!(matches!(
-        covariance(&matrix, &matrix).unwrap_err(),
-        AtlasStatsError::InvalidInputRank { op: "covariance", .. }
-    ));
-    assert!(matches!(
+    assert_eq!(
+        covariance(&lhs, &rhs).unwrap_err(),
+        AtlasStatsError::ShapeMismatch {
+            op: "covariance",
+            left: vec![3],
+            right: vec![2],
+            reason: "vector lengths must match",
+        }
+    );
+    assert_eq!(
         correlation(&lhs, &rhs).unwrap_err(),
-        AtlasStatsError::ShapeMismatch { op: "correlation", .. }
-    ));
+        AtlasStatsError::ShapeMismatch {
+            op: "correlation",
+            left: vec![3],
+            right: vec![2],
+            reason: "vector lengths must match",
+        }
+    );
+}
+
+#[test]
+fn descriptive_stats_report_exact_zero_variance_correlation_errors() {
+    let constant = NDArray::from_shape_vec([3], vec![7.0_f64, 7.0, 7.0]).unwrap();
+    let lhs = NDArray::from_shape_vec([3], vec![1.0_f64, 2.0, 3.0]).unwrap();
+
+    assert_eq!(
+        correlation(&constant, &lhs).unwrap_err(),
+        AtlasStatsError::ZeroVariance { op: "correlation" }
+    );
+    assert_eq!(
+        correlation(&lhs, &constant).unwrap_err(),
+        AtlasStatsError::ZeroVariance { op: "correlation" }
+    );
 }
