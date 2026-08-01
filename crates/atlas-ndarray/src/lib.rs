@@ -1,5 +1,6 @@
 pub mod arithmetic;
 pub mod array;
+pub mod broadcast;
 pub mod constructors;
 pub mod error;
 pub mod indexing;

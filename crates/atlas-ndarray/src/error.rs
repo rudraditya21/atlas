@@ -34,6 +34,17 @@ pub enum AtlasNdError {
         reason: &'static str,
     },
 
+    #[error(
+        "cannot broadcast shapes {lhs:?} and {rhs:?}: axis {axis} has incompatible dimensions {lhs_dim} and {rhs_dim}"
+    )]
+    InvalidBroadcast {
+        lhs: Vec<usize>,
+        rhs: Vec<usize>,
+        axis: usize,
+        lhs_dim: usize,
+        rhs_dim: usize,
+    },
+
     #[error("invalid shape")]
     InvalidShape,
 }
