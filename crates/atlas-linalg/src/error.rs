@@ -21,6 +21,29 @@ pub enum AtlasLinalgError {
         reason: &'static str,
     },
 
+    #[error("invalid input rank for {op}: expected {expected}, got rank {rank}")]
+    InvalidInputRank {
+        op: &'static str,
+        expected: &'static str,
+        rank: usize,
+    },
+
+    #[error("invalid input for {op} with shape {shape:?}: {reason}")]
+    InvalidInputShape {
+        op: &'static str,
+        shape: Vec<usize>,
+        reason: &'static str,
+    },
+
+    #[error("singular matrix encountered during {op} at pivot {pivot}")]
+    SingularMatrix { op: &'static str, pivot: usize },
+
+    #[error("rank deficient matrix encountered during {op} at column {column}")]
+    RankDeficientMatrix { op: &'static str, column: usize },
+
+    #[error("matrix is not positive definite during {op} at diagonal {index}")]
+    NotPositiveDefinite { op: &'static str, index: usize },
+
     #[error(transparent)]
     NdArray(#[from] AtlasNdError),
 }

@@ -5,4 +5,5 @@ edition = "2024"
 
 [dependencies]
 atlas-ndarray = { path = "../atlas-ndarray" }
+num-traits = "0.2"
 thiserror = "2"
