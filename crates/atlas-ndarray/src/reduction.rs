@@ -11,10 +11,18 @@ use super::{
 
 impl<T: Numeric> NDArray<T> {
     pub fn sum(&self) -> T {
+        if self.is_contiguous() {
+            return sum_contiguous(&self.data);
+        }
+
         sum_all(&self.data, 0, &self.shape, &self.strides)
     }
 
     pub fn prod(&self) -> T {
+        if self.is_contiguous() {
+            return prod_contiguous(&self.data);
+        }
+
         prod_all(&self.data, 0, &self.shape, &self.strides)
     }
 
@@ -22,6 +30,10 @@ impl<T: Numeric> NDArray<T> {
     where
         T: PartialOrd,
     {
+        if self.is_contiguous() {
+            return min_contiguous(&self.data, "min");
+        }
+
         min_all(&self.data, 0, &self.shape, &self.strides)
     }
 
@@ -29,6 +41,10 @@ impl<T: Numeric> NDArray<T> {
     where
         T: PartialOrd,
     {
+        if self.is_contiguous() {
+            return max_contiguous(&self.data, "max");
+        }
+
         max_all(&self.data, 0, &self.shape, &self.strides)
     }
 
@@ -36,16 +52,28 @@ impl<T: Numeric> NDArray<T> {
     where
         T: ToPrimitive,
     {
+        if self.is_contiguous() {
+            return mean_contiguous(&self.data, "mean");
+        }
+
         mean_all(&self.data, 0, &self.shape, &self.strides)
     }
 }
 
 impl<'a, T: Numeric> ArrayView<'a, T> {
     pub fn sum(&self) -> T {
+        if self.is_contiguous() {
+            return sum_contiguous(self.contiguous_slice());
+        }
+
         sum_all(self.data, self.offset, &self.shape, &self.strides)
     }
 
     pub fn prod(&self) -> T {
+        if self.is_contiguous() {
+            return prod_contiguous(self.contiguous_slice());
+        }
+
         prod_all(self.data, self.offset, &self.shape, &self.strides)
     }
 
@@ -53,6 +81,10 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
     where
         T: PartialOrd,
     {
+        if self.is_contiguous() {
+            return min_contiguous(self.contiguous_slice(), "min");
+        }
+
         min_all(self.data, self.offset, &self.shape, &self.strides)
     }
 
@@ -60,6 +92,10 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
     where
         T: PartialOrd,
     {
+        if self.is_contiguous() {
+            return max_contiguous(self.contiguous_slice(), "max");
+        }
+
         max_all(self.data, self.offset, &self.shape, &self.strides)
     }
 
@@ -67,8 +103,91 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
     where
         T: ToPrimitive,
     {
+        if self.is_contiguous() {
+            return mean_contiguous(self.contiguous_slice(), "mean");
+        }
+
         mean_all(self.data, self.offset, &self.shape, &self.strides)
     }
+}
+
+impl<'a, T: Numeric> ArrayView<'a, T> {
+    fn contiguous_slice(&self) -> &[T] {
+        debug_assert!(self.is_contiguous());
+        let len = element_count(&self.shape);
+        &self.data[self.offset..self.offset + len]
+    }
+}
+
+fn sum_contiguous<T: Numeric>(values: &[T]) -> T {
+    let mut total = T::zero();
+
+    for &value in values {
+        total += value;
+    }
+
+    total
+}
+
+fn prod_contiguous<T: Numeric>(values: &[T]) -> T {
+    let mut total = T::one();
+
+    for &value in values {
+        total *= value;
+    }
+
+    total
+}
+
+fn min_contiguous<T>(values: &[T], op: &'static str) -> AtlasNdResult<T>
+where
+    T: Numeric + PartialOrd,
+{
+    let mut iter = values.iter().copied();
+    let mut minimum = iter.next().ok_or(AtlasNdError::EmptyReduction { op })?;
+
+    for value in iter {
+        if value < minimum {
+            minimum = value;
+        }
+    }
+
+    Ok(minimum)
+}
+
+fn max_contiguous<T>(values: &[T], op: &'static str) -> AtlasNdResult<T>
+where
+    T: Numeric + PartialOrd,
+{
+    let mut iter = values.iter().copied();
+    let mut maximum = iter.next().ok_or(AtlasNdError::EmptyReduction { op })?;
+
+    for value in iter {
+        if value > maximum {
+            maximum = value;
+        }
+    }
+
+    Ok(maximum)
+}
+
+fn mean_contiguous<T>(values: &[T], op: &'static str) -> AtlasNdResult<f64>
+where
+    T: Numeric + ToPrimitive,
+{
+    if values.is_empty() {
+        return Err(AtlasNdError::EmptyReduction { op });
+    }
+
+    let mut total = 0.0_f64;
+
+    for &value in values {
+        total += value
+            .to_f64()
+            .ok_or(AtlasNdError::NumericConversionFailed { op })?;
+    }
+
+    Ok(total / values.len() as f64)
 }
 
 fn sum_all<T: Numeric>(data: &[T], offset: usize, shape: &[usize], strides: &[usize]) -> T {

@@ -92,13 +92,14 @@ impl<T: Numeric> NDArray<T> {
     where
         F: Fn(T, T) -> T + Copy,
     {
-        let data = self
-            .data
-            .iter()
-            .copied()
-            .zip(rhs.data.iter().copied())
-            .map(|(lhs, rhs)| op(lhs, rhs))
-            .collect();
+        let len = self.data.len();
+        let lhs = &self.data;
+        let rhs = &rhs.data;
+        let mut data = Vec::with_capacity(len);
+
+        for index in 0..len {
+            data.push(op(lhs[index], rhs[index]));
+        }
 
         Self {
             data,
@@ -133,12 +134,13 @@ impl<T: Numeric> NDArray<T> {
     where
         F: Fn(T, T) -> T + Copy,
     {
-        let data = self
-            .data
-            .iter()
-            .copied()
-            .map(|value| op(value, scalar))
-            .collect();
+        let len = self.data.len();
+        let values = &self.data;
+        let mut data = Vec::with_capacity(len);
+
+        for &value in values {
+            data.push(op(value, scalar));
+        }
 
         Self {
             data,

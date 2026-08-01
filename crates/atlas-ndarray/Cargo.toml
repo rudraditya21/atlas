@@ -6,3 +6,10 @@ edition = "2024"
 [dependencies]
 num-traits = "0.2"
 thiserror = "2"
+
+[dev-dependencies]
+criterion = "0.5"
+
+[[bench]]
+name = "contiguous_kernels"
+harness = false
