@@ -15,16 +15,8 @@ pub fn broadcast_shape(lhs: &[usize], rhs: &[usize]) -> AtlasNdResult<Vec<usize>
     let mut shape = Vec::with_capacity(ndim);
 
     for axis_from_end in 0..ndim {
-        let lhs_dim = lhs
-            .len()
-            .checked_sub(axis_from_end + 1)
-            .map(|index| lhs[index])
-            .unwrap_or(1);
-        let rhs_dim = rhs
-            .len()
-            .checked_sub(axis_from_end + 1)
-            .map(|index| rhs[index])
-            .unwrap_or(1);
+        let lhs_dim = lhs.len().checked_sub(axis_from_end + 1).map(|index| lhs[index]).unwrap_or(1);
+        let rhs_dim = rhs.len().checked_sub(axis_from_end + 1).map(|index| rhs[index]).unwrap_or(1);
 
         let dim = if lhs_dim == rhs_dim {
             lhs_dim
@@ -109,11 +101,7 @@ pub fn broadcast_pair(
     let lhs_strides = broadcast_strides(lhs_shape, lhs_strides, &shape)?;
     let rhs_strides = broadcast_strides(rhs_shape, rhs_strides, &shape)?;
 
-    Ok(BroadcastMetadata {
-        shape,
-        lhs_strides,
-        rhs_strides,
-    })
+    Ok(BroadcastMetadata { shape, lhs_strides, rhs_strides })
 }
 
 pub fn contiguous_broadcast_metadata(
@@ -157,14 +145,8 @@ mod tests {
 
     #[test]
     fn broadcast_strides_use_zero_stride_for_expanded_dimensions() {
-        assert_eq!(
-            broadcast_strides(&[3, 1], &[1, 1], &[2, 3, 4]).unwrap(),
-            vec![0, 1, 0]
-        );
-        assert_eq!(
-            broadcast_strides(&[4], &[1], &[2, 3, 4]).unwrap(),
-            vec![0, 0, 1]
-        );
+        assert_eq!(broadcast_strides(&[3, 1], &[1, 1], &[2, 3, 4]).unwrap(), vec![0, 1, 0]);
+        assert_eq!(broadcast_strides(&[4], &[1], &[2, 3, 4]).unwrap(), vec![0, 0, 1]);
         assert_eq!(broadcast_strides(&[], &[], &[2, 3]).unwrap(), vec![0, 0]);
     }
 

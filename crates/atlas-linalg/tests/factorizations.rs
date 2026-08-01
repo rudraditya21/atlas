@@ -11,11 +11,9 @@ fn assert_close_slice(actual: &[f64], expected: &[f64], tolerance: f64) {
 
 #[test]
 fn lu_reconstructs_permuted_input() {
-    let matrix = NDArray::from_shape_vec(
-        [3, 3],
-        vec![0.0_f64, 2.0, 1.0, 1.0, 1.0, 0.0, 2.0, 1.0, 1.0],
-    )
-    .unwrap();
+    let matrix =
+        NDArray::from_shape_vec([3, 3], vec![0.0_f64, 2.0, 1.0, 1.0, 1.0, 0.0, 2.0, 1.0, 1.0])
+            .unwrap();
 
     let factors = lu(&matrix).unwrap();
 

@@ -30,9 +30,6 @@ fn linspace_creates_evenly_spaced_floating_point_inputs() {
 fn constructor_validation_is_consistent() {
     assert_eq!(
         NDArray::arange(0_i32, 5, 0).unwrap_err(),
-        AtlasNdError::InvalidArgument {
-            op: "arange",
-            reason: "step must be non-zero",
-        }
+        AtlasNdError::InvalidArgument { op: "arange", reason: "step must be non-zero" }
     );
 }

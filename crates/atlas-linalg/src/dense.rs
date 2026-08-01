@@ -485,14 +485,8 @@ mod tests {
         assert_eq!(matmul(&lhs_vec, &rhs_vec).unwrap().data(), &[32]);
         assert_eq!(matmul(&lhs_vec, &matrix).unwrap().data(), &[22, 28]);
         assert_eq!(matmul(&left_matrix, &rhs_vec).unwrap().data(), &[32, 77]);
-        assert_eq!(
-            matmul(&left_matrix, &right_matrix).unwrap().shape(),
-            &[2, 2]
-        );
-        assert_eq!(
-            matmul(&left_matrix, &right_matrix).unwrap().data(),
-            &[58, 64, 139, 154]
-        );
+        assert_eq!(matmul(&left_matrix, &right_matrix).unwrap().shape(), &[2, 2]);
+        assert_eq!(matmul(&left_matrix, &right_matrix).unwrap().data(), &[58, 64, 139, 154]);
     }
 
     #[test]
@@ -507,14 +501,8 @@ mod tests {
         let right_transposed = rhs_base.view().transpose();
         let sliced = generic_base.view().slice([0, 1], [2, 2]).unwrap();
 
-        assert_eq!(
-            matmul(left_transposed, &rhs).unwrap().data(),
-            &[43, 48, 59, 66, 75, 84]
-        );
-        assert_eq!(
-            matmul(&left_base, right_transposed).unwrap().data(),
-            &[58, 64, 139, 154]
-        );
+        assert_eq!(matmul(left_transposed, &rhs).unwrap().data(), &[43, 48, 59, 66, 75, 84]);
+        assert_eq!(matmul(&left_base, right_transposed).unwrap().data(), &[58, 64, 139, 154]);
         assert_eq!(matmul(sliced, &vector).unwrap().data(), &[50, 140]);
     }
 }

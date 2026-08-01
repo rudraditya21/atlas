@@ -112,17 +112,14 @@ where
             r[prior * cols + col] = projection;
 
             for row in 0..rows {
-                v[row] = v[row] - projection * q_columns[row * cols + prior];
+                v[row] -= projection * q_columns[row * cols + prior];
             }
         }
 
         let norm = vector_norm(&v);
 
         if norm <= tolerance {
-            return Err(AtlasLinalgError::RankDeficientMatrix {
-                op: "qr",
-                column: col,
-            });
+            return Err(AtlasLinalgError::RankDeficientMatrix { op: "qr", column: col });
         }
 
         r[col * cols + col] = norm;
@@ -173,7 +170,7 @@ where
             let mut value = a[row * n + col];
 
             for inner in 0..col {
-                value = value - l[row * n + inner] * l[col * n + inner];
+                value -= l[row * n + inner] * l[col * n + inner];
             }
 
             if row == col {
@@ -191,9 +188,7 @@ where
         }
     }
 
-    Ok(CholeskyFactorization {
-        l: NDArray::from_shape_vec([n, n], l)?,
-    })
+    Ok(CholeskyFactorization { l: NDArray::from_shape_vec([n, n], l)? })
 }
 
 fn validate_rank_two<T: Numeric>(

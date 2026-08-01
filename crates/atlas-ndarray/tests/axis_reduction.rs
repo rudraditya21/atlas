@@ -31,8 +31,5 @@ fn axis_reductions_work_for_sliced_views() {
 fn axis_reductions_report_invalid_axis_consistently() {
     let array = NDArray::new(vec![2, 2], 1_i32);
 
-    assert_eq!(
-        array.mean_axis(3).unwrap_err(),
-        AtlasNdError::InvalidAxis { axis: 3, ndim: 2 }
-    );
+    assert_eq!(array.mean_axis(3).unwrap_err(), AtlasNdError::InvalidAxis { axis: 3, ndim: 2 });
 }

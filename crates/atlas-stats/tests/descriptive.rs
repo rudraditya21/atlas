@@ -34,16 +34,10 @@ fn descriptive_stats_report_errors_cleanly() {
 
     assert!(matches!(
         covariance(&matrix, &matrix).unwrap_err(),
-        AtlasStatsError::InvalidInputRank {
-            op: "covariance",
-            ..
-        }
+        AtlasStatsError::InvalidInputRank { op: "covariance", .. }
     ));
     assert!(matches!(
         correlation(&lhs, &rhs).unwrap_err(),
-        AtlasStatsError::ShapeMismatch {
-            op: "correlation",
-            ..
-        }
+        AtlasStatsError::ShapeMismatch { op: "correlation", .. }
     ));
 }

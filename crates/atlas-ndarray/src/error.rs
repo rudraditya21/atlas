@@ -14,26 +14,13 @@ pub enum AtlasNdError {
     InvalidAxis { axis: i64, ndim: usize },
 
     #[error("index {index} is out of bounds for axis {axis} with length {dim}")]
-    IndexOutOfBounds {
-        axis: usize,
-        index: usize,
-        dim: usize,
-    },
+    IndexOutOfBounds { axis: usize, index: usize, dim: usize },
 
     #[error("invalid slice on axis {axis}: start {start}, length {len}, axis length {dim}")]
-    InvalidSlice {
-        axis: usize,
-        start: usize,
-        len: usize,
-        dim: usize,
-    },
+    InvalidSlice { axis: usize, start: usize, len: usize, dim: usize },
 
     #[error("invalid reshape from {from:?} to {to:?}: {reason}")]
-    InvalidReshape {
-        from: Vec<usize>,
-        to: Vec<usize>,
-        reason: &'static str,
-    },
+    InvalidReshape { from: Vec<usize>, to: Vec<usize>, reason: &'static str },
 
     #[error(
         "cannot broadcast shapes {lhs:?} and {rhs:?}: axis {axis} has incompatible dimensions {lhs_dim} and {rhs_dim}"
@@ -53,10 +40,7 @@ pub enum AtlasNdError {
     NumericConversionFailed { op: &'static str },
 
     #[error("invalid argument for {op}: {reason}")]
-    InvalidArgument {
-        op: &'static str,
-        reason: &'static str,
-    },
+    InvalidArgument { op: &'static str, reason: &'static str },
 
     #[error("invalid shape")]
     InvalidShape,

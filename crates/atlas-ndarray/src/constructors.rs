@@ -23,11 +23,7 @@ impl<T: Numeric> NDArray<T> {
         let shape = shape.as_ref().to_vec();
         let size = element_count(&shape);
 
-        Self {
-            data: vec![value; size],
-            strides: compute_strides(&shape),
-            shape,
-        }
+        Self { data: vec![value; size], strides: compute_strides(&shape), shape }
     }
 
     /// Creates a dense row-major array filled with zeros.
@@ -54,11 +50,7 @@ impl<T: Numeric> NDArray<T> {
             data[index * size + index] = T::one();
         }
 
-        Self {
-            data,
-            strides: compute_strides(&[size, size]),
-            shape: vec![size, size],
-        }
+        Self { data, strides: compute_strides(&[size, size]), shape: vec![size, size] }
     }
 
     /// Creates a dense row-major array from an explicit shape and backing data.
@@ -70,17 +62,10 @@ impl<T: Numeric> NDArray<T> {
         let expected = element_count(&shape);
 
         if expected != data.len() {
-            return Err(AtlasNdError::ShapeMismatch {
-                expected,
-                actual: data.len(),
-            });
+            return Err(AtlasNdError::ShapeMismatch { expected, actual: data.len() });
         }
 
-        Ok(Self {
-            data,
-            strides: compute_strides(&shape),
-            shape,
-        })
+        Ok(Self { data, strides: compute_strides(&shape), shape })
     }
 
     /// Creates a dense row-major array from an explicit shape and backing data.
@@ -100,7 +85,7 @@ where
     pub fn arange(start: T, end: T, step: T) -> AtlasNdResult<Self> {
         let zero = T::zero();
 
-        if !(step > zero || step < zero) {
+        if step == zero {
             return Err(AtlasNdError::InvalidArgument {
                 op: "arange",
                 reason: "step must be non-zero",
@@ -208,13 +193,7 @@ mod tests {
     fn from_vec_rejects_inconsistent_shape_and_data_length() {
         let error = NDArray::from_vec(vec![2, 2], vec![1_i32, 2, 3]).unwrap_err();
 
-        assert_eq!(
-            error,
-            AtlasNdError::ShapeMismatch {
-                expected: 4,
-                actual: 3
-            }
-        );
+        assert_eq!(error, AtlasNdError::ShapeMismatch { expected: 4, actual: 3 });
     }
 
     #[test]
@@ -261,10 +240,7 @@ mod tests {
     fn arange_rejects_invalid_step_configuration() {
         assert_eq!(
             NDArray::arange(0_i32, 5, 0).unwrap_err(),
-            AtlasNdError::InvalidArgument {
-                op: "arange",
-                reason: "step must be non-zero",
-            }
+            AtlasNdError::InvalidArgument { op: "arange", reason: "step must be non-zero" }
         );
 
         assert_eq!(
@@ -294,7 +270,7 @@ mod tests {
         let dynamic_shape = vec![2, 3];
 
         let from_slice = NDArray::<i32>::zeros(dynamic_shape.as_slice());
-        let from_array_ref = NDArray::<i32>::ones(&[2, 3]);
+        let from_array_ref = NDArray::<i32>::ones([2, 3]);
 
         assert_eq!(from_slice.shape(), &[2, 3]);
         assert_eq!(from_array_ref.shape(), &[2, 3]);

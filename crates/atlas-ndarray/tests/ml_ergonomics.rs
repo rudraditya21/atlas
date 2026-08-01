@@ -5,7 +5,7 @@ fn constructors_accept_array_and_slice_shapes() {
     let dynamic_shape = vec![2, 3];
 
     let zeros = NDArray::<i32>::zeros([2, 3]);
-    let ones = NDArray::<i32>::ones(&[2, 3]);
+    let ones = NDArray::<i32>::ones([2, 3]);
     let full = NDArray::full(dynamic_shape.as_slice(), 7_i32);
 
     assert_eq!(zeros.shape(), &[2, 3]);

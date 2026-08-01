@@ -17,12 +17,27 @@ members = [
 
 [workspace.dependencies]
 
+[workspace.lints.rust]
+rust_2018_idioms = { level = "warn", priority = -1 }
+unreachable_pub = "warn"
+unsafe_code = "forbid"
+unused_lifetimes = "warn"
+unused_qualifications = "warn"
+
+[workspace.lints.clippy]
+dbg_macro = "warn"
+todo = "warn"
+unimplemented = "warn"
+
 [dependencies]
 atlas-ndarray = { path = "crates/atlas-ndarray" }
 
 [dev-dependencies]
 atlas-linalg = { path = "crates/atlas-linalg" }
 criterion = "0.5"
+
+[lints]
+workspace = true
 
 [[bench]]
 name = "ndarray_contiguous_kernels"

@@ -36,18 +36,11 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
 
         let mut offset = self.offset;
 
-        for (axis, ((index, dim), stride)) in index
-            .iter()
-            .zip(self.shape.iter())
-            .zip(self.strides.iter())
-            .enumerate()
+        for (axis, ((index, dim), stride)) in
+            index.iter().zip(self.shape.iter()).zip(self.strides.iter()).enumerate()
         {
             if *index >= *dim {
-                return Err(AtlasNdError::IndexOutOfBounds {
-                    axis,
-                    index: *index,
-                    dim: *dim,
-                });
+                return Err(AtlasNdError::IndexOutOfBounds { axis, index: *index, dim: *dim });
             }
             offset += index * stride;
         }
@@ -129,12 +122,6 @@ mod tests {
 
         let error = view.get(&[0]).unwrap_err();
 
-        assert_eq!(
-            error,
-            AtlasNdError::DimensionMismatch {
-                expected: 2,
-                actual: 1,
-            }
-        );
+        assert_eq!(error, AtlasNdError::DimensionMismatch { expected: 2, actual: 1 });
     }
 }

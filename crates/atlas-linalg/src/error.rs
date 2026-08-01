@@ -7,33 +7,16 @@ pub type AtlasLinalgResult<T> = Result<T, AtlasLinalgError>;
 #[derive(Debug, Error)]
 pub enum AtlasLinalgError {
     #[error("invalid operand rank for {op}: left rank {left}, right rank {right}")]
-    InvalidOperandRank {
-        op: &'static str,
-        left: usize,
-        right: usize,
-    },
+    InvalidOperandRank { op: &'static str, left: usize, right: usize },
 
     #[error("shape mismatch for {op}: left shape {left:?}, right shape {right:?}: {reason}")]
-    ShapeMismatch {
-        op: &'static str,
-        left: Vec<usize>,
-        right: Vec<usize>,
-        reason: &'static str,
-    },
+    ShapeMismatch { op: &'static str, left: Vec<usize>, right: Vec<usize>, reason: &'static str },
 
     #[error("invalid input rank for {op}: expected {expected}, got rank {rank}")]
-    InvalidInputRank {
-        op: &'static str,
-        expected: &'static str,
-        rank: usize,
-    },
+    InvalidInputRank { op: &'static str, expected: &'static str, rank: usize },
 
     #[error("invalid input for {op} with shape {shape:?}: {reason}")]
-    InvalidInputShape {
-        op: &'static str,
-        shape: Vec<usize>,
-        reason: &'static str,
-    },
+    InvalidInputShape { op: &'static str, shape: Vec<usize>, reason: &'static str },
 
     #[error("singular matrix encountered during {op} at pivot {pivot}")]
     SingularMatrix { op: &'static str, pivot: usize },

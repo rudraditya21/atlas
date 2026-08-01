@@ -98,11 +98,7 @@ impl<T: Numeric> NDArray<T> {
             data.push(op(lhs[index], rhs[index]));
         }
 
-        Self {
-            data,
-            shape: self.shape.clone(),
-            strides: self.strides.clone(),
-        }
+        Self { data, shape: self.shape.clone(), strides: self.strides.clone() }
     }
 
     fn elementwise_binary_broadcast<F>(&self, rhs: &Self, op: F) -> AtlasNdResult<Self>
@@ -139,15 +135,11 @@ impl<T: Numeric> NDArray<T> {
             data.push(op(value, scalar));
         }
 
-        Self {
-            data,
-            shape: self.shape.clone(),
-            strides: self.strides.clone(),
-        }
+        Self { data, shape: self.shape.clone(), strides: self.strides.clone() }
     }
 }
 
-impl<'a, T: Numeric> AddOperand<T> for &'a NDArray<T> {
+impl<T: Numeric> AddOperand<T> for &NDArray<T> {
     type Output = AtlasNdResult<NDArray<T>>;
 
     fn add_to(self, lhs: &NDArray<T>) -> Self::Output {
@@ -163,7 +155,7 @@ impl<T: Numeric> AddOperand<T> for T {
     }
 }
 
-impl<'a, T: Numeric> SubOperand<T> for &'a NDArray<T> {
+impl<T: Numeric> SubOperand<T> for &NDArray<T> {
     type Output = AtlasNdResult<NDArray<T>>;
 
     fn sub_from(self, lhs: &NDArray<T>) -> Self::Output {
@@ -179,7 +171,7 @@ impl<T: Numeric> SubOperand<T> for T {
     }
 }
 
-impl<'a, T: Numeric> MulOperand<T> for &'a NDArray<T> {
+impl<T: Numeric> MulOperand<T> for &NDArray<T> {
     type Output = AtlasNdResult<NDArray<T>>;
 
     fn mul_with(self, lhs: &NDArray<T>) -> Self::Output {
@@ -195,7 +187,7 @@ impl<T: Numeric> MulOperand<T> for T {
     }
 }
 
-impl<'a, T: Numeric> DivOperand<T> for &'a NDArray<T> {
+impl<T: Numeric> DivOperand<T> for &NDArray<T> {
     type Output = AtlasNdResult<NDArray<T>>;
 
     fn div_into(self, lhs: &NDArray<T>) -> Self::Output {

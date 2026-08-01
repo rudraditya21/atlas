@@ -55,12 +55,7 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
             offset += start * stride;
         }
 
-        Ok(ArrayView {
-            data: self.data,
-            offset,
-            shape: new_shape,
-            strides: self.strides.clone(),
-        })
+        Ok(ArrayView { data: self.data, offset, shape: new_shape, strides: self.strides.clone() })
     }
 }
 
@@ -87,15 +82,7 @@ mod tests {
         let view = array.view();
         let error = view.slice([0, 2], [2, 2]).unwrap_err();
 
-        assert_eq!(
-            error,
-            AtlasNdError::InvalidSlice {
-                axis: 1,
-                start: 2,
-                len: 2,
-                dim: 3,
-            }
-        );
+        assert_eq!(error, AtlasNdError::InvalidSlice { axis: 1, start: 2, len: 2, dim: 3 });
     }
 
     #[test]
@@ -104,12 +91,6 @@ mod tests {
         let view = array.view();
         let error = view.slice([0], [1, 1]).unwrap_err();
 
-        assert_eq!(
-            error,
-            AtlasNdError::DimensionMismatch {
-                expected: 2,
-                actual: 1,
-            }
-        );
+        assert_eq!(error, AtlasNdError::DimensionMismatch { expected: 2, actual: 1 });
     }
 }

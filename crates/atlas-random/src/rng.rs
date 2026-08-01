@@ -1,3 +1,5 @@
+use core::cmp::Ordering;
+
 use atlas_ndarray::Numeric;
 use num_traits::Float;
 use rand::{
@@ -17,7 +19,7 @@ pub trait RandomSource {
     fn sample_normal<T>(&mut self, mean: T, stddev: T) -> AtlasRandomResult<T>
     where
         T: Numeric + Float,
-        StandardNormal: rand_distr::Distribution<T>;
+        StandardNormal: Distribution<T>;
 }
 
 #[derive(Clone, Debug)]
@@ -27,15 +29,11 @@ pub struct AtlasRng {
 
 impl AtlasRng {
     pub fn new() -> Self {
-        Self {
-            inner: StdRng::from_entropy(),
-        }
+        Self { inner: StdRng::from_entropy() }
     }
 
     pub fn seed_from_u64(seed: u64) -> Self {
-        Self {
-            inner: StdRng::seed_from_u64(seed),
-        }
+        Self { inner: StdRng::seed_from_u64(seed) }
     }
 }
 
@@ -50,7 +48,7 @@ impl RandomSource for AtlasRng {
     where
         T: Numeric + SampleUniform + PartialOrd,
     {
-        if !(low < high) {
+        if low.partial_cmp(&high) != Some(Ordering::Less) {
             return Err(AtlasRandomError::InvalidArgument {
                 op: "uniform",
                 reason: "low must be strictly less than high",
@@ -65,7 +63,7 @@ impl RandomSource for AtlasRng {
     fn sample_normal<T>(&mut self, mean: T, stddev: T) -> AtlasRandomResult<T>
     where
         T: Numeric + Float,
-        StandardNormal: rand_distr::Distribution<T>,
+        StandardNormal: Distribution<T>,
     {
         if !mean.is_finite() || !stddev.is_finite() {
             return Err(AtlasRandomError::InvalidArgument {

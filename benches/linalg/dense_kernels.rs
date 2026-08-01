@@ -50,10 +50,5 @@ fn bench_matmul_rhs_transposed(c: &mut Criterion) {
     group.finish();
 }
 
-criterion_group!(
-    linalg_dense_kernels,
-    bench_dot,
-    bench_matmul,
-    bench_matmul_rhs_transposed
-);
+criterion_group!(linalg_dense_kernels, bench_dot, bench_matmul, bench_matmul_rhs_transposed);
 criterion_main!(linalg_dense_kernels);

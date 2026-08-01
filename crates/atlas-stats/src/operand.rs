@@ -58,10 +58,6 @@ impl<'a, T: Numeric> StatsOperand<'a, T> {
     }
 
     pub(crate) fn len(&self) -> usize {
-        if self.shape().is_empty() {
-            1
-        } else {
-            self.shape().iter().product()
-        }
+        if self.shape().is_empty() { 1 } else { self.shape().iter().product() }
     }
 }

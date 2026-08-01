@@ -241,9 +241,7 @@ where
     let mut total = 0.0_f64;
 
     for &value in values {
-        total += value
-            .to_f64()
-            .ok_or(AtlasNdError::NumericConversionFailed { op })?;
+        total += value.to_f64().ok_or(AtlasNdError::NumericConversionFailed { op })?;
     }
 
     Ok(total / values.len() as f64)
@@ -488,9 +486,7 @@ where
 
     let mut total = 0.0_f64;
     try_for_each_value(data, offset, shape, strides, |value| {
-        total += value
-            .to_f64()
-            .ok_or(AtlasNdError::NumericConversionFailed { op: "mean" })?;
+        total += value.to_f64().ok_or(AtlasNdError::NumericConversionFailed { op: "mean" })?;
         Ok(())
     })?;
 
@@ -514,7 +510,7 @@ mod tests {
     #[test]
     fn whole_array_reductions_work_for_non_contiguous_views() {
         let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
-        let view = array.view().slice(&[0, 1], vec![2, 2]).unwrap();
+        let view = array.view().slice([0, 1], vec![2, 2]).unwrap();
 
         assert_eq!(view.sum(), 12);
         assert_eq!(view.prod(), 40);
@@ -535,18 +531,9 @@ mod tests {
     fn min_max_and_mean_reject_empty_arrays() {
         let array = NDArray::<i32>::new(vec![0, 3], 7);
 
-        assert_eq!(
-            array.min().unwrap_err(),
-            AtlasNdError::EmptyReduction { op: "min" }
-        );
-        assert_eq!(
-            array.max().unwrap_err(),
-            AtlasNdError::EmptyReduction { op: "max" }
-        );
-        assert_eq!(
-            array.mean().unwrap_err(),
-            AtlasNdError::EmptyReduction { op: "mean" }
-        );
+        assert_eq!(array.min().unwrap_err(), AtlasNdError::EmptyReduction { op: "min" });
+        assert_eq!(array.max().unwrap_err(), AtlasNdError::EmptyReduction { op: "max" });
+        assert_eq!(array.mean().unwrap_err(), AtlasNdError::EmptyReduction { op: "mean" });
     }
 
     #[test]
@@ -575,10 +562,7 @@ mod tests {
     fn axis_reductions_validate_axis_bounds() {
         let array = NDArray::new(vec![2, 3], 1_i32);
 
-        assert_eq!(
-            array.sum_axis(2).unwrap_err(),
-            AtlasNdError::InvalidAxis { axis: 2, ndim: 2 }
-        );
+        assert_eq!(array.sum_axis(2).unwrap_err(), AtlasNdError::InvalidAxis { axis: 2, ndim: 2 });
         assert_eq!(
             array.sum_axis(-3).unwrap_err(),
             AtlasNdError::InvalidAxis { axis: -3, ndim: 2 }
@@ -592,17 +576,8 @@ mod tests {
         assert_eq!(array.sum_axis(0).unwrap().shape(), &[3]);
         assert_eq!(array.sum_axis(0).unwrap().data(), &[0, 0, 0]);
         assert_eq!(array.prod_axis(0).unwrap().data(), &[1, 1, 1]);
-        assert_eq!(
-            array.min_axis(0).unwrap_err(),
-            AtlasNdError::EmptyReduction { op: "min" }
-        );
-        assert_eq!(
-            array.max_axis(0).unwrap_err(),
-            AtlasNdError::EmptyReduction { op: "max" }
-        );
-        assert_eq!(
-            array.mean_axis(0).unwrap_err(),
-            AtlasNdError::EmptyReduction { op: "mean" }
-        );
+        assert_eq!(array.min_axis(0).unwrap_err(), AtlasNdError::EmptyReduction { op: "min" });
+        assert_eq!(array.max_axis(0).unwrap_err(), AtlasNdError::EmptyReduction { op: "max" });
+        assert_eq!(array.mean_axis(0).unwrap_err(), AtlasNdError::EmptyReduction { op: "mean" });
     }
 }

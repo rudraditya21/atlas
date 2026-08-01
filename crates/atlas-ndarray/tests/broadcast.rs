@@ -5,10 +5,7 @@ use atlas_ndarray::{
 
 #[test]
 fn broadcast_shape_supports_trailing_dimension_alignment() {
-    assert_eq!(
-        broadcast_shape(&[8, 1, 6, 1], &[7, 1, 5]).unwrap(),
-        vec![8, 7, 6, 5]
-    );
+    assert_eq!(broadcast_shape(&[8, 1, 6, 1], &[7, 1, 5]).unwrap(), vec![8, 7, 6, 5]);
 }
 
 #[test]
@@ -18,10 +15,7 @@ fn broadcast_shape_supports_scalar_expansion() {
 
 #[test]
 fn broadcast_strides_mark_expanded_axes_with_zero_stride() {
-    assert_eq!(
-        broadcast_strides(&[1, 3], &[3, 1], &[2, 3]).unwrap(),
-        vec![0, 1]
-    );
+    assert_eq!(broadcast_strides(&[1, 3], &[3, 1], &[2, 3]).unwrap(), vec![0, 1]);
 }
 
 #[test]

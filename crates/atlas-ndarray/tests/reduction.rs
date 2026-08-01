@@ -28,16 +28,7 @@ fn empty_reductions_return_explicit_errors_when_needed() {
 
     assert_eq!(array.sum(), 0);
     assert_eq!(array.prod(), 1);
-    assert_eq!(
-        array.min().unwrap_err(),
-        AtlasNdError::EmptyReduction { op: "min" }
-    );
-    assert_eq!(
-        array.max().unwrap_err(),
-        AtlasNdError::EmptyReduction { op: "max" }
-    );
-    assert_eq!(
-        array.mean().unwrap_err(),
-        AtlasNdError::EmptyReduction { op: "mean" }
-    );
+    assert_eq!(array.min().unwrap_err(), AtlasNdError::EmptyReduction { op: "min" });
+    assert_eq!(array.max().unwrap_err(), AtlasNdError::EmptyReduction { op: "max" });
+    assert_eq!(array.mean().unwrap_err(), AtlasNdError::EmptyReduction { op: "mean" });
 }

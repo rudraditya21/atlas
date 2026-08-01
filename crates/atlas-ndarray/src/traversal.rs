@@ -60,19 +60,10 @@ pub(crate) fn offset_iter<'a>(
     }
 
     if is_contiguous_layout(shape, strides) {
-        return OffsetIter::Contiguous {
-            next: base_offset,
-            end: base_offset + len,
-        };
+        return OffsetIter::Contiguous { next: base_offset, end: base_offset + len };
     }
 
-    OffsetIter::Strided(StridedOffsetIter {
-        shape,
-        strides,
-        base_offset,
-        linear_index: 0,
-        len,
-    })
+    OffsetIter::Strided(StridedOffsetIter { shape, strides, base_offset, linear_index: 0, len })
 }
 
 pub(crate) fn try_for_each_value<T, E, F>(
@@ -198,12 +189,8 @@ impl Iterator for StridedOffsetIter<'_> {
             return None;
         }
 
-        let offset = offset_from_linear_index(
-            self.linear_index,
-            self.base_offset,
-            self.shape,
-            self.strides,
-        );
+        let offset =
+            offset_from_linear_index(self.linear_index, self.base_offset, self.shape, self.strides);
         self.linear_index += 1;
 
         Some(offset)
@@ -228,12 +215,7 @@ impl<'a> Iterator for BroadcastOffsetPairIter<'a> {
 
         let current = self.linear_index;
         self.linear_index += 1;
-        Some(broadcast_offsets(
-            current,
-            self.shape,
-            self.lhs_strides,
-            self.rhs_strides,
-        ))
+        Some(broadcast_offsets(current, self.shape, self.lhs_strides, self.rhs_strides))
     }
 }
 
@@ -249,7 +231,7 @@ fn broadcast_offsets(
     for axis in (0..shape.len()).rev() {
         let dim = shape[axis];
         let coordinate = if dim == 0 { 0 } else { linear_index % dim };
-        linear_index = if dim == 0 { 0 } else { linear_index / dim };
+        linear_index = linear_index.checked_div(dim).unwrap_or(0);
 
         lhs_offset += coordinate * lhs_strides[axis];
         rhs_offset += coordinate * rhs_strides[axis];
@@ -271,7 +253,7 @@ fn offset_from_linear_index(
     for axis in (0..shape.len()).rev() {
         let dim = shape[axis];
         let coordinate = if dim == 0 { 0 } else { linear_index % dim };
-        linear_index = if dim == 0 { 0 } else { linear_index / dim };
+        linear_index = linear_index.checked_div(dim).unwrap_or(0);
         offset += coordinate * strides[axis];
     }
 
@@ -302,10 +284,7 @@ mod tests {
     fn broadcast_offset_pair_iter_expands_singleton_axes() {
         let offsets: Vec<_> = broadcast_offset_pair_iter(&[2, 3], &[1, 0], &[0, 1]).collect();
 
-        assert_eq!(
-            offsets,
-            vec![(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2)]
-        );
+        assert_eq!(offsets, vec![(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2)]);
     }
 
     #[test]

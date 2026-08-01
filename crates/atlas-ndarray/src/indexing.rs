@@ -15,18 +15,11 @@ impl<T: Numeric> NDArray<T> {
         }
 
         let mut offset = 0;
-        for (axis, ((index, dim), stride)) in indices
-            .iter()
-            .zip(self.shape.iter())
-            .zip(self.strides.iter())
-            .enumerate()
+        for (axis, ((index, dim), stride)) in
+            indices.iter().zip(self.shape.iter()).zip(self.strides.iter()).enumerate()
         {
             if *index >= *dim {
-                return Err(AtlasNdError::IndexOutOfBounds {
-                    axis,
-                    index: *index,
-                    dim: *dim,
-                });
+                return Err(AtlasNdError::IndexOutOfBounds { axis, index: *index, dim: *dim });
             }
             offset += index * stride;
         }
@@ -77,13 +70,7 @@ mod tests {
 
         let error = array.get(&[0]).unwrap_err();
 
-        assert_eq!(
-            error,
-            AtlasNdError::DimensionMismatch {
-                expected: 2,
-                actual: 1
-            }
-        );
+        assert_eq!(error, AtlasNdError::DimensionMismatch { expected: 2, actual: 1 });
     }
 
     #[test]
@@ -92,14 +79,7 @@ mod tests {
 
         let error = array.get(&[2, 0]).unwrap_err();
 
-        assert_eq!(
-            error,
-            AtlasNdError::IndexOutOfBounds {
-                axis: 0,
-                index: 2,
-                dim: 2
-            }
-        );
+        assert_eq!(error, AtlasNdError::IndexOutOfBounds { axis: 0, index: 2, dim: 2 });
     }
 
     #[test]

@@ -1,6 +1,6 @@
 use atlas_ndarray::{NDArray, Numeric};
 use num_traits::Float;
-use rand::distributions::uniform::SampleUniform;
+use rand::distributions::{Distribution, uniform::SampleUniform};
 use rand_distr::StandardNormal;
 
 use crate::{error::AtlasRandomResult, rng::RandomSource};
@@ -27,7 +27,7 @@ where
     T: Numeric + Float,
     S: AsRef<[usize]>,
     R: RandomSource,
-    StandardNormal: rand_distr::Distribution<T>,
+    StandardNormal: Distribution<T>,
 {
     let shape = shape.as_ref().to_vec();
     let len = element_count(&shape);
@@ -55,12 +55,7 @@ mod tests {
 
         assert_eq!(sampled.shape(), &[2, 3]);
         assert_eq!(sampled.len(), 6);
-        assert!(
-            sampled
-                .data()
-                .iter()
-                .all(|value| *value >= -1.0 && *value < 1.0)
-        );
+        assert!(sampled.data().iter().all(|value| *value >= -1.0 && *value < 1.0));
     }
 
     #[test]

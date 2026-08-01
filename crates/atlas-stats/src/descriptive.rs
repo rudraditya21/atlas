@@ -144,9 +144,7 @@ where
 
     if shape.is_empty() {
         values.push(
-            data[base_offset]
-                .to_f64()
-                .ok_or(AtlasStatsError::NumericConversionFailed { op })?,
+            data[base_offset].to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op })?,
         );
 
         return Ok(values);
@@ -161,11 +159,7 @@ where
             offset += index[axis] * strides[axis];
         }
 
-        values.push(
-            data[offset]
-                .to_f64()
-                .ok_or(AtlasStatsError::NumericConversionFailed { op })?,
-        );
+        values.push(data[offset].to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op })?);
 
         if !advance_index(&mut index, shape) {
             break;
@@ -238,17 +232,11 @@ mod tests {
         ));
         assert!(matches!(
             covariance(&matrix, &matrix).unwrap_err(),
-            AtlasStatsError::InvalidInputRank {
-                op: "covariance",
-                ..
-            }
+            AtlasStatsError::InvalidInputRank { op: "covariance", .. }
         ));
         assert!(matches!(
             covariance(&lhs, &rhs).unwrap_err(),
-            AtlasStatsError::ShapeMismatch {
-                op: "covariance",
-                ..
-            }
+            AtlasStatsError::ShapeMismatch { op: "covariance", .. }
         ));
         assert!(matches!(
             correlation(&constant, &lhs).unwrap_err(),

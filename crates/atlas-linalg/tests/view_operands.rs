@@ -17,10 +17,7 @@ fn matmul_accepts_transposed_view_operands() {
     let lhs = NDArray::from_shape_vec([2, 3], vec![1_i32, 2, 3, 4, 5, 6]).unwrap();
     let rhs_base = NDArray::from_shape_vec([2, 3], vec![7_i32, 9, 11, 8, 10, 12]).unwrap();
 
-    assert_eq!(
-        matmul(&lhs, rhs_base.view().transpose()).unwrap().data(),
-        &[58, 64, 139, 154]
-    );
+    assert_eq!(matmul(&lhs, rhs_base.view().transpose()).unwrap().data(), &[58, 64, 139, 154]);
 }
 
 #[test]
