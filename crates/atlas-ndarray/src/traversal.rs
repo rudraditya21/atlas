@@ -48,6 +48,33 @@ pub(crate) fn for_each_value<T, F>(
     }
 }
 
+pub(crate) fn offset_iter<'a>(
+    base_offset: usize,
+    shape: &'a [usize],
+    strides: &'a [usize],
+) -> OffsetIter<'a> {
+    let len = element_count(shape);
+
+    if len == 0 {
+        return OffsetIter::Empty;
+    }
+
+    if is_contiguous_layout(shape, strides) {
+        return OffsetIter::Contiguous {
+            next: base_offset,
+            end: base_offset + len,
+        };
+    }
+
+    OffsetIter::Strided(StridedOffsetIter {
+        shape,
+        strides,
+        base_offset,
+        linear_index: 0,
+        len,
+    })
+}
+
 pub(crate) fn try_for_each_value<T, E, F>(
     data: &[T],
     base_offset: usize,
@@ -100,6 +127,32 @@ impl<'a, T> Iterator for ValueIter<'a, T> {
     }
 }
 
+pub(crate) enum OffsetIter<'a> {
+    Empty,
+    Contiguous { next: usize, end: usize },
+    Strided(StridedOffsetIter<'a>),
+}
+
+impl Iterator for OffsetIter<'_> {
+    type Item = usize;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self {
+            Self::Empty => None,
+            Self::Contiguous { next, end } => {
+                if *next >= *end {
+                    None
+                } else {
+                    let offset = *next;
+                    *next += 1;
+                    Some(offset)
+                }
+            }
+            Self::Strided(iter) => iter.next(),
+        }
+    }
+}
+
 pub(crate) struct StridedIter<'a, T> {
     data: &'a [T],
     shape: Vec<usize>,
@@ -126,6 +179,34 @@ impl<'a, T> Iterator for StridedIter<'a, T> {
         self.linear_index += 1;
 
         Some(&self.data[offset])
+    }
+}
+
+pub(crate) struct StridedOffsetIter<'a> {
+    shape: &'a [usize],
+    strides: &'a [usize],
+    base_offset: usize,
+    linear_index: usize,
+    len: usize,
+}
+
+impl Iterator for StridedOffsetIter<'_> {
+    type Item = usize;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.linear_index >= self.len {
+            return None;
+        }
+
+        let offset = offset_from_linear_index(
+            self.linear_index,
+            self.base_offset,
+            self.shape,
+            self.strides,
+        );
+        self.linear_index += 1;
+
+        Some(offset)
     }
 }
 
@@ -199,7 +280,7 @@ fn offset_from_linear_index(
 
 #[cfg(test)]
 mod tests {
-    use super::{broadcast_offset_pair_iter, value_iter};
+    use super::{broadcast_offset_pair_iter, offset_iter, value_iter};
 
     #[test]
     fn value_iter_uses_contiguous_path_when_layout_is_row_major() {
@@ -221,6 +302,16 @@ mod tests {
     fn broadcast_offset_pair_iter_expands_singleton_axes() {
         let offsets: Vec<_> = broadcast_offset_pair_iter(&[2, 3], &[1, 0], &[0, 1]).collect();
 
-        assert_eq!(offsets, vec![(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2)]);
+        assert_eq!(
+            offsets,
+            vec![(0, 0), (0, 1), (0, 2), (1, 0), (1, 1), (1, 2)]
+        );
+    }
+
+    #[test]
+    fn offset_iter_walks_strided_layouts_in_logical_order() {
+        let offsets: Vec<_> = offset_iter(0, &[3, 2], &[1, 3]).collect();
+
+        assert_eq!(offsets, vec![0, 3, 1, 4, 2, 5]);
     }
 }
