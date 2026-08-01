@@ -298,13 +298,36 @@ fn matmul_matrix_vector_col_major<T: Numeric>(
 ) -> Vec<T> {
     let mut data = vec![T::zero(); lhs.rows];
 
-    for k in 0..lhs.cols {
-        let rhs_value = rhs.value_at(k);
-        let lhs_col = lhs.contiguous_col_slice(k);
+    if simd::is_f32::<T>() {
+        let rhs_values = simd::cast_slice::<T, f32>(rhs.contiguous_slice());
+        {
+            let data_f32 = simd::cast_mut_slice::<T, f32>(data.as_mut_slice());
 
-        for row in 0..lhs.rows {
-            data[row] += lhs_col[row] * rhs_value;
+            for (k, &rhs_value) in rhs_values.iter().enumerate() {
+                let lhs_col = simd::cast_slice::<T, f32>(lhs.contiguous_col_slice(k));
+                simd::scaled_accumulate_contiguous_f32(data_f32, lhs_col, rhs_value);
+            }
         }
+
+        return data;
+    }
+
+    if simd::is_f64::<T>() {
+        let rhs_values = simd::cast_slice::<T, f64>(rhs.contiguous_slice());
+        {
+            let data_f64 = simd::cast_mut_slice::<T, f64>(data.as_mut_slice());
+
+            for (k, &rhs_value) in rhs_values.iter().enumerate() {
+                let lhs_col = simd::cast_slice::<T, f64>(lhs.contiguous_col_slice(k));
+                simd::scaled_accumulate_contiguous_f64(data_f64, lhs_col, rhs_value);
+            }
+        }
+
+        return data;
+    }
+
+    for k in 0..lhs.cols {
+        simd::scaled_accumulate_contiguous(&mut data, lhs.contiguous_col_slice(k), rhs.value_at(k));
     }
 
     data

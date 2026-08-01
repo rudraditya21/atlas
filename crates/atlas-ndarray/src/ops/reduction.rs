@@ -5,7 +5,8 @@ use crate::{
     AtlasNdError, AtlasNdResult, AxisIndex, NDArray, Numeric,
     core::axis::normalize_axis,
     internal::{
-        LayoutKind, for_each_value, is_contiguous_layout, offset_iter, simd, try_for_each_value,
+        LayoutKind, for_each_value, is_contiguous_layout, is_storage_dense_layout, offset_iter,
+        simd, try_for_each_value,
     },
     layout::element_count,
     view::ArrayView,
@@ -97,16 +98,16 @@ impl<T: Numeric> NDArray<T> {
 
 impl<'a, T: Numeric> ArrayView<'a, T> {
     pub fn sum(&self) -> T {
-        if self.is_contiguous() {
-            return sum_contiguous(self.contiguous_slice());
+        if let Some(values) = self.dense_slice() {
+            return sum_contiguous(values);
         }
 
         sum_all(self.data, self.offset, &self.shape, &self.strides)
     }
 
     pub fn prod(&self) -> T {
-        if self.is_contiguous() {
-            return prod_contiguous(self.contiguous_slice());
+        if let Some(values) = self.dense_slice() {
+            return prod_contiguous(values);
         }
 
         prod_all(self.data, self.offset, &self.shape, &self.strides)
@@ -116,8 +117,8 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
     where
         T: PartialOrd,
     {
-        if self.is_contiguous() {
-            return min_contiguous(self.contiguous_slice(), "min");
+        if let Some(values) = self.dense_slice() {
+            return min_contiguous(values, "min");
         }
 
         min_all(self.data, self.offset, &self.shape, &self.strides)
@@ -127,8 +128,8 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
     where
         T: PartialOrd,
     {
-        if self.is_contiguous() {
-            return max_contiguous(self.contiguous_slice(), "max");
+        if let Some(values) = self.dense_slice() {
+            return max_contiguous(values, "max");
         }
 
         max_all(self.data, self.offset, &self.shape, &self.strides)
@@ -138,8 +139,8 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
     where
         T: ToPrimitive,
     {
-        if self.is_contiguous() {
-            return mean_contiguous(self.contiguous_slice(), "mean");
+        if let Some(values) = self.dense_slice() {
+            return mean_contiguous(values, "mean");
         }
 
         mean_all(self.data, self.offset, &self.shape, &self.strides)
@@ -172,14 +173,6 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
         T: ToPrimitive,
     {
         mean_axis_impl(self.data, self.offset, &self.shape, &self.strides, axis)
-    }
-}
-
-impl<'a, T: Numeric> ArrayView<'a, T> {
-    fn contiguous_slice(&self) -> &[T] {
-        debug_assert!(self.is_contiguous());
-        let len = element_count(&self.shape);
-        &self.data[self.offset..self.offset + len]
     }
 }
 
@@ -1278,6 +1271,10 @@ fn mean_strided_lane_f64(
 }
 
 fn sum_all<T: Numeric>(data: &[T], offset: usize, shape: &[usize], strides: &[usize]) -> T {
+    if let Some(values) = dense_storage_slice(data, offset, shape, strides) {
+        return sum_contiguous(values);
+    }
+
     let mut total = T::zero();
     for_each_value(data, offset, shape, strides, |value| {
         total += *value;
@@ -1286,6 +1283,10 @@ fn sum_all<T: Numeric>(data: &[T], offset: usize, shape: &[usize], strides: &[us
 }
 
 fn prod_all<T: Numeric>(data: &[T], offset: usize, shape: &[usize], strides: &[usize]) -> T {
+    if let Some(values) = dense_storage_slice(data, offset, shape, strides) {
+        return prod_contiguous(values);
+    }
+
     let mut total = T::one();
     for_each_value(data, offset, shape, strides, |value| {
         total *= *value;
@@ -1297,6 +1298,10 @@ fn min_all<T>(data: &[T], offset: usize, shape: &[usize], strides: &[usize]) -> 
 where
     T: Numeric + PartialOrd,
 {
+    if let Some(values) = dense_storage_slice(data, offset, shape, strides) {
+        return min_contiguous(values, "min");
+    }
+
     let mut minimum = None;
 
     for_each_value(data, offset, shape, strides, |value| {
@@ -1313,6 +1318,10 @@ fn max_all<T>(data: &[T], offset: usize, shape: &[usize], strides: &[usize]) -> 
 where
     T: Numeric + PartialOrd,
 {
+    if let Some(values) = dense_storage_slice(data, offset, shape, strides) {
+        return max_contiguous(values, "max");
+    }
+
     let mut maximum = None;
 
     for_each_value(data, offset, shape, strides, |value| {
@@ -1332,6 +1341,10 @@ where
     let len = element_count(shape);
     if len == 0 {
         return Err(AtlasNdError::EmptyReduction { op: "mean" });
+    }
+
+    if let Some(values) = dense_storage_slice(data, offset, shape, strides) {
+        return mean_contiguous(values, "mean");
     }
 
     if simd::is_f32::<T>() {
@@ -1595,6 +1608,20 @@ fn mean_all_f64(
         Ok::<(), AtlasNdError>(())
     })?;
     Ok(total / len as f64)
+}
+
+fn dense_storage_slice<'a, T>(
+    data: &'a [T],
+    offset: usize,
+    shape: &[usize],
+    strides: &[usize],
+) -> Option<&'a [T]> {
+    if !is_storage_dense_layout(shape, strides) {
+        return None;
+    }
+
+    let len = element_count(shape);
+    Some(&data[offset..offset + len])
 }
 #[cfg(test)]
 mod tests {

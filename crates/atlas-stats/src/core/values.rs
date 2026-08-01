@@ -117,6 +117,15 @@ where
     let data = operand.data();
     let base_offset = operand.offset();
 
+    if let Some(values) = dense_slice_by_layout(data, base_offset, shape, strides) {
+        for value in values {
+            let value = value.to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op })?;
+            f(value)?;
+        }
+
+        return Ok(());
+    }
+
     if shape.is_empty() {
         let value =
             data[base_offset].to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op })?;
@@ -240,6 +249,41 @@ fn is_contiguous(shape: &[usize], strides: &[usize]) -> bool {
     true
 }
 
+fn is_storage_dense(shape: &[usize], strides: &[usize]) -> bool {
+    if shape.is_empty() || shape.iter().product::<usize>() == 0 {
+        return true;
+    }
+
+    let mut axes: Vec<usize> = (0..shape.len()).collect();
+    axes.sort_unstable_by_key(|&axis| strides[axis]);
+
+    let mut expected_stride = 1usize;
+
+    for axis in axes {
+        if strides[axis] != expected_stride {
+            return false;
+        }
+
+        expected_stride = expected_stride.saturating_mul(shape[axis]);
+    }
+
+    true
+}
+
+fn dense_slice_by_layout<'a, T>(
+    data: &'a [T],
+    base_offset: usize,
+    shape: &[usize],
+    strides: &[usize],
+) -> Option<&'a [T]> {
+    if !is_storage_dense(shape, strides) {
+        return None;
+    }
+
+    let len = if shape.is_empty() { 1 } else { shape.iter().product() };
+    Some(&data[base_offset..base_offset + len])
+}
+
 fn try_for_each_f64_f32<T, F>(operand: &StatsOperand<'_, T>, f: &mut F) -> AtlasStatsResult<()>
 where
     T: Numeric,
@@ -254,6 +298,14 @@ where
     let strides = operand.strides();
     let data = cast_slice::<T, f32>(operand.data());
     let base_offset = operand.offset();
+
+    if let Some(values) = dense_slice_by_layout(data, base_offset, shape, strides) {
+        for &value in values {
+            f(value as f64)?;
+        }
+
+        return Ok(());
+    }
 
     if shape.is_empty() {
         f(data[base_offset] as f64)?;
@@ -313,6 +365,14 @@ where
     let strides = operand.strides();
     let data = cast_slice::<T, f64>(operand.data());
     let base_offset = operand.offset();
+
+    if let Some(values) = dense_slice_by_layout(data, base_offset, shape, strides) {
+        for &value in values {
+            f(value)?;
+        }
+
+        return Ok(());
+    }
 
     if shape.is_empty() {
         f(data[base_offset])?;

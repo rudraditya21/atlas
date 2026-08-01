@@ -22,6 +22,29 @@ pub(crate) fn is_contiguous_layout(shape: &[usize], strides: &[usize]) -> bool {
     strides == compute_strides(shape)
 }
 
+pub(crate) fn is_storage_dense_layout(shape: &[usize], strides: &[usize]) -> bool {
+    debug_assert_eq!(shape.len(), strides.len());
+
+    if shape.is_empty() || element_count(shape) == 0 {
+        return true;
+    }
+
+    let mut axes: Vec<usize> = (0..shape.len()).collect();
+    axes.sort_unstable_by_key(|&axis| strides[axis]);
+
+    let mut expected_stride = 1usize;
+
+    for axis in axes {
+        if strides[axis] != expected_stride {
+            return false;
+        }
+
+        expected_stride = expected_stride.saturating_mul(shape[axis]);
+    }
+
+    true
+}
+
 pub(crate) fn layout_kind(shape: &[usize], strides: &[usize]) -> LayoutKind {
     if is_contiguous_layout(shape, strides) { LayoutKind::Contiguous } else { LayoutKind::Strided }
 }
@@ -512,8 +535,8 @@ where
 #[cfg(test)]
 mod tests {
     use super::{
-        LayoutKind, PairLayoutKind, lane_value_iter, layout_kind, offset_iter, offset_pair_iter,
-        pair_layout_kind, value_iter,
+        LayoutKind, PairLayoutKind, is_storage_dense_layout, lane_value_iter, layout_kind,
+        offset_iter, offset_pair_iter, pair_layout_kind, value_iter,
     };
 
     #[test]
@@ -587,5 +610,17 @@ mod tests {
         assert_eq!(pair_layout_kind(&[2, 3], &[3, 1], &[3, 1]), PairLayoutKind::Contiguous);
         assert_eq!(pair_layout_kind(&[2, 3], &[3, 1], &[0, 1]), PairLayoutKind::Broadcast);
         assert_eq!(pair_layout_kind(&[2, 3], &[1, 2], &[3, 1]), PairLayoutKind::Strided);
+    }
+
+    #[test]
+    fn storage_dense_layout_accepts_transposed_dense_views() {
+        assert!(is_storage_dense_layout(&[3, 2], &[1, 3]));
+        assert!(is_storage_dense_layout(&[2, 3, 4], &[12, 1, 3]));
+    }
+
+    #[test]
+    fn storage_dense_layout_rejects_gapped_slices() {
+        assert!(!is_storage_dense_layout(&[2, 2], &[3, 1]));
+        assert!(!is_storage_dense_layout(&[3], &[2]));
     }
 }

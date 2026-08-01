@@ -31,6 +31,14 @@ fn matmul_accepts_non_contiguous_sliced_views() {
 }
 
 #[test]
+fn matmul_accepts_transposed_matrix_vector_views_without_materializing() {
+    let lhs_base = NDArray::from_shape_vec([2, 3], vec![1.0_f32, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+    let rhs = NDArray::from_shape_vec([2], vec![10.0_f32, 20.0]).unwrap();
+
+    assert_eq!(matmul(lhs_base.view().transpose(), &rhs).unwrap().data(), &[90.0, 120.0, 150.0]);
+}
+
+#[test]
 fn dense_validation_errors_match_for_owned_and_view_vectors() {
     let lhs = NDArray::from_shape_vec([4], vec![1_i32, 2, 3, 4]).unwrap();
     let rhs = NDArray::from_shape_vec([3], vec![5_i32, 6, 7]).unwrap();

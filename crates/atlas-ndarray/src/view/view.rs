@@ -1,5 +1,6 @@
 use crate::{
     AtlasNdError, AtlasNdResult, NDArray, Numeric,
+    internal::is_storage_dense_layout,
     layout::{compute_strides, element_count},
 };
 
@@ -83,6 +84,19 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
         debug_assert_eq!(self.shape.len(), self.strides.len());
         self.strides == compute_strides(&self.shape)
     }
+
+    pub(crate) fn is_storage_dense(&self) -> bool {
+        is_storage_dense_layout(&self.shape, &self.strides)
+    }
+
+    pub(crate) fn dense_slice(&self) -> Option<&'a [T]> {
+        if !self.is_storage_dense() {
+            return None;
+        }
+
+        let len = element_count(&self.shape);
+        Some(&self.data[self.offset..self.offset + len])
+    }
 }
 
 #[cfg(test)]
@@ -101,6 +115,8 @@ mod tests {
         assert_eq!(view.len(), 6);
         assert_eq!(view.ndim(), 2);
         assert!(view.is_contiguous());
+        assert!(view.is_storage_dense());
+        assert_eq!(view.dense_slice().unwrap(), array.data());
     }
 
     #[test]
@@ -142,5 +158,24 @@ mod tests {
             view.get(&[0, 3]).unwrap_err(),
             AtlasNdError::IndexOutOfBounds { axis: 1, index: 3, dim: 3 }
         );
+    }
+
+    #[test]
+    fn transposed_view_is_storage_dense_without_being_row_major_contiguous() {
+        let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+        let view = array.view().transpose();
+
+        assert!(!view.is_contiguous());
+        assert!(view.is_storage_dense());
+        assert_eq!(view.dense_slice().unwrap(), array.data());
+    }
+
+    #[test]
+    fn sliced_view_is_not_storage_dense_when_it_skips_elements() {
+        let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+        let view = array.view().slice([0, 1], [2, 2]).unwrap();
+
+        assert!(!view.is_storage_dense());
+        assert!(view.dense_slice().is_none());
     }
 }
