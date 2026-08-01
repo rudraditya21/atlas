@@ -124,17 +124,84 @@ fn cholesky_reconstructs_three_by_three_input_and_preserves_shape() {
 }
 
 #[test]
-fn factorization_failures_are_structured() {
-    let rank_deficient =
-        NDArray::from_shape_vec([3, 2], vec![1.0_f64, 2.0, 2.0, 4.0, 3.0, 6.0]).unwrap();
-    let non_symmetric = NDArray::from_shape_vec([2, 2], vec![1.0_f64, 2.0, 0.0, 1.0]).unwrap();
+fn lu_reports_exact_error_for_non_square_input() {
+    let matrix = NDArray::from_shape_vec([2, 3], vec![1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
 
-    assert!(matches!(
-        qr(&rank_deficient).unwrap_err(),
-        AtlasLinalgError::RankDeficientMatrix { op: "qr", .. }
-    ));
-    assert!(matches!(
-        cholesky(&non_symmetric).unwrap_err(),
-        AtlasLinalgError::InvalidInputShape { op: "cholesky", .. }
-    ));
+    assert_eq!(
+        lu(&matrix).unwrap_err(),
+        AtlasLinalgError::InvalidInputShape {
+            op: "lu",
+            shape: vec![2, 3],
+            reason: "LU requires a square matrix",
+        }
+    );
+}
+
+#[test]
+fn lu_reports_exact_error_for_singular_input() {
+    let matrix = NDArray::from_shape_vec([2, 2], vec![1.0_f64, 2.0, 2.0, 4.0]).unwrap();
+
+    assert_eq!(lu(&matrix).unwrap_err(), AtlasLinalgError::SingularMatrix { op: "lu", pivot: 1 });
+}
+
+#[test]
+fn qr_reports_exact_error_for_wide_input() {
+    let matrix = NDArray::from_shape_vec([2, 3], vec![1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+
+    assert_eq!(
+        qr(&matrix).unwrap_err(),
+        AtlasLinalgError::InvalidInputShape {
+            op: "qr",
+            shape: vec![2, 3],
+            reason: "QR currently requires rows >= columns",
+        }
+    );
+}
+
+#[test]
+fn qr_reports_exact_error_for_rank_deficient_input() {
+    let matrix = NDArray::from_shape_vec([3, 2], vec![1.0_f64, 2.0, 2.0, 4.0, 3.0, 6.0]).unwrap();
+
+    assert_eq!(
+        qr(&matrix).unwrap_err(),
+        AtlasLinalgError::RankDeficientMatrix { op: "qr", column: 1 }
+    );
+}
+
+#[test]
+fn cholesky_reports_exact_error_for_non_square_input() {
+    let matrix = NDArray::from_shape_vec([2, 3], vec![1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+
+    assert_eq!(
+        cholesky(&matrix).unwrap_err(),
+        AtlasLinalgError::InvalidInputShape {
+            op: "cholesky",
+            shape: vec![2, 3],
+            reason: "Cholesky requires a square matrix",
+        }
+    );
+}
+
+#[test]
+fn cholesky_reports_exact_error_for_non_symmetric_input() {
+    let matrix = NDArray::from_shape_vec([2, 2], vec![1.0_f64, 2.0, 0.0, 1.0]).unwrap();
+
+    assert_eq!(
+        cholesky(&matrix).unwrap_err(),
+        AtlasLinalgError::InvalidInputShape {
+            op: "cholesky",
+            shape: vec![2, 2],
+            reason: "Cholesky requires a symmetric matrix",
+        }
+    );
+}
+
+#[test]
+fn cholesky_reports_exact_error_for_non_positive_definite_input() {
+    let matrix = NDArray::from_shape_vec([2, 2], vec![1.0_f64, 2.0, 2.0, 1.0]).unwrap();
+
+    assert_eq!(
+        cholesky(&matrix).unwrap_err(),
+        AtlasLinalgError::NotPositiveDefinite { op: "cholesky", index: 1 }
+    );
 }
