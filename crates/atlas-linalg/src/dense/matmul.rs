@@ -138,14 +138,13 @@ fn matmul_vector_matrix_row_major<T: Numeric>(
     lhs: VectorRef<'_, T>,
     rhs: MatrixRef<'_, T>,
 ) -> Vec<T> {
+    let lhs_values = lhs.contiguous_slice();
+    let rhs_values = rhs.row_major_region();
     let mut data = vec![T::zero(); rhs.cols];
 
-    for k in 0..lhs.len {
-        let lhs_value = lhs.value_at(k);
-        let rhs_row = rhs.contiguous_row_slice(k);
-
-        for col in 0..rhs.cols {
-            data[col] += lhs_value * rhs_row[col];
+    for (lhs_value, rhs_row) in lhs_values.iter().copied().zip(rhs_values.chunks_exact(rhs.cols)) {
+        for (output, rhs_value) in data.iter_mut().zip(rhs_row.iter().copied()) {
+            *output += lhs_value * rhs_value;
         }
     }
 
@@ -189,11 +188,12 @@ fn matmul_matrix_vector_row_major<T: Numeric>(
     lhs: MatrixRef<'_, T>,
     rhs: VectorRef<'_, T>,
 ) -> Vec<T> {
+    let lhs_values = lhs.row_major_region();
     let rhs = rhs.contiguous_slice();
     let mut data = vec![T::zero(); lhs.rows];
 
-    for (row, output) in data.iter_mut().enumerate() {
-        *output = dot_contiguous(lhs.contiguous_row_slice(row), rhs);
+    for (output, lhs_row) in data.iter_mut().zip(lhs_values.chunks_exact(lhs.cols)) {
+        *output = dot_contiguous(lhs_row, rhs);
     }
 
     data
@@ -240,17 +240,17 @@ fn matmul_matrix_matrix_row_major<T: Numeric>(
     lhs: MatrixRef<'_, T>,
     rhs: MatrixRef<'_, T>,
 ) -> Vec<T> {
+    let lhs_values = lhs.row_major_region();
+    let rhs_values = rhs.row_major_region();
     let mut data = vec![T::zero(); lhs.rows * rhs.cols];
 
-    for row in 0..lhs.rows {
-        let lhs_row = lhs.contiguous_row_slice(row);
-        let out_row = &mut data[row * rhs.cols..(row + 1) * rhs.cols];
-
+    for (lhs_row, out_row) in lhs_values.chunks_exact(lhs.cols).zip(data.chunks_exact_mut(rhs.cols))
+    {
         for (k, lhs_value) in lhs_row.iter().copied().enumerate() {
-            let rhs_row = rhs.contiguous_row_slice(k);
+            let rhs_row = &rhs_values[k * rhs.cols..(k + 1) * rhs.cols];
 
-            for col in 0..rhs.cols {
-                out_row[col] += lhs_value * rhs_row[col];
+            for (output, rhs_value) in out_row.iter_mut().zip(rhs_row.iter().copied()) {
+                *output += lhs_value * rhs_value;
             }
         }
     }

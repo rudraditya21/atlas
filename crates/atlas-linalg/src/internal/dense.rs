@@ -55,6 +55,13 @@ impl<'a, T: Numeric> MatrixRef<'a, T> {
         &self.data[start..start + self.cols]
     }
 
+    pub(crate) fn row_major_region(&self) -> &'a [T] {
+        debug_assert!(self.is_row_major_contiguous());
+        let len = self.rows * self.cols;
+
+        &self.data[self.offset..self.offset + len]
+    }
+
     pub(crate) fn contiguous_col_slice(&self, col: usize) -> &'a [T] {
         debug_assert!(self.is_col_major_contiguous());
         let start = self.offset + col * self.col_stride;
@@ -92,10 +99,27 @@ pub(crate) fn dot_kernel<T: Numeric>(lhs: VectorRef<'_, T>, rhs: VectorRef<'_, T
 }
 
 pub(crate) fn dot_contiguous<T: Numeric>(lhs: &[T], rhs: &[T]) -> T {
-    let mut total = T::zero();
+    let len = lhs.len();
+    let mut acc0 = T::zero();
+    let mut acc1 = T::zero();
+    let mut acc2 = T::zero();
+    let mut acc3 = T::zero();
+    let mut index = 0;
 
-    for index in 0..lhs.len() {
+    while index + 4 <= len {
+        acc0 += lhs[index] * rhs[index];
+        acc1 += lhs[index + 1] * rhs[index + 1];
+        acc2 += lhs[index + 2] * rhs[index + 2];
+        acc3 += lhs[index + 3] * rhs[index + 3];
+        index += 4;
+    }
+
+    let mut total = acc0 + acc1;
+    total += acc2 + acc3;
+
+    while index < len {
         total += lhs[index] * rhs[index];
+        index += 1;
     }
 
     total
@@ -103,9 +127,13 @@ pub(crate) fn dot_contiguous<T: Numeric>(lhs: &[T], rhs: &[T]) -> T {
 
 pub(crate) fn dot_strided<T: Numeric>(lhs: VectorRef<'_, T>, rhs: VectorRef<'_, T>) -> T {
     let mut total = T::zero();
+    let mut lhs_offset = lhs.offset;
+    let mut rhs_offset = rhs.offset;
 
-    for index in 0..lhs.len {
-        total += lhs.value_at(index) * rhs.value_at(index);
+    for _ in 0..lhs.len {
+        total += lhs.data[lhs_offset] * rhs.data[rhs_offset];
+        lhs_offset += lhs.stride;
+        rhs_offset += rhs.stride;
     }
 
     total
