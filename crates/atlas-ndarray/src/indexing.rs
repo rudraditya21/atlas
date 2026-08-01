@@ -83,11 +83,36 @@ mod tests {
     }
 
     #[test]
+    fn get_supports_scalar_arrays_and_rejects_scalar_index_mismatch() {
+        let array = NDArray::new([], 7_i32);
+
+        assert_eq!(*array.get(&[]).unwrap(), 7);
+        assert_eq!(
+            array.get(&[0]).unwrap_err(),
+            AtlasNdError::DimensionMismatch { expected: 0, actual: 1 }
+        );
+    }
+
+    #[test]
     fn get_mut_updates_the_underlying_element() {
         let mut array = NDArray::from_vec(vec![2, 2], vec![1_i32, 2, 3, 4]).unwrap();
 
         *array.get_mut(&[1, 0]).unwrap() = 9;
 
         assert_eq!(array.data(), &[1, 2, 9, 4]);
+    }
+
+    #[test]
+    fn get_mut_returns_consistent_dimension_and_bounds_errors() {
+        let mut array = NDArray::new([2, 2], 0_i32);
+
+        assert_eq!(
+            array.get_mut(&[0]).unwrap_err(),
+            AtlasNdError::DimensionMismatch { expected: 2, actual: 1 }
+        );
+        assert_eq!(
+            array.get_mut(&[0, 2]).unwrap_err(),
+            AtlasNdError::IndexOutOfBounds { axis: 1, index: 2, dim: 2 }
+        );
     }
 }

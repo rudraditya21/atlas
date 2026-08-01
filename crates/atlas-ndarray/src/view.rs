@@ -124,4 +124,27 @@ mod tests {
 
         assert_eq!(error, AtlasNdError::DimensionMismatch { expected: 2, actual: 1 });
     }
+
+    #[test]
+    fn scalar_view_uses_empty_index_and_reports_rank_mismatch_consistently() {
+        let array = NDArray::new([], 13_i32);
+        let view = array.view();
+
+        assert_eq!(*view.get(&[]).unwrap(), 13);
+        assert_eq!(
+            view.get(&[0]).unwrap_err(),
+            AtlasNdError::DimensionMismatch { expected: 0, actual: 1 }
+        );
+    }
+
+    #[test]
+    fn view_get_reports_axis_specific_bounds_errors() {
+        let array = NDArray::new([2, 3], 0_i32);
+        let view = array.view();
+
+        assert_eq!(
+            view.get(&[0, 3]).unwrap_err(),
+            AtlasNdError::IndexOutOfBounds { axis: 1, index: 3, dim: 3 }
+        );
+    }
 }

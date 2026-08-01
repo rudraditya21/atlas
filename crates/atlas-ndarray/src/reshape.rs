@@ -80,4 +80,35 @@ mod tests {
             }
         );
     }
+
+    #[test]
+    fn reshape_supports_scalar_and_zero_length_contiguous_views() {
+        let scalar = NDArray::new([], 9_i32);
+        let zero_length = NDArray::<i32>::zeros([2, 0, 3]);
+
+        let reshaped_scalar = scalar.view().reshape([1]).unwrap();
+        let reshaped_zero_length = zero_length.view().reshape([0]).unwrap();
+
+        assert_eq!(reshaped_scalar.shape(), &[1]);
+        assert_eq!(reshaped_scalar.strides(), &[1]);
+        assert_eq!(*reshaped_scalar.get(&[0]).unwrap(), 9);
+
+        assert_eq!(reshaped_zero_length.shape(), &[0]);
+        assert_eq!(reshaped_zero_length.strides(), &[1]);
+        assert!(reshaped_zero_length.is_empty());
+    }
+
+    #[test]
+    fn reshape_reports_scalar_element_count_errors_consistently() {
+        let scalar = NDArray::new([], 1_i32);
+
+        assert_eq!(
+            scalar.view().reshape([2]).unwrap_err(),
+            AtlasNdError::InvalidReshape {
+                from: vec![],
+                to: vec![2],
+                reason: "element count must remain unchanged",
+            }
+        );
+    }
 }

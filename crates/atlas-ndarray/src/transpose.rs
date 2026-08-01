@@ -30,4 +30,23 @@ mod tests {
 
         assert!(!transposed.is_contiguous());
     }
+
+    #[test]
+    fn transpose_preserves_scalar_and_vector_layout_invariants() {
+        let scalar = NDArray::new([], 5_i32);
+        let vector = NDArray::from_vec(vec![3], vec![1_i32, 2, 3]).unwrap();
+
+        let scalar_transposed = scalar.view().transpose();
+        let vector_transposed = vector.view().transpose();
+
+        assert_eq!(scalar_transposed.shape(), &[] as &[usize]);
+        assert_eq!(scalar_transposed.strides(), &[] as &[usize]);
+        assert!(scalar_transposed.is_contiguous());
+        assert_eq!(*scalar_transposed.get(&[]).unwrap(), 5);
+
+        assert_eq!(vector_transposed.shape(), &[3]);
+        assert_eq!(vector_transposed.strides(), &[1]);
+        assert!(vector_transposed.is_contiguous());
+        assert_eq!(*vector_transposed.get(&[2]).unwrap(), 3);
+    }
 }

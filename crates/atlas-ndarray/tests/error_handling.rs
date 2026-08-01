@@ -22,3 +22,36 @@ fn get_returns_out_of_bounds_error() {
 
     assert_eq!(error, AtlasNdError::IndexOutOfBounds { axis: 1, index: 3, dim: 3 });
 }
+
+#[test]
+fn get_mut_returns_consistent_indexing_errors() {
+    let mut array = NDArray::new([2, 2], 0_i32);
+
+    assert_eq!(
+        array.get_mut(&[0]).unwrap_err(),
+        AtlasNdError::DimensionMismatch { expected: 2, actual: 1 }
+    );
+    assert_eq!(
+        array.get_mut(&[0, 2]).unwrap_err(),
+        AtlasNdError::IndexOutOfBounds { axis: 1, index: 2, dim: 2 }
+    );
+}
+
+#[test]
+fn slice_and_reshape_return_stable_view_errors() {
+    let array = NDArray::new([2, 3], 0_i32);
+    let view = array.view();
+
+    assert_eq!(
+        view.slice([0, 0], [1]).unwrap_err(),
+        AtlasNdError::DimensionMismatch { expected: 2, actual: 1 }
+    );
+    assert_eq!(
+        array.view().reshape([5]).unwrap_err(),
+        AtlasNdError::InvalidReshape {
+            from: vec![2, 3],
+            to: vec![5],
+            reason: "element count must remain unchanged",
+        }
+    );
+}

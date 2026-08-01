@@ -93,4 +93,27 @@ mod tests {
 
         assert_eq!(error, AtlasNdError::DimensionMismatch { expected: 2, actual: 1 });
     }
+
+    #[test]
+    fn slice_accepts_zero_length_ranges_at_axis_boundaries() {
+        let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+        let view = array.view();
+        let slice = view.slice([2, 3], [0, 0]).unwrap();
+
+        assert_eq!(slice.shape(), &[0, 0]);
+        assert_eq!(slice.strides(), &[3, 1]);
+        assert_eq!(slice.len(), 0);
+        assert!(slice.is_empty());
+    }
+
+    #[test]
+    fn slice_reports_new_shape_rank_mismatch_consistently() {
+        let array = NDArray::new(vec![2, 3], 0_i32);
+        let view = array.view();
+
+        assert_eq!(
+            view.slice([0, 0], [1]).unwrap_err(),
+            AtlasNdError::DimensionMismatch { expected: 2, actual: 1 }
+        );
+    }
 }
