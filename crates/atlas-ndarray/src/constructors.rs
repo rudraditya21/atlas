@@ -180,6 +180,50 @@ mod tests {
     }
 
     #[test]
+    fn constructors_handle_scalar_shapes_consistently() {
+        let full = NDArray::full([], 7_i32);
+        let zeros = NDArray::<i32>::zeros([]);
+        let ones = NDArray::<i32>::ones([]);
+        let from_shape_vec = NDArray::from_shape_vec([], vec![11_i32]).unwrap();
+
+        assert_eq!(full.shape(), &[] as &[usize]);
+        assert_eq!(full.strides(), &[] as &[usize]);
+        assert_eq!(full.len(), 1);
+        assert_eq!(full.data(), &[7]);
+
+        assert_eq!(zeros.shape(), &[] as &[usize]);
+        assert_eq!(zeros.data(), &[0]);
+        assert_eq!(ones.shape(), &[] as &[usize]);
+        assert_eq!(ones.data(), &[1]);
+
+        assert_eq!(from_shape_vec.shape(), &[] as &[usize]);
+        assert_eq!(from_shape_vec.data(), &[11]);
+        assert!(full.is_contiguous());
+        assert!(zeros.is_contiguous());
+        assert!(ones.is_contiguous());
+        assert!(from_shape_vec.is_contiguous());
+    }
+
+    #[test]
+    fn constructors_handle_zero_sized_dimensions() {
+        let full = NDArray::full([2, 0, 3], 9_i32);
+        let zeros = NDArray::<i32>::zeros([0, 4]);
+        let from_shape_vec = NDArray::<i32>::from_shape_vec([0, 2], Vec::new()).unwrap();
+
+        assert_eq!(full.shape(), &[2, 0, 3]);
+        assert_eq!(full.len(), 0);
+        assert!(full.data().is_empty());
+        assert_eq!(full.strides(), &[0, 3, 1]);
+
+        assert_eq!(zeros.shape(), &[0, 4]);
+        assert_eq!(zeros.len(), 0);
+        assert!(zeros.data().is_empty());
+        assert_eq!(from_shape_vec.shape(), &[0, 2]);
+        assert_eq!(from_shape_vec.len(), 0);
+        assert!(from_shape_vec.is_contiguous());
+    }
+
+    #[test]
     fn from_vec_preserves_data_for_contiguous_layout() {
         let array = NDArray::from_vec(vec![2, 2], vec![1_i32, 2, 3, 4]).unwrap();
 
@@ -194,6 +238,24 @@ mod tests {
         let error = NDArray::from_vec(vec![2, 2], vec![1_i32, 2, 3]).unwrap_err();
 
         assert_eq!(error, AtlasNdError::ShapeMismatch { expected: 4, actual: 3 });
+    }
+
+    #[test]
+    fn from_shape_vec_rejects_invalid_scalar_and_zero_dim_lengths() {
+        assert_eq!(
+            NDArray::<i32>::from_shape_vec([], Vec::new()).unwrap_err(),
+            AtlasNdError::ShapeMismatch { expected: 1, actual: 0 }
+        );
+
+        assert_eq!(
+            NDArray::<i32>::from_shape_vec([], vec![1_i32, 2]).unwrap_err(),
+            AtlasNdError::ShapeMismatch { expected: 1, actual: 2 }
+        );
+
+        assert_eq!(
+            NDArray::<i32>::from_shape_vec([2, 0], vec![1_i32]).unwrap_err(),
+            AtlasNdError::ShapeMismatch { expected: 0, actual: 1 }
+        );
     }
 
     #[test]
@@ -224,6 +286,16 @@ mod tests {
     }
 
     #[test]
+    fn eye_supports_zero_sized_identity() {
+        let identity = NDArray::<i32>::eye(0);
+
+        assert_eq!(identity.shape(), &[0, 0]);
+        assert_eq!(identity.strides(), &[0, 1]);
+        assert!(identity.data().is_empty());
+        assert!(identity.is_contiguous());
+    }
+
+    #[test]
     fn arange_supports_positive_and_negative_steps() {
         let forward = NDArray::arange(0_i32, 5, 2).unwrap();
         let backward = NDArray::arange(5_i32, 0, -2).unwrap();
@@ -234,6 +306,17 @@ mod tests {
         assert_eq!(backward.data(), &[5, 3, 1]);
         assert!(forward.is_contiguous());
         assert!(backward.is_contiguous());
+    }
+
+    #[test]
+    fn arange_handles_empty_equal_endpoint_ranges() {
+        let increasing = NDArray::arange(3_i32, 3, 1).unwrap();
+        let decreasing = NDArray::arange(3_i32, 3, -1).unwrap();
+
+        assert_eq!(increasing.shape(), &[0]);
+        assert!(increasing.data().is_empty());
+        assert_eq!(decreasing.shape(), &[0]);
+        assert!(decreasing.data().is_empty());
     }
 
     #[test]
@@ -250,6 +333,14 @@ mod tests {
                 reason: "positive step does not advance toward end",
             }
         );
+
+        assert_eq!(
+            NDArray::arange(0_i32, 5, -1).unwrap_err(),
+            AtlasNdError::InvalidArgument {
+                op: "arange",
+                reason: "negative step does not advance toward end",
+            }
+        );
     }
 
     #[test]
@@ -263,6 +354,36 @@ mod tests {
         assert_eq!(singleton.data(), &[2.5]);
         assert_eq!(empty.shape(), &[0]);
         assert!(values.is_contiguous());
+    }
+
+    #[test]
+    fn linspace_handles_descending_and_degenerate_ranges() {
+        let descending = NDArray::linspace(3.0_f64, -1.0, 3).unwrap();
+        let degenerate = NDArray::linspace(4.5_f64, 4.5, 4).unwrap();
+
+        assert_eq!(descending.data(), &[3.0, 1.0, -1.0]);
+        assert_eq!(degenerate.data(), &[4.5, 4.5, 4.5, 4.5]);
+        assert!(descending.is_contiguous());
+        assert!(degenerate.is_contiguous());
+    }
+
+    #[test]
+    fn linspace_rejects_non_finite_endpoints() {
+        assert_eq!(
+            NDArray::linspace(f64::NAN, 1.0, 3).unwrap_err(),
+            AtlasNdError::InvalidArgument {
+                op: "linspace",
+                reason: "start and end must be finite",
+            }
+        );
+
+        assert_eq!(
+            NDArray::linspace(0.0_f64, f64::INFINITY, 3).unwrap_err(),
+            AtlasNdError::InvalidArgument {
+                op: "linspace",
+                reason: "start and end must be finite",
+            }
+        );
     }
 
     #[test]
