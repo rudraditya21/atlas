@@ -116,7 +116,10 @@ pub fn broadcast_pair(
     })
 }
 
-pub fn contiguous_broadcast_metadata(lhs: &[usize], rhs: &[usize]) -> AtlasNdResult<BroadcastMetadata> {
+pub fn contiguous_broadcast_metadata(
+    lhs: &[usize],
+    rhs: &[usize],
+) -> AtlasNdResult<BroadcastMetadata> {
     broadcast_pair(lhs, &compute_strides(lhs), rhs, &compute_strides(rhs))
 }
 
@@ -125,8 +128,8 @@ mod tests {
     use crate::AtlasNdError;
 
     use super::{
-        broadcast_pair, broadcast_shape, broadcast_strides, contiguous_broadcast_metadata,
-        BroadcastMetadata,
+        BroadcastMetadata, broadcast_pair, broadcast_shape, broadcast_strides,
+        contiguous_broadcast_metadata,
     };
 
     #[test]
@@ -154,8 +157,14 @@ mod tests {
 
     #[test]
     fn broadcast_strides_use_zero_stride_for_expanded_dimensions() {
-        assert_eq!(broadcast_strides(&[3, 1], &[1, 1], &[2, 3, 4]).unwrap(), vec![0, 1, 0]);
-        assert_eq!(broadcast_strides(&[4], &[1], &[2, 3, 4]).unwrap(), vec![0, 0, 1]);
+        assert_eq!(
+            broadcast_strides(&[3, 1], &[1, 1], &[2, 3, 4]).unwrap(),
+            vec![0, 1, 0]
+        );
+        assert_eq!(
+            broadcast_strides(&[4], &[1], &[2, 3, 4]).unwrap(),
+            vec![0, 0, 1]
+        );
         assert_eq!(broadcast_strides(&[], &[], &[2, 3]).unwrap(), vec![0, 0]);
     }
 

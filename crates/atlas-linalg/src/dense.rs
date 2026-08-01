@@ -1,17 +1,25 @@
 use atlas_ndarray::{NDArray, Numeric};
 
-use crate::error::{AtlasLinalgError, AtlasLinalgResult};
+use crate::{
+    error::{AtlasLinalgError, AtlasLinalgResult},
+    operand::LinalgOperand,
+};
 
-pub fn dot<T: Numeric>(lhs: &NDArray<T>, rhs: &NDArray<T>) -> AtlasLinalgResult<T> {
+pub fn dot<'a, T, L, R>(lhs: L, rhs: R) -> AtlasLinalgResult<T>
+where
+    T: Numeric + 'a,
+    L: Into<LinalgOperand<'a, T>>,
+    R: Into<LinalgOperand<'a, T>>,
+{
+    let lhs = lhs.into();
+    let rhs = rhs.into();
+
     match (lhs.shape(), rhs.shape()) {
         ([lhs_len], [rhs_len]) if lhs_len == rhs_len => {
-            let mut total = T::zero();
+            let lhs = vector_ref(&lhs);
+            let rhs = vector_ref(&rhs);
 
-            for index in 0..*lhs_len {
-                total += lhs.data()[index] * rhs.data()[index];
-            }
-
-            Ok(total)
+            Ok(dot_kernel(lhs, rhs))
         }
         ([..], [..]) if lhs.ndim() == 1 && rhs.ndim() == 1 => {
             Err(AtlasLinalgError::ShapeMismatch {
@@ -29,12 +37,20 @@ pub fn dot<T: Numeric>(lhs: &NDArray<T>, rhs: &NDArray<T>) -> AtlasLinalgResult<
     }
 }
 
-pub fn matmul<T: Numeric>(lhs: &NDArray<T>, rhs: &NDArray<T>) -> AtlasLinalgResult<NDArray<T>> {
+pub fn matmul<'a, T, L, R>(lhs: L, rhs: R) -> AtlasLinalgResult<NDArray<T>>
+where
+    T: Numeric + 'a,
+    L: Into<LinalgOperand<'a, T>>,
+    R: Into<LinalgOperand<'a, T>>,
+{
+    let lhs = lhs.into();
+    let rhs = rhs.into();
+
     match (lhs.ndim(), rhs.ndim()) {
-        (1, 1) => matmul_vector_vector(lhs, rhs),
-        (1, 2) => matmul_vector_matrix(lhs, rhs),
-        (2, 1) => matmul_matrix_vector(lhs, rhs),
-        (2, 2) => matmul_matrix_matrix(lhs, rhs),
+        (1, 1) => matmul_vector_vector(&lhs, &rhs),
+        (1, 2) => matmul_vector_matrix(&lhs, &rhs),
+        (2, 1) => matmul_matrix_vector(&lhs, &rhs),
+        (2, 2) => matmul_matrix_matrix(&lhs, &rhs),
         _ => Err(AtlasLinalgError::InvalidOperandRank {
             op: "matmul",
             left: lhs.ndim(),
@@ -44,119 +60,395 @@ pub fn matmul<T: Numeric>(lhs: &NDArray<T>, rhs: &NDArray<T>) -> AtlasLinalgResu
 }
 
 fn matmul_vector_vector<T: Numeric>(
-    lhs: &NDArray<T>,
-    rhs: &NDArray<T>,
+    lhs: &LinalgOperand<'_, T>,
+    rhs: &LinalgOperand<'_, T>,
 ) -> AtlasLinalgResult<NDArray<T>> {
-    let value = dot(lhs, rhs)?;
+    let value = dot(lhs.clone(), rhs.clone())?;
     wrap_scalar(value)
 }
 
 fn matmul_vector_matrix<T: Numeric>(
-    lhs: &NDArray<T>,
-    rhs: &NDArray<T>,
+    lhs: &LinalgOperand<'_, T>,
+    rhs: &LinalgOperand<'_, T>,
 ) -> AtlasLinalgResult<NDArray<T>> {
-    let lhs_len = lhs.shape()[0];
-    let rhs_rows = rhs.shape()[0];
-    let rhs_cols = rhs.shape()[1];
+    let lhs = vector_ref(lhs);
+    let rhs = matrix_ref(rhs);
 
-    if lhs_len != rhs_rows {
+    if lhs.len != rhs.rows {
         return Err(AtlasLinalgError::ShapeMismatch {
             op: "matmul",
-            left: lhs.shape().to_vec(),
-            right: rhs.shape().to_vec(),
+            left: vec![lhs.len],
+            right: vec![rhs.rows, rhs.cols],
             reason: "vector length must match matrix row count",
         });
     }
 
-    let mut data = Vec::with_capacity(rhs_cols);
+    let data = if lhs.is_contiguous() && rhs.is_row_major_contiguous() {
+        matmul_vector_matrix_row_major(lhs, rhs)
+    } else if lhs.is_contiguous() && rhs.is_col_major_contiguous() {
+        matmul_vector_matrix_col_major(lhs, rhs)
+    } else {
+        matmul_vector_matrix_generic(lhs, rhs)
+    };
 
-    for col in 0..rhs_cols {
-        let mut total = T::zero();
-
-        for k in 0..lhs_len {
-            total += lhs.data()[k] * *rhs.get(&[k, col])?;
-        }
-
-        data.push(total);
-    }
-
-    Ok(NDArray::from_shape_vec([rhs_cols], data)?)
+    Ok(NDArray::from_shape_vec([rhs.cols], data)?)
 }
 
 fn matmul_matrix_vector<T: Numeric>(
-    lhs: &NDArray<T>,
-    rhs: &NDArray<T>,
+    lhs: &LinalgOperand<'_, T>,
+    rhs: &LinalgOperand<'_, T>,
 ) -> AtlasLinalgResult<NDArray<T>> {
-    let lhs_rows = lhs.shape()[0];
-    let lhs_cols = lhs.shape()[1];
-    let rhs_len = rhs.shape()[0];
+    let lhs = matrix_ref(lhs);
+    let rhs = vector_ref(rhs);
 
-    if lhs_cols != rhs_len {
+    if lhs.cols != rhs.len {
         return Err(AtlasLinalgError::ShapeMismatch {
             op: "matmul",
-            left: lhs.shape().to_vec(),
-            right: rhs.shape().to_vec(),
+            left: vec![lhs.rows, lhs.cols],
+            right: vec![rhs.len],
             reason: "matrix column count must match vector length",
         });
     }
 
-    let mut data = Vec::with_capacity(lhs_rows);
+    let data = if lhs.is_row_major_contiguous() && rhs.is_contiguous() {
+        matmul_matrix_vector_row_major(lhs, rhs)
+    } else if lhs.is_col_major_contiguous() && rhs.is_contiguous() {
+        matmul_matrix_vector_col_major(lhs, rhs)
+    } else {
+        matmul_matrix_vector_generic(lhs, rhs)
+    };
 
-    for row in 0..lhs_rows {
-        let mut total = T::zero();
-
-        for k in 0..lhs_cols {
-            total += *lhs.get(&[row, k])? * rhs.data()[k];
-        }
-
-        data.push(total);
-    }
-
-    Ok(NDArray::from_shape_vec([lhs_rows], data)?)
+    Ok(NDArray::from_shape_vec([lhs.rows], data)?)
 }
 
 fn matmul_matrix_matrix<T: Numeric>(
-    lhs: &NDArray<T>,
-    rhs: &NDArray<T>,
+    lhs: &LinalgOperand<'_, T>,
+    rhs: &LinalgOperand<'_, T>,
 ) -> AtlasLinalgResult<NDArray<T>> {
-    let lhs_rows = lhs.shape()[0];
-    let lhs_cols = lhs.shape()[1];
-    let rhs_rows = rhs.shape()[0];
-    let rhs_cols = rhs.shape()[1];
+    let lhs = matrix_ref(lhs);
+    let rhs = matrix_ref(rhs);
 
-    if lhs_cols != rhs_rows {
+    if lhs.cols != rhs.rows {
         return Err(AtlasLinalgError::ShapeMismatch {
             op: "matmul",
-            left: lhs.shape().to_vec(),
-            right: rhs.shape().to_vec(),
+            left: vec![lhs.rows, lhs.cols],
+            right: vec![rhs.rows, rhs.cols],
             reason: "left matrix column count must match right matrix row count",
         });
     }
 
-    let mut data = vec![T::zero(); lhs_rows * rhs_cols];
+    let data = if lhs.is_row_major_contiguous() && rhs.is_row_major_contiguous() {
+        matmul_matrix_matrix_row_major(lhs, rhs)
+    } else if lhs.is_col_major_contiguous() && rhs.is_row_major_contiguous() {
+        matmul_matrix_matrix_lhs_col_major(lhs, rhs)
+    } else if lhs.is_row_major_contiguous() && rhs.is_col_major_contiguous() {
+        matmul_matrix_matrix_rhs_col_major(lhs, rhs)
+    } else {
+        matmul_matrix_matrix_generic(lhs, rhs)
+    };
 
-    let lhs_data = lhs.data();
-    let rhs_data = rhs.data();
-
-    for row in 0..lhs_rows {
-        let lhs_row_offset = row * lhs_cols;
-
-        for k in 0..lhs_cols {
-            let lhs_value = lhs_data[lhs_row_offset + k];
-            let rhs_row_offset = k * rhs_cols;
-            let out_row_offset = row * rhs_cols;
-
-            for col in 0..rhs_cols {
-                data[out_row_offset + col] += lhs_value * rhs_data[rhs_row_offset + col];
-            }
-        }
-    }
-
-    Ok(NDArray::from_shape_vec([lhs_rows, rhs_cols], data)?)
+    Ok(NDArray::from_shape_vec([lhs.rows, rhs.cols], data)?)
 }
 
 fn wrap_scalar<T: Numeric>(value: T) -> AtlasLinalgResult<NDArray<T>> {
     Ok(NDArray::from_shape_vec([], vec![value])?)
+}
+
+#[derive(Clone, Copy)]
+struct VectorRef<'a, T: Numeric> {
+    data: &'a [T],
+    offset: usize,
+    len: usize,
+    stride: usize,
+}
+
+impl<'a, T: Numeric> VectorRef<'a, T> {
+    fn is_contiguous(&self) -> bool {
+        self.stride == 1
+    }
+
+    fn value_at(&self, index: usize) -> T {
+        self.data[self.offset + index * self.stride]
+    }
+
+    fn contiguous_slice(&self) -> &'a [T] {
+        debug_assert!(self.is_contiguous());
+        &self.data[self.offset..self.offset + self.len]
+    }
+}
+
+#[derive(Clone, Copy)]
+struct MatrixRef<'a, T: Numeric> {
+    data: &'a [T],
+    offset: usize,
+    rows: usize,
+    cols: usize,
+    row_stride: usize,
+    col_stride: usize,
+}
+
+impl<'a, T: Numeric> MatrixRef<'a, T> {
+    fn is_row_major_contiguous(&self) -> bool {
+        self.col_stride == 1 && self.row_stride == self.cols
+    }
+
+    fn is_col_major_contiguous(&self) -> bool {
+        self.row_stride == 1 && self.col_stride == self.rows
+    }
+
+    fn value_at(&self, row: usize, col: usize) -> T {
+        self.data[self.offset + row * self.row_stride + col * self.col_stride]
+    }
+
+    fn contiguous_row_slice(&self, row: usize) -> &'a [T] {
+        debug_assert!(self.is_row_major_contiguous());
+        let start = self.offset + row * self.row_stride;
+
+        &self.data[start..start + self.cols]
+    }
+
+    fn contiguous_col_slice(&self, col: usize) -> &'a [T] {
+        debug_assert!(self.is_col_major_contiguous());
+        let start = self.offset + col * self.col_stride;
+
+        &self.data[start..start + self.rows]
+    }
+}
+
+fn vector_ref<'a, T: Numeric>(operand: &'a LinalgOperand<'a, T>) -> VectorRef<'a, T> {
+    VectorRef {
+        data: operand.data(),
+        offset: operand.offset(),
+        len: operand.shape()[0],
+        stride: operand.strides()[0],
+    }
+}
+
+fn matrix_ref<'a, T: Numeric>(operand: &'a LinalgOperand<'a, T>) -> MatrixRef<'a, T> {
+    MatrixRef {
+        data: operand.data(),
+        offset: operand.offset(),
+        rows: operand.shape()[0],
+        cols: operand.shape()[1],
+        row_stride: operand.strides()[0],
+        col_stride: operand.strides()[1],
+    }
+}
+
+fn dot_kernel<T: Numeric>(lhs: VectorRef<'_, T>, rhs: VectorRef<'_, T>) -> T {
+    if lhs.is_contiguous() && rhs.is_contiguous() {
+        dot_contiguous(lhs.contiguous_slice(), rhs.contiguous_slice())
+    } else {
+        dot_strided(lhs, rhs)
+    }
+}
+
+fn dot_contiguous<T: Numeric>(lhs: &[T], rhs: &[T]) -> T {
+    let mut total = T::zero();
+
+    for index in 0..lhs.len() {
+        total += lhs[index] * rhs[index];
+    }
+
+    total
+}
+
+fn dot_strided<T: Numeric>(lhs: VectorRef<'_, T>, rhs: VectorRef<'_, T>) -> T {
+    let mut total = T::zero();
+
+    for index in 0..lhs.len {
+        total += lhs.value_at(index) * rhs.value_at(index);
+    }
+
+    total
+}
+
+fn matmul_vector_matrix_row_major<T: Numeric>(
+    lhs: VectorRef<'_, T>,
+    rhs: MatrixRef<'_, T>,
+) -> Vec<T> {
+    let mut data = vec![T::zero(); rhs.cols];
+
+    for k in 0..lhs.len {
+        let lhs_value = lhs.value_at(k);
+        let rhs_row = rhs.contiguous_row_slice(k);
+
+        for col in 0..rhs.cols {
+            data[col] += lhs_value * rhs_row[col];
+        }
+    }
+
+    data
+}
+
+fn matmul_vector_matrix_col_major<T: Numeric>(
+    lhs: VectorRef<'_, T>,
+    rhs: MatrixRef<'_, T>,
+) -> Vec<T> {
+    let lhs = lhs.contiguous_slice();
+    let mut data = vec![T::zero(); rhs.cols];
+
+    for (col, output) in data.iter_mut().enumerate() {
+        *output = dot_contiguous(lhs, rhs.contiguous_col_slice(col));
+    }
+
+    data
+}
+
+fn matmul_vector_matrix_generic<T: Numeric>(
+    lhs: VectorRef<'_, T>,
+    rhs: MatrixRef<'_, T>,
+) -> Vec<T> {
+    let mut data = vec![T::zero(); rhs.cols];
+
+    for (col, output) in data.iter_mut().enumerate() {
+        let mut total = T::zero();
+
+        for k in 0..lhs.len {
+            total += lhs.value_at(k) * rhs.value_at(k, col);
+        }
+
+        *output = total;
+    }
+
+    data
+}
+
+fn matmul_matrix_vector_row_major<T: Numeric>(
+    lhs: MatrixRef<'_, T>,
+    rhs: VectorRef<'_, T>,
+) -> Vec<T> {
+    let rhs = rhs.contiguous_slice();
+    let mut data = vec![T::zero(); lhs.rows];
+
+    for (row, output) in data.iter_mut().enumerate() {
+        *output = dot_contiguous(lhs.contiguous_row_slice(row), rhs);
+    }
+
+    data
+}
+
+fn matmul_matrix_vector_col_major<T: Numeric>(
+    lhs: MatrixRef<'_, T>,
+    rhs: VectorRef<'_, T>,
+) -> Vec<T> {
+    let mut data = vec![T::zero(); lhs.rows];
+
+    for k in 0..lhs.cols {
+        let rhs_value = rhs.value_at(k);
+        let lhs_col = lhs.contiguous_col_slice(k);
+
+        for row in 0..lhs.rows {
+            data[row] += lhs_col[row] * rhs_value;
+        }
+    }
+
+    data
+}
+
+fn matmul_matrix_vector_generic<T: Numeric>(
+    lhs: MatrixRef<'_, T>,
+    rhs: VectorRef<'_, T>,
+) -> Vec<T> {
+    let mut data = vec![T::zero(); lhs.rows];
+
+    for (row, output) in data.iter_mut().enumerate() {
+        let mut total = T::zero();
+
+        for k in 0..lhs.cols {
+            total += lhs.value_at(row, k) * rhs.value_at(k);
+        }
+
+        *output = total;
+    }
+
+    data
+}
+
+fn matmul_matrix_matrix_row_major<T: Numeric>(
+    lhs: MatrixRef<'_, T>,
+    rhs: MatrixRef<'_, T>,
+) -> Vec<T> {
+    let mut data = vec![T::zero(); lhs.rows * rhs.cols];
+
+    for row in 0..lhs.rows {
+        let lhs_row = lhs.contiguous_row_slice(row);
+        let out_row = &mut data[row * rhs.cols..(row + 1) * rhs.cols];
+
+        for (k, lhs_value) in lhs_row.iter().copied().enumerate() {
+            let rhs_row = rhs.contiguous_row_slice(k);
+
+            for col in 0..rhs.cols {
+                out_row[col] += lhs_value * rhs_row[col];
+            }
+        }
+    }
+
+    data
+}
+
+fn matmul_matrix_matrix_lhs_col_major<T: Numeric>(
+    lhs: MatrixRef<'_, T>,
+    rhs: MatrixRef<'_, T>,
+) -> Vec<T> {
+    let mut data = vec![T::zero(); lhs.rows * rhs.cols];
+
+    for k in 0..lhs.cols {
+        let lhs_col = lhs.contiguous_col_slice(k);
+        let rhs_row = rhs.contiguous_row_slice(k);
+
+        for row in 0..lhs.rows {
+            let lhs_value = lhs_col[row];
+            let out_row = &mut data[row * rhs.cols..(row + 1) * rhs.cols];
+
+            for col in 0..rhs.cols {
+                out_row[col] += lhs_value * rhs_row[col];
+            }
+        }
+    }
+
+    data
+}
+
+fn matmul_matrix_matrix_rhs_col_major<T: Numeric>(
+    lhs: MatrixRef<'_, T>,
+    rhs: MatrixRef<'_, T>,
+) -> Vec<T> {
+    let mut data = vec![T::zero(); lhs.rows * rhs.cols];
+
+    for row in 0..lhs.rows {
+        let lhs_row = lhs.contiguous_row_slice(row);
+        let out_row = &mut data[row * rhs.cols..(row + 1) * rhs.cols];
+
+        for (col, output) in out_row.iter_mut().enumerate() {
+            *output = dot_contiguous(lhs_row, rhs.contiguous_col_slice(col));
+        }
+    }
+
+    data
+}
+
+fn matmul_matrix_matrix_generic<T: Numeric>(
+    lhs: MatrixRef<'_, T>,
+    rhs: MatrixRef<'_, T>,
+) -> Vec<T> {
+    let mut data = vec![T::zero(); lhs.rows * rhs.cols];
+
+    for row in 0..lhs.rows {
+        let out_row = &mut data[row * rhs.cols..(row + 1) * rhs.cols];
+
+        for (col, output) in out_row.iter_mut().enumerate() {
+            let mut total = T::zero();
+
+            for k in 0..lhs.cols {
+                total += lhs.value_at(row, k) * rhs.value_at(k, col);
+            }
+
+            *output = total;
+        }
+    }
+
+    data
 }
 
 #[cfg(test)]
@@ -201,5 +493,28 @@ mod tests {
             matmul(&left_matrix, &right_matrix).unwrap().data(),
             &[58, 64, 139, 154]
         );
+    }
+
+    #[test]
+    fn matmul_supports_transposed_views_and_strided_fallbacks() {
+        let left_base = NDArray::from_shape_vec([2, 3], vec![1_i32, 2, 3, 4, 5, 6]).unwrap();
+        let rhs = NDArray::from_shape_vec([2, 2], vec![7_i32, 8, 9, 10]).unwrap();
+        let rhs_base = NDArray::from_shape_vec([2, 3], vec![7_i32, 9, 11, 8, 10, 12]).unwrap();
+        let generic_base = NDArray::from_shape_vec([2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+        let vector = NDArray::from_shape_vec([2], vec![10_i32, 20]).unwrap();
+
+        let left_transposed = left_base.view().transpose();
+        let right_transposed = rhs_base.view().transpose();
+        let sliced = generic_base.view().slice([0, 1], [2, 2]).unwrap();
+
+        assert_eq!(
+            matmul(left_transposed, &rhs).unwrap().data(),
+            &[43, 48, 59, 66, 75, 84]
+        );
+        assert_eq!(
+            matmul(&left_base, right_transposed).unwrap().data(),
+            &[58, 64, 139, 154]
+        );
+        assert_eq!(matmul(sliced, &vector).unwrap().data(), &[50, 140]);
     }
 }

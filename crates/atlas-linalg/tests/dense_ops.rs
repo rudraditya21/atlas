@@ -1,4 +1,4 @@
-use atlas_linalg::{dot, matmul, AtlasLinalgError};
+use atlas_linalg::{AtlasLinalgError, dot, matmul};
 use atlas_ndarray::NDArray;
 
 #[test]

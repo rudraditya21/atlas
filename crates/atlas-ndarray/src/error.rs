@@ -20,9 +20,7 @@ pub enum AtlasNdError {
         dim: usize,
     },
 
-    #[error(
-        "invalid slice on axis {axis}: start {start}, length {len}, axis length {dim}"
-    )]
+    #[error("invalid slice on axis {axis}: start {start}, length {len}, axis length {dim}")]
     InvalidSlice {
         axis: usize,
         start: usize,

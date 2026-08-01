@@ -1,7 +1,5 @@
 use atlas_ndarray::array::NDArray;
-use criterion::{
-    black_box, criterion_group, criterion_main, BenchmarkId, Criterion, Throughput,
-};
+use criterion::{BenchmarkId, Criterion, Throughput, black_box, criterion_group, criterion_main};
 use std::time::Duration;
 
 const BENCH_SIZES: [usize; 4] = [1 << 10, 1 << 14, 1 << 18, 1 << 20];
@@ -11,7 +9,10 @@ const LARGE_INPUT_SAMPLE_SIZE: usize = 50;
 const DEFAULT_MEASUREMENT_SECS: u64 = 5;
 const LARGE_INPUT_MEASUREMENT_SECS: u64 = 10;
 
-fn configure_group(group: &mut criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>, size: usize) {
+fn configure_group(
+    group: &mut criterion::BenchmarkGroup<'_, criterion::measurement::WallTime>,
+    size: usize,
+) {
     group.throughput(Throughput::Elements(size as u64));
 
     if size >= LARGE_INPUT_THRESHOLD {

@@ -1,4 +1,4 @@
-use atlas_ndarray::{array::NDArray, AtlasNdError};
+use atlas_ndarray::{AtlasNdError, array::NDArray};
 
 #[test]
 fn elementwise_add_broadcasts_singleton_dimensions() {

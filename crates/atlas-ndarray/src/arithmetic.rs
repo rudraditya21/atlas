@@ -1,11 +1,8 @@
 use std::ops::{Add, Div, Mul, Sub};
 
 use super::{
-    array::NDArray,
-    broadcast::broadcast_pair,
-    error::AtlasNdResult,
+    array::NDArray, broadcast::broadcast_pair, error::AtlasNdResult, traits::Numeric,
     traversal::broadcast_offset_pair_iter,
-    traits::Numeric,
 };
 
 pub trait AddOperand<T: Numeric> {
@@ -280,7 +277,7 @@ impl<T: Numeric> Div<T> for &NDArray<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{array::NDArray, AtlasNdError};
+    use crate::{AtlasNdError, array::NDArray};
 
     #[test]
     fn add_uses_contiguous_fast_path_for_equal_shapes() {

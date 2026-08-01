@@ -28,14 +28,14 @@ pub mod slicing;
 pub mod stride;
 pub mod traits;
 pub mod transpose;
-pub mod view;
 pub(crate) mod traversal;
+pub mod view;
 
 pub use array::NDArray;
 pub use axis::AxisIndex;
 pub use broadcast::{
-    broadcast_pair, broadcast_shape, broadcast_strides, contiguous_broadcast_metadata,
-    BroadcastMetadata,
+    BroadcastMetadata, broadcast_pair, broadcast_shape, broadcast_strides,
+    contiguous_broadcast_metadata,
 };
 pub use error::{AtlasNdError, AtlasNdResult};
 pub use traits::Numeric;

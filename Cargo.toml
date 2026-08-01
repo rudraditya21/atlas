@@ -15,9 +15,15 @@ members = ["crates/atlas-constants", "crates/atlas-linalg", "crates/atlas-ndarra
 atlas-ndarray = { path = "crates/atlas-ndarray" }
 
 [dev-dependencies]
+atlas-linalg = { path = "crates/atlas-linalg" }
 criterion = "0.5"
 
 [[bench]]
 name = "ndarray_contiguous_kernels"
 harness = false
 path = "benches/ndarray/contiguous_kernels.rs"
+
+[[bench]]
+name = "linalg_dense_kernels"
+harness = false
+path = "benches/linalg/dense_kernels.rs"

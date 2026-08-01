@@ -13,9 +13,7 @@ pub enum AtlasLinalgError {
         right: usize,
     },
 
-    #[error(
-        "shape mismatch for {op}: left shape {left:?}, right shape {right:?}: {reason}"
-    )]
+    #[error("shape mismatch for {op}: left shape {left:?}, right shape {right:?}: {reason}")]
     ShapeMismatch {
         op: &'static str,
         left: Vec<usize>,

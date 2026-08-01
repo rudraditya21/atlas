@@ -25,7 +25,7 @@ impl<T: Numeric> NDArray<T> {
 }
 
 impl<'a, T: Numeric> ArrayView<'a, T> {
-    fn offset(&self, index: &[usize]) -> AtlasNdResult<usize> {
+    fn offset_for_index(&self, index: &[usize]) -> AtlasNdResult<usize> {
         debug_assert_eq!(self.shape.len(), self.strides.len());
         if index.len() != self.shape.len() {
             return Err(AtlasNdError::DimensionMismatch {
@@ -56,8 +56,16 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
     }
 
     pub fn get(&self, index: &[usize]) -> AtlasNdResult<&T> {
-        let idx = self.offset(index)?;
+        let idx = self.offset_for_index(index)?;
         Ok(&self.data[idx])
+    }
+
+    pub fn data(&self) -> &'a [T] {
+        self.data
+    }
+
+    pub fn offset(&self) -> usize {
+        self.offset
     }
 
     pub fn shape(&self) -> &[usize] {
@@ -97,6 +105,8 @@ mod tests {
         let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
         let view = array.view();
 
+        assert_eq!(view.data(), array.data());
+        assert_eq!(view.offset(), 0);
         assert_eq!(view.shape(), &[2, 3]);
         assert_eq!(view.strides(), &[3, 1]);
         assert_eq!(view.len(), 6);

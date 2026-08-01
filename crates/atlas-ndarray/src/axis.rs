@@ -25,10 +25,7 @@ pub(crate) fn normalize_axis<A: AxisIndex>(axis: A, ndim: usize) -> AtlasNdResul
     let normalized = if axis < 0 { ndim_i64 + axis } else { axis };
 
     if normalized < 0 || normalized >= ndim_i64 {
-        return Err(AtlasNdError::InvalidAxis {
-            axis,
-            ndim,
-        });
+        return Err(AtlasNdError::InvalidAxis { axis, ndim });
     }
 
     Ok(normalized as usize)

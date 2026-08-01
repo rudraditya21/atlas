@@ -2,7 +2,7 @@ use num_traits::ToPrimitive;
 
 use super::{
     array::NDArray,
-    axis::{normalize_axis, AxisIndex},
+    axis::{AxisIndex, normalize_axis},
     error::{AtlasNdError, AtlasNdResult},
     stride::element_count,
     traits::Numeric,
@@ -535,8 +535,14 @@ mod tests {
     fn min_max_and_mean_reject_empty_arrays() {
         let array = NDArray::<i32>::new(vec![0, 3], 7);
 
-        assert_eq!(array.min().unwrap_err(), AtlasNdError::EmptyReduction { op: "min" });
-        assert_eq!(array.max().unwrap_err(), AtlasNdError::EmptyReduction { op: "max" });
+        assert_eq!(
+            array.min().unwrap_err(),
+            AtlasNdError::EmptyReduction { op: "min" }
+        );
+        assert_eq!(
+            array.max().unwrap_err(),
+            AtlasNdError::EmptyReduction { op: "max" }
+        );
         assert_eq!(
             array.mean().unwrap_err(),
             AtlasNdError::EmptyReduction { op: "mean" }
