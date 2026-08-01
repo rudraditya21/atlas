@@ -1,12 +1,13 @@
 [package]
 name = "atlas-stats"
-version = "0.1.0"
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
 
 [dependencies]
-atlas-ndarray = { path = "../atlas-ndarray" }
-num-traits = "0.2"
-thiserror = "2"
+atlas-ndarray.workspace = true
+num-traits.workspace = true
+thiserror.workspace = true
 
 [lints]
 workspace = true

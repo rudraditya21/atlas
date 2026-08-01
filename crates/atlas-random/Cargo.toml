@@ -1,14 +1,15 @@
 [package]
 name = "atlas-random"
-version = "0.1.0"
-edition = "2024"
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
 
 [dependencies]
-atlas-ndarray = { path = "../atlas-ndarray" }
-num-traits = "0.2"
-rand = "0.8"
-rand_distr = "0.4"
-thiserror = "2"
+atlas-ndarray.workspace = true
+num-traits.workspace = true
+rand.workspace = true
+rand_distr.workspace = true
+thiserror.workspace = true
 
 [lints]
 workspace = true
