@@ -1,5 +1,6 @@
 use super::{
     array::NDArray,
+    error::{AtlasNdError, AtlasNdResult},
     stride::{compute_strides, element_count},
     traits::Numeric,
 };
@@ -15,21 +16,28 @@ impl<T: Numeric> NDArray<T> {
         }
     }
 
-    pub fn from_vec(shape: Vec<usize>, data: Vec<T>) -> Self {
+    pub fn from_vec(shape: Vec<usize>, data: Vec<T>) -> AtlasNdResult<Self> {
         let expected = element_count(&shape);
 
-        assert_eq!(expected, data.len(), "Shape does not match data length");
+        if expected != data.len() {
+            return Err(AtlasNdError::ShapeMismatch {
+                expected,
+                actual: data.len(),
+            });
+        }
 
-        Self {
+        Ok(Self {
             data,
             strides: compute_strides(&shape),
             shape,
-        }
+        })
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::error::AtlasNdError;
+
     use super::NDArray;
 
     #[test]
@@ -46,7 +54,7 @@ mod tests {
 
     #[test]
     fn from_vec_preserves_data_for_contiguous_layout() {
-        let array = NDArray::from_vec(vec![2, 2], vec![1_i32, 2, 3, 4]);
+        let array = NDArray::from_vec(vec![2, 2], vec![1_i32, 2, 3, 4]).unwrap();
 
         assert_eq!(array.shape(), &[2, 2]);
         assert_eq!(array.strides(), &[2, 1]);
@@ -55,8 +63,15 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Shape does not match data length")]
     fn from_vec_rejects_inconsistent_shape_and_data_length() {
-        let _ = NDArray::from_vec(vec![2, 2], vec![1_i32, 2, 3]);
+        let error = NDArray::from_vec(vec![2, 2], vec![1_i32, 2, 3]).unwrap_err();
+
+        assert_eq!(
+            error,
+            AtlasNdError::ShapeMismatch {
+                expected: 4,
+                actual: 3
+            }
+        );
     }
 }

@@ -1,79 +1,112 @@
-use super::{array::NDArray, traits::Numeric};
+use super::{
+    array::NDArray,
+    error::{AtlasNdError, AtlasNdResult},
+    traits::Numeric,
+};
 
 impl<T: Numeric> NDArray<T> {
-    fn offset(&self, indices: &[usize]) -> usize {
+    fn offset(&self, indices: &[usize]) -> AtlasNdResult<usize> {
         debug_assert_eq!(self.shape.len(), self.strides.len());
-        assert_eq!(indices.len(), self.shape.len(), "Dimension mismatch");
+        if indices.len() != self.shape.len() {
+            return Err(AtlasNdError::DimensionMismatch {
+                expected: self.shape.len(),
+                actual: indices.len(),
+            });
+        }
 
         let mut offset = 0;
-        for ((index, dim), stride) in indices
+        for (axis, ((index, dim), stride)) in indices
             .iter()
             .zip(self.shape.iter())
             .zip(self.strides.iter())
+            .enumerate()
         {
-            assert!(*index < *dim, "Index out of bounds");
+            if *index >= *dim {
+                return Err(AtlasNdError::IndexOutOfBounds {
+                    axis,
+                    index: *index,
+                    dim: *dim,
+                });
+            }
             offset += index * stride;
         }
 
-        offset
+        Ok(offset)
     }
 
-    pub fn get(&self, indices: &[usize]) -> &T {
-        let idx = self.offset(indices);
-        &self.data[idx]
+    pub fn get(&self, indices: &[usize]) -> AtlasNdResult<&T> {
+        let idx = self.offset(indices)?;
+        Ok(&self.data[idx])
     }
 
-    pub fn get_mut(&mut self, indices: &[usize]) -> &mut T {
-        let idx = self.offset(indices);
-        &mut self.data[idx]
+    pub fn get_mut(&mut self, indices: &[usize]) -> AtlasNdResult<&mut T> {
+        let idx = self.offset(indices)?;
+        Ok(&mut self.data[idx])
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use crate::error::AtlasNdError;
+
     use super::NDArray;
 
     #[test]
     fn get_uses_row_major_offsets_for_two_dimensional_arrays() {
-        let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]);
+        let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
 
-        assert_eq!(*array.get(&[0, 0]), 0);
-        assert_eq!(*array.get(&[0, 1]), 1);
-        assert_eq!(*array.get(&[1, 0]), 3);
-        assert_eq!(*array.get(&[1, 2]), 5);
+        assert_eq!(*array.get(&[0, 0]).unwrap(), 0);
+        assert_eq!(*array.get(&[0, 1]).unwrap(), 1);
+        assert_eq!(*array.get(&[1, 0]).unwrap(), 3);
+        assert_eq!(*array.get(&[1, 2]).unwrap(), 5);
     }
 
     #[test]
     fn get_uses_row_major_offsets_for_three_dimensional_arrays() {
-        let array = NDArray::from_vec(vec![2, 3, 4], (0_i32..24).collect());
+        let array = NDArray::from_vec(vec![2, 3, 4], (0_i32..24).collect()).unwrap();
 
-        assert_eq!(*array.get(&[0, 0, 0]), 0);
-        assert_eq!(*array.get(&[0, 1, 2]), 6);
-        assert_eq!(*array.get(&[1, 0, 0]), 12);
-        assert_eq!(*array.get(&[1, 2, 3]), 23);
+        assert_eq!(*array.get(&[0, 0, 0]).unwrap(), 0);
+        assert_eq!(*array.get(&[0, 1, 2]).unwrap(), 6);
+        assert_eq!(*array.get(&[1, 0, 0]).unwrap(), 12);
+        assert_eq!(*array.get(&[1, 2, 3]).unwrap(), 23);
     }
 
     #[test]
-    #[should_panic(expected = "Dimension mismatch")]
     fn get_rejects_wrong_dimension_count() {
         let array = NDArray::new(vec![2, 3], 0_i32);
 
-        let _ = array.get(&[0]);
+        let error = array.get(&[0]).unwrap_err();
+
+        assert_eq!(
+            error,
+            AtlasNdError::DimensionMismatch {
+                expected: 2,
+                actual: 1
+            }
+        );
     }
 
     #[test]
-    #[should_panic(expected = "Index out of bounds")]
     fn get_rejects_out_of_bounds_indices() {
         let array = NDArray::new(vec![2, 3], 0_i32);
 
-        let _ = array.get(&[2, 0]);
+        let error = array.get(&[2, 0]).unwrap_err();
+
+        assert_eq!(
+            error,
+            AtlasNdError::IndexOutOfBounds {
+                axis: 0,
+                index: 2,
+                dim: 2
+            }
+        );
     }
 
     #[test]
     fn get_mut_updates_the_underlying_element() {
-        let mut array = NDArray::from_vec(vec![2, 2], vec![1_i32, 2, 3, 4]);
+        let mut array = NDArray::from_vec(vec![2, 2], vec![1_i32, 2, 3, 4]).unwrap();
 
-        *array.get_mut(&[1, 0]) = 9;
+        *array.get_mut(&[1, 0]).unwrap() = 9;
 
         assert_eq!(array.data(), &[1, 2, 9, 4]);
     }

@@ -8,7 +8,7 @@ fn compute_strides_matches_row_major_layout() {
 
 #[test]
 fn owned_arrays_expose_consistent_layout_metadata() {
-    let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]);
+    let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
 
     assert_eq!(array.shape(), &[2, 3]);
     assert_eq!(array.strides(), &[3, 1]);
@@ -19,8 +19,8 @@ fn owned_arrays_expose_consistent_layout_metadata() {
 
 #[test]
 fn indexing_follows_row_major_layout() {
-    let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]);
+    let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
 
-    assert_eq!(*array.get(&[0, 2]), 2);
-    assert_eq!(*array.get(&[1, 1]), 4);
+    assert_eq!(*array.get(&[0, 2]).unwrap(), 2);
+    assert_eq!(*array.get(&[1, 1]).unwrap(), 4);
 }
