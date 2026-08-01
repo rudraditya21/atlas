@@ -29,5 +29,5 @@ pub use layout::{
     BroadcastMetadata, broadcast_pair, broadcast_shape, broadcast_strides, compute_strides,
     contiguous_broadcast_metadata, element_count,
 };
-pub use ops::arithmetic::{AddOperand, DivOperand, MulOperand, SubOperand};
+pub use ops::{AddOperand, DivOperand, MulOperand, SubOperand};
 pub use view::{ArrayView, ArrayViewIter};
