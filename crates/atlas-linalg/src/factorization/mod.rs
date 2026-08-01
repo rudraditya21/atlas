@@ -1,10 +1,7 @@
 use atlas_ndarray::{NDArray, Numeric};
 use num_traits::Float;
 
-use crate::{
-    error::{AtlasLinalgError, AtlasLinalgResult},
-    operand::LinalgOperand,
-};
+use crate::core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand};
 
 #[derive(Clone, Debug)]
 pub struct LuFactorization<T: Numeric> {

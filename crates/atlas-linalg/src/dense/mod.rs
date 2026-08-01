@@ -1,9 +1,6 @@
 use atlas_ndarray::{NDArray, Numeric};
 
-use crate::{
-    error::{AtlasLinalgError, AtlasLinalgResult},
-    operand::LinalgOperand,
-};
+use crate::core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand};
 
 pub fn dot<'a, T, L, R>(lhs: L, rhs: R) -> AtlasLinalgResult<T>
 where
@@ -475,7 +472,7 @@ mod tests {
         matmul_vector_matrix_col_major, matmul_vector_matrix_generic,
         matmul_vector_matrix_row_major, matrix_ref, vector_ref,
     };
-    use crate::{dot, error::AtlasLinalgError, matmul, operand::LinalgOperand};
+    use crate::{AtlasLinalgError, LinalgOperand, dot, matmul};
 
     fn vector_row_major(values: &[i32]) -> NDArray<i32> {
         NDArray::from_shape_vec([values.len()], values.to_vec()).unwrap()
