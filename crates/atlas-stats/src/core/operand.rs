@@ -65,7 +65,7 @@ impl<'a, T: Numeric> StatsOperand<'a, T> {
 
     pub(crate) fn dense_slice(&self) -> Option<&[T]> {
         match self {
-            Self::Array(array) => Some(array.data()),
+            Self::Array(array) => Some(array.dense_slice()),
             Self::View(view) => view.dense_slice(),
         }
     }
