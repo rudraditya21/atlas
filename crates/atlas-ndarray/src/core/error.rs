@@ -7,6 +7,9 @@ pub enum AtlasNdError {
     #[error("shape mismatch: expected {expected} elements, got {actual}")]
     ShapeMismatch { expected: usize, actual: usize },
 
+    #[error("shape overflow for {op}: {shape:?}")]
+    ShapeOverflow { op: &'static str, shape: Vec<usize> },
+
     #[error("dimension mismatch: expected {expected}, got {actual}")]
     DimensionMismatch { expected: usize, actual: usize },
 
@@ -55,6 +58,11 @@ mod tests {
         assert_eq!(
             AtlasNdError::ShapeMismatch { expected: 4, actual: 3 }.to_string(),
             "shape mismatch: expected 4 elements, got 3"
+        );
+        assert_eq!(
+            AtlasNdError::ShapeOverflow { op: "element count", shape: vec![usize::MAX, 2] }
+                .to_string(),
+            format!("shape overflow for element count: {:?}", vec![usize::MAX, 2])
         );
         assert_eq!(AtlasNdError::EmptyReduction { op: "mean" }.to_string(), "empty input for mean");
         assert_eq!(

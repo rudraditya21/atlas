@@ -1,5 +1,16 @@
+use crate::{AtlasNdError, AtlasNdResult};
+
 pub fn element_count(shape: &[usize]) -> usize {
     shape.iter().product()
+}
+
+pub fn checked_element_count(shape: &[usize]) -> AtlasNdResult<usize> {
+    shape.iter().try_fold(1usize, |count, &dim| {
+        count.checked_mul(dim).ok_or_else(|| AtlasNdError::ShapeOverflow {
+            op: "element count",
+            shape: shape.to_vec(),
+        })
+    })
 }
 
 pub fn compute_strides(shape: &[usize]) -> Vec<usize> {
@@ -20,13 +31,30 @@ pub fn compute_strides(shape: &[usize]) -> Vec<usize> {
 
 #[cfg(test)]
 mod tests {
-    use super::{compute_strides, element_count};
+    use crate::AtlasNdError;
+
+    use super::{checked_element_count, compute_strides, element_count};
 
     #[test]
     fn element_count_handles_scalar_and_zero_sized_shapes() {
         assert_eq!(element_count(&[]), 1);
         assert_eq!(element_count(&[5]), 5);
         assert_eq!(element_count(&[2, 0, 4]), 0);
+    }
+
+    #[test]
+    fn checked_element_count_handles_scalar_and_zero_sized_shapes() {
+        assert_eq!(checked_element_count(&[]).unwrap(), 1);
+        assert_eq!(checked_element_count(&[5]).unwrap(), 5);
+        assert_eq!(checked_element_count(&[2, 0, 4]).unwrap(), 0);
+    }
+
+    #[test]
+    fn checked_element_count_reports_overflow_explicitly() {
+        assert_eq!(
+            checked_element_count(&[usize::MAX, 2]).unwrap_err(),
+            AtlasNdError::ShapeOverflow { op: "element count", shape: vec![usize::MAX, 2] }
+        );
     }
 
     #[test]
