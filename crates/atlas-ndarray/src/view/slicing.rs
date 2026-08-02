@@ -48,6 +48,10 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
                 });
             }
 
+            if *len == 0 {
+                break;
+            }
+
             offset += start * stride;
         }
 
@@ -98,7 +102,19 @@ mod tests {
 
         assert_eq!(slice.shape(), &[0, 0]);
         assert_eq!(slice.strides(), &[3, 1]);
+        assert_eq!(slice.offset(), 0);
         assert_eq!(slice.len(), 0);
+        assert!(slice.is_empty());
+    }
+
+    #[test]
+    fn slice_keeps_prefix_offset_for_zero_length_suffix_axes() {
+        let array = NDArray::from_vec([2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+        let view = array.view();
+        let slice = view.slice([1, 3], [1, 0]).unwrap();
+
+        assert_eq!(slice.shape(), &[1, 0]);
+        assert_eq!(slice.offset(), 3);
         assert!(slice.is_empty());
     }
 

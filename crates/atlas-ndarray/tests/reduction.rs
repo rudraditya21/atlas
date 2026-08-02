@@ -67,3 +67,29 @@ fn axis_reduction_empty_and_scalar_semantics_are_stable() {
     assert_eq!(zero_lane.mean_axis(2).unwrap().shape(), &[2, 0]);
     assert!(zero_lane.mean_axis(2).unwrap().data().is_empty());
 }
+
+#[test]
+fn empty_boundary_slices_preserve_reduction_semantics() {
+    let array = NDArray::from_vec([2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+    let view = array.view().slice([2, 3], [0, 0]).unwrap();
+
+    assert_eq!(view.sum(), 0);
+    assert_eq!(view.prod(), 1);
+    assert_eq!(view.min().unwrap_err(), AtlasNdError::EmptyReduction { op: "min" });
+    assert_eq!(view.max().unwrap_err(), AtlasNdError::EmptyReduction { op: "max" });
+    assert_eq!(view.mean().unwrap_err(), AtlasNdError::EmptyReduction { op: "mean" });
+}
+
+#[test]
+fn empty_boundary_slices_preserve_axis_reduction_semantics() {
+    let array = NDArray::from_vec([2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+    let view = array.view().slice([2, 3], [0, 0]).unwrap();
+
+    assert_eq!(view.sum_axis(0).unwrap().shape(), &[0]);
+    assert!(view.sum_axis(0).unwrap().data().is_empty());
+    assert_eq!(view.prod_axis(1).unwrap().shape(), &[0]);
+    assert!(view.prod_axis(1).unwrap().data().is_empty());
+    assert_eq!(view.min_axis(0).unwrap_err(), AtlasNdError::EmptyReduction { op: "min" });
+    assert_eq!(view.max_axis(1).unwrap_err(), AtlasNdError::EmptyReduction { op: "max" });
+    assert_eq!(view.mean_axis(0).unwrap_err(), AtlasNdError::EmptyReduction { op: "mean" });
+}

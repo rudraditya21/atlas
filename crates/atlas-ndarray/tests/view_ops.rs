@@ -57,3 +57,16 @@ fn zero_length_slices_are_allowed_at_axis_boundaries() {
     assert_eq!(slice.shape(), &[0, 0]);
     assert!(slice.is_empty());
 }
+
+#[test]
+fn empty_boundary_slices_expose_stable_public_view_metadata() {
+    let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+    let slice = array.view().slice([2, 3], [0, 0]).unwrap();
+
+    assert_eq!(slice.shape(), &[0, 0]);
+    assert_eq!(slice.strides(), &[3, 1]);
+    assert_eq!(slice.len(), 0);
+    assert!(slice.is_empty());
+    assert_eq!(slice.ndim(), 2);
+    assert!(!slice.is_contiguous());
+}
