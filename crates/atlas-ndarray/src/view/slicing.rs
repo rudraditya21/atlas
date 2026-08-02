@@ -55,12 +55,8 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
             offset += start * stride;
         }
 
-        let view = ArrayView {
-            data: self.data,
-            offset,
-            shape: new_shape,
-            strides: self.strides.clone(),
-        };
+        let view =
+            ArrayView { data: self.data, offset, shape: new_shape, strides: self.strides.clone() };
         view.validate_invariants()?;
 
         Ok(view)

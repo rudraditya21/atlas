@@ -18,18 +18,10 @@ const PARALLEL_REDUCTION_MIN_CHUNKS_PER_THREAD: usize = 2;
 
 impl<T: Numeric> NDArray<T> {
     pub fn sum(&self) -> T {
-        if self.is_contiguous() {
-            return sum_contiguous(&self.data);
-        }
-
         sum_all(&self.data, 0, &self.shape, &self.strides)
     }
 
     pub fn prod(&self) -> T {
-        if self.is_contiguous() {
-            return prod_contiguous(&self.data);
-        }
-
         prod_all(&self.data, 0, &self.shape, &self.strides)
     }
 
@@ -37,10 +29,6 @@ impl<T: Numeric> NDArray<T> {
     where
         T: PartialOrd,
     {
-        if self.is_contiguous() {
-            return min_contiguous(&self.data, "min");
-        }
-
         min_all(&self.data, 0, &self.shape, &self.strides)
     }
 
@@ -48,10 +36,6 @@ impl<T: Numeric> NDArray<T> {
     where
         T: PartialOrd,
     {
-        if self.is_contiguous() {
-            return max_contiguous(&self.data, "max");
-        }
-
         max_all(&self.data, 0, &self.shape, &self.strides)
     }
 
@@ -59,10 +43,6 @@ impl<T: Numeric> NDArray<T> {
     where
         T: ToPrimitive,
     {
-        if self.is_contiguous() {
-            return mean_contiguous(&self.data, "mean");
-        }
-
         mean_all(&self.data, 0, &self.shape, &self.strides)
     }
 
@@ -98,18 +78,10 @@ impl<T: Numeric> NDArray<T> {
 
 impl<'a, T: Numeric> ArrayView<'a, T> {
     pub fn sum(&self) -> T {
-        if let Some(values) = self.dense_slice() {
-            return sum_contiguous(values);
-        }
-
         sum_all(self.data, self.offset, &self.shape, &self.strides)
     }
 
     pub fn prod(&self) -> T {
-        if let Some(values) = self.dense_slice() {
-            return prod_contiguous(values);
-        }
-
         prod_all(self.data, self.offset, &self.shape, &self.strides)
     }
 
@@ -117,10 +89,6 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
     where
         T: PartialOrd,
     {
-        if let Some(values) = self.dense_slice() {
-            return min_contiguous(values, "min");
-        }
-
         min_all(self.data, self.offset, &self.shape, &self.strides)
     }
 
@@ -128,10 +96,6 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
     where
         T: PartialOrd,
     {
-        if let Some(values) = self.dense_slice() {
-            return max_contiguous(values, "max");
-        }
-
         max_all(self.data, self.offset, &self.shape, &self.strides)
     }
 
@@ -139,10 +103,6 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
     where
         T: ToPrimitive,
     {
-        if let Some(values) = self.dense_slice() {
-            return mean_contiguous(values, "mean");
-        }
-
         mean_all(self.data, self.offset, &self.shape, &self.strides)
     }
 
@@ -309,9 +269,7 @@ where
     T: Numeric + PartialOrd,
 {
     let metadata = axis_reduction_metadata(shape, strides, axis)?;
-    if metadata.axis_len == 0 {
-        return Err(AtlasNdError::EmptyReduction { op: "min" });
-    }
+    ensure_non_empty_axis_reduction(metadata.axis_len, "min")?;
     let source_layout = metadata.source_layout;
     let axis_layout = metadata.axis_layout;
 
@@ -335,9 +293,7 @@ where
     T: Numeric + PartialOrd,
 {
     let metadata = axis_reduction_metadata(shape, strides, axis)?;
-    if metadata.axis_len == 0 {
-        return Err(AtlasNdError::EmptyReduction { op: "max" });
-    }
+    ensure_non_empty_axis_reduction(metadata.axis_len, "max")?;
     let source_layout = metadata.source_layout;
     let axis_layout = metadata.axis_layout;
 
@@ -361,9 +317,7 @@ where
     T: Numeric + ToPrimitive,
 {
     let metadata = axis_reduction_metadata(shape, strides, axis)?;
-    if metadata.axis_len == 0 {
-        return Err(AtlasNdError::EmptyReduction { op: "mean" });
-    }
+    ensure_non_empty_axis_reduction(metadata.axis_len, "mean")?;
     let source_layout = metadata.source_layout;
     let axis_layout = metadata.axis_layout;
 
@@ -1059,6 +1013,18 @@ fn should_parallelize_reduction(work_items: usize) -> bool {
     should_parallelize_reduction_for_threads(work_items, rayon::current_num_threads())
 }
 
+fn ensure_non_empty_reduction(len: usize, op: &'static str) -> AtlasNdResult<()> {
+    if len == 0 {
+        return Err(AtlasNdError::EmptyReduction { op });
+    }
+
+    Ok(())
+}
+
+fn ensure_non_empty_axis_reduction(axis_len: usize, op: &'static str) -> AtlasNdResult<()> {
+    ensure_non_empty_reduction(axis_len, op)
+}
+
 fn should_parallelize_reduction_for_threads(work_items: usize, thread_count: usize) -> bool {
     if thread_count <= 1 || work_items < PARALLEL_REDUCTION_THRESHOLD {
         return false;
@@ -1271,6 +1237,10 @@ fn mean_strided_lane_f64(
 }
 
 fn sum_all<T: Numeric>(data: &[T], offset: usize, shape: &[usize], strides: &[usize]) -> T {
+    if element_count(shape) == 0 {
+        return T::zero();
+    }
+
     if let Some(values) = dense_storage_slice(data, offset, shape, strides) {
         return sum_contiguous(values);
     }
@@ -1283,6 +1253,10 @@ fn sum_all<T: Numeric>(data: &[T], offset: usize, shape: &[usize], strides: &[us
 }
 
 fn prod_all<T: Numeric>(data: &[T], offset: usize, shape: &[usize], strides: &[usize]) -> T {
+    if element_count(shape) == 0 {
+        return T::one();
+    }
+
     if let Some(values) = dense_storage_slice(data, offset, shape, strides) {
         return prod_contiguous(values);
     }
@@ -1298,6 +1272,8 @@ fn min_all<T>(data: &[T], offset: usize, shape: &[usize], strides: &[usize]) -> 
 where
     T: Numeric + PartialOrd,
 {
+    ensure_non_empty_reduction(element_count(shape), "min")?;
+
     if let Some(values) = dense_storage_slice(data, offset, shape, strides) {
         return min_contiguous(values, "min");
     }
@@ -1318,6 +1294,8 @@ fn max_all<T>(data: &[T], offset: usize, shape: &[usize], strides: &[usize]) -> 
 where
     T: Numeric + PartialOrd,
 {
+    ensure_non_empty_reduction(element_count(shape), "max")?;
+
     if let Some(values) = dense_storage_slice(data, offset, shape, strides) {
         return max_contiguous(values, "max");
     }
@@ -1339,9 +1317,7 @@ where
     T: Numeric + ToPrimitive,
 {
     let len = element_count(shape);
-    if len == 0 {
-        return Err(AtlasNdError::EmptyReduction { op: "mean" });
-    }
+    ensure_non_empty_reduction(len, "mean")?;
 
     if let Some(values) = dense_storage_slice(data, offset, shape, strides) {
         return mean_contiguous(values, "mean");
@@ -1669,6 +1645,18 @@ mod tests {
     fn whole_array_reductions_work_for_empty_dense_views() {
         let array = NDArray::from_vec([2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
         let view = array.view().slice([1, 3], [1, 0]).unwrap();
+
+        assert_eq!(view.sum(), 0);
+        assert_eq!(view.prod(), 1);
+        assert_eq!(view.min().unwrap_err(), AtlasNdError::EmptyReduction { op: "min" });
+        assert_eq!(view.max().unwrap_err(), AtlasNdError::EmptyReduction { op: "max" });
+        assert_eq!(view.mean().unwrap_err(), AtlasNdError::EmptyReduction { op: "mean" });
+    }
+
+    #[test]
+    fn whole_array_reduction_entry_points_use_logical_empty_semantics_for_mixed_empty_views() {
+        let array = NDArray::<i32>::new([2, 0, 3], 1);
+        let view = array.view().transpose();
 
         assert_eq!(view.sum(), 0);
         assert_eq!(view.prod(), 1);

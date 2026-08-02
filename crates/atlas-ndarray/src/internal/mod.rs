@@ -749,6 +749,9 @@ mod tests {
         assert_eq!(validate_view_invariants(6, 5, &[2], &[1]), Err(AtlasNdError::InvalidShape));
         assert_eq!(validate_view_invariants(6, 7, &[0], &[1]), Err(AtlasNdError::InvalidShape));
         assert_eq!(validate_view_invariants(1, 1, &[], &[]), Err(AtlasNdError::InvalidShape));
-        assert_eq!(validate_view_invariants(6, 7, &[2, 0, 3], &[0, 3, 1]), Err(AtlasNdError::InvalidShape));
+        assert_eq!(
+            validate_view_invariants(6, 7, &[2, 0, 3], &[0, 3, 1]),
+            Err(AtlasNdError::InvalidShape)
+        );
     }
 }
