@@ -264,6 +264,36 @@ mod tests {
     }
 
     #[test]
+    fn matrix_matrix_row_major_blocked_path_handles_tail_tiles() {
+        let side = 97;
+        let lhs_values: Vec<i32> = (0..side * side).map(|index| (index % 11) as i32 - 5).collect();
+        let rhs_values: Vec<i32> = (0..side * side).map(|index| (index % 13) as i32 - 6).collect();
+
+        let lhs_row_major = matrix_row_major(side, side, &lhs_values);
+        let rhs_row_major = matrix_row_major(side, side, &rhs_values);
+        let lhs_generic_base = matrix_generic_from_rows(side, side, &lhs_values);
+        let rhs_generic_base = matrix_generic_from_rows(side, side, &rhs_values);
+
+        let lhs_row_major_operand = LinalgOperand::from(&lhs_row_major);
+        let rhs_row_major_operand = LinalgOperand::from(&rhs_row_major);
+        let lhs_generic_operand =
+            LinalgOperand::from(lhs_generic_base.view().slice([0, 0], [side, side]).unwrap());
+        let rhs_generic_operand =
+            LinalgOperand::from(rhs_generic_base.view().slice([0, 0], [side, side]).unwrap());
+
+        let row_major = matmul_matrix_matrix_row_major(
+            matrix_ref(&lhs_row_major_operand),
+            matrix_ref(&rhs_row_major_operand),
+        );
+        let generic = matmul_matrix_matrix_generic(
+            matrix_ref(&lhs_generic_operand),
+            matrix_ref(&rhs_generic_operand),
+        );
+
+        assert_eq!(row_major, generic);
+    }
+
+    #[test]
     fn matmul_dispatch_stays_serial_for_small_and_medium_inputs() {
         assert!(!should_parallelize_matmul_for_threads(64, 64, 64, 8));
         assert!(!should_parallelize_matmul_for_threads(128, 128, 128, 8));
