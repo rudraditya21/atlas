@@ -1,7 +1,14 @@
 use crate::{
-    AtlasNdError, AtlasNdResult, NDArray, Numeric, ShapeArg,
-    layout::{compute_strides, element_count},
+    AtlasNdError, AtlasNdResult, NDArray, Numeric, ShapeArg, checked_compute_strides,
+    checked_element_count,
 };
+
+fn checked_row_major_metadata(shape: &[usize]) -> AtlasNdResult<(usize, Vec<usize>)> {
+    let size = checked_element_count(shape)?;
+    let strides = checked_compute_strides(shape)?;
+
+    Ok((size, strides))
+}
 
 impl<T: Numeric> NDArray<T> {
     /// Creates a dense row-major array filled with `value`.
@@ -18,9 +25,11 @@ impl<T: Numeric> NDArray<T> {
         S: ShapeArg,
     {
         let shape = shape.into_shape_vec();
-        let size = element_count(&shape);
+        let (size, strides) = checked_row_major_metadata(&shape).unwrap_or_else(|error| {
+            panic!("NDArray::full failed: {error}");
+        });
 
-        Self { data: vec![value; size], strides: compute_strides(&shape), shape }
+        Self { data: vec![value; size], strides, shape }
     }
 
     /// Creates a dense row-major array filled with zeros.
@@ -41,13 +50,17 @@ impl<T: Numeric> NDArray<T> {
 
     /// Creates a square identity matrix with ones on the main diagonal.
     pub fn eye(size: usize) -> Self {
-        let mut data = vec![T::zero(); size * size];
+        let shape = vec![size, size];
+        let (element_count, strides) = checked_row_major_metadata(&shape).unwrap_or_else(|error| {
+            panic!("NDArray::eye failed: {error}");
+        });
+        let mut data = vec![T::zero(); element_count];
 
         for index in 0..size {
             data[index * size + index] = T::one();
         }
 
-        Self { data, strides: compute_strides(&[size, size]), shape: vec![size, size] }
+        Self { data, strides, shape }
     }
 
     /// Creates a dense row-major array from an explicit shape and backing data.
@@ -56,13 +69,13 @@ impl<T: Numeric> NDArray<T> {
         S: ShapeArg,
     {
         let shape = shape.into_shape_vec();
-        let expected = element_count(&shape);
+        let (expected, strides) = checked_row_major_metadata(&shape)?;
 
         if expected != data.len() {
             return Err(AtlasNdError::ShapeMismatch { expected, actual: data.len() });
         }
 
-        Ok(Self { data, strides: compute_strides(&shape), shape })
+        Ok(Self { data, strides, shape })
     }
 
     /// Creates a dense row-major array from an explicit shape and backing data.
@@ -215,5 +228,25 @@ mod tests {
 
         assert_eq!(from_slice.shape(), &[2, 3]);
         assert_eq!(from_array_ref.shape(), &[2, 3]);
+    }
+
+    #[test]
+    fn from_shape_vec_reports_shape_overflow_explicitly() {
+        assert_eq!(
+            NDArray::<i32>::from_shape_vec([usize::MAX, 2], Vec::new()).unwrap_err(),
+            AtlasNdError::ShapeOverflow { op: "element count", shape: vec![usize::MAX, 2] }
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "NDArray::full failed: shape overflow for element count")]
+    fn full_panics_explicitly_on_shape_overflow() {
+        let _ = NDArray::<i32>::full([usize::MAX, 2], 0);
+    }
+
+    #[test]
+    #[should_panic(expected = "NDArray::eye failed: shape overflow for element count")]
+    fn eye_panics_explicitly_on_shape_overflow() {
+        let _ = NDArray::<i32>::eye(usize::MAX);
     }
 }
