@@ -38,6 +38,7 @@ mod tests {
             matmul_matrix_vector_col_major, matmul_matrix_vector_generic,
             matmul_matrix_vector_row_major,
         },
+        row_major::should_use_blocked_row_major_matmul_for_dims,
         vector_matrix::{
             matmul_vector_matrix_col_major, matmul_vector_matrix_generic,
             matmul_vector_matrix_row_major,
@@ -234,7 +235,7 @@ mod tests {
 
     #[test]
     fn matrix_matrix_row_major_blocked_path_matches_generic_for_larger_inputs() {
-        let side = 80;
+        let side = 96;
         let lhs_values: Vec<i32> = (0..side * side).map(|index| (index % 7) as i32 - 3).collect();
         let rhs_values: Vec<i32> = (0..side * side).map(|index| (index % 5) as i32 + 1).collect();
 
@@ -265,13 +266,22 @@ mod tests {
     #[test]
     fn matmul_dispatch_stays_serial_for_small_and_medium_inputs() {
         assert!(!should_parallelize_matmul_for_threads(64, 64, 64, 8));
+        assert!(!should_parallelize_matmul_for_threads(128, 128, 128, 8));
         assert!(!should_parallelize_matmul_for_threads(128, 128, 128, 16));
         assert!(!should_parallelize_matmul_for_threads(128, 128, 128, 1));
     }
 
     #[test]
     fn matmul_dispatch_requires_enough_rows_per_thread() {
-        assert!(should_parallelize_matmul_for_threads(128, 128, 128, 8));
-        assert!(!should_parallelize_matmul_for_threads(120, 128, 128, 8));
+        assert!(should_parallelize_matmul_for_threads(128, 128, 128, 4));
+        assert!(should_parallelize_matmul_for_threads(256, 128, 128, 8));
+        assert!(!should_parallelize_matmul_for_threads(255, 128, 128, 8));
+    }
+
+    #[test]
+    fn matmul_row_major_blocked_dispatch_starts_after_medium_square_inputs() {
+        assert!(!should_use_blocked_row_major_matmul_for_dims(64, 64, 64));
+        assert!(!should_use_blocked_row_major_matmul_for_dims(80, 80, 80));
+        assert!(should_use_blocked_row_major_matmul_for_dims(96, 96, 96));
     }
 }

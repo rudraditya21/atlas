@@ -7,8 +7,12 @@ use super::{
     vector_matrix::matmul_vector_matrix, vector_vector::matmul_vector_vector,
 };
 
-const PARALLEL_MATMUL_THRESHOLD: usize = 128 * 128 * 128;
-const PARALLEL_MATMUL_MIN_ROWS_PER_THREAD: usize = 16;
+// Keep medium square matmuls on the serial path unless each worker receives a
+// meaningful row slab. The current benchmark suite covers 128x128 as the
+// largest baseline square case, so parallel dispatch should not trigger there
+// on wider thread pools.
+const PARALLEL_MATMUL_WORK_THRESHOLD: usize = 128 * 128 * 128;
+const PARALLEL_MATMUL_MIN_ROWS_PER_THREAD: usize = 32;
 
 pub(super) fn dispatch_matmul<T: Numeric>(
     lhs: &LinalgOperand<'_, T>,
@@ -43,6 +47,6 @@ pub(super) fn should_parallelize_matmul_for_threads(
 
     let work_items = rows.saturating_mul(inner).saturating_mul(cols);
 
-    work_items >= PARALLEL_MATMUL_THRESHOLD
+    work_items >= PARALLEL_MATMUL_WORK_THRESHOLD
         && rows >= thread_count.saturating_mul(PARALLEL_MATMUL_MIN_ROWS_PER_THREAD)
 }

@@ -7,7 +7,11 @@ use crate::internal::simd;
 use super::dispatch::should_parallelize_matmul;
 
 const ROW_MAJOR_MATMUL_BLOCK_SIZE: usize = 32;
-const ROW_MAJOR_MATMUL_BLOCK_THRESHOLD: usize = 64 * 64 * 64;
+// The blocked traversal starts once workloads move beyond the medium square
+// regime covered by the baseline Criterion benches. This keeps 64x64 work on
+// the lighter simple kernel while moving 96x96 and larger products onto the
+// cache-friendlier blocked path.
+const ROW_MAJOR_MATMUL_BLOCK_THRESHOLD: usize = 96 * 96 * 96;
 
 pub(super) fn vector_matrix<T: Numeric>(lhs: VectorRef<'_, T>, rhs: MatrixRef<'_, T>) -> Vec<T> {
     let lhs_values = lhs.contiguous_slice();
@@ -213,7 +217,15 @@ fn should_use_blocked_row_major_matmul<T: Numeric>(
     lhs: MatrixRef<'_, T>,
     rhs: MatrixRef<'_, T>,
 ) -> bool {
-    lhs.rows * lhs.cols * rhs.cols >= ROW_MAJOR_MATMUL_BLOCK_THRESHOLD
+    should_use_blocked_row_major_matmul_for_dims(lhs.rows, lhs.cols, rhs.cols)
+}
+
+pub(super) fn should_use_blocked_row_major_matmul_for_dims(
+    rows: usize,
+    inner: usize,
+    cols: usize,
+) -> bool {
+    rows.saturating_mul(inner).saturating_mul(cols) >= ROW_MAJOR_MATMUL_BLOCK_THRESHOLD
 }
 
 fn matrix_matrix_simple_f32<T: Numeric>(
