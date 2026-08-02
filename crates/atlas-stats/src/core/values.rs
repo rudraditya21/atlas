@@ -112,11 +112,6 @@ where
         return try_for_each_f64_f64(operand, &mut f);
     }
 
-    let shape = operand.shape();
-    let strides = operand.strides();
-    let data = operand.data();
-    let base_offset = operand.offset();
-
     if let Some(values) = operand.dense_slice() {
         for value in values {
             let value = value.to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op })?;
@@ -126,42 +121,9 @@ where
         return Ok(());
     }
 
-    if shape.is_empty() {
-        let value =
-            data[base_offset].to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op })?;
+    for value in operand.iter() {
+        let value = value.to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op })?;
         f(value)?;
-        return Ok(());
-    }
-
-    if shape.len() == 1 {
-        let mut offset = base_offset;
-        let stride = strides[0];
-
-        for _ in 0..shape[0] {
-            let value =
-                data[offset].to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op })?;
-            f(value)?;
-            offset += stride;
-        }
-
-        return Ok(());
-    }
-
-    let mut index = vec![0usize; shape.len()];
-
-    loop {
-        let mut offset = base_offset;
-
-        for axis in 0..shape.len() {
-            offset += index[axis] * strides[axis];
-        }
-
-        let value = data[offset].to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op })?;
-        f(value)?;
-
-        if !advance_index(&mut index, shape) {
-            break;
-        }
     }
 
     Ok(())
@@ -185,39 +147,13 @@ where
         return try_for_each_vector_pair_f64_f64(lhs, rhs, &mut f);
     }
 
-    let len = lhs.shape()[0];
-    let lhs_data = lhs.data();
-    let rhs_data = rhs.data();
-    let mut lhs_offset = lhs.offset();
-    let mut rhs_offset = rhs.offset();
-    let lhs_stride = lhs.strides()[0];
-    let rhs_stride = rhs.strides()[0];
-
-    for _ in 0..len {
-        let left =
-            lhs_data[lhs_offset].to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op })?;
-        let right =
-            rhs_data[rhs_offset].to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op })?;
+    for (left, right) in lhs.iter().zip(rhs.iter()) {
+        let left = left.to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op })?;
+        let right = right.to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op })?;
         f(left, right)?;
-        lhs_offset += lhs_stride;
-        rhs_offset += rhs_stride;
     }
 
     Ok(())
-}
-
-fn advance_index(index: &mut [usize], shape: &[usize]) -> bool {
-    for axis in (0..shape.len()).rev() {
-        index[axis] += 1;
-
-        if index[axis] < shape[axis] {
-            return true;
-        }
-
-        index[axis] = 0;
-    }
-
-    false
 }
 
 fn try_for_each_f64_f32<T, F>(operand: &StatsOperand<'_, T>, f: &mut F) -> AtlasStatsResult<()>
@@ -230,11 +166,6 @@ where
         return Ok(());
     }
 
-    let shape = operand.shape();
-    let strides = operand.strides();
-    let data = cast_slice::<T, f32>(operand.data());
-    let base_offset = operand.offset();
-
     if let Some(values) = operand.dense_slice() {
         for &value in cast_slice::<T, f32>(values) {
             f(value as f64)?;
@@ -243,37 +174,8 @@ where
         return Ok(());
     }
 
-    if shape.is_empty() {
-        f(data[base_offset] as f64)?;
-        return Ok(());
-    }
-
-    if shape.len() == 1 {
-        let mut offset = base_offset;
-        let stride = strides[0];
-
-        for _ in 0..shape[0] {
-            f(data[offset] as f64)?;
-            offset += stride;
-        }
-
-        return Ok(());
-    }
-
-    let mut index = vec![0usize; shape.len()];
-
-    loop {
-        let mut offset = base_offset;
-
-        for axis in 0..shape.len() {
-            offset += index[axis] * strides[axis];
-        }
-
-        f(data[offset] as f64)?;
-
-        if !advance_index(&mut index, shape) {
-            break;
-        }
+    for value in operand.iter() {
+        f(f64::from(*cast_ref::<T, f32>(value)))?;
     }
 
     Ok(())
@@ -289,11 +191,6 @@ where
         return Ok(());
     }
 
-    let shape = operand.shape();
-    let strides = operand.strides();
-    let data = cast_slice::<T, f64>(operand.data());
-    let base_offset = operand.offset();
-
     if let Some(values) = operand.dense_slice() {
         for &value in cast_slice::<T, f64>(values) {
             f(value)?;
@@ -302,37 +199,8 @@ where
         return Ok(());
     }
 
-    if shape.is_empty() {
-        f(data[base_offset])?;
-        return Ok(());
-    }
-
-    if shape.len() == 1 {
-        let mut offset = base_offset;
-        let stride = strides[0];
-
-        for _ in 0..shape[0] {
-            f(data[offset])?;
-            offset += stride;
-        }
-
-        return Ok(());
-    }
-
-    let mut index = vec![0usize; shape.len()];
-
-    loop {
-        let mut offset = base_offset;
-
-        for axis in 0..shape.len() {
-            offset += index[axis] * strides[axis];
-        }
-
-        f(data[offset])?;
-
-        if !advance_index(&mut index, shape) {
-            break;
-        }
+    for value in operand.iter() {
+        f(*cast_ref::<T, f64>(value))?;
     }
 
     Ok(())
@@ -347,18 +215,8 @@ where
     T: Numeric,
     F: FnMut(f64, f64) -> AtlasStatsResult<()>,
 {
-    let len = lhs.shape()[0];
-    let lhs_data = cast_slice::<T, f32>(lhs.data());
-    let rhs_data = cast_slice::<T, f32>(rhs.data());
-    let mut lhs_offset = lhs.offset();
-    let mut rhs_offset = rhs.offset();
-    let lhs_stride = lhs.strides()[0];
-    let rhs_stride = rhs.strides()[0];
-
-    for _ in 0..len {
-        f(lhs_data[lhs_offset] as f64, rhs_data[rhs_offset] as f64)?;
-        lhs_offset += lhs_stride;
-        rhs_offset += rhs_stride;
+    for (left, right) in lhs.iter().zip(rhs.iter()) {
+        f(f64::from(*cast_ref::<T, f32>(left)), f64::from(*cast_ref::<T, f32>(right)))?;
     }
 
     Ok(())
@@ -373,18 +231,8 @@ where
     T: Numeric,
     F: FnMut(f64, f64) -> AtlasStatsResult<()>,
 {
-    let len = lhs.shape()[0];
-    let lhs_data = cast_slice::<T, f64>(lhs.data());
-    let rhs_data = cast_slice::<T, f64>(rhs.data());
-    let mut lhs_offset = lhs.offset();
-    let mut rhs_offset = rhs.offset();
-    let lhs_stride = lhs.strides()[0];
-    let rhs_stride = rhs.strides()[0];
-
-    for _ in 0..len {
-        f(lhs_data[lhs_offset], rhs_data[rhs_offset])?;
-        lhs_offset += lhs_stride;
-        rhs_offset += rhs_stride;
+    for (left, right) in lhs.iter().zip(rhs.iter()) {
+        f(*cast_ref::<T, f64>(left), *cast_ref::<T, f64>(right))?;
     }
 
     Ok(())
@@ -404,4 +252,10 @@ fn is_f64<T>() -> bool {
 fn cast_slice<T, U>(data: &[T]) -> &[U] {
     // SAFETY: Callers only use this after an exact type match between T and U.
     unsafe { std::slice::from_raw_parts(data.as_ptr() as *const U, data.len()) }
+}
+
+#[inline]
+fn cast_ref<T, U>(value: &T) -> &U {
+    // SAFETY: Callers only use this after an exact type match between T and U.
+    unsafe { &*(value as *const T as *const U) }
 }
