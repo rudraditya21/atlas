@@ -10,6 +10,13 @@ fn checked_row_major_metadata(shape: &[usize]) -> AtlasNdResult<(usize, Vec<usiz
     Ok((size, strides))
 }
 
+fn validate_owned_boundary<T: Numeric>(array: NDArray<T>, context: &'static str) -> NDArray<T> {
+    array
+        .validate_invariants()
+        .unwrap_or_else(|error| panic!("{context} failed invariant validation: {error}"));
+    array
+}
+
 impl<T: Numeric> NDArray<T> {
     /// Creates a dense row-major array filled with `value`.
     pub fn new<S>(shape: S, value: T) -> Self
@@ -29,7 +36,7 @@ impl<T: Numeric> NDArray<T> {
             panic!("NDArray::full failed: {error}");
         });
 
-        Self { data: vec![value; size], strides, shape }
+        validate_owned_boundary(Self { data: vec![value; size], strides, shape }, "NDArray::full")
     }
 
     /// Creates a dense row-major array filled with zeros.
@@ -60,7 +67,7 @@ impl<T: Numeric> NDArray<T> {
             data[index * size + index] = T::one();
         }
 
-        Self { data, strides, shape }
+        validate_owned_boundary(Self { data, strides, shape }, "NDArray::eye")
     }
 
     /// Creates a dense row-major array from an explicit shape and backing data.
@@ -75,7 +82,10 @@ impl<T: Numeric> NDArray<T> {
             return Err(AtlasNdError::ShapeMismatch { expected, actual: data.len() });
         }
 
-        Ok(Self { data, strides, shape })
+        let array = Self { data, strides, shape };
+        array.validate_invariants()?;
+
+        Ok(array)
     }
 
     /// Creates a dense row-major array from an explicit shape and backing data.

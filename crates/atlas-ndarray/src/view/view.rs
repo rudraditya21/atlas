@@ -14,12 +14,20 @@ pub struct ArrayView<'a, T: Numeric> {
 
 impl<T: Numeric> NDArray<T> {
     pub fn view(&self) -> ArrayView<'_, T> {
-        ArrayView {
+        self.validate_invariants()
+            .unwrap_or_else(|error| panic!("NDArray::view failed invariant validation: {error}"));
+
+        let view = ArrayView {
             data: &self.data,
             offset: 0,
             shape: self.shape.clone(),
             strides: self.strides.clone(),
-        }
+        };
+
+        view.validate_invariants()
+            .unwrap_or_else(|error| panic!("NDArray::view failed invariant validation: {error}"));
+
+        view
     }
 }
 

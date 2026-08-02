@@ -30,6 +30,8 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
 
         self.shape = new_shape;
         self.strides = checked_compute_strides(&self.shape)?;
+        self.validate_invariants()?;
+
         Ok(self)
     }
 }
