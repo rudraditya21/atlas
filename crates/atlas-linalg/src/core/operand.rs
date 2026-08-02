@@ -1,4 +1,4 @@
-use atlas_ndarray::{ArrayView, NDArray, Numeric};
+use atlas_ndarray::{ArrayView, NDArray, Numeric, OperandMetadata};
 
 #[derive(Clone, Debug)]
 pub enum LinalgOperand<'a, T: Numeric> {
@@ -59,35 +59,30 @@ impl<'a, T: Numeric> LinalgOperand<'a, T> {
 }
 
 impl<'operand, 'data, T: Numeric> OperandRef<'operand, 'data, T> {
-    fn data(self) -> &'operand [T] {
+    fn metadata(self) -> &'operand dyn OperandMetadata<T> {
         match self {
-            Self::Array(array) => array.data(),
-            Self::View(view) => view.data(),
+            Self::Array(array) => array,
+            Self::View(view) => view,
         }
+    }
+
+    fn data(self) -> &'operand [T] {
+        self.metadata().data()
     }
 
     fn offset(self) -> usize {
-        match self {
-            Self::Array(_) => 0,
-            Self::View(view) => view.offset(),
-        }
+        self.metadata().offset()
     }
 
     fn shape(self) -> &'operand [usize] {
-        match self {
-            Self::Array(array) => array.shape(),
-            Self::View(view) => view.shape(),
-        }
+        self.metadata().shape()
     }
 
     fn strides(self) -> &'operand [usize] {
-        match self {
-            Self::Array(array) => array.strides(),
-            Self::View(view) => view.strides(),
-        }
+        self.metadata().strides()
     }
 
     fn ndim(self) -> usize {
-        self.shape().len()
+        self.metadata().ndim()
     }
 }

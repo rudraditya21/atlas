@@ -24,6 +24,7 @@ mod view;
 pub use core::array::NDArray;
 pub use core::axis::AxisIndex;
 pub use core::error::{AtlasNdError, AtlasNdResult};
+pub use core::operand::OperandMetadata;
 pub use core::traits::{Numeric, ShapeArg};
 pub use internal::shape::{
     checked_compute_strides, checked_element_count, compute_strides, element_count,

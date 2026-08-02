@@ -1,6 +1,8 @@
 use std::slice::Iter;
 
-use atlas_ndarray::{ArrayView, ArrayViewIter, NDArray, Numeric, checked_element_count};
+use atlas_ndarray::{
+    ArrayView, ArrayViewIter, NDArray, Numeric, OperandMetadata, checked_element_count,
+};
 
 use crate::core::error::AtlasStatsResult;
 
@@ -79,22 +81,23 @@ impl<'a, T: Numeric> StatsOperand<'a, T> {
 }
 
 impl<'operand, 'data, T: Numeric> OperandRef<'operand, 'data, T> {
-    fn shape(self) -> &'operand [usize] {
+    fn metadata(self) -> &'operand dyn OperandMetadata<T> {
         match self {
-            Self::Array(array) => array.shape(),
-            Self::View(view) => view.shape(),
+            Self::Array(array) => array,
+            Self::View(view) => view,
         }
+    }
+
+    fn shape(self) -> &'operand [usize] {
+        self.metadata().shape()
     }
 
     fn ndim(self) -> usize {
-        self.shape().len()
+        self.metadata().ndim()
     }
 
     fn dense_slice(self) -> Option<&'operand [T]> {
-        match self {
-            Self::Array(array) => Some(array.dense_slice()),
-            Self::View(view) => view.dense_slice(),
-        }
+        self.metadata().dense_slice()
     }
 
     fn iter(self) -> StatsOperandIter<'operand, T> {
