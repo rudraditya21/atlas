@@ -362,4 +362,34 @@ mod tests {
         assert_array_eq(&empty_array.mul(5), &empty_array.mul(&empty_rhs).unwrap());
         assert_array_eq(&empty_array.div(5), &empty_array.div(&empty_rhs).unwrap());
     }
+
+    #[test]
+    fn broadcast_arithmetic_supports_scalar_fast_path_in_both_operand_orders() {
+        let array = NDArray::from_vec([2, 2], vec![8_i32, 10, 12, 14]).unwrap();
+        let scalar = NDArray::from_shape_vec([], vec![2_i32]).unwrap();
+
+        assert_eq!(array.sub(&scalar).unwrap().data(), &[6, 8, 10, 12]);
+        assert_eq!(scalar.sub(&array).unwrap().data(), &[-6, -8, -10, -12]);
+        assert_eq!(array.div(&scalar).unwrap().data(), &[4, 5, 6, 7]);
+    }
+
+    #[test]
+    fn broadcast_arithmetic_supports_row_fast_path_in_both_operand_orders() {
+        let matrix = NDArray::from_vec([2, 3], vec![10_i32, 20, 30, 40, 50, 60]).unwrap();
+        let row = NDArray::from_vec([1, 3], vec![1_i32, 2, 3]).unwrap();
+
+        assert_eq!(matrix.sub(&row).unwrap().data(), &[9, 18, 27, 39, 48, 57]);
+        assert_eq!(row.sub(&matrix).unwrap().data(), &[-9, -18, -27, -39, -48, -57]);
+        assert_eq!(matrix.mul(&row).unwrap().data(), &[10, 40, 90, 40, 100, 180]);
+    }
+
+    #[test]
+    fn broadcast_arithmetic_supports_column_fast_path_in_both_operand_orders() {
+        let matrix = NDArray::from_vec([2, 3], vec![10_i32, 20, 30, 40, 50, 60]).unwrap();
+        let column = NDArray::from_vec([2, 1], vec![1_i32, 2]).unwrap();
+
+        assert_eq!(matrix.sub(&column).unwrap().data(), &[9, 19, 29, 38, 48, 58]);
+        assert_eq!(column.sub(&matrix).unwrap().data(), &[-9, -19, -29, -38, -48, -58]);
+        assert_eq!(matrix.add(&column).unwrap().data(), &[11, 21, 31, 42, 52, 62]);
+    }
 }
