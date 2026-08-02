@@ -1,7 +1,7 @@
 use crate::{
     AtlasNdError, AtlasNdResult, NDArray, Numeric,
     internal::{
-        layout::{dense_storage_slice, is_contiguous_layout, is_storage_dense_layout},
+        layout::{dense_storage_slice, is_contiguous_layout},
         shape::element_count,
         validate_view_invariants,
     },
@@ -95,10 +95,6 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
         is_contiguous_layout(&self.shape, &self.strides)
     }
 
-    pub(crate) fn is_storage_dense(&self) -> bool {
-        is_storage_dense_layout(&self.shape, &self.strides)
-    }
-
     pub fn dense_slice(&self) -> Option<&'a [T]> {
         dense_storage_slice(self.data, self.offset, &self.shape, &self.strides)
     }
@@ -124,7 +120,7 @@ mod tests {
         assert_eq!(view.len(), 6);
         assert_eq!(view.ndim(), 2);
         assert!(view.is_contiguous());
-        assert!(view.is_storage_dense());
+        assert!(view.dense_slice().is_some());
         assert_eq!(view.dense_slice().unwrap(), array.data());
         assert_eq!(view.validate_invariants(), Ok(()));
     }
@@ -176,7 +172,7 @@ mod tests {
         let view = array.view().transpose();
 
         assert!(!view.is_contiguous());
-        assert!(view.is_storage_dense());
+        assert!(view.dense_slice().is_some());
         assert_eq!(view.dense_slice().unwrap(), array.data());
         assert_eq!(view.validate_invariants(), Ok(()));
     }
@@ -186,7 +182,6 @@ mod tests {
         let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
         let view = array.view().slice([0, 1], [2, 2]).unwrap();
 
-        assert!(!view.is_storage_dense());
         assert!(view.dense_slice().is_none());
     }
 
@@ -195,7 +190,7 @@ mod tests {
         let array = NDArray::from_vec([2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
         let view = array.view().slice([1, 3], [1, 0]).unwrap();
 
-        assert!(view.is_storage_dense());
+        assert!(view.dense_slice().is_some());
         assert_eq!(view.dense_slice().unwrap(), &[] as &[i32]);
         assert_eq!(view.validate_invariants(), Ok(()));
     }
