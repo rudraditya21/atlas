@@ -1,4 +1,4 @@
-use atlas_linalg::{AtlasLinalgError, cholesky, matmul, qr};
+use atlas_linalg::{AtlasLinalgError, cholesky, dot, matmul, qr};
 use atlas_ndarray::NDArray;
 use atlas_random::{AtlasRandomError, AtlasRng, normal, uniform};
 use atlas_stats::{AtlasStatsError, correlation, covariance, stddev, variance};
@@ -150,4 +150,43 @@ fn linalg_stats_pipeline_reports_exact_stats_boundary_errors() {
             reason: "vector lengths must match",
         }
     );
+}
+
+#[test]
+fn empty_vector_views_report_stable_stats_errors_across_crates() {
+    let lhs_base = NDArray::from_shape_vec([3], vec![1.0_f64, 2.0, 3.0]).unwrap();
+    let rhs_base = NDArray::from_shape_vec([3], vec![4.0_f64, 5.0, 6.0]).unwrap();
+    let lhs = lhs_base.view().slice([3], [0]).unwrap();
+    let rhs = rhs_base.view().slice([3], [0]).unwrap();
+
+    assert_eq!(variance(lhs.clone()).unwrap_err(), AtlasStatsError::EmptyInput { op: "variance" });
+    assert_eq!(stddev(lhs.clone()).unwrap_err(), AtlasStatsError::EmptyInput { op: "variance" });
+    assert_eq!(
+        covariance(lhs.clone(), rhs.clone()).unwrap_err(),
+        AtlasStatsError::EmptyInput { op: "covariance" }
+    );
+    assert_eq!(
+        correlation(lhs, rhs).unwrap_err(),
+        AtlasStatsError::EmptyInput { op: "correlation" }
+    );
+}
+
+#[test]
+fn empty_view_operands_remain_well_defined_for_linalg_dispatch() {
+    let vector_base = NDArray::from_shape_vec([3], vec![1.0_f64, 2.0, 3.0]).unwrap();
+    let empty_vector = vector_base.view().slice([3], [0]).unwrap();
+
+    assert_eq!(dot(empty_vector.clone(), empty_vector.clone()).unwrap(), 0.0);
+
+    let vector_product = matmul(empty_vector.clone(), empty_vector.clone()).unwrap();
+    assert_eq!(vector_product.shape(), &[] as &[usize]);
+    assert_eq!(vector_product.data(), &[0.0]);
+
+    let matrix_base =
+        NDArray::from_shape_vec([2, 3], vec![1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+    let empty_matrix = matrix_base.view().slice([2, 3], [0, 0]).unwrap();
+
+    let matrix_product = matmul(empty_matrix.clone(), empty_matrix.transpose()).unwrap();
+    assert_eq!(matrix_product.shape(), &[0, 0]);
+    assert!(matrix_product.data().is_empty());
 }
