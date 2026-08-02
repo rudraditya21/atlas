@@ -695,6 +695,13 @@ mod tests {
     }
 
     #[test]
+    fn owned_array_invariant_validation_accepts_mixed_empty_shapes() {
+        assert_eq!(validate_owned_array_invariants(0, &[0], &[1]), Ok(()));
+        assert_eq!(validate_owned_array_invariants(0, &[0, 2, 0, 4], &[0, 0, 4, 1]), Ok(()));
+        assert_eq!(validate_owned_array_invariants(0, &[3, 0, 0], &[0, 0, 1]), Ok(()));
+    }
+
+    #[test]
     fn owned_array_invariant_validation_rejects_invalid_metadata() {
         assert_eq!(
             validate_owned_array_invariants(6, &[2, 3], &[3]),
@@ -708,6 +715,14 @@ mod tests {
             validate_owned_array_invariants(6, &[2, 3], &[1, 3]),
             Err(AtlasNdError::InvalidShape)
         );
+        assert_eq!(
+            validate_owned_array_invariants(0, &[0, 2, 0, 4], &[0, 4, 0, 1]),
+            Err(AtlasNdError::InvalidShape)
+        );
+        assert_eq!(
+            validate_owned_array_invariants(0, &[], &[]),
+            Err(AtlasNdError::ShapeMismatch { expected: 1, actual: 0 })
+        );
     }
 
     #[test]
@@ -720,10 +735,20 @@ mod tests {
     }
 
     #[test]
+    fn view_invariant_validation_accepts_scalar_and_mixed_empty_boundaries() {
+        assert_eq!(validate_view_invariants(1, 0, &[], &[]), Ok(()));
+        assert_eq!(validate_view_invariants(6, 6, &[0], &[1]), Ok(()));
+        assert_eq!(validate_view_invariants(6, 6, &[2, 0, 3], &[0, 3, 1]), Ok(()));
+        assert_eq!(validate_view_invariants(6, 4, &[0, 2, 0], &[0, 0, 1]), Ok(()));
+    }
+
+    #[test]
     fn view_invariant_validation_rejects_invalid_metadata() {
         assert_eq!(validate_view_invariants(6, 0, &[2, 3], &[3]), Err(AtlasNdError::InvalidShape));
         assert_eq!(validate_view_invariants(6, 6, &[1], &[1]), Err(AtlasNdError::InvalidShape));
         assert_eq!(validate_view_invariants(6, 5, &[2], &[1]), Err(AtlasNdError::InvalidShape));
         assert_eq!(validate_view_invariants(6, 7, &[0], &[1]), Err(AtlasNdError::InvalidShape));
+        assert_eq!(validate_view_invariants(1, 1, &[], &[]), Err(AtlasNdError::InvalidShape));
+        assert_eq!(validate_view_invariants(6, 7, &[2, 0, 3], &[0, 3, 1]), Err(AtlasNdError::InvalidShape));
     }
 }
