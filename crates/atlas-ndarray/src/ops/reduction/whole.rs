@@ -2,14 +2,14 @@ use num_traits::ToPrimitive;
 use rayon::prelude::*;
 
 use crate::{
-    AtlasNdResult, Numeric,
+    AtlasNdError, AtlasNdResult, Numeric,
     internal::simd,
     internal::{for_each_value, layout::dense_storage_slice},
     layout::element_count,
 };
 
-use super::{
-    dispatch::{ensure_non_empty_reduction, parallel_reduction_chunk_len, should_parallelize_reduction},
+use super::dispatch::{
+    ensure_non_empty_reduction, parallel_reduction_chunk_len, should_parallelize_reduction,
 };
 
 pub(super) fn sum_contiguous<T: Numeric>(values: &[T]) -> T {
@@ -70,7 +70,12 @@ where
     simd::max_contiguous(values, op)
 }
 
-pub(super) fn sum_all<T: Numeric>(data: &[T], offset: usize, shape: &[usize], strides: &[usize]) -> T {
+pub(super) fn sum_all<T: Numeric>(
+    data: &[T],
+    offset: usize,
+    shape: &[usize],
+    strides: &[usize],
+) -> T {
     if element_count(shape) == 0 {
         return T::zero();
     }
@@ -86,7 +91,12 @@ pub(super) fn sum_all<T: Numeric>(data: &[T], offset: usize, shape: &[usize], st
     total
 }
 
-pub(super) fn prod_all<T: Numeric>(data: &[T], offset: usize, shape: &[usize], strides: &[usize]) -> T {
+pub(super) fn prod_all<T: Numeric>(
+    data: &[T],
+    offset: usize,
+    shape: &[usize],
+    strides: &[usize],
+) -> T {
     if element_count(shape) == 0 {
         return T::one();
     }

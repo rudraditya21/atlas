@@ -8,7 +8,9 @@ use crate::{
 
 use super::{
     axis::{AxisReductionMetadata, contiguous_lane, linear_offset},
-    dispatch::{ensure_non_empty_reduction, parallel_reduction_chunk_len, should_parallelize_reduction},
+    dispatch::{
+        ensure_non_empty_reduction, parallel_reduction_chunk_len, should_parallelize_reduction,
+    },
 };
 
 pub(super) fn mean_contiguous<T>(values: &[T], op: &'static str) -> AtlasNdResult<f64>
@@ -100,7 +102,8 @@ where
     let len = crate::layout::element_count(shape);
     ensure_non_empty_reduction(len, "mean")?;
 
-    if let Some(values) = crate::internal::layout::dense_storage_slice(data, offset, shape, strides) {
+    if let Some(values) = crate::internal::layout::dense_storage_slice(data, offset, shape, strides)
+    {
         return mean_contiguous(values, "mean");
     }
 
