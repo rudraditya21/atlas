@@ -216,3 +216,64 @@ fn shape_overflow_errors_remain_stable_across_crate_boundaries() {
         AtlasRandomError::NdArray(element_count_overflow)
     );
 }
+
+#[test]
+fn post_hardening_error_messages_remain_exact_across_crates() {
+    let empty_matrix = NDArray::<i32>::new([0, 3], 1);
+    let empty_vector = NDArray::from_shape_vec([0], Vec::<f64>::new()).unwrap();
+    let lhs = NDArray::from_shape_vec([2, 3], vec![1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+    let rhs = NDArray::from_shape_vec([2, 2], vec![7.0_f64, 8.0, 9.0, 10.0]).unwrap();
+    let mut rng = AtlasRng::seed_from_u64(16_384);
+
+    assert_eq!(
+        checked_element_count(&[usize::MAX, 2]).unwrap_err().to_string(),
+        format!("shape overflow for element count: {:?}", vec![usize::MAX, 2])
+    );
+    assert_eq!(empty_matrix.mean().unwrap_err().to_string(), "empty input for mean");
+    assert_eq!(empty_matrix.min_axis(0).unwrap_err().to_string(), "empty input for min");
+    assert_eq!(variance(&empty_vector).unwrap_err().to_string(), "empty input for variance");
+    assert_eq!(
+        covariance(&empty_vector, &empty_vector).unwrap_err().to_string(),
+        "empty input for covariance"
+    );
+    assert_eq!(
+        normal([2], 0.0_f64, 0.0, &mut rng).unwrap_err().to_string(),
+        "invalid argument for normal: stddev must be strictly positive"
+    );
+    assert_eq!(
+        matmul(&lhs, &rhs).unwrap_err().to_string(),
+        "shape mismatch for matmul: left [2, 3], right [2, 2]: left matrix column count must match right matrix row count"
+    );
+}
+
+#[test]
+fn transparent_ndarray_error_wrappers_preserve_variant_and_display() {
+    let overflow = checked_element_count(&[usize::MAX, 2]).unwrap_err();
+
+    let linalg_error = AtlasLinalgError::from(overflow.clone());
+    let stats_error = AtlasStatsError::from(overflow.clone());
+    let random_error = AtlasRandomError::from(overflow.clone());
+
+    assert_eq!(linalg_error, AtlasLinalgError::NdArray(overflow.clone()));
+    assert_eq!(stats_error, AtlasStatsError::NdArray(overflow.clone()));
+    assert_eq!(random_error, AtlasRandomError::NdArray(overflow.clone()));
+
+    assert_eq!(linalg_error.to_string(), overflow.to_string());
+    assert_eq!(stats_error.to_string(), overflow.to_string());
+    assert_eq!(random_error.to_string(), overflow.to_string());
+
+    let mut rng = AtlasRng::seed_from_u64(32_768);
+
+    assert_eq!(
+        uniform([usize::MAX, 2], 0_i32, 10_i32, &mut rng).unwrap_err(),
+        AtlasRandomError::NdArray(overflow.clone())
+    );
+    assert_eq!(
+        normal([usize::MAX, 2], 0.0_f64, 1.0, &mut rng).unwrap_err(),
+        AtlasRandomError::NdArray(overflow.clone())
+    );
+    assert_eq!(
+        uniform([usize::MAX, 2], 0_i32, 10_i32, &mut rng).unwrap_err().to_string(),
+        overflow.to_string()
+    );
+}
