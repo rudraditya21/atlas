@@ -1,4 +1,6 @@
-use atlas_ndarray::{ArrayView, NDArray, Numeric};
+use atlas_ndarray::{ArrayView, NDArray, Numeric, checked_element_count};
+
+use crate::core::error::AtlasStatsResult;
 
 #[derive(Clone, Debug)]
 pub enum StatsOperand<'a, T: Numeric> {
@@ -57,7 +59,7 @@ impl<'a, T: Numeric> StatsOperand<'a, T> {
         self.shape().len()
     }
 
-    pub(crate) fn len(&self) -> usize {
-        if self.shape().is_empty() { 1 } else { self.shape().iter().product() }
+    pub(crate) fn len(&self) -> AtlasStatsResult<usize> {
+        Ok(checked_element_count(self.shape())?)
     }
 }

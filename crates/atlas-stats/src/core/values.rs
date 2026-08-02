@@ -45,7 +45,7 @@ pub(crate) fn validate_non_empty<T>(
 where
     T: Numeric,
 {
-    let len = operand.len();
+    let len = operand.len()?;
 
     if len == 0 {
         return Err(AtlasStatsError::EmptyInput { op });
@@ -99,7 +99,7 @@ where
     T: Numeric + ToPrimitive,
     F: FnMut(f64) -> AtlasStatsResult<()>,
 {
-    let len = operand.len();
+    let len = operand.len()?;
     if len == 0 {
         return Ok(());
     }
@@ -289,7 +289,7 @@ where
     T: Numeric,
     F: FnMut(f64) -> AtlasStatsResult<()>,
 {
-    let len = operand.len();
+    let len = operand.len()?;
     if len == 0 {
         return Ok(());
     }
@@ -356,7 +356,7 @@ where
     T: Numeric,
     F: FnMut(f64) -> AtlasStatsResult<()>,
 {
-    let len = operand.len();
+    let len = operand.len()?;
     if len == 0 {
         return Ok(());
     }
