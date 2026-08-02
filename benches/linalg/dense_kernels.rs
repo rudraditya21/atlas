@@ -5,6 +5,14 @@ use atlas_linalg::{dot, matmul};
 use atlas_ndarray::NDArray;
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 
+fn filled_vector(len: usize, value: f64) -> NDArray<f64> {
+    NDArray::from_shape_vec([len], vec![value; len]).unwrap()
+}
+
+fn filled_matrix(rows: usize, cols: usize, value: f64) -> NDArray<f64> {
+    NDArray::from_shape_vec([rows, cols], vec![value; rows * cols]).unwrap()
+}
+
 fn padded_square_source(side: usize, value: f64) -> NDArray<f64> {
     NDArray::from_shape_vec([side, side + 1], vec![value; side * (side + 1)]).unwrap()
 }
@@ -19,6 +27,40 @@ fn bench_dot(c: &mut Criterion) {
         common::configure_group(&mut group, size);
         group.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, _| {
             b.iter(|| dot(black_box(&lhs), black_box(&rhs)).unwrap())
+        });
+    }
+
+    group.finish();
+}
+
+fn bench_matmul_vector_matrix(c: &mut Criterion) {
+    let mut group = c.benchmark_group("linalg/matmul/vector_matrix");
+
+    for &(rows, cols) in &common::DENSE_MATMUL_RECT_SHAPES {
+        let lhs = filled_vector(rows, 1.0_f64);
+        let rhs = filled_matrix(rows, cols, 2.0_f64);
+        let parameter = common::rect_label(rows, cols);
+
+        common::configure_group(&mut group, rows * cols);
+        group.bench_with_input(BenchmarkId::from_parameter(parameter), &(rows, cols), |b, _| {
+            b.iter(|| matmul(black_box(&lhs), black_box(&rhs)).unwrap())
+        });
+    }
+
+    group.finish();
+}
+
+fn bench_matmul_matrix_vector(c: &mut Criterion) {
+    let mut group = c.benchmark_group("linalg/matmul/matrix_vector");
+
+    for &(rows, cols) in &common::DENSE_MATMUL_RECT_SHAPES {
+        let lhs = filled_matrix(rows, cols, 1.0_f64);
+        let rhs = filled_vector(cols, 2.0_f64);
+        let parameter = common::rect_label(rows, cols);
+
+        common::configure_group(&mut group, rows * cols);
+        group.bench_with_input(BenchmarkId::from_parameter(parameter), &(rows, cols), |b, _| {
+            b.iter(|| matmul(black_box(&lhs), black_box(&rhs)).unwrap())
         });
     }
 
@@ -88,6 +130,8 @@ fn bench_matmul_rhs_strided_slice(c: &mut Criterion) {
 criterion_group!(
     linalg_dense_kernels,
     bench_dot,
+    bench_matmul_vector_matrix,
+    bench_matmul_matrix_vector,
     bench_matmul,
     bench_matmul_rhs_transposed,
     bench_matmul_rhs_strided_slice

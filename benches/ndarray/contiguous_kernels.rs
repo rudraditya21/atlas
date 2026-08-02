@@ -66,6 +66,56 @@ fn bench_scalar_add(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_contiguous_mul(c: &mut Criterion) {
+    let mut group = c.benchmark_group("ndarray/mul/contiguous");
+
+    for size in common::VECTOR_SIZES {
+        common::configure_group(&mut group, size);
+        let lhs = filled_vector(size, 1.0);
+        let rhs = filled_vector(size, 2.0);
+
+        group.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, _| {
+            b.iter(|| black_box(lhs.mul(black_box(&rhs)).unwrap()))
+        });
+    }
+
+    group.finish();
+}
+
+fn bench_broadcast_mul(c: &mut Criterion) {
+    let mut group = c.benchmark_group("ndarray/mul/broadcast");
+
+    for side in common::SQUARE_MATRIX_SIDES {
+        let elements = side * side;
+        common::configure_group(&mut group, elements);
+        let lhs = filled_square_matrix(side, 1.0);
+        let rhs = NDArray::from_vec(vec![1, side], vec![2.0; side]).unwrap();
+
+        group.bench_with_input(
+            BenchmarkId::from_parameter(common::square_label(side)),
+            &elements,
+            |b, _| b.iter(|| black_box(lhs.mul(black_box(&rhs)).unwrap())),
+        );
+    }
+
+    group.finish();
+}
+
+fn bench_scalar_mul(c: &mut Criterion) {
+    let mut group = c.benchmark_group("ndarray/mul/scalar");
+
+    for size in common::VECTOR_SIZES {
+        common::configure_group(&mut group, size);
+        let array = filled_vector(size, 1.0);
+
+        group.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, _| {
+            b.iter(|| black_box(array.mul(black_box(2.0_f64))))
+        });
+    }
+
+    group.finish();
+}
+
 fn bench_sum_layouts(c: &mut Criterion) {
     let mut group = c.benchmark_group("ndarray/reduction/sum");
 
@@ -87,6 +137,33 @@ fn bench_sum_layouts(c: &mut Criterion) {
         });
         group.bench_with_input(BenchmarkId::new("strided_slice", &label), &elements, |b, _| {
             b.iter(|| black_box(sliced.sum()))
+        });
+    }
+
+    group.finish();
+}
+
+fn bench_sum_axis_layouts(c: &mut Criterion) {
+    let mut group = c.benchmark_group("ndarray/reduction/sum_axis");
+
+    for side in common::SQUARE_MATRIX_SIDES {
+        let elements = side * side;
+        let label = common::square_label(side);
+        common::configure_group(&mut group, elements);
+
+        let contiguous = filled_square_matrix(side, 1.0);
+        let transposed = contiguous.view().transpose();
+        let padded = padded_square_source(side, 1.0);
+        let sliced = padded.view().slice([0, 0], [side, side]).unwrap();
+
+        group.bench_with_input(BenchmarkId::new("contiguous", &label), &elements, |b, _| {
+            b.iter(|| black_box(contiguous.sum_axis(black_box(0_usize)).unwrap()))
+        });
+        group.bench_with_input(BenchmarkId::new("strided_transpose", &label), &elements, |b, _| {
+            b.iter(|| black_box(transposed.sum_axis(black_box(0_usize)).unwrap()))
+        });
+        group.bench_with_input(BenchmarkId::new("strided_slice", &label), &elements, |b, _| {
+            b.iter(|| black_box(sliced.sum_axis(black_box(0_usize)).unwrap()))
         });
     }
 
@@ -120,12 +197,44 @@ fn bench_mean_layouts(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_mean_axis_layouts(c: &mut Criterion) {
+    let mut group = c.benchmark_group("ndarray/reduction/mean_axis");
+
+    for side in common::SQUARE_MATRIX_SIDES {
+        let elements = side * side;
+        let label = common::square_label(side);
+        common::configure_group(&mut group, elements);
+
+        let contiguous = filled_square_matrix(side, 1.0);
+        let transposed = contiguous.view().transpose();
+        let padded = padded_square_source(side, 1.0);
+        let sliced = padded.view().slice([0, 0], [side, side]).unwrap();
+
+        group.bench_with_input(BenchmarkId::new("contiguous", &label), &elements, |b, _| {
+            b.iter(|| black_box(contiguous.mean_axis(black_box(0_usize)).unwrap()))
+        });
+        group.bench_with_input(BenchmarkId::new("strided_transpose", &label), &elements, |b, _| {
+            b.iter(|| black_box(transposed.mean_axis(black_box(0_usize)).unwrap()))
+        });
+        group.bench_with_input(BenchmarkId::new("strided_slice", &label), &elements, |b, _| {
+            b.iter(|| black_box(sliced.mean_axis(black_box(0_usize)).unwrap()))
+        });
+    }
+
+    group.finish();
+}
+
 criterion_group!(
     ndarray_contiguous_kernels,
     bench_contiguous_add,
     bench_broadcast_add,
     bench_scalar_add,
+    bench_contiguous_mul,
+    bench_broadcast_mul,
+    bench_scalar_mul,
     bench_sum_layouts,
-    bench_mean_layouts
+    bench_sum_axis_layouts,
+    bench_mean_layouts,
+    bench_mean_axis_layouts
 );
 criterion_main!(ndarray_contiguous_kernels);
