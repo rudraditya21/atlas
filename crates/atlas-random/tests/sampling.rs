@@ -1,4 +1,4 @@
-use atlas_ndarray::{NDArray, compute_strides, element_count};
+use atlas_ndarray::{AtlasNdError, NDArray, compute_strides, element_count};
 use atlas_random::{AtlasRandomError, AtlasRng, normal, uniform};
 
 fn assert_layout_invariants<T>(array: &NDArray<T>, expected_shape: &[usize])
@@ -215,5 +215,25 @@ fn normal_rejects_non_finite_parameters_with_exact_errors() {
             op: "normal",
             reason: "mean and stddev must be finite",
         }
+    );
+}
+
+#[test]
+fn sampling_rejects_overflowing_shapes_with_exact_errors() {
+    let mut rng = AtlasRng::seed_from_u64(909);
+
+    assert_eq!(
+        uniform([usize::MAX, 2], 0_i32, 10_i32, &mut rng).unwrap_err(),
+        AtlasRandomError::NdArray(AtlasNdError::ShapeOverflow {
+            op: "element count",
+            shape: vec![usize::MAX, 2],
+        })
+    );
+    assert_eq!(
+        normal([usize::MAX, 2], 0.0_f64, 1.0, &mut rng).unwrap_err(),
+        AtlasRandomError::NdArray(AtlasNdError::ShapeOverflow {
+            op: "element count",
+            shape: vec![usize::MAX, 2],
+        })
     );
 }

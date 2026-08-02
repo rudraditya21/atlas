@@ -16,7 +16,7 @@ where
     StandardNormal: Distribution<T>,
 {
     let shape = shape.as_ref().to_vec();
-    let len = element_count(&shape);
+    let len = element_count(&shape)?;
     let mut data = vec![T::zero(); len];
     rng.fill_normal(mean, stddev, &mut data)?;
 
@@ -25,6 +25,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use atlas_ndarray::AtlasNdError;
+
     use crate::{AtlasRandomError, AtlasRng, normal};
 
     #[test]
@@ -57,5 +59,18 @@ mod tests {
 
         assert_eq!(empty.shape(), &[0]);
         assert_eq!(empty.len(), 0);
+    }
+
+    #[test]
+    fn normal_reports_shape_overflow_explicitly() {
+        let mut rng = AtlasRng::seed_from_u64(37);
+
+        assert_eq!(
+            normal([usize::MAX, 2], 0.0_f64, 1.0, &mut rng).unwrap_err(),
+            AtlasRandomError::NdArray(AtlasNdError::ShapeOverflow {
+                op: "element count",
+                shape: vec![usize::MAX, 2],
+            })
+        );
     }
 }

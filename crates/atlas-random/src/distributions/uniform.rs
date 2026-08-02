@@ -13,7 +13,7 @@ where
     R: RandomSource,
 {
     let shape = shape.as_ref().to_vec();
-    let len = element_count(&shape);
+    let len = element_count(&shape)?;
     let mut data = vec![T::zero(); len];
     rng.fill_uniform(low, high, &mut data)?;
 
@@ -22,6 +22,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use atlas_ndarray::AtlasNdError;
+
     use crate::{AtlasRandomError, AtlasRng, uniform};
 
     #[test]
@@ -51,5 +53,18 @@ mod tests {
 
         assert_eq!(scalar.shape(), &[] as &[usize]);
         assert_eq!(scalar.len(), 1);
+    }
+
+    #[test]
+    fn uniform_reports_shape_overflow_explicitly() {
+        let mut rng = AtlasRng::seed_from_u64(31);
+
+        assert_eq!(
+            uniform([usize::MAX, 2], 0_i32, 10_i32, &mut rng).unwrap_err(),
+            AtlasRandomError::NdArray(AtlasNdError::ShapeOverflow {
+                op: "element count",
+                shape: vec![usize::MAX, 2],
+            })
+        );
     }
 }

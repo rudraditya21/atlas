@@ -1,11 +1,12 @@
 use core::cmp::Ordering;
 
+use atlas_ndarray::checked_element_count;
 use num_traits::Float;
 
 use crate::core::{AtlasRandomError, AtlasRandomResult};
 
-pub(crate) fn element_count(shape: &[usize]) -> usize {
-    shape.iter().product()
+pub(crate) fn element_count(shape: &[usize]) -> AtlasRandomResult<usize> {
+    Ok(checked_element_count(shape)?)
 }
 
 pub(crate) fn validate_uniform_bounds<T>(low: T, high: T) -> AtlasRandomResult<()>
@@ -45,15 +46,28 @@ where
 
 #[cfg(test)]
 mod tests {
+    use atlas_ndarray::AtlasNdError;
+
     use crate::core::{
         AtlasRandomError, element_count, validate_normal_parameters, validate_uniform_bounds,
     };
 
     #[test]
     fn element_count_handles_scalar_and_empty_shapes() {
-        assert_eq!(element_count(&[]), 1);
-        assert_eq!(element_count(&[0]), 0);
-        assert_eq!(element_count(&[2, 3]), 6);
+        assert_eq!(element_count(&[]).unwrap(), 1);
+        assert_eq!(element_count(&[0]).unwrap(), 0);
+        assert_eq!(element_count(&[2, 3]).unwrap(), 6);
+    }
+
+    #[test]
+    fn element_count_reports_overflow_explicitly() {
+        assert_eq!(
+            element_count(&[usize::MAX, 2]).unwrap_err(),
+            AtlasRandomError::NdArray(AtlasNdError::ShapeOverflow {
+                op: "element count",
+                shape: vec![usize::MAX, 2],
+            })
+        );
     }
 
     #[test]
