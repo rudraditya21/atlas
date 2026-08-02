@@ -1,6 +1,9 @@
+mod col_major;
 mod dispatch;
+mod generic;
 mod matrix_matrix;
 mod matrix_vector;
+mod row_major;
 mod vector_matrix;
 mod vector_vector;
 
