@@ -66,21 +66,12 @@ fn overflow_paths_report_exact_ndarray_errors() {
     assert_eq!(checked_element_count(&[usize::MAX, 2]).unwrap_err(), overflow);
     assert_eq!(
         checked_compute_strides(&[2, usize::MAX, 2]).unwrap_err(),
-        AtlasNdError::ShapeOverflow {
-            op: "stride computation",
-            shape: vec![2, usize::MAX, 2],
-        }
+        AtlasNdError::ShapeOverflow { op: "stride computation", shape: vec![2, usize::MAX, 2] }
     );
     assert_eq!(NDArray::<i32>::from_shape_vec([usize::MAX, 2], Vec::new()).unwrap_err(), overflow);
-    assert_eq!(
-        NDArray::new([], 1_i32).view().reshape([usize::MAX, 2]).unwrap_err(),
-        overflow
-    );
+    assert_eq!(NDArray::new([], 1_i32).view().reshape([usize::MAX, 2]).unwrap_err(), overflow);
     assert_eq!(
         contiguous_broadcast_metadata(&[2, usize::MAX, 2], &[1]).unwrap_err(),
-        AtlasNdError::ShapeOverflow {
-            op: "stride computation",
-            shape: vec![2, usize::MAX, 2],
-        }
+        AtlasNdError::ShapeOverflow { op: "stride computation", shape: vec![2, usize::MAX, 2] }
     );
 }

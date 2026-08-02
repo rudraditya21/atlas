@@ -1,5 +1,5 @@
 use super::traits::Numeric;
-use crate::layout::compute_strides;
+use crate::{AtlasNdResult, internal::validate_owned_array_invariants, layout::compute_strides};
 
 #[derive(Clone, Debug)]
 pub struct NDArray<T: Numeric> {
@@ -37,6 +37,10 @@ impl<T: Numeric> NDArray<T> {
         debug_assert_eq!(self.shape.len(), self.strides.len());
         self.strides == compute_strides(&self.shape)
     }
+
+    pub(crate) fn validate_invariants(&self) -> AtlasNdResult<()> {
+        validate_owned_array_invariants(self.data.len(), &self.shape, &self.strides)
+    }
 }
 
 #[cfg(test)]
@@ -51,5 +55,6 @@ mod tests {
         assert_eq!(array.ndim(), 0);
         assert!(array.is_contiguous());
         assert_eq!(array.strides(), &[] as &[usize]);
+        assert_eq!(array.validate_invariants(), Ok(()));
     }
 }

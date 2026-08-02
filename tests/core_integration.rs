@@ -200,7 +200,10 @@ fn shape_overflow_errors_remain_stable_across_crate_boundaries() {
 
     assert_eq!(checked_element_count(&[usize::MAX, 2]).unwrap_err(), element_count_overflow);
     assert_eq!(checked_compute_strides(&[2, usize::MAX, 2]).unwrap_err(), stride_overflow);
-    assert_eq!(AtlasStatsError::from(element_count_overflow.clone()), AtlasStatsError::NdArray(element_count_overflow.clone()));
+    assert_eq!(
+        AtlasStatsError::from(element_count_overflow.clone()),
+        AtlasStatsError::NdArray(element_count_overflow.clone())
+    );
 
     let mut rng = AtlasRng::seed_from_u64(8_192);
 

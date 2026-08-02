@@ -1,6 +1,6 @@
 use crate::{
     AtlasNdError, AtlasNdResult, NDArray, Numeric,
-    internal::is_storage_dense_layout,
+    internal::{is_storage_dense_layout, validate_view_invariants},
     layout::{compute_strides, element_count},
 };
 
@@ -101,6 +101,10 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
 
         Some(&self.data[self.offset..self.offset + len])
     }
+
+    pub(crate) fn validate_invariants(&self) -> AtlasNdResult<()> {
+        validate_view_invariants(self.data.len(), self.offset, &self.shape, &self.strides)
+    }
 }
 
 #[cfg(test)]
@@ -121,6 +125,7 @@ mod tests {
         assert!(view.is_contiguous());
         assert!(view.is_storage_dense());
         assert_eq!(view.dense_slice().unwrap(), array.data());
+        assert_eq!(view.validate_invariants(), Ok(()));
     }
 
     #[test]
@@ -172,6 +177,7 @@ mod tests {
         assert!(!view.is_contiguous());
         assert!(view.is_storage_dense());
         assert_eq!(view.dense_slice().unwrap(), array.data());
+        assert_eq!(view.validate_invariants(), Ok(()));
     }
 
     #[test]
@@ -190,5 +196,6 @@ mod tests {
 
         assert!(view.is_storage_dense());
         assert_eq!(view.dense_slice().unwrap(), &[] as &[i32]);
+        assert_eq!(view.validate_invariants(), Ok(()));
     }
 }
