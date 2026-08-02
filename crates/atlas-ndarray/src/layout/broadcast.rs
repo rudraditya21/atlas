@@ -1,4 +1,4 @@
-use crate::{AtlasNdError, AtlasNdResult, layout::compute_strides};
+use crate::{AtlasNdError, AtlasNdResult, checked_compute_strides};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BroadcastMetadata {
@@ -105,7 +105,10 @@ pub fn contiguous_broadcast_metadata(
     lhs: &[usize],
     rhs: &[usize],
 ) -> AtlasNdResult<BroadcastMetadata> {
-    broadcast_pair(lhs, &compute_strides(lhs), rhs, &compute_strides(rhs))
+    let lhs_strides = checked_compute_strides(lhs)?;
+    let rhs_strides = checked_compute_strides(rhs)?;
+
+    broadcast_pair(lhs, &lhs_strides, rhs, &rhs_strides)
 }
 
 #[cfg(test)]
@@ -288,6 +291,18 @@ mod tests {
                 lhs_strides: vec![0, 0, 0],
                 rhs_strides: vec![12, 4, 1],
             }
+        );
+    }
+
+    #[test]
+    fn contiguous_broadcast_metadata_reports_shape_overflow_explicitly() {
+        assert_eq!(
+            contiguous_broadcast_metadata(&[2, usize::MAX, 2], &[1]).unwrap_err(),
+            AtlasNdError::ShapeOverflow { op: "stride computation", shape: vec![2, usize::MAX, 2] }
+        );
+        assert_eq!(
+            contiguous_broadcast_metadata(&[1], &[2, usize::MAX, 2]).unwrap_err(),
+            AtlasNdError::ShapeOverflow { op: "stride computation", shape: vec![2, usize::MAX, 2] }
         );
     }
 }

@@ -1,6 +1,5 @@
 use crate::{
-    AtlasNdError, AtlasNdResult, Numeric, ShapeArg,
-    layout::{compute_strides, element_count},
+    AtlasNdError, AtlasNdResult, Numeric, ShapeArg, checked_compute_strides, checked_element_count,
     view::ArrayView,
 };
 
@@ -10,8 +9,8 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
         S: ShapeArg,
     {
         let new_shape = new_shape.into_shape_vec();
-        let old_size = element_count(&self.shape);
-        let new_size = element_count(&new_shape);
+        let old_size = checked_element_count(&self.shape)?;
+        let new_size = checked_element_count(&new_shape)?;
 
         if old_size != new_size {
             return Err(AtlasNdError::InvalidReshape {
@@ -30,7 +29,7 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
         }
 
         self.shape = new_shape;
-        self.strides = compute_strides(&self.shape);
+        self.strides = checked_compute_strides(&self.shape)?;
         Ok(self)
     }
 }
@@ -108,6 +107,16 @@ mod tests {
                 to: vec![2],
                 reason: "element count must remain unchanged",
             }
+        );
+    }
+
+    #[test]
+    fn reshape_reports_shape_overflow_explicitly() {
+        let scalar = NDArray::new([], 1_i32);
+
+        assert_eq!(
+            scalar.view().reshape([usize::MAX, 2]).unwrap_err(),
+            AtlasNdError::ShapeOverflow { op: "element count", shape: vec![usize::MAX, 2] }
         );
     }
 }
