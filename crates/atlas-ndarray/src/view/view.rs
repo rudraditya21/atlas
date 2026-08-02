@@ -95,6 +95,10 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
         }
 
         let len = element_count(&self.shape);
+        if len == 0 {
+            return Some(&self.data[self.offset..self.offset]);
+        }
+
         Some(&self.data[self.offset..self.offset + len])
     }
 }
@@ -177,5 +181,14 @@ mod tests {
 
         assert!(!view.is_storage_dense());
         assert!(view.dense_slice().is_none());
+    }
+
+    #[test]
+    fn empty_dense_views_return_valid_empty_slices() {
+        let array = NDArray::from_vec([2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+        let view = array.view().slice([1, 3], [1, 0]).unwrap();
+
+        assert!(view.is_storage_dense());
+        assert_eq!(view.dense_slice().unwrap(), &[] as &[i32]);
     }
 }

@@ -1621,6 +1621,10 @@ fn dense_storage_slice<'a, T>(
     }
 
     let len = element_count(shape);
+    if len == 0 {
+        return Some(&data[offset..offset]);
+    }
+
     Some(&data[offset..offset + len])
 }
 #[cfg(test)]
@@ -1659,6 +1663,18 @@ mod tests {
         assert_eq!(view.min().unwrap(), 1);
         assert_eq!(view.max().unwrap(), 5);
         assert_eq!(view.mean().unwrap(), 3.0);
+    }
+
+    #[test]
+    fn whole_array_reductions_work_for_empty_dense_views() {
+        let array = NDArray::from_vec([2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+        let view = array.view().slice([1, 3], [1, 0]).unwrap();
+
+        assert_eq!(view.sum(), 0);
+        assert_eq!(view.prod(), 1);
+        assert_eq!(view.min().unwrap_err(), AtlasNdError::EmptyReduction { op: "min" });
+        assert_eq!(view.max().unwrap_err(), AtlasNdError::EmptyReduction { op: "max" });
+        assert_eq!(view.mean().unwrap_err(), AtlasNdError::EmptyReduction { op: "mean" });
     }
 
     #[test]
