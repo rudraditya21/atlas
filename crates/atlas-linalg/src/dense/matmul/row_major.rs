@@ -156,10 +156,21 @@ fn matrix_matrix_blocked<T: Numeric>(lhs: MatrixRef<'_, T>, rhs: MatrixRef<'_, T
             let row_block = block_index * block;
             let row_count = out_block.len() / rhs.cols;
             let row_end = row_block + row_count;
+            let mut lhs_block = Vec::with_capacity(block * block);
             let mut rhs_panel = Vec::with_capacity(block * block);
 
             for k_block in (0..lhs.cols).step_by(block) {
                 let k_end = (k_block + block).min(lhs.cols);
+                let k_width = k_end - k_block;
+                pack_lhs_block(
+                    lhs_values,
+                    lhs.cols,
+                    row_block,
+                    row_end,
+                    k_block,
+                    k_end,
+                    &mut lhs_block,
+                );
 
                 for col_block in (0..rhs.cols).step_by(block) {
                     let col_end = (col_block + block).min(rhs.cols);
@@ -174,15 +185,12 @@ fn matrix_matrix_blocked<T: Numeric>(lhs: MatrixRef<'_, T>, rhs: MatrixRef<'_, T
                         &mut rhs_panel,
                     );
 
-                    for row in row_block..row_end {
-                        let lhs_row = &lhs_values[row * lhs.cols..(row + 1) * lhs.cols];
-                        let local_row = row - row_block;
+                    for local_row in 0..row_count {
+                        let lhs_row = &lhs_block[local_row * k_width..(local_row + 1) * k_width];
                         let out_row = &mut out_block
                             [local_row * rhs.cols + col_block..local_row * rhs.cols + col_end];
 
-                        for (local_k, lhs_value) in
-                            lhs_row[k_block..k_end].iter().copied().enumerate()
-                        {
+                        for (local_k, lhs_value) in lhs_row.iter().copied().enumerate() {
                             let panel_offset = local_k * panel_width;
                             let rhs_row = &rhs_panel[panel_offset..panel_offset + panel_width];
                             simd::scaled_accumulate_contiguous(out_row, rhs_row, lhs_value);
@@ -192,13 +200,25 @@ fn matrix_matrix_blocked<T: Numeric>(lhs: MatrixRef<'_, T>, rhs: MatrixRef<'_, T
             }
         });
     } else {
+        let mut lhs_block = Vec::with_capacity(block * block);
         let mut rhs_panel = Vec::with_capacity(block * block);
 
         for row_block in (0..lhs.rows).step_by(block) {
             let row_end = (row_block + block).min(lhs.rows);
+            let row_count = row_end - row_block;
 
             for k_block in (0..lhs.cols).step_by(block) {
                 let k_end = (k_block + block).min(lhs.cols);
+                let k_width = k_end - k_block;
+                pack_lhs_block(
+                    lhs_values,
+                    lhs.cols,
+                    row_block,
+                    row_end,
+                    k_block,
+                    k_end,
+                    &mut lhs_block,
+                );
 
                 for col_block in (0..rhs.cols).step_by(block) {
                     let col_end = (col_block + block).min(rhs.cols);
@@ -213,14 +233,13 @@ fn matrix_matrix_blocked<T: Numeric>(lhs: MatrixRef<'_, T>, rhs: MatrixRef<'_, T
                         &mut rhs_panel,
                     );
 
-                    for row in row_block..row_end {
-                        let lhs_row = &lhs_values[row * lhs.cols..(row + 1) * lhs.cols];
+                    for local_row in 0..row_count {
+                        let lhs_row = &lhs_block[local_row * k_width..(local_row + 1) * k_width];
+                        let row = row_block + local_row;
                         let out_row =
                             &mut data[row * rhs.cols + col_block..row * rhs.cols + col_end];
 
-                        for (local_k, lhs_value) in
-                            lhs_row[k_block..k_end].iter().copied().enumerate()
-                        {
+                        for (local_k, lhs_value) in lhs_row.iter().copied().enumerate() {
                             let panel_offset = local_k * panel_width;
                             let rhs_row = &rhs_panel[panel_offset..panel_offset + panel_width];
                             simd::scaled_accumulate_contiguous(out_row, rhs_row, lhs_value);
@@ -340,10 +359,21 @@ fn matrix_matrix_blocked_f32<T: Numeric>(
                     let row_block = block_index * block;
                     let row_count = out_block.len() / rhs.cols;
                     let row_end = row_block + row_count;
+                    let mut lhs_block = Vec::with_capacity(block * block);
                     let mut rhs_panel = Vec::with_capacity(block * block);
 
                     for k_block in (0..lhs.cols).step_by(block) {
                         let k_end = (k_block + block).min(lhs.cols);
+                        let k_width = k_end - k_block;
+                        pack_lhs_block(
+                            lhs_values,
+                            lhs.cols,
+                            row_block,
+                            row_end,
+                            k_block,
+                            k_end,
+                            &mut lhs_block,
+                        );
 
                         for col_block in (0..rhs.cols).step_by(block) {
                             let col_end = (col_block + block).min(rhs.cols);
@@ -358,15 +388,13 @@ fn matrix_matrix_blocked_f32<T: Numeric>(
                                 &mut rhs_panel,
                             );
 
-                            for row in row_block..row_end {
-                                let lhs_row = &lhs_values[row * lhs.cols..(row + 1) * lhs.cols];
-                                let local_row = row - row_block;
+                            for local_row in 0..row_count {
+                                let lhs_row =
+                                    &lhs_block[local_row * k_width..(local_row + 1) * k_width];
                                 let out_row = &mut out_block[local_row * rhs.cols + col_block
                                     ..local_row * rhs.cols + col_end];
 
-                                for (local_k, lhs_value) in
-                                    lhs_row[k_block..k_end].iter().copied().enumerate()
-                                {
+                                for (local_k, lhs_value) in lhs_row.iter().copied().enumerate() {
                                     let panel_offset = local_k * panel_width;
                                     let rhs_row =
                                         &rhs_panel[panel_offset..panel_offset + panel_width];
@@ -380,13 +408,25 @@ fn matrix_matrix_blocked_f32<T: Numeric>(
                 },
             );
         } else {
+            let mut lhs_block = Vec::with_capacity(block * block);
             let mut rhs_panel = Vec::with_capacity(block * block);
 
             for row_block in (0..lhs.rows).step_by(block) {
                 let row_end = (row_block + block).min(lhs.rows);
+                let row_count = row_end - row_block;
 
                 for k_block in (0..lhs.cols).step_by(block) {
                     let k_end = (k_block + block).min(lhs.cols);
+                    let k_width = k_end - k_block;
+                    pack_lhs_block(
+                        lhs_values,
+                        lhs.cols,
+                        row_block,
+                        row_end,
+                        k_block,
+                        k_end,
+                        &mut lhs_block,
+                    );
 
                     for col_block in (0..rhs.cols).step_by(block) {
                         let col_end = (col_block + block).min(rhs.cols);
@@ -401,14 +441,14 @@ fn matrix_matrix_blocked_f32<T: Numeric>(
                             &mut rhs_panel,
                         );
 
-                        for row in row_block..row_end {
-                            let lhs_row = &lhs_values[row * lhs.cols..(row + 1) * lhs.cols];
+                        for local_row in 0..row_count {
+                            let lhs_row =
+                                &lhs_block[local_row * k_width..(local_row + 1) * k_width];
+                            let row = row_block + local_row;
                             let out_row =
                                 &mut data_f32[row * rhs.cols + col_block..row * rhs.cols + col_end];
 
-                            for (local_k, lhs_value) in
-                                lhs_row[k_block..k_end].iter().copied().enumerate()
-                            {
+                            for (local_k, lhs_value) in lhs_row.iter().copied().enumerate() {
                                 let panel_offset = local_k * panel_width;
                                 let rhs_row = &rhs_panel[panel_offset..panel_offset + panel_width];
                                 simd::scaled_accumulate_contiguous_f32(out_row, rhs_row, lhs_value);
@@ -442,10 +482,21 @@ fn matrix_matrix_blocked_f64<T: Numeric>(
                     let row_block = block_index * block;
                     let row_count = out_block.len() / rhs.cols;
                     let row_end = row_block + row_count;
+                    let mut lhs_block = Vec::with_capacity(block * block);
                     let mut rhs_panel = Vec::with_capacity(block * block);
 
                     for k_block in (0..lhs.cols).step_by(block) {
                         let k_end = (k_block + block).min(lhs.cols);
+                        let k_width = k_end - k_block;
+                        pack_lhs_block(
+                            lhs_values,
+                            lhs.cols,
+                            row_block,
+                            row_end,
+                            k_block,
+                            k_end,
+                            &mut lhs_block,
+                        );
 
                         for col_block in (0..rhs.cols).step_by(block) {
                             let col_end = (col_block + block).min(rhs.cols);
@@ -460,15 +511,13 @@ fn matrix_matrix_blocked_f64<T: Numeric>(
                                 &mut rhs_panel,
                             );
 
-                            for row in row_block..row_end {
-                                let lhs_row = &lhs_values[row * lhs.cols..(row + 1) * lhs.cols];
-                                let local_row = row - row_block;
+                            for local_row in 0..row_count {
+                                let lhs_row =
+                                    &lhs_block[local_row * k_width..(local_row + 1) * k_width];
                                 let out_row = &mut out_block[local_row * rhs.cols + col_block
                                     ..local_row * rhs.cols + col_end];
 
-                                for (local_k, lhs_value) in
-                                    lhs_row[k_block..k_end].iter().copied().enumerate()
-                                {
+                                for (local_k, lhs_value) in lhs_row.iter().copied().enumerate() {
                                     let panel_offset = local_k * panel_width;
                                     let rhs_row =
                                         &rhs_panel[panel_offset..panel_offset + panel_width];
@@ -482,13 +531,25 @@ fn matrix_matrix_blocked_f64<T: Numeric>(
                 },
             );
         } else {
+            let mut lhs_block = Vec::with_capacity(block * block);
             let mut rhs_panel = Vec::with_capacity(block * block);
 
             for row_block in (0..lhs.rows).step_by(block) {
                 let row_end = (row_block + block).min(lhs.rows);
+                let row_count = row_end - row_block;
 
                 for k_block in (0..lhs.cols).step_by(block) {
                     let k_end = (k_block + block).min(lhs.cols);
+                    let k_width = k_end - k_block;
+                    pack_lhs_block(
+                        lhs_values,
+                        lhs.cols,
+                        row_block,
+                        row_end,
+                        k_block,
+                        k_end,
+                        &mut lhs_block,
+                    );
 
                     for col_block in (0..rhs.cols).step_by(block) {
                         let col_end = (col_block + block).min(rhs.cols);
@@ -503,14 +564,14 @@ fn matrix_matrix_blocked_f64<T: Numeric>(
                             &mut rhs_panel,
                         );
 
-                        for row in row_block..row_end {
-                            let lhs_row = &lhs_values[row * lhs.cols..(row + 1) * lhs.cols];
+                        for local_row in 0..row_count {
+                            let lhs_row =
+                                &lhs_block[local_row * k_width..(local_row + 1) * k_width];
+                            let row = row_block + local_row;
                             let out_row =
                                 &mut data_f64[row * rhs.cols + col_block..row * rhs.cols + col_end];
 
-                            for (local_k, lhs_value) in
-                                lhs_row[k_block..k_end].iter().copied().enumerate()
-                            {
+                            for (local_k, lhs_value) in lhs_row.iter().copied().enumerate() {
                                 let panel_offset = local_k * panel_width;
                                 let rhs_row = &rhs_panel[panel_offset..panel_offset + panel_width];
                                 simd::scaled_accumulate_contiguous_f64(out_row, rhs_row, lhs_value);
@@ -523,6 +584,23 @@ fn matrix_matrix_blocked_f64<T: Numeric>(
     }
 
     data
+}
+
+fn pack_lhs_block<T: Copy>(
+    lhs_values: &[T],
+    lhs_cols: usize,
+    row_block: usize,
+    row_end: usize,
+    k_block: usize,
+    k_end: usize,
+    block: &mut Vec<T>,
+) {
+    block.clear();
+
+    for row in row_block..row_end {
+        let row_start = row * lhs_cols + k_block;
+        block.extend_from_slice(&lhs_values[row_start..row_start + (k_end - k_block)]);
+    }
 }
 
 fn pack_rhs_panel<T: Copy>(
