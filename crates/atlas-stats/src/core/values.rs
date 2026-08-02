@@ -117,7 +117,7 @@ where
     let data = operand.data();
     let base_offset = operand.offset();
 
-    if let Some(values) = dense_slice_by_layout(data, base_offset, shape, strides) {
+    if let Some(values) = operand.dense_slice() {
         for value in values {
             let value = value.to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op })?;
             f(value)?;
@@ -142,17 +142,6 @@ where
                 data[offset].to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op })?;
             f(value)?;
             offset += stride;
-        }
-
-        return Ok(());
-    }
-
-    if is_contiguous(shape, strides) {
-        for index in 0..len {
-            let value = data[base_offset + index]
-                .to_f64()
-                .ok_or(AtlasStatsError::NumericConversionFailed { op })?;
-            f(value)?;
         }
 
         return Ok(());
@@ -231,59 +220,6 @@ fn advance_index(index: &mut [usize], shape: &[usize]) -> bool {
     false
 }
 
-fn is_contiguous(shape: &[usize], strides: &[usize]) -> bool {
-    if shape.is_empty() {
-        return true;
-    }
-
-    let mut expected = 1;
-
-    for axis in (0..shape.len()).rev() {
-        if strides[axis] != expected {
-            return false;
-        }
-
-        expected *= shape[axis];
-    }
-
-    true
-}
-
-fn is_storage_dense(shape: &[usize], strides: &[usize]) -> bool {
-    if shape.is_empty() || shape.iter().product::<usize>() == 0 {
-        return true;
-    }
-
-    let mut axes: Vec<usize> = (0..shape.len()).collect();
-    axes.sort_unstable_by_key(|&axis| strides[axis]);
-
-    let mut expected_stride = 1usize;
-
-    for axis in axes {
-        if strides[axis] != expected_stride {
-            return false;
-        }
-
-        expected_stride = expected_stride.saturating_mul(shape[axis]);
-    }
-
-    true
-}
-
-fn dense_slice_by_layout<'a, T>(
-    data: &'a [T],
-    base_offset: usize,
-    shape: &[usize],
-    strides: &[usize],
-) -> Option<&'a [T]> {
-    if !is_storage_dense(shape, strides) {
-        return None;
-    }
-
-    let len = if shape.is_empty() { 1 } else { shape.iter().product() };
-    Some(&data[base_offset..base_offset + len])
-}
-
 fn try_for_each_f64_f32<T, F>(operand: &StatsOperand<'_, T>, f: &mut F) -> AtlasStatsResult<()>
 where
     T: Numeric,
@@ -299,8 +235,8 @@ where
     let data = cast_slice::<T, f32>(operand.data());
     let base_offset = operand.offset();
 
-    if let Some(values) = dense_slice_by_layout(data, base_offset, shape, strides) {
-        for &value in values {
+    if let Some(values) = operand.dense_slice() {
+        for &value in cast_slice::<T, f32>(values) {
             f(value as f64)?;
         }
 
@@ -319,14 +255,6 @@ where
         for _ in 0..shape[0] {
             f(data[offset] as f64)?;
             offset += stride;
-        }
-
-        return Ok(());
-    }
-
-    if is_contiguous(shape, strides) {
-        for &value in &data[base_offset..base_offset + len] {
-            f(value as f64)?;
         }
 
         return Ok(());
@@ -366,8 +294,8 @@ where
     let data = cast_slice::<T, f64>(operand.data());
     let base_offset = operand.offset();
 
-    if let Some(values) = dense_slice_by_layout(data, base_offset, shape, strides) {
-        for &value in values {
+    if let Some(values) = operand.dense_slice() {
+        for &value in cast_slice::<T, f64>(values) {
             f(value)?;
         }
 
@@ -386,14 +314,6 @@ where
         for _ in 0..shape[0] {
             f(data[offset])?;
             offset += stride;
-        }
-
-        return Ok(());
-    }
-
-    if is_contiguous(shape, strides) {
-        for &value in &data[base_offset..base_offset + len] {
-            f(value)?;
         }
 
         return Ok(());

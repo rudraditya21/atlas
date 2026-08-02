@@ -62,4 +62,11 @@ impl<'a, T: Numeric> StatsOperand<'a, T> {
     pub(crate) fn len(&self) -> AtlasStatsResult<usize> {
         Ok(checked_element_count(self.shape())?)
     }
+
+    pub(crate) fn dense_slice(&self) -> Option<&[T]> {
+        match self {
+            Self::Array(array) => Some(array.data()),
+            Self::View(view) => view.dense_slice(),
+        }
+    }
 }

@@ -99,7 +99,7 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
         is_storage_dense_layout(&self.shape, &self.strides)
     }
 
-    pub(crate) fn dense_slice(&self) -> Option<&'a [T]> {
+    pub fn dense_slice(&self) -> Option<&'a [T]> {
         dense_storage_slice(self.data, self.offset, &self.shape, &self.strides)
     }
 
