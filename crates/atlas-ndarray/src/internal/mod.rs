@@ -1,3 +1,4 @@
+pub(crate) mod layout;
 pub(crate) mod shape;
 pub(crate) mod simd;
 
@@ -5,73 +6,10 @@ use std::slice::Iter;
 
 use crate::{AtlasNdError, AtlasNdResult};
 
-use self::shape::{checked_compute_strides, checked_element_count, compute_strides, element_count};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum LayoutKind {
-    Contiguous,
-    Strided,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PairLayoutKind {
-    Contiguous,
-    Broadcast,
-    Strided,
-}
-
-pub(crate) fn is_contiguous_layout(shape: &[usize], strides: &[usize]) -> bool {
-    debug_assert_eq!(shape.len(), strides.len());
-    strides == compute_strides(shape)
-}
-
-pub(crate) fn is_storage_dense_layout(shape: &[usize], strides: &[usize]) -> bool {
-    debug_assert_eq!(shape.len(), strides.len());
-
-    if shape.is_empty() || element_count(shape) == 0 {
-        return true;
-    }
-
-    let mut axes: Vec<usize> = (0..shape.len()).collect();
-    axes.sort_unstable_by_key(|&axis| strides[axis]);
-
-    let mut expected_stride = 1usize;
-
-    for axis in axes {
-        if strides[axis] != expected_stride {
-            return false;
-        }
-
-        expected_stride = expected_stride.saturating_mul(shape[axis]);
-    }
-
-    true
-}
-
-pub(crate) fn layout_kind(shape: &[usize], strides: &[usize]) -> LayoutKind {
-    if is_contiguous_layout(shape, strides) { LayoutKind::Contiguous } else { LayoutKind::Strided }
-}
-
-pub(crate) fn pair_layout_kind(
-    shape: &[usize],
-    lhs_strides: &[usize],
-    rhs_strides: &[usize],
-) -> PairLayoutKind {
-    debug_assert_eq!(shape.len(), lhs_strides.len());
-    debug_assert_eq!(shape.len(), rhs_strides.len());
-
-    if layout_kind(shape, lhs_strides) == LayoutKind::Contiguous
-        && layout_kind(shape, rhs_strides) == LayoutKind::Contiguous
-    {
-        return PairLayoutKind::Contiguous;
-    }
-
-    if lhs_strides.contains(&0) || rhs_strides.contains(&0) {
-        return PairLayoutKind::Broadcast;
-    }
-
-    PairLayoutKind::Strided
-}
+use self::layout::{
+    LayoutKind, PairLayoutKind, is_contiguous_layout, layout_kind, pair_layout_kind,
+};
+use self::shape::{checked_compute_strides, checked_element_count, element_count};
 
 pub(crate) fn validate_owned_array_invariants(
     data_len: usize,
@@ -596,8 +534,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::{
-        LayoutKind, PairLayoutKind, is_storage_dense_layout, lane_value_iter, layout_kind,
-        offset_iter, offset_pair_iter, pair_layout_kind, validate_owned_array_invariants,
+        lane_value_iter, offset_iter, offset_pair_iter, validate_owned_array_invariants,
         validate_view_invariants, value_iter,
     };
     use crate::AtlasNdError;
@@ -660,31 +597,6 @@ mod tests {
         let offsets: Vec<_> = offset_iter(0, &[3, 2], &[1, 3]).collect();
 
         assert_eq!(offsets, vec![0, 3, 1, 4, 2, 5]);
-    }
-
-    #[test]
-    fn layout_kind_classifies_row_major_and_strided_layouts() {
-        assert_eq!(layout_kind(&[2, 3], &[3, 1]), LayoutKind::Contiguous);
-        assert_eq!(layout_kind(&[2, 3], &[1, 2]), LayoutKind::Strided);
-    }
-
-    #[test]
-    fn pair_layout_kind_distinguishes_contiguous_broadcast_and_strided_cases() {
-        assert_eq!(pair_layout_kind(&[2, 3], &[3, 1], &[3, 1]), PairLayoutKind::Contiguous);
-        assert_eq!(pair_layout_kind(&[2, 3], &[3, 1], &[0, 1]), PairLayoutKind::Broadcast);
-        assert_eq!(pair_layout_kind(&[2, 3], &[1, 2], &[3, 1]), PairLayoutKind::Strided);
-    }
-
-    #[test]
-    fn storage_dense_layout_accepts_transposed_dense_views() {
-        assert!(is_storage_dense_layout(&[3, 2], &[1, 3]));
-        assert!(is_storage_dense_layout(&[2, 3, 4], &[12, 1, 3]));
-    }
-
-    #[test]
-    fn storage_dense_layout_rejects_gapped_slices() {
-        assert!(!is_storage_dense_layout(&[2, 2], &[3, 1]));
-        assert!(!is_storage_dense_layout(&[3], &[2]));
     }
 
     #[test]

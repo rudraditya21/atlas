@@ -1,7 +1,7 @@
 use super::traits::Numeric;
 use crate::{
     AtlasNdResult,
-    internal::{shape::compute_strides, validate_owned_array_invariants},
+    internal::{layout::is_contiguous_layout, validate_owned_array_invariants},
 };
 
 #[derive(Clone, Debug)]
@@ -37,8 +37,7 @@ impl<T: Numeric> NDArray<T> {
     }
 
     pub fn is_contiguous(&self) -> bool {
-        debug_assert_eq!(self.shape.len(), self.strides.len());
-        self.strides == compute_strides(&self.shape)
+        is_contiguous_layout(&self.shape, &self.strides)
     }
 
     pub(crate) fn validate_invariants(&self) -> AtlasNdResult<()> {

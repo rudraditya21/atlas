@@ -3,8 +3,11 @@ use std::ops::{Add, Div, Mul, Sub};
 use crate::{
     AtlasNdResult, NDArray, Numeric,
     internal::{
-        PairLayoutKind, broadcast_offset_pair_iter, offset_pair_iter, pair_layout_kind,
-        shape::compute_strides, simd,
+        broadcast_offset_pair_iter,
+        layout::{PairLayoutKind, pair_layout_kind},
+        offset_pair_iter,
+        shape::compute_strides,
+        simd,
     },
     layout::broadcast::{BroadcastMetadata, broadcast_pair},
 };

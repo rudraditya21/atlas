@@ -5,8 +5,9 @@ use crate::{
     AtlasNdError, AtlasNdResult, AxisIndex, NDArray, Numeric,
     core::axis::normalize_axis,
     internal::{
-        LayoutKind, for_each_value, is_contiguous_layout, is_storage_dense_layout, offset_iter,
-        simd, try_for_each_value,
+        for_each_value,
+        layout::{LayoutKind, dense_storage_slice, is_contiguous_layout},
+        offset_iter, simd, try_for_each_value,
     },
     layout::element_count,
     view::ArrayView,
@@ -1586,23 +1587,6 @@ fn mean_all_f64(
     Ok(total / len as f64)
 }
 
-fn dense_storage_slice<'a, T>(
-    data: &'a [T],
-    offset: usize,
-    shape: &[usize],
-    strides: &[usize],
-) -> Option<&'a [T]> {
-    if !is_storage_dense_layout(shape, strides) {
-        return None;
-    }
-
-    let len = element_count(shape);
-    if len == 0 {
-        return Some(&data[offset..offset]);
-    }
-
-    Some(&data[offset..offset + len])
-}
 #[cfg(test)]
 mod tests {
     use crate::{AtlasNdError, NDArray};
