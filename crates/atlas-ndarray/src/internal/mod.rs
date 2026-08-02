@@ -5,8 +5,8 @@ pub(crate) mod traversal;
 
 use self::shape::{checked_compute_strides, checked_element_count};
 pub(crate) use self::traversal::{
-    OffsetIter, OffsetPairIter, ValueIter, broadcast_offset_pair_iter, for_each_value, offset_iter,
-    offset_pair_iter, try_for_each_value, value_iter,
+    ValueIter, broadcast_offset_pair_iter, for_each_value, offset_iter, offset_pair_iter,
+    try_for_each_value, value_iter,
 };
 use crate::{AtlasNdError, AtlasNdResult};
 

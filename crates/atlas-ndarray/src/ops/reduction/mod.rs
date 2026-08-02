@@ -5,7 +5,7 @@ mod whole;
 
 use num_traits::ToPrimitive;
 
-use crate::{AtlasNdResult, AxisIndex, NDArray, Numeric, view::ArrayView};
+use crate::{AtlasNdResult, AxisIndex, NDArray, Numeric, OperandMetadata, view::ArrayView};
 
 use self::{
     axis::{max_axis_impl, mean_axis_impl, min_axis_impl, prod_axis_impl, sum_axis_impl},
@@ -14,122 +14,207 @@ use self::{
 
 impl<T: Numeric> NDArray<T> {
     pub fn sum(&self) -> T {
-        sum_all(&self.data, 0, &self.shape, &self.strides)
+        sum_operand(self)
     }
 
     pub fn prod(&self) -> T {
-        prod_all(&self.data, 0, &self.shape, &self.strides)
+        prod_operand(self)
     }
 
     pub fn min(&self) -> AtlasNdResult<T>
     where
         T: PartialOrd,
     {
-        min_all(&self.data, 0, &self.shape, &self.strides)
+        min_operand(self)
     }
 
     pub fn max(&self) -> AtlasNdResult<T>
     where
         T: PartialOrd,
     {
-        max_all(&self.data, 0, &self.shape, &self.strides)
+        max_operand(self)
     }
 
     pub fn mean(&self) -> AtlasNdResult<f64>
     where
         T: ToPrimitive,
     {
-        mean_all(&self.data, 0, &self.shape, &self.strides)
+        mean_operand(self)
     }
 
     pub fn sum_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self> {
-        sum_axis_impl(&self.data, 0, &self.shape, &self.strides, axis)
+        sum_axis_operand(self, axis)
     }
 
     pub fn prod_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self> {
-        prod_axis_impl(&self.data, 0, &self.shape, &self.strides, axis)
+        prod_axis_operand(self, axis)
     }
 
     pub fn min_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self>
     where
         T: PartialOrd,
     {
-        min_axis_impl(&self.data, 0, &self.shape, &self.strides, axis)
+        min_axis_operand(self, axis)
     }
 
     pub fn max_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self>
     where
         T: PartialOrd,
     {
-        max_axis_impl(&self.data, 0, &self.shape, &self.strides, axis)
+        max_axis_operand(self, axis)
     }
 
     pub fn mean_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<f64>>
     where
         T: ToPrimitive,
     {
-        mean_axis_impl(&self.data, 0, &self.shape, &self.strides, axis)
+        mean_axis_operand(self, axis)
     }
 }
 
 impl<'a, T: Numeric> ArrayView<'a, T> {
     pub fn sum(&self) -> T {
-        sum_all(self.data, self.offset, &self.shape, &self.strides)
+        sum_operand(self)
     }
 
     pub fn prod(&self) -> T {
-        prod_all(self.data, self.offset, &self.shape, &self.strides)
+        prod_operand(self)
     }
 
     pub fn min(&self) -> AtlasNdResult<T>
     where
         T: PartialOrd,
     {
-        min_all(self.data, self.offset, &self.shape, &self.strides)
+        min_operand(self)
     }
 
     pub fn max(&self) -> AtlasNdResult<T>
     where
         T: PartialOrd,
     {
-        max_all(self.data, self.offset, &self.shape, &self.strides)
+        max_operand(self)
     }
 
     pub fn mean(&self) -> AtlasNdResult<f64>
     where
         T: ToPrimitive,
     {
-        mean_all(self.data, self.offset, &self.shape, &self.strides)
+        mean_operand(self)
     }
 
     pub fn sum_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>> {
-        sum_axis_impl(self.data, self.offset, &self.shape, &self.strides, axis)
+        sum_axis_operand(self, axis)
     }
 
     pub fn prod_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>> {
-        prod_axis_impl(self.data, self.offset, &self.shape, &self.strides, axis)
+        prod_axis_operand(self, axis)
     }
 
     pub fn min_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>>
     where
         T: PartialOrd,
     {
-        min_axis_impl(self.data, self.offset, &self.shape, &self.strides, axis)
+        min_axis_operand(self, axis)
     }
 
     pub fn max_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>>
     where
         T: PartialOrd,
     {
-        max_axis_impl(self.data, self.offset, &self.shape, &self.strides, axis)
+        max_axis_operand(self, axis)
     }
 
     pub fn mean_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<f64>>
     where
         T: ToPrimitive,
     {
-        mean_axis_impl(self.data, self.offset, &self.shape, &self.strides, axis)
+        mean_axis_operand(self, axis)
     }
+}
+
+fn sum_operand<T, O>(operand: &O) -> T
+where
+    T: Numeric,
+    O: OperandMetadata<T> + ?Sized,
+{
+    sum_all(operand.data(), operand.offset(), operand.shape(), operand.strides())
+}
+
+fn prod_operand<T, O>(operand: &O) -> T
+where
+    T: Numeric,
+    O: OperandMetadata<T> + ?Sized,
+{
+    prod_all(operand.data(), operand.offset(), operand.shape(), operand.strides())
+}
+
+fn min_operand<T, O>(operand: &O) -> AtlasNdResult<T>
+where
+    T: Numeric + PartialOrd,
+    O: OperandMetadata<T> + ?Sized,
+{
+    min_all(operand.data(), operand.offset(), operand.shape(), operand.strides())
+}
+
+fn max_operand<T, O>(operand: &O) -> AtlasNdResult<T>
+where
+    T: Numeric + PartialOrd,
+    O: OperandMetadata<T> + ?Sized,
+{
+    max_all(operand.data(), operand.offset(), operand.shape(), operand.strides())
+}
+
+fn mean_operand<T, O>(operand: &O) -> AtlasNdResult<f64>
+where
+    T: Numeric + ToPrimitive,
+    O: OperandMetadata<T> + ?Sized,
+{
+    mean_all(operand.data(), operand.offset(), operand.shape(), operand.strides())
+}
+
+fn sum_axis_operand<T, O, A>(operand: &O, axis: A) -> AtlasNdResult<NDArray<T>>
+where
+    T: Numeric,
+    O: OperandMetadata<T> + ?Sized,
+    A: AxisIndex,
+{
+    sum_axis_impl(operand.data(), operand.offset(), operand.shape(), operand.strides(), axis)
+}
+
+fn prod_axis_operand<T, O, A>(operand: &O, axis: A) -> AtlasNdResult<NDArray<T>>
+where
+    T: Numeric,
+    O: OperandMetadata<T> + ?Sized,
+    A: AxisIndex,
+{
+    prod_axis_impl(operand.data(), operand.offset(), operand.shape(), operand.strides(), axis)
+}
+
+fn min_axis_operand<T, O, A>(operand: &O, axis: A) -> AtlasNdResult<NDArray<T>>
+where
+    T: Numeric + PartialOrd,
+    O: OperandMetadata<T> + ?Sized,
+    A: AxisIndex,
+{
+    min_axis_impl(operand.data(), operand.offset(), operand.shape(), operand.strides(), axis)
+}
+
+fn max_axis_operand<T, O, A>(operand: &O, axis: A) -> AtlasNdResult<NDArray<T>>
+where
+    T: Numeric + PartialOrd,
+    O: OperandMetadata<T> + ?Sized,
+    A: AxisIndex,
+{
+    max_axis_impl(operand.data(), operand.offset(), operand.shape(), operand.strides(), axis)
+}
+
+fn mean_axis_operand<T, O, A>(operand: &O, axis: A) -> AtlasNdResult<NDArray<f64>>
+where
+    T: Numeric + ToPrimitive,
+    O: OperandMetadata<T> + ?Sized,
+    A: AxisIndex,
+{
+    mean_axis_impl(operand.data(), operand.offset(), operand.shape(), operand.strides(), axis)
 }
 
 #[cfg(test)]

@@ -1,26 +1,17 @@
 mod broadcast;
 mod contiguous;
+mod dispatch;
 mod scalar;
 mod strided;
 
 use std::ops::{Add, Div, Mul, Sub};
 
-use crate::{
-    AtlasNdResult, NDArray, Numeric,
-    internal::{
-        layout::{PairLayoutKind, pair_layout_kind},
-        shape::compute_strides,
-    },
-    layout::broadcast::broadcast_pair,
-};
+use crate::{AtlasNdResult, NDArray, Numeric, internal::shape::compute_strides};
 
 use self::{
-    broadcast::elementwise_binary_broadcast,
-    contiguous::{
-        elementwise_add_contiguous, elementwise_binary_contiguous, elementwise_mul_contiguous,
-    },
+    contiguous::{elementwise_add_contiguous, elementwise_mul_contiguous},
+    dispatch::{dispatch_elementwise_binary, dispatch_elementwise_binary_with_contiguous},
     scalar::{add_scalar, elementwise_scalar, mul_scalar},
-    strided::elementwise_binary_strided,
 };
 
 pub trait AddOperand<T: Numeric> {
@@ -92,52 +83,22 @@ impl<T: Numeric> NDArray<T> {
         elementwise_scalar(self, scalar, |value, scalar| value / scalar)
     }
 
-    fn elementwise_binary<F>(&self, rhs: &Self, op: F) -> AtlasNdResult<Self>
-    where
-        F: Fn(T, T) -> T + Copy,
-    {
-        let metadata = broadcast_pair(&self.shape, &self.strides, &rhs.shape, &rhs.strides)?;
-        let layout_kind =
-            pair_layout_kind(&metadata.shape, &metadata.lhs_strides, &metadata.rhs_strides);
-
-        match layout_kind {
-            PairLayoutKind::Contiguous => Ok(elementwise_binary_contiguous(self, rhs, op)),
-            PairLayoutKind::Broadcast => Ok(elementwise_binary_broadcast(self, rhs, metadata, op)),
-            PairLayoutKind::Strided => Ok(elementwise_binary_strided(self, rhs, metadata, op)),
-        }
-    }
-
     fn add_array(&self, rhs: &Self) -> AtlasNdResult<Self> {
-        self.elementwise_binary_with_contiguous(rhs, elementwise_add_contiguous, |lhs, rhs| {
-            lhs + rhs
-        })
+        dispatch_elementwise_binary_with_contiguous(
+            self,
+            rhs,
+            elementwise_add_contiguous,
+            |lhs, rhs| lhs + rhs,
+        )
     }
 
     fn mul_array(&self, rhs: &Self) -> AtlasNdResult<Self> {
-        self.elementwise_binary_with_contiguous(rhs, elementwise_mul_contiguous, |lhs, rhs| {
-            lhs * rhs
-        })
-    }
-
-    fn elementwise_binary_with_contiguous<F, C>(
-        &self,
-        rhs: &Self,
-        contiguous_op: C,
-        op: F,
-    ) -> AtlasNdResult<Self>
-    where
-        F: Fn(T, T) -> T + Copy,
-        C: Fn(&Self, &Self) -> Self,
-    {
-        let metadata = broadcast_pair(&self.shape, &self.strides, &rhs.shape, &rhs.strides)?;
-        let layout_kind =
-            pair_layout_kind(&metadata.shape, &metadata.lhs_strides, &metadata.rhs_strides);
-
-        match layout_kind {
-            PairLayoutKind::Contiguous => Ok(contiguous_op(self, rhs)),
-            PairLayoutKind::Broadcast => Ok(elementwise_binary_broadcast(self, rhs, metadata, op)),
-            PairLayoutKind::Strided => Ok(elementwise_binary_strided(self, rhs, metadata, op)),
-        }
+        dispatch_elementwise_binary_with_contiguous(
+            self,
+            rhs,
+            elementwise_mul_contiguous,
+            |lhs, rhs| lhs * rhs,
+        )
     }
 }
 
@@ -165,7 +126,7 @@ impl<T: Numeric> SubOperand<T> for &NDArray<T> {
     type Output = AtlasNdResult<NDArray<T>>;
 
     fn sub_from(self, lhs: &NDArray<T>) -> Self::Output {
-        lhs.elementwise_binary(self, |lhs, rhs| lhs - rhs)
+        dispatch_elementwise_binary(lhs, self, |lhs, rhs| lhs - rhs)
     }
 }
 
@@ -197,7 +158,7 @@ impl<T: Numeric> DivOperand<T> for &NDArray<T> {
     type Output = AtlasNdResult<NDArray<T>>;
 
     fn div_into(self, lhs: &NDArray<T>) -> Self::Output {
-        lhs.elementwise_binary(self, |lhs, rhs| lhs / rhs)
+        dispatch_elementwise_binary(lhs, self, |lhs, rhs| lhs / rhs)
     }
 }
 
