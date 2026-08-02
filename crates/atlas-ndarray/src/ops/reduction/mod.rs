@@ -1,0 +1,341 @@
+mod axis;
+mod dispatch;
+mod mean;
+mod whole;
+
+use num_traits::ToPrimitive;
+
+use crate::{AtlasNdResult, AxisIndex, NDArray, Numeric, view::ArrayView};
+
+use self::{
+    axis::{max_axis_impl, mean_axis_impl, min_axis_impl, prod_axis_impl, sum_axis_impl},
+    whole::{max_all, mean_all, min_all, prod_all, sum_all},
+};
+
+impl<T: Numeric> NDArray<T> {
+    pub fn sum(&self) -> T {
+        sum_all(&self.data, 0, &self.shape, &self.strides)
+    }
+
+    pub fn prod(&self) -> T {
+        prod_all(&self.data, 0, &self.shape, &self.strides)
+    }
+
+    pub fn min(&self) -> AtlasNdResult<T>
+    where
+        T: PartialOrd,
+    {
+        min_all(&self.data, 0, &self.shape, &self.strides)
+    }
+
+    pub fn max(&self) -> AtlasNdResult<T>
+    where
+        T: PartialOrd,
+    {
+        max_all(&self.data, 0, &self.shape, &self.strides)
+    }
+
+    pub fn mean(&self) -> AtlasNdResult<f64>
+    where
+        T: ToPrimitive,
+    {
+        mean_all(&self.data, 0, &self.shape, &self.strides)
+    }
+
+    pub fn sum_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self> {
+        sum_axis_impl(&self.data, 0, &self.shape, &self.strides, axis)
+    }
+
+    pub fn prod_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self> {
+        prod_axis_impl(&self.data, 0, &self.shape, &self.strides, axis)
+    }
+
+    pub fn min_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self>
+    where
+        T: PartialOrd,
+    {
+        min_axis_impl(&self.data, 0, &self.shape, &self.strides, axis)
+    }
+
+    pub fn max_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self>
+    where
+        T: PartialOrd,
+    {
+        max_axis_impl(&self.data, 0, &self.shape, &self.strides, axis)
+    }
+
+    pub fn mean_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<f64>>
+    where
+        T: ToPrimitive,
+    {
+        mean_axis_impl(&self.data, 0, &self.shape, &self.strides, axis)
+    }
+}
+
+impl<'a, T: Numeric> ArrayView<'a, T> {
+    pub fn sum(&self) -> T {
+        sum_all(self.data, self.offset, &self.shape, &self.strides)
+    }
+
+    pub fn prod(&self) -> T {
+        prod_all(self.data, self.offset, &self.shape, &self.strides)
+    }
+
+    pub fn min(&self) -> AtlasNdResult<T>
+    where
+        T: PartialOrd,
+    {
+        min_all(self.data, self.offset, &self.shape, &self.strides)
+    }
+
+    pub fn max(&self) -> AtlasNdResult<T>
+    where
+        T: PartialOrd,
+    {
+        max_all(self.data, self.offset, &self.shape, &self.strides)
+    }
+
+    pub fn mean(&self) -> AtlasNdResult<f64>
+    where
+        T: ToPrimitive,
+    {
+        mean_all(self.data, self.offset, &self.shape, &self.strides)
+    }
+
+    pub fn sum_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>> {
+        sum_axis_impl(self.data, self.offset, &self.shape, &self.strides, axis)
+    }
+
+    pub fn prod_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>> {
+        prod_axis_impl(self.data, self.offset, &self.shape, &self.strides, axis)
+    }
+
+    pub fn min_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>>
+    where
+        T: PartialOrd,
+    {
+        min_axis_impl(self.data, self.offset, &self.shape, &self.strides, axis)
+    }
+
+    pub fn max_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>>
+    where
+        T: PartialOrd,
+    {
+        max_axis_impl(self.data, self.offset, &self.shape, &self.strides, axis)
+    }
+
+    pub fn mean_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<f64>>
+    where
+        T: ToPrimitive,
+    {
+        mean_axis_impl(self.data, self.offset, &self.shape, &self.strides, axis)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{AtlasNdError, NDArray};
+
+    #[test]
+    fn whole_array_reductions_work_for_contiguous_arrays() {
+        let array = NDArray::from_vec(vec![2, 2], vec![1_i32, 2, 3, 4]).unwrap();
+
+        assert_eq!(array.sum(), 10);
+        assert_eq!(array.prod(), 24);
+        assert_eq!(array.min().unwrap(), 1);
+        assert_eq!(array.max().unwrap(), 4);
+        assert_eq!(array.mean().unwrap(), 2.5);
+    }
+
+    #[test]
+    fn whole_array_reductions_work_for_scalar_arrays() {
+        let array = NDArray::from_shape_vec([], vec![7_i32]).unwrap();
+
+        assert_eq!(array.sum(), 7);
+        assert_eq!(array.prod(), 7);
+        assert_eq!(array.min().unwrap(), 7);
+        assert_eq!(array.max().unwrap(), 7);
+        assert_eq!(array.mean().unwrap(), 7.0);
+    }
+
+    #[test]
+    fn whole_array_reductions_work_for_non_contiguous_views() {
+        let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+        let view = array.view().slice([0, 1], vec![2, 2]).unwrap();
+
+        assert_eq!(view.sum(), 12);
+        assert_eq!(view.prod(), 40);
+        assert_eq!(view.min().unwrap(), 1);
+        assert_eq!(view.max().unwrap(), 5);
+        assert_eq!(view.mean().unwrap(), 3.0);
+    }
+
+    #[test]
+    fn whole_array_reductions_work_for_empty_dense_views() {
+        let array = NDArray::from_vec([2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+        let view = array.view().slice([1, 3], [1, 0]).unwrap();
+
+        assert_eq!(view.sum(), 0);
+        assert_eq!(view.prod(), 1);
+        assert_eq!(view.min().unwrap_err(), AtlasNdError::EmptyReduction { op: "min" });
+        assert_eq!(view.max().unwrap_err(), AtlasNdError::EmptyReduction { op: "max" });
+        assert_eq!(view.mean().unwrap_err(), AtlasNdError::EmptyReduction { op: "mean" });
+    }
+
+    #[test]
+    fn whole_array_reduction_entry_points_use_logical_empty_semantics_for_mixed_empty_views() {
+        let array = NDArray::<i32>::new([2, 0, 3], 1);
+        let view = array.view().transpose();
+
+        assert_eq!(view.sum(), 0);
+        assert_eq!(view.prod(), 1);
+        assert_eq!(view.min().unwrap_err(), AtlasNdError::EmptyReduction { op: "min" });
+        assert_eq!(view.max().unwrap_err(), AtlasNdError::EmptyReduction { op: "max" });
+        assert_eq!(view.mean().unwrap_err(), AtlasNdError::EmptyReduction { op: "mean" });
+    }
+
+    #[test]
+    fn sum_and_prod_use_identity_for_empty_arrays() {
+        let array = NDArray::<i32>::new(vec![0, 3], 7);
+
+        assert_eq!(array.sum(), 0);
+        assert_eq!(array.prod(), 1);
+    }
+
+    #[test]
+    fn min_max_and_mean_reject_empty_arrays() {
+        let array = NDArray::<i32>::new(vec![0, 3], 7);
+
+        assert_eq!(array.min().unwrap_err(), AtlasNdError::EmptyReduction { op: "min" });
+        assert_eq!(array.max().unwrap_err(), AtlasNdError::EmptyReduction { op: "max" });
+        assert_eq!(array.mean().unwrap_err(), AtlasNdError::EmptyReduction { op: "mean" });
+    }
+
+    #[test]
+    fn axis_reductions_work_for_contiguous_arrays() {
+        let array = NDArray::from_vec(vec![2, 3], vec![1_i32, 2, 3, 4, 5, 6]).unwrap();
+
+        assert_eq!(array.sum_axis(0).unwrap().data(), &[5, 7, 9]);
+        assert_eq!(array.sum_axis(1).unwrap().data(), &[6, 15]);
+        assert_eq!(array.prod_axis(0).unwrap().data(), &[4, 10, 18]);
+        assert_eq!(array.prod_axis(1).unwrap().data(), &[6, 120]);
+        assert_eq!(array.min_axis(0).unwrap().data(), &[1, 2, 3]);
+        assert_eq!(array.min_axis(1).unwrap().data(), &[1, 4]);
+        assert_eq!(array.max_axis(1).unwrap().data(), &[3, 6]);
+        assert_eq!(array.max_axis(0).unwrap().data(), &[4, 5, 6]);
+        assert_eq!(array.mean_axis(0).unwrap().data(), &[2.5, 3.5, 4.5]);
+        assert_eq!(array.mean_axis(1).unwrap().data(), &[2.0, 5.0]);
+    }
+
+    #[test]
+    fn axis_reductions_work_for_strided_views() {
+        let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+        let view = array.view().transpose();
+
+        assert_eq!(view.sum_axis(-2).unwrap().data(), &[3, 12]);
+        assert_eq!(view.sum_axis(-1).unwrap().data(), &[3, 5, 7]);
+        assert_eq!(view.prod_axis(-2).unwrap().data(), &[0, 60]);
+        assert_eq!(view.min_axis(-1).unwrap().data(), &[0, 1, 2]);
+        assert_eq!(view.max_axis(-2).unwrap().data(), &[2, 5]);
+        assert_eq!(view.mean_axis(-1).unwrap().data(), &[1.5, 2.5, 3.5]);
+    }
+
+    #[test]
+    fn axis_reductions_validate_axis_bounds() {
+        let array = NDArray::new(vec![2, 3], 1_i32);
+
+        assert_eq!(array.sum_axis(2).unwrap_err(), AtlasNdError::InvalidAxis { axis: 2, ndim: 2 });
+        assert_eq!(
+            array.sum_axis(-3).unwrap_err(),
+            AtlasNdError::InvalidAxis { axis: -3, ndim: 2 }
+        );
+        assert_eq!(array.mean_axis(2).unwrap_err(), AtlasNdError::InvalidAxis { axis: 2, ndim: 2 });
+        assert_eq!(
+            array.max_axis(-3).unwrap_err(),
+            AtlasNdError::InvalidAxis { axis: -3, ndim: 2 }
+        );
+    }
+
+    #[test]
+    fn axis_reductions_handle_empty_axes_consistently() {
+        let array = NDArray::<i32>::new(vec![0, 3], 1);
+
+        assert_eq!(array.sum_axis(0).unwrap().shape(), &[3]);
+        assert_eq!(array.sum_axis(0).unwrap().data(), &[0, 0, 0]);
+        assert_eq!(array.prod_axis(0).unwrap().data(), &[1, 1, 1]);
+        assert_eq!(array.min_axis(0).unwrap_err(), AtlasNdError::EmptyReduction { op: "min" });
+        assert_eq!(array.max_axis(0).unwrap_err(), AtlasNdError::EmptyReduction { op: "max" });
+        assert_eq!(array.mean_axis(0).unwrap_err(), AtlasNdError::EmptyReduction { op: "mean" });
+    }
+
+    #[test]
+    fn axis_reductions_preserve_zero_length_output_shapes_when_lanes_are_empty() {
+        let array = NDArray::<i32>::new(vec![2, 0, 3], 1);
+
+        assert_eq!(array.sum_axis(0).unwrap().shape(), &[0, 3]);
+        assert!(array.sum_axis(0).unwrap().data().is_empty());
+        assert_eq!(array.prod_axis(2).unwrap().shape(), &[2, 0]);
+        assert!(array.prod_axis(2).unwrap().data().is_empty());
+        assert_eq!(array.min_axis(2).unwrap().shape(), &[2, 0]);
+        assert!(array.min_axis(2).unwrap().data().is_empty());
+        assert_eq!(array.max_axis(0).unwrap().shape(), &[0, 3]);
+        assert!(array.max_axis(0).unwrap().data().is_empty());
+        assert_eq!(array.mean_axis(2).unwrap().shape(), &[2, 0]);
+        assert!(array.mean_axis(2).unwrap().data().is_empty());
+    }
+
+    #[test]
+    fn axis_reductions_return_scalar_outputs_for_one_dimensional_inputs() {
+        let array = NDArray::from_shape_vec([4], vec![1_i32, 2, 3, 4]).unwrap();
+
+        assert_eq!(array.sum_axis(-1).unwrap().shape(), &[] as &[usize]);
+        assert_eq!(array.sum_axis(-1).unwrap().data(), &[10]);
+        assert_eq!(array.prod_axis(-1).unwrap().data(), &[24]);
+        assert_eq!(array.min_axis(-1).unwrap().data(), &[1]);
+        assert_eq!(array.max_axis(-1).unwrap().data(), &[4]);
+        assert_eq!(array.mean_axis(-1).unwrap().data(), &[2.5]);
+    }
+
+    #[test]
+    fn whole_array_reductions_remain_correct_for_parallel_sized_inputs() {
+        let values = vec![2_i32; super::dispatch::PARALLEL_REDUCTION_THRESHOLD];
+        let array =
+            NDArray::from_shape_vec([super::dispatch::PARALLEL_REDUCTION_THRESHOLD], values)
+                .unwrap();
+
+        assert_eq!(array.sum(), (super::dispatch::PARALLEL_REDUCTION_THRESHOLD as i32) * 2);
+        assert_eq!(array.min().unwrap(), 2);
+        assert_eq!(array.max().unwrap(), 2);
+        assert_eq!(array.mean().unwrap(), 2.0);
+    }
+
+    #[test]
+    fn axis_reductions_remain_correct_for_parallel_sized_inputs() {
+        let rows = 512;
+        let cols = super::dispatch::PARALLEL_REDUCTION_THRESHOLD / rows;
+        let array = NDArray::from_shape_vec([rows, cols], vec![1.0_f64; rows * cols]).unwrap();
+
+        let sum_axis_zero = array.sum_axis(0).unwrap();
+        let mean_axis_one = array.mean_axis(1).unwrap();
+
+        assert_eq!(sum_axis_zero.shape(), &[cols]);
+        assert!(sum_axis_zero.data().iter().all(|value| *value == rows as f64));
+        assert_eq!(mean_axis_one.shape(), &[rows]);
+        assert!(mean_axis_one.data().iter().all(|value| *value == 1.0));
+    }
+
+    #[test]
+    fn reduction_dispatch_stays_serial_for_small_and_medium_inputs() {
+        assert!(!super::dispatch::should_parallelize_reduction_for_threads(1 << 18, 8));
+        assert!(!super::dispatch::should_parallelize_reduction_for_threads((1 << 20) - 1, 8));
+        assert!(!super::dispatch::should_parallelize_reduction_for_threads(1 << 20, 1));
+    }
+
+    #[test]
+    fn reduction_dispatch_requires_enough_chunks_per_thread() {
+        let work_items = super::dispatch::PARALLEL_REDUCTION_THRESHOLD;
+
+        assert!(super::dispatch::should_parallelize_reduction_for_threads(work_items, 4));
+        assert!(!super::dispatch::should_parallelize_reduction_for_threads(work_items, 33));
+    }
+}
