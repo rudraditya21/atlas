@@ -1,5 +1,8 @@
 use super::traits::Numeric;
-use crate::{AtlasNdResult, internal::validate_owned_array_invariants, layout::compute_strides};
+use crate::{
+    AtlasNdResult,
+    internal::{shape::compute_strides, validate_owned_array_invariants},
+};
 
 #[derive(Clone, Debug)]
 pub struct NDArray<T: Numeric> {

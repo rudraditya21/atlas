@@ -1,7 +1,10 @@
 use crate::{
     AtlasNdError, AtlasNdResult, NDArray, Numeric,
-    internal::{is_storage_dense_layout, validate_view_invariants},
-    layout::{compute_strides, element_count},
+    internal::{
+        is_storage_dense_layout,
+        shape::{compute_strides, element_count},
+        validate_view_invariants,
+    },
 };
 
 #[derive(Debug, Clone)]

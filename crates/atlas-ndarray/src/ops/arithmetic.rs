@@ -3,12 +3,10 @@ use std::ops::{Add, Div, Mul, Sub};
 use crate::{
     AtlasNdResult, NDArray, Numeric,
     internal::{
-        PairLayoutKind, broadcast_offset_pair_iter, offset_pair_iter, pair_layout_kind, simd,
+        PairLayoutKind, broadcast_offset_pair_iter, offset_pair_iter, pair_layout_kind,
+        shape::compute_strides, simd,
     },
-    layout::{
-        broadcast::{BroadcastMetadata, broadcast_pair},
-        stride::compute_strides,
-    },
+    layout::broadcast::{BroadcastMetadata, broadcast_pair},
 };
 
 pub trait AddOperand<T: Numeric> {

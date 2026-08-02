@@ -1,11 +1,11 @@
+pub(crate) mod shape;
 pub(crate) mod simd;
 
 use std::slice::Iter;
 
-use crate::{
-    AtlasNdError, AtlasNdResult, checked_compute_strides, checked_element_count,
-    layout::{compute_strides, element_count},
-};
+use crate::{AtlasNdError, AtlasNdResult};
+
+use self::shape::{checked_compute_strides, checked_element_count, compute_strides, element_count};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum LayoutKind {
