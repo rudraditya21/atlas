@@ -1,5 +1,5 @@
 use atlas_linalg::{AtlasLinalgError, cholesky, dot, matmul, qr};
-use atlas_ndarray::NDArray;
+use atlas_ndarray::{AtlasNdError, NDArray, checked_compute_strides, checked_element_count};
 use atlas_random::{AtlasRandomError, AtlasRng, normal, uniform};
 use atlas_stats::{AtlasStatsError, correlation, covariance, stddev, variance};
 
@@ -189,4 +189,27 @@ fn empty_view_operands_remain_well_defined_for_linalg_dispatch() {
     let matrix_product = matmul(empty_matrix.clone(), empty_matrix.transpose()).unwrap();
     assert_eq!(matrix_product.shape(), &[0, 0]);
     assert!(matrix_product.data().is_empty());
+}
+
+#[test]
+fn shape_overflow_errors_remain_stable_across_crate_boundaries() {
+    let element_count_overflow =
+        AtlasNdError::ShapeOverflow { op: "element count", shape: vec![usize::MAX, 2] };
+    let stride_overflow =
+        AtlasNdError::ShapeOverflow { op: "stride computation", shape: vec![2, usize::MAX, 2] };
+
+    assert_eq!(checked_element_count(&[usize::MAX, 2]).unwrap_err(), element_count_overflow);
+    assert_eq!(checked_compute_strides(&[2, usize::MAX, 2]).unwrap_err(), stride_overflow);
+    assert_eq!(AtlasStatsError::from(element_count_overflow.clone()), AtlasStatsError::NdArray(element_count_overflow.clone()));
+
+    let mut rng = AtlasRng::seed_from_u64(8_192);
+
+    assert_eq!(
+        uniform([usize::MAX, 2], 0_i32, 10_i32, &mut rng).unwrap_err(),
+        AtlasRandomError::NdArray(element_count_overflow.clone())
+    );
+    assert_eq!(
+        normal([usize::MAX, 2], 0.0_f64, 1.0, &mut rng).unwrap_err(),
+        AtlasRandomError::NdArray(element_count_overflow)
+    );
 }
