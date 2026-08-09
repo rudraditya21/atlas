@@ -23,7 +23,9 @@ mod view;
 
 pub use core::array::NDArray;
 pub use core::axis::AxisIndex;
-pub use core::dtype::{DType, RuntimeDType, RuntimeScalar, ScalarValue, infer_scalar_dtype};
+pub use core::dtype::{
+    CastMode, CastPolicy, DType, RuntimeDType, RuntimeScalar, ScalarValue, infer_scalar_dtype,
+};
 pub use core::error::{AtlasNdError, AtlasNdResult};
 pub use core::operand::OperandMetadata;
 pub use core::traits::{Numeric, ShapeArg};
