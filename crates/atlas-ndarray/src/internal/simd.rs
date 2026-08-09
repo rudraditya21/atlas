@@ -1,4 +1,7 @@
-use std::any::type_name;
+use std::{
+    any::TypeId,
+    mem::{align_of, size_of},
+};
 
 use num_traits::ToPrimitive;
 
@@ -429,23 +432,25 @@ fn body_len(len: usize) -> usize {
 }
 
 #[inline]
-pub(crate) fn is_f32<T>() -> bool {
-    type_name::<T>() == "f32"
+pub(crate) fn is_f32<T: 'static>() -> bool {
+    TypeId::of::<T>() == TypeId::of::<f32>()
 }
 
 #[inline]
-pub(crate) fn is_f64<T>() -> bool {
-    type_name::<T>() == "f64"
+pub(crate) fn is_f64<T: 'static>() -> bool {
+    TypeId::of::<T>() == TypeId::of::<f64>()
 }
 
 #[inline]
 fn to_f32<T: Numeric>(value: T) -> f32 {
+    assert_exact_type::<T, f32>();
     // SAFETY: Callers only use this after an exact type check for f32.
     unsafe { std::mem::transmute_copy::<T, f32>(&value) }
 }
 
 #[inline]
 fn to_f64<T: Numeric>(value: T) -> f64 {
+    assert_exact_type::<T, f64>();
     // SAFETY: Callers only use this after an exact type check for f64.
     unsafe { std::mem::transmute_copy::<T, f64>(&value) }
 }
@@ -453,23 +458,33 @@ fn to_f64<T: Numeric>(value: T) -> f64 {
 #[inline]
 fn cast_value<U, T>(value: U) -> T
 where
-    U: Copy,
-    T: Copy,
+    U: Copy + 'static,
+    T: Copy + 'static,
 {
+    assert_exact_type::<U, T>();
     // SAFETY: Callers only use this after an exact type match between U and T.
     unsafe { std::mem::transmute_copy::<U, T>(&value) }
 }
 
 #[inline]
-pub(crate) fn cast_slice<T, U>(data: &[T]) -> &[U] {
+pub(crate) fn cast_slice<T: 'static, U: 'static>(data: &[T]) -> &[U] {
+    assert_exact_type::<T, U>();
     // SAFETY: Callers only use this after an exact type match between T and U.
     unsafe { std::slice::from_raw_parts(data.as_ptr() as *const U, data.len()) }
 }
 
 #[inline]
-fn cast_mut_slice<T, U>(data: &mut [T]) -> &mut [U] {
+fn cast_mut_slice<T: 'static, U: 'static>(data: &mut [T]) -> &mut [U] {
+    assert_exact_type::<T, U>();
     // SAFETY: Callers only use this after an exact type match between T and U.
     unsafe { std::slice::from_raw_parts_mut(data.as_mut_ptr() as *mut U, data.len()) }
+}
+
+#[inline]
+fn assert_exact_type<T: 'static, U: 'static>() {
+    assert_eq!(TypeId::of::<T>(), TypeId::of::<U>());
+    assert_eq!(size_of::<T>(), size_of::<U>());
+    assert_eq!(align_of::<T>(), align_of::<U>());
 }
 
 #[cfg(target_arch = "x86_64")]

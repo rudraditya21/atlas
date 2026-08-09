@@ -1,5 +1,3 @@
-use std::any::type_name;
-
 use atlas_ndarray::Numeric;
 use num_traits::ToPrimitive;
 
@@ -104,14 +102,6 @@ where
         return Ok(());
     }
 
-    if is_f32::<T>() {
-        return try_for_each_f64_f32(operand, &mut f);
-    }
-
-    if is_f64::<T>() {
-        return try_for_each_f64_f64(operand, &mut f);
-    }
-
     if let Some(values) = operand.dense_slice() {
         for value in values {
             let value = value.to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op })?;
@@ -139,14 +129,6 @@ where
     T: Numeric + ToPrimitive,
     F: FnMut(f64, f64) -> AtlasStatsResult<()>,
 {
-    if is_f32::<T>() {
-        return try_for_each_vector_pair_f64_f32(lhs, rhs, &mut f);
-    }
-
-    if is_f64::<T>() {
-        return try_for_each_vector_pair_f64_f64(lhs, rhs, &mut f);
-    }
-
     for (left, right) in lhs.iter().zip(rhs.iter()) {
         let left = left.to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op })?;
         let right = right.to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op })?;
@@ -154,108 +136,4 @@ where
     }
 
     Ok(())
-}
-
-fn try_for_each_f64_f32<T, F>(operand: &StatsOperand<'_, T>, f: &mut F) -> AtlasStatsResult<()>
-where
-    T: Numeric,
-    F: FnMut(f64) -> AtlasStatsResult<()>,
-{
-    let len = operand.len()?;
-    if len == 0 {
-        return Ok(());
-    }
-
-    if let Some(values) = operand.dense_slice() {
-        for &value in cast_slice::<T, f32>(values) {
-            f(value as f64)?;
-        }
-
-        return Ok(());
-    }
-
-    for value in operand.iter() {
-        f(f64::from(*cast_ref::<T, f32>(value)))?;
-    }
-
-    Ok(())
-}
-
-fn try_for_each_f64_f64<T, F>(operand: &StatsOperand<'_, T>, f: &mut F) -> AtlasStatsResult<()>
-where
-    T: Numeric,
-    F: FnMut(f64) -> AtlasStatsResult<()>,
-{
-    let len = operand.len()?;
-    if len == 0 {
-        return Ok(());
-    }
-
-    if let Some(values) = operand.dense_slice() {
-        for &value in cast_slice::<T, f64>(values) {
-            f(value)?;
-        }
-
-        return Ok(());
-    }
-
-    for value in operand.iter() {
-        f(*cast_ref::<T, f64>(value))?;
-    }
-
-    Ok(())
-}
-
-fn try_for_each_vector_pair_f64_f32<T, F>(
-    lhs: &StatsOperand<'_, T>,
-    rhs: &StatsOperand<'_, T>,
-    f: &mut F,
-) -> AtlasStatsResult<()>
-where
-    T: Numeric,
-    F: FnMut(f64, f64) -> AtlasStatsResult<()>,
-{
-    for (left, right) in lhs.iter().zip(rhs.iter()) {
-        f(f64::from(*cast_ref::<T, f32>(left)), f64::from(*cast_ref::<T, f32>(right)))?;
-    }
-
-    Ok(())
-}
-
-fn try_for_each_vector_pair_f64_f64<T, F>(
-    lhs: &StatsOperand<'_, T>,
-    rhs: &StatsOperand<'_, T>,
-    f: &mut F,
-) -> AtlasStatsResult<()>
-where
-    T: Numeric,
-    F: FnMut(f64, f64) -> AtlasStatsResult<()>,
-{
-    for (left, right) in lhs.iter().zip(rhs.iter()) {
-        f(*cast_ref::<T, f64>(left), *cast_ref::<T, f64>(right))?;
-    }
-
-    Ok(())
-}
-
-#[inline]
-fn is_f32<T>() -> bool {
-    type_name::<T>() == "f32"
-}
-
-#[inline]
-fn is_f64<T>() -> bool {
-    type_name::<T>() == "f64"
-}
-
-#[inline]
-fn cast_slice<T, U>(data: &[T]) -> &[U] {
-    // SAFETY: Callers only use this after an exact type match between T and U.
-    unsafe { std::slice::from_raw_parts(data.as_ptr() as *const U, data.len()) }
-}
-
-#[inline]
-fn cast_ref<T, U>(value: &T) -> &U {
-    // SAFETY: Callers only use this after an exact type match between T and U.
-    unsafe { &*(value as *const T as *const U) }
 }
