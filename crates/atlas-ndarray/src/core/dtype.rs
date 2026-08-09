@@ -25,6 +25,23 @@ pub enum DType {
     F64,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ScalarValue {
+    Bool(bool),
+    I8(i8),
+    I16(i16),
+    I32(i32),
+    I64(i64),
+    Isize(isize),
+    U8(u8),
+    U16(u16),
+    U32(u32),
+    U64(u64),
+    Usize(usize),
+    F32(f32),
+    F64(f64),
+}
+
 impl DType {
     pub fn of<T: RuntimeDType>() -> Self {
         T::DTYPE
@@ -131,6 +148,26 @@ impl fmt::Display for DType {
     }
 }
 
+impl ScalarValue {
+    pub fn dtype(self) -> DType {
+        match self {
+            Self::Bool(_) => DType::Bool,
+            Self::I8(_) => DType::I8,
+            Self::I16(_) => DType::I16,
+            Self::I32(_) => DType::I32,
+            Self::I64(_) => DType::I64,
+            Self::Isize(_) => DType::Isize,
+            Self::U8(_) => DType::U8,
+            Self::U16(_) => DType::U16,
+            Self::U32(_) => DType::U32,
+            Self::U64(_) => DType::U64,
+            Self::Usize(_) => DType::Usize,
+            Self::F32(_) => DType::F32,
+            Self::F64(_) => DType::F64,
+        }
+    }
+}
+
 pub trait RuntimeDType: 'static {
     const DTYPE: DType;
 
@@ -147,6 +184,18 @@ pub trait RuntimeDType: 'static {
     {
         size_of::<Self>()
     }
+}
+
+pub trait RuntimeScalar: RuntimeDType + Copy {
+    fn infer_dtype(self) -> DType {
+        Self::DTYPE
+    }
+
+    fn into_scalar_value(self) -> ScalarValue;
+}
+
+pub fn infer_scalar_dtype<T: RuntimeScalar>(value: T) -> DType {
+    value.infer_dtype()
 }
 
 macro_rules! impl_runtime_dtype {
@@ -173,11 +222,43 @@ impl_runtime_dtype!(Usize => usize);
 impl_runtime_dtype!(F32 => f32);
 impl_runtime_dtype!(F64 => f64);
 
+macro_rules! impl_runtime_scalar {
+    ($variant:ident => $($ty:ty),+ $(,)?) => {
+        $(
+            impl RuntimeScalar for $ty {
+                fn into_scalar_value(self) -> ScalarValue {
+                    ScalarValue::$variant(self)
+                }
+            }
+
+            impl From<$ty> for ScalarValue {
+                fn from(value: $ty) -> Self {
+                    ScalarValue::$variant(value)
+                }
+            }
+        )+
+    };
+}
+
+impl_runtime_scalar!(Bool => bool);
+impl_runtime_scalar!(I8 => i8);
+impl_runtime_scalar!(I16 => i16);
+impl_runtime_scalar!(I32 => i32);
+impl_runtime_scalar!(I64 => i64);
+impl_runtime_scalar!(Isize => isize);
+impl_runtime_scalar!(U8 => u8);
+impl_runtime_scalar!(U16 => u16);
+impl_runtime_scalar!(U32 => u32);
+impl_runtime_scalar!(U64 => u64);
+impl_runtime_scalar!(Usize => usize);
+impl_runtime_scalar!(F32 => f32);
+impl_runtime_scalar!(F64 => f64);
+
 #[cfg(test)]
 mod tests {
     use std::mem::size_of;
 
-    use super::{DType, DTypeKind, RuntimeDType};
+    use super::{DType, DTypeKind, RuntimeDType, RuntimeScalar, ScalarValue, infer_scalar_dtype};
 
     #[test]
     fn dtype_of_maps_primitive_scalars_to_runtime_variants() {
@@ -237,5 +318,24 @@ mod tests {
         assert!(!DType::I32.matches::<u32>());
         assert_eq!(<u64 as RuntimeDType>::dtype(), DType::U64);
         assert_eq!(<f32 as RuntimeDType>::itemsize(), size_of::<f32>());
+    }
+
+    #[test]
+    fn scalar_dtype_inference_follows_runtime_scalar_mapping() {
+        assert_eq!(infer_scalar_dtype(true), DType::Bool);
+        assert_eq!(infer_scalar_dtype(7_i32), DType::I32);
+        assert_eq!(infer_scalar_dtype(9_u64), DType::U64);
+        assert_eq!(infer_scalar_dtype(1.5_f32), DType::F32);
+    }
+
+    #[test]
+    fn scalar_values_preserve_value_and_runtime_dtype() {
+        let int_value = ScalarValue::from(42_i64);
+        let float_value = 3.25_f64.into_scalar_value();
+
+        assert_eq!(int_value, ScalarValue::I64(42));
+        assert_eq!(int_value.dtype(), DType::I64);
+        assert_eq!(float_value, ScalarValue::F64(3.25));
+        assert_eq!(float_value.dtype(), DType::F64);
     }
 }
