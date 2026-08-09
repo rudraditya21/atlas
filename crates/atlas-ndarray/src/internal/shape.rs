@@ -45,11 +45,86 @@ pub fn checked_compute_strides(shape: &[usize]) -> AtlasNdResult<Vec<usize>> {
     Ok(strides)
 }
 
+pub(crate) fn checked_row_major_metadata(shape: &[usize]) -> AtlasNdResult<(usize, Vec<usize>)> {
+    let len = checked_element_count(shape)?;
+    let strides = checked_compute_strides(shape)?;
+
+    Ok((len, strides))
+}
+
+pub(crate) fn validate_shape_and_strides(
+    shape: &[usize],
+    strides: &[usize],
+) -> AtlasNdResult<usize> {
+    if shape.len() != strides.len() {
+        return Err(AtlasNdError::InvalidShape);
+    }
+
+    checked_element_count(shape)
+}
+
+pub(crate) fn validate_row_major_shape_and_strides(
+    shape: &[usize],
+    strides: &[usize],
+) -> AtlasNdResult<usize> {
+    let len = validate_shape_and_strides(shape, strides)?;
+    let expected = checked_compute_strides(shape)?;
+
+    if strides != expected {
+        return Err(AtlasNdError::InvalidShape);
+    }
+
+    Ok(len)
+}
+
+pub(crate) fn validate_view_shape_and_strides(
+    data_len: usize,
+    offset: usize,
+    shape: &[usize],
+    strides: &[usize],
+) -> AtlasNdResult<()> {
+    let len = validate_shape_and_strides(shape, strides)?;
+
+    if len == 0 {
+        return if offset <= data_len { Ok(()) } else { Err(AtlasNdError::InvalidShape) };
+    }
+
+    let max_relative_offset = max_relative_offset(shape, strides)?;
+    let max_offset = offset.checked_add(max_relative_offset).ok_or_else(|| {
+        AtlasNdError::ShapeOverflow { op: "view validation", shape: shape.to_vec() }
+    })?;
+
+    if max_offset >= data_len {
+        return Err(AtlasNdError::InvalidShape);
+    }
+
+    Ok(())
+}
+
+fn max_relative_offset(shape: &[usize], strides: &[usize]) -> AtlasNdResult<usize> {
+    let mut max_relative_offset = 0usize;
+
+    for (&dim, &stride) in shape.iter().zip(strides.iter()) {
+        let axis_extent = dim.saturating_sub(1).checked_mul(stride).ok_or_else(|| {
+            AtlasNdError::ShapeOverflow { op: "view validation", shape: shape.to_vec() }
+        })?;
+        max_relative_offset = max_relative_offset.checked_add(axis_extent).ok_or_else(|| {
+            AtlasNdError::ShapeOverflow { op: "view validation", shape: shape.to_vec() }
+        })?;
+    }
+
+    Ok(max_relative_offset)
+}
+
 #[cfg(test)]
 mod tests {
     use crate::AtlasNdError;
 
-    use super::{checked_compute_strides, checked_element_count, compute_strides, element_count};
+    use super::{
+        checked_compute_strides, checked_element_count, checked_row_major_metadata,
+        compute_strides, element_count, validate_row_major_shape_and_strides,
+        validate_shape_and_strides, validate_view_shape_and_strides,
+    };
 
     #[test]
     fn element_count_handles_scalar_and_zero_sized_shapes() {
@@ -118,6 +193,36 @@ mod tests {
         assert_eq!(
             checked_compute_strides(&[2, usize::MAX, 2]).unwrap_err(),
             AtlasNdError::ShapeOverflow { op: "stride computation", shape: vec![2, usize::MAX, 2] }
+        );
+    }
+
+    #[test]
+    fn checked_row_major_metadata_reuses_checked_shape_and_stride_computation() {
+        assert_eq!(checked_row_major_metadata(&[2, 3]).unwrap(), (6, vec![3, 1]));
+        assert_eq!(checked_row_major_metadata(&[]).unwrap(), (1, Vec::<usize>::new()));
+    }
+
+    #[test]
+    fn validate_shape_and_strides_rejects_rank_mismatch() {
+        assert_eq!(validate_shape_and_strides(&[2, 3], &[3]), Err(AtlasNdError::InvalidShape));
+    }
+
+    #[test]
+    fn validate_row_major_shape_and_strides_checks_contiguous_layout() {
+        assert_eq!(validate_row_major_shape_and_strides(&[2, 3], &[3, 1]), Ok(6));
+        assert_eq!(
+            validate_row_major_shape_and_strides(&[2, 3], &[1, 3]),
+            Err(AtlasNdError::InvalidShape)
+        );
+    }
+
+    #[test]
+    fn validate_view_shape_and_strides_checks_bounds_and_empty_views() {
+        assert_eq!(validate_view_shape_and_strides(6, 1, &[2, 2], &[3, 1]), Ok(()));
+        assert_eq!(validate_view_shape_and_strides(6, 6, &[0], &[1]), Ok(()));
+        assert_eq!(
+            validate_view_shape_and_strides(6, 5, &[2], &[1]),
+            Err(AtlasNdError::InvalidShape)
         );
     }
 }

@@ -1,14 +1,7 @@
 use crate::{
-    AtlasNdError, AtlasNdResult, NDArray, Numeric, ShapeArg, checked_compute_strides,
-    checked_element_count,
+    AtlasNdError, AtlasNdResult, NDArray, Numeric, ShapeArg,
+    internal::shape::checked_row_major_metadata,
 };
-
-fn checked_row_major_metadata(shape: &[usize]) -> AtlasNdResult<(usize, Vec<usize>)> {
-    let size = checked_element_count(shape)?;
-    let strides = checked_compute_strides(shape)?;
-
-    Ok((size, strides))
-}
 
 fn validate_owned_boundary<T: Numeric>(array: NDArray<T>) -> AtlasNdResult<NDArray<T>> {
     array.validate_invariants()?;

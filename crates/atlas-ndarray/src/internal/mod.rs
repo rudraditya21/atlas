@@ -3,7 +3,7 @@ pub(crate) mod shape;
 pub(crate) mod simd;
 pub(crate) mod traversal;
 
-use self::shape::{checked_compute_strides, checked_element_count};
+use self::shape::{validate_row_major_shape_and_strides, validate_view_shape_and_strides};
 pub(crate) use self::traversal::{
     ValueIter, broadcast_offset_pair_iter, for_each_value, offset_iter, offset_pair_iter,
     try_for_each_value, value_iter,
@@ -15,18 +15,9 @@ pub(crate) fn validate_owned_array_invariants(
     shape: &[usize],
     strides: &[usize],
 ) -> AtlasNdResult<()> {
-    if shape.len() != strides.len() {
-        return Err(AtlasNdError::InvalidShape);
-    }
-
-    let expected_len = checked_element_count(shape)?;
+    let expected_len = validate_row_major_shape_and_strides(shape, strides)?;
     if data_len != expected_len {
         return Err(AtlasNdError::ShapeMismatch { expected: expected_len, actual: data_len });
-    }
-
-    let expected_strides = checked_compute_strides(shape)?;
-    if strides != expected_strides {
-        return Err(AtlasNdError::InvalidShape);
     }
 
     Ok(())
@@ -38,34 +29,7 @@ pub(crate) fn validate_view_invariants(
     shape: &[usize],
     strides: &[usize],
 ) -> AtlasNdResult<()> {
-    if shape.len() != strides.len() {
-        return Err(AtlasNdError::InvalidShape);
-    }
-
-    let len = checked_element_count(shape)?;
-    if len == 0 {
-        return if offset <= data_len { Ok(()) } else { Err(AtlasNdError::InvalidShape) };
-    }
-
-    let mut max_relative_offset = 0usize;
-    for (&dim, &stride) in shape.iter().zip(strides.iter()) {
-        let axis_extent = (dim - 1).checked_mul(stride).ok_or_else(|| {
-            AtlasNdError::ShapeOverflow { op: "view validation", shape: shape.to_vec() }
-        })?;
-        max_relative_offset = max_relative_offset.checked_add(axis_extent).ok_or_else(|| {
-            AtlasNdError::ShapeOverflow { op: "view validation", shape: shape.to_vec() }
-        })?;
-    }
-
-    let max_offset = offset.checked_add(max_relative_offset).ok_or_else(|| {
-        AtlasNdError::ShapeOverflow { op: "view validation", shape: shape.to_vec() }
-    })?;
-
-    if max_offset >= data_len {
-        return Err(AtlasNdError::InvalidShape);
-    }
-
-    Ok(())
+    validate_view_shape_and_strides(data_len, offset, shape, strides)
 }
 
 #[cfg(test)]
