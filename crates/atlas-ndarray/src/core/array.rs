@@ -1,8 +1,9 @@
 use super::traits::Numeric;
 use crate::{
-    AtlasNdResult,
+    AtlasNdError, AtlasNdResult,
     internal::{
         layout::{dense_storage_slice, is_contiguous_layout},
+        shape::checked_row_major_metadata,
         validate_owned_array_invariants,
     },
 };
@@ -15,6 +16,18 @@ pub struct NDArray<T: Numeric> {
 }
 
 impl<T: Numeric> NDArray<T> {
+    pub(crate) fn from_row_major_parts(shape: Vec<usize>, data: Vec<T>) -> AtlasNdResult<Self> {
+        let (expected_len, strides) = checked_row_major_metadata(&shape)?;
+        if data.len() != expected_len {
+            return Err(AtlasNdError::ShapeMismatch { expected: expected_len, actual: data.len() });
+        }
+
+        let array = Self { data, shape, strides };
+        array.validate_invariants()?;
+
+        Ok(array)
+    }
+
     pub fn data(&self) -> &[T] {
         &self.data
     }
@@ -55,7 +68,7 @@ impl<T: Numeric> NDArray<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::NDArray;
+    use crate::{AtlasNdError, NDArray};
 
     #[test]
     fn scalar_arrays_are_contiguous() {
@@ -76,5 +89,13 @@ mod tests {
 
         assert_eq!(matrix.dense_slice(), matrix.data());
         assert_eq!(empty.dense_slice(), &[] as &[i32]);
+    }
+
+    #[test]
+    fn from_row_major_parts_reuses_owned_boundary_checks() {
+        assert_eq!(
+            NDArray::<i32>::from_row_major_parts(vec![2, 2], vec![1, 2, 3]).unwrap_err(),
+            AtlasNdError::ShapeMismatch { expected: 4, actual: 3 }
+        );
     }
 }

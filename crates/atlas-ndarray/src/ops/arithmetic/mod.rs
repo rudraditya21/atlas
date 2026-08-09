@@ -6,7 +6,7 @@ mod strided;
 
 use std::ops::{Add, Div, Mul, Sub};
 
-use crate::{AtlasNdResult, NDArray, Numeric, internal::shape::compute_strides};
+use crate::{AtlasNdResult, NDArray, Numeric};
 
 use self::{
     contiguous::{elementwise_add_contiguous, elementwise_mul_contiguous},
@@ -103,7 +103,8 @@ impl<T: Numeric> NDArray<T> {
 }
 
 pub(super) fn from_owned_parts<T: Numeric>(shape: Vec<usize>, data: Vec<T>) -> NDArray<T> {
-    NDArray { strides: compute_strides(&shape), shape, data }
+    NDArray::from_row_major_parts(shape, data)
+        .expect("internal owned array construction must preserve row-major ndarray invariants")
 }
 
 impl<T: Numeric> AddOperand<T> for &NDArray<T> {

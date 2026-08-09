@@ -1,12 +1,4 @@
-use crate::{
-    AtlasNdError, AtlasNdResult, NDArray, Numeric, ShapeArg,
-    internal::shape::checked_row_major_metadata,
-};
-
-fn validate_owned_boundary<T: Numeric>(array: NDArray<T>) -> AtlasNdResult<NDArray<T>> {
-    array.validate_invariants()?;
-    Ok(array)
-}
+use crate::{AtlasNdResult, NDArray, Numeric, ShapeArg};
 
 impl<T: Numeric> NDArray<T> {
     /// Creates a dense row-major array filled with `value`.
@@ -23,9 +15,9 @@ impl<T: Numeric> NDArray<T> {
         S: ShapeArg,
     {
         let shape = shape.into_shape_vec();
-        let (size, strides) = checked_row_major_metadata(&shape)?;
+        let size = crate::checked_element_count(&shape)?;
 
-        validate_owned_boundary(Self { data: vec![value; size], strides, shape })
+        Self::from_row_major_parts(shape, vec![value; size])
     }
 
     /// Creates a dense row-major array filled with zeros.
@@ -47,14 +39,14 @@ impl<T: Numeric> NDArray<T> {
     /// Creates a square identity matrix with ones on the main diagonal.
     pub fn eye(size: usize) -> AtlasNdResult<Self> {
         let shape = vec![size, size];
-        let (element_count, strides) = checked_row_major_metadata(&shape)?;
+        let element_count = crate::checked_element_count(&shape)?;
         let mut data = vec![T::zero(); element_count];
 
         for index in 0..size {
             data[index * size + index] = T::one();
         }
 
-        validate_owned_boundary(Self { data, strides, shape })
+        Self::from_row_major_parts(shape, data)
     }
 
     /// Creates a dense row-major array from an explicit shape and backing data.
@@ -62,17 +54,7 @@ impl<T: Numeric> NDArray<T> {
     where
         S: ShapeArg,
     {
-        let shape = shape.into_shape_vec();
-        let (expected, strides) = checked_row_major_metadata(&shape)?;
-
-        if expected != data.len() {
-            return Err(AtlasNdError::ShapeMismatch { expected, actual: data.len() });
-        }
-
-        let array = Self { data, strides, shape };
-        array.validate_invariants()?;
-
-        Ok(array)
+        Self::from_row_major_parts(shape.into_shape_vec(), data)
     }
 
     /// Creates a dense row-major array from an explicit shape and backing data.
