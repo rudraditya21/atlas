@@ -9,6 +9,21 @@ impl<T: Numeric> NDArray<T> {
         Self::full(shape, value)
     }
 
+    /// Creates a dense row-major array through the dedicated empty-construction path.
+    pub fn empty<S>(shape: S) -> AtlasNdResult<Self>
+    where
+        S: ShapeArg,
+    {
+        let shape = shape.into_shape_vec();
+        let size = crate::checked_element_count(&shape)?;
+        let mut data = Vec::with_capacity(size);
+
+        // Safe NDArray<T> access cannot expose truly uninitialized elements.
+        data.resize_with(size, T::zero);
+
+        Self::from_row_major_parts(shape, data)
+    }
+
     /// Creates a dense row-major array filled with `value`.
     pub fn full<S>(shape: S, value: T) -> AtlasNdResult<Self>
     where
@@ -83,8 +98,21 @@ mod tests {
     }
 
     #[test]
+    fn empty_builds_a_contiguous_row_major_array() {
+        let array = NDArray::<i32>::empty([2, 3]).unwrap();
+
+        assert_eq!(array.len(), 6);
+        assert_eq!(array.ndim(), 2);
+        assert_eq!(array.shape(), &[2, 3]);
+        assert_eq!(array.strides(), &[3, 1]);
+        assert!(array.is_contiguous());
+        assert_eq!(array.data(), &[0, 0, 0, 0, 0, 0]);
+    }
+
+    #[test]
     fn constructors_handle_scalar_shapes_consistently() {
         let full = NDArray::full([], 7_i32).unwrap();
+        let empty = NDArray::<i32>::empty([]).unwrap();
         let zeros = NDArray::<i32>::zeros([]).unwrap();
         let ones = NDArray::<i32>::ones([]).unwrap();
         let from_shape_vec = NDArray::from_shape_vec([], vec![11_i32]).unwrap();
@@ -94,6 +122,11 @@ mod tests {
         assert_eq!(full.len(), 1);
         assert_eq!(full.data(), &[7]);
 
+        assert_eq!(empty.shape(), &[] as &[usize]);
+        assert_eq!(empty.strides(), &[] as &[usize]);
+        assert_eq!(empty.len(), 1);
+        assert_eq!(empty.data(), &[0]);
+
         assert_eq!(zeros.shape(), &[] as &[usize]);
         assert_eq!(zeros.data(), &[0]);
         assert_eq!(ones.shape(), &[] as &[usize]);
@@ -102,6 +135,7 @@ mod tests {
         assert_eq!(from_shape_vec.shape(), &[] as &[usize]);
         assert_eq!(from_shape_vec.data(), &[11]);
         assert!(full.is_contiguous());
+        assert!(empty.is_contiguous());
         assert!(zeros.is_contiguous());
         assert!(ones.is_contiguous());
         assert!(from_shape_vec.is_contiguous());
@@ -109,9 +143,15 @@ mod tests {
 
     #[test]
     fn constructors_handle_zero_sized_dimensions() {
+        let empty = NDArray::<i32>::empty([2, 0, 3]).unwrap();
         let full = NDArray::full([2, 0, 3], 9_i32).unwrap();
         let zeros = NDArray::<i32>::zeros([0, 4]).unwrap();
         let from_shape_vec = NDArray::<i32>::from_shape_vec([0, 2], Vec::new()).unwrap();
+
+        assert_eq!(empty.shape(), &[2, 0, 3]);
+        assert_eq!(empty.len(), 0);
+        assert!(empty.data().is_empty());
+        assert_eq!(empty.strides(), &[0, 3, 1]);
 
         assert_eq!(full.shape(), &[2, 0, 3]);
         assert_eq!(full.len(), 0);
@@ -123,6 +163,7 @@ mod tests {
         assert!(zeros.data().is_empty());
         assert_eq!(from_shape_vec.shape(), &[0, 2]);
         assert_eq!(from_shape_vec.len(), 0);
+        assert!(empty.is_contiguous());
         assert!(from_shape_vec.is_contiguous());
     }
 
@@ -163,15 +204,18 @@ mod tests {
 
     #[test]
     fn full_zeros_ones_and_from_shape_vec_provide_stable_constructor_surface() {
+        let empty = NDArray::<i32>::empty([2, 2]).unwrap();
         let full = NDArray::full([2, 2], 9_i32).unwrap();
         let zeros = NDArray::<i32>::zeros([2, 2]).unwrap();
         let ones = NDArray::<i32>::ones([2, 2]).unwrap();
         let from_shape_vec = NDArray::from_shape_vec([2, 2], vec![1_i32, 2, 3, 4]).unwrap();
 
+        assert_eq!(empty.data(), &[0, 0, 0, 0]);
         assert_eq!(full.data(), &[9, 9, 9, 9]);
         assert_eq!(zeros.data(), &[0, 0, 0, 0]);
         assert_eq!(ones.data(), &[1, 1, 1, 1]);
         assert_eq!(from_shape_vec.data(), &[1, 2, 3, 4]);
+        assert!(empty.is_contiguous());
         assert!(full.is_contiguous());
         assert!(zeros.is_contiguous());
         assert!(ones.is_contiguous());
@@ -221,6 +265,14 @@ mod tests {
     fn full_reports_shape_overflow_explicitly() {
         assert_eq!(
             NDArray::<i32>::full([usize::MAX, 2], 0).unwrap_err(),
+            AtlasNdError::ShapeOverflow { op: "element count", shape: vec![usize::MAX, 2] }
+        );
+    }
+
+    #[test]
+    fn empty_reports_shape_overflow_explicitly() {
+        assert_eq!(
+            NDArray::<i32>::empty([usize::MAX, 2]).unwrap_err(),
             AtlasNdError::ShapeOverflow { op: "element count", shape: vec![usize::MAX, 2] }
         );
     }
