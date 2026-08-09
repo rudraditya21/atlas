@@ -21,8 +21,8 @@ fn transpose_reorders_metadata_without_copying() {
 
 #[test]
 fn transpose_and_reshape_handle_scalar_and_zero_length_views() {
-    let scalar = NDArray::new([], 42_i32);
-    let zero_length = NDArray::<i32>::zeros([2, 0, 3]);
+    let scalar = NDArray::new([], 42_i32).unwrap();
+    let zero_length = NDArray::<i32>::zeros([2, 0, 3]).unwrap();
 
     let scalar_transposed = scalar.view().transpose();
     let zero_length_reshaped = zero_length.view().reshape([0]).unwrap();

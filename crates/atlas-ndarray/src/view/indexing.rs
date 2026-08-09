@@ -60,7 +60,7 @@ mod tests {
 
     #[test]
     fn get_rejects_wrong_dimension_count() {
-        let array = NDArray::new(vec![2, 3], 0_i32);
+        let array = NDArray::new(vec![2, 3], 0_i32).unwrap();
 
         let error = array.get(&[0]).unwrap_err();
 
@@ -69,7 +69,7 @@ mod tests {
 
     #[test]
     fn get_rejects_out_of_bounds_indices() {
-        let array = NDArray::new(vec![2, 3], 0_i32);
+        let array = NDArray::new(vec![2, 3], 0_i32).unwrap();
 
         let error = array.get(&[2, 0]).unwrap_err();
 
@@ -78,7 +78,7 @@ mod tests {
 
     #[test]
     fn get_supports_scalar_arrays_and_rejects_scalar_index_mismatch() {
-        let array = NDArray::new([], 7_i32);
+        let array = NDArray::new([], 7_i32).unwrap();
 
         assert_eq!(*array.get(&[]).unwrap(), 7);
         assert_eq!(
@@ -98,7 +98,7 @@ mod tests {
 
     #[test]
     fn get_mut_returns_consistent_dimension_and_bounds_errors() {
-        let mut array = NDArray::new([2, 2], 0_i32);
+        let mut array = NDArray::new([2, 2], 0_i32).unwrap();
 
         assert_eq!(
             array.get_mut(&[0]).unwrap_err(),

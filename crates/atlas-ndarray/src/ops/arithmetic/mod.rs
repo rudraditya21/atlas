@@ -274,8 +274,8 @@ mod tests {
 
     #[test]
     fn add_rejects_incompatible_shapes() {
-        let lhs = NDArray::new(vec![2, 3], 1_i32);
-        let rhs = NDArray::new(vec![2, 4], 1_i32);
+        let lhs = NDArray::new(vec![2, 3], 1_i32).unwrap();
+        let rhs = NDArray::new(vec![2, 4], 1_i32).unwrap();
 
         let error = lhs.add(&rhs).unwrap_err();
 
@@ -354,7 +354,7 @@ mod tests {
     fn scalar_paths_match_broadcast_array_paths_for_scalar_and_empty_outputs() {
         let scalar_array = NDArray::from_shape_vec([], vec![9_i32]).unwrap();
         let scalar_rhs = NDArray::from_shape_vec([], vec![3_i32]).unwrap();
-        let empty_array = NDArray::<i32>::zeros([0, 3]);
+        let empty_array = NDArray::<i32>::zeros([0, 3]).unwrap();
         let empty_rhs = NDArray::from_shape_vec([], vec![5_i32]).unwrap();
 
         assert_array_eq(&scalar_array.add(3), &scalar_array.add(&scalar_rhs).unwrap());

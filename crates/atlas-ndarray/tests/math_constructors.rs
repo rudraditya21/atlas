@@ -2,9 +2,9 @@ use atlas_ndarray::{AtlasNdError, NDArray};
 
 #[test]
 fn scalar_and_zero_sized_constructors_preserve_layout_invariants() {
-    let scalar = NDArray::full([], 3.5_f64);
-    let zero_dim = NDArray::<i32>::zeros([2, 0, 3]);
-    let identity = NDArray::<f64>::eye(0);
+    let scalar = NDArray::full([], 3.5_f64).unwrap();
+    let zero_dim = NDArray::<i32>::zeros([2, 0, 3]).unwrap();
+    let identity = NDArray::<f64>::eye(0).unwrap();
 
     assert_eq!(scalar.shape(), &[] as &[usize]);
     assert_eq!(scalar.strides(), &[] as &[usize]);
@@ -20,7 +20,7 @@ fn scalar_and_zero_sized_constructors_preserve_layout_invariants() {
 
 #[test]
 fn eye_is_ready_for_linalg_bootstrap() {
-    let identity = NDArray::<f64>::eye(4);
+    let identity = NDArray::<f64>::eye(4).unwrap();
 
     assert_eq!(identity.shape(), &[4, 4]);
     assert_eq!(identity.get(&[0, 0]).unwrap(), &1.0);

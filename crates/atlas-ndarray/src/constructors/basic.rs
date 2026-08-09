@@ -10,16 +10,14 @@ fn checked_row_major_metadata(shape: &[usize]) -> AtlasNdResult<(usize, Vec<usiz
     Ok((size, strides))
 }
 
-fn validate_owned_boundary<T: Numeric>(array: NDArray<T>, context: &'static str) -> NDArray<T> {
-    array
-        .validate_invariants()
-        .unwrap_or_else(|error| panic!("{context} failed invariant validation: {error}"));
-    array
+fn validate_owned_boundary<T: Numeric>(array: NDArray<T>) -> AtlasNdResult<NDArray<T>> {
+    array.validate_invariants()?;
+    Ok(array)
 }
 
 impl<T: Numeric> NDArray<T> {
     /// Creates a dense row-major array filled with `value`.
-    pub fn new<S>(shape: S, value: T) -> Self
+    pub fn new<S>(shape: S, value: T) -> AtlasNdResult<Self>
     where
         S: ShapeArg,
     {
@@ -27,20 +25,18 @@ impl<T: Numeric> NDArray<T> {
     }
 
     /// Creates a dense row-major array filled with `value`.
-    pub fn full<S>(shape: S, value: T) -> Self
+    pub fn full<S>(shape: S, value: T) -> AtlasNdResult<Self>
     where
         S: ShapeArg,
     {
         let shape = shape.into_shape_vec();
-        let (size, strides) = checked_row_major_metadata(&shape).unwrap_or_else(|error| {
-            panic!("NDArray::full failed: {error}");
-        });
+        let (size, strides) = checked_row_major_metadata(&shape)?;
 
-        validate_owned_boundary(Self { data: vec![value; size], strides, shape }, "NDArray::full")
+        validate_owned_boundary(Self { data: vec![value; size], strides, shape })
     }
 
     /// Creates a dense row-major array filled with zeros.
-    pub fn zeros<S>(shape: S) -> Self
+    pub fn zeros<S>(shape: S) -> AtlasNdResult<Self>
     where
         S: ShapeArg,
     {
@@ -48,7 +44,7 @@ impl<T: Numeric> NDArray<T> {
     }
 
     /// Creates a dense row-major array filled with ones.
-    pub fn ones<S>(shape: S) -> Self
+    pub fn ones<S>(shape: S) -> AtlasNdResult<Self>
     where
         S: ShapeArg,
     {
@@ -56,18 +52,16 @@ impl<T: Numeric> NDArray<T> {
     }
 
     /// Creates a square identity matrix with ones on the main diagonal.
-    pub fn eye(size: usize) -> Self {
+    pub fn eye(size: usize) -> AtlasNdResult<Self> {
         let shape = vec![size, size];
-        let (element_count, strides) = checked_row_major_metadata(&shape).unwrap_or_else(|error| {
-            panic!("NDArray::eye failed: {error}");
-        });
+        let (element_count, strides) = checked_row_major_metadata(&shape)?;
         let mut data = vec![T::zero(); element_count];
 
         for index in 0..size {
             data[index * size + index] = T::one();
         }
 
-        validate_owned_boundary(Self { data, strides, shape }, "NDArray::eye")
+        validate_owned_boundary(Self { data, strides, shape })
     }
 
     /// Creates a dense row-major array from an explicit shape and backing data.
@@ -103,7 +97,7 @@ mod tests {
 
     #[test]
     fn new_builds_a_contiguous_row_major_array() {
-        let array = NDArray::new([2, 3], 5_i32);
+        let array = NDArray::new([2, 3], 5_i32).unwrap();
 
         assert_eq!(array.len(), 6);
         assert_eq!(array.ndim(), 2);
@@ -115,9 +109,9 @@ mod tests {
 
     #[test]
     fn constructors_handle_scalar_shapes_consistently() {
-        let full = NDArray::full([], 7_i32);
-        let zeros = NDArray::<i32>::zeros([]);
-        let ones = NDArray::<i32>::ones([]);
+        let full = NDArray::full([], 7_i32).unwrap();
+        let zeros = NDArray::<i32>::zeros([]).unwrap();
+        let ones = NDArray::<i32>::ones([]).unwrap();
         let from_shape_vec = NDArray::from_shape_vec([], vec![11_i32]).unwrap();
 
         assert_eq!(full.shape(), &[] as &[usize]);
@@ -140,8 +134,8 @@ mod tests {
 
     #[test]
     fn constructors_handle_zero_sized_dimensions() {
-        let full = NDArray::full([2, 0, 3], 9_i32);
-        let zeros = NDArray::<i32>::zeros([0, 4]);
+        let full = NDArray::full([2, 0, 3], 9_i32).unwrap();
+        let zeros = NDArray::<i32>::zeros([0, 4]).unwrap();
         let from_shape_vec = NDArray::<i32>::from_shape_vec([0, 2], Vec::new()).unwrap();
 
         assert_eq!(full.shape(), &[2, 0, 3]);
@@ -194,9 +188,9 @@ mod tests {
 
     #[test]
     fn full_zeros_ones_and_from_shape_vec_provide_stable_constructor_surface() {
-        let full = NDArray::full([2, 2], 9_i32);
-        let zeros = NDArray::<i32>::zeros([2, 2]);
-        let ones = NDArray::<i32>::ones([2, 2]);
+        let full = NDArray::full([2, 2], 9_i32).unwrap();
+        let zeros = NDArray::<i32>::zeros([2, 2]).unwrap();
+        let ones = NDArray::<i32>::ones([2, 2]).unwrap();
         let from_shape_vec = NDArray::from_shape_vec([2, 2], vec![1_i32, 2, 3, 4]).unwrap();
 
         assert_eq!(full.data(), &[9, 9, 9, 9]);
@@ -211,7 +205,7 @@ mod tests {
 
     #[test]
     fn eye_creates_a_contiguous_identity_matrix() {
-        let identity = NDArray::<i32>::eye(3);
+        let identity = NDArray::<i32>::eye(3).unwrap();
 
         assert_eq!(identity.shape(), &[3, 3]);
         assert_eq!(identity.strides(), &[3, 1]);
@@ -221,7 +215,7 @@ mod tests {
 
     #[test]
     fn eye_supports_zero_sized_identity() {
-        let identity = NDArray::<i32>::eye(0);
+        let identity = NDArray::<i32>::eye(0).unwrap();
 
         assert_eq!(identity.shape(), &[0, 0]);
         assert_eq!(identity.strides(), &[0, 1]);
@@ -233,8 +227,8 @@ mod tests {
     fn constructors_accept_slice_like_shape_arguments() {
         let dynamic_shape = vec![2, 3];
 
-        let from_slice = NDArray::<i32>::zeros(dynamic_shape.as_slice());
-        let from_array_ref = NDArray::<i32>::ones([2, 3]);
+        let from_slice = NDArray::<i32>::zeros(dynamic_shape.as_slice()).unwrap();
+        let from_array_ref = NDArray::<i32>::ones([2, 3]).unwrap();
 
         assert_eq!(from_slice.shape(), &[2, 3]);
         assert_eq!(from_array_ref.shape(), &[2, 3]);
@@ -249,14 +243,18 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "NDArray::full failed: shape overflow for element count")]
-    fn full_panics_explicitly_on_shape_overflow() {
-        let _ = NDArray::<i32>::full([usize::MAX, 2], 0);
+    fn full_reports_shape_overflow_explicitly() {
+        assert_eq!(
+            NDArray::<i32>::full([usize::MAX, 2], 0).unwrap_err(),
+            AtlasNdError::ShapeOverflow { op: "element count", shape: vec![usize::MAX, 2] }
+        );
     }
 
     #[test]
-    #[should_panic(expected = "NDArray::eye failed: shape overflow for element count")]
-    fn eye_panics_explicitly_on_shape_overflow() {
-        let _ = NDArray::<i32>::eye(usize::MAX);
+    fn eye_reports_shape_overflow_explicitly() {
+        assert_eq!(
+            NDArray::<i32>::eye(usize::MAX).unwrap_err(),
+            AtlasNdError::ShapeOverflow { op: "element count", shape: vec![usize::MAX, usize::MAX] }
+        );
     }
 }

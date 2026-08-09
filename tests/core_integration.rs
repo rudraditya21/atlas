@@ -219,7 +219,7 @@ fn shape_overflow_errors_remain_stable_across_crate_boundaries() {
 
 #[test]
 fn post_hardening_error_messages_remain_exact_across_crates() {
-    let empty_matrix = NDArray::<i32>::new([0, 3], 1);
+    let empty_matrix = NDArray::<i32>::new([0, 3], 1).unwrap();
     let empty_vector = NDArray::from_shape_vec([0], Vec::<f64>::new()).unwrap();
     let lhs = NDArray::from_shape_vec([2, 3], vec![1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
     let rhs = NDArray::from_shape_vec([2, 2], vec![7.0_f64, 8.0, 9.0, 10.0]).unwrap();

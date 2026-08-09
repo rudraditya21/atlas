@@ -47,7 +47,7 @@ fn axis_reductions_support_negative_axes_across_operations() {
 
 #[test]
 fn axis_reductions_preserve_zero_length_output_shapes() {
-    let array = NDArray::<i32>::new([2, 0, 3], 1);
+    let array = NDArray::<i32>::new([2, 0, 3], 1).unwrap();
 
     assert_eq!(array.sum_axis(0).unwrap().shape(), &[0, 3]);
     assert!(array.sum_axis(0).unwrap().data().is_empty());
@@ -59,7 +59,7 @@ fn axis_reductions_preserve_zero_length_output_shapes() {
 
 #[test]
 fn axis_reductions_report_invalid_axis_consistently() {
-    let array = NDArray::new(vec![2, 2], 1_i32);
+    let array = NDArray::new(vec![2, 2], 1_i32).unwrap();
 
     assert_eq!(array.mean_axis(3).unwrap_err(), AtlasNdError::InvalidAxis { axis: 3, ndim: 2 });
     assert_eq!(array.sum_axis(-3).unwrap_err(), AtlasNdError::InvalidAxis { axis: -3, ndim: 2 });

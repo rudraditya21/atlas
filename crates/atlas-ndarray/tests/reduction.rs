@@ -35,7 +35,7 @@ fn view_reductions_support_strided_layouts() {
 
 #[test]
 fn empty_reductions_return_explicit_errors_when_needed() {
-    let array = NDArray::<i32>::new(vec![0, 2], 1);
+    let array = NDArray::<i32>::new(vec![0, 2], 1).unwrap();
 
     assert_eq!(array.sum(), 0);
     assert_eq!(array.prod(), 1);
@@ -46,9 +46,9 @@ fn empty_reductions_return_explicit_errors_when_needed() {
 
 #[test]
 fn axis_reduction_empty_and_scalar_semantics_are_stable() {
-    let empty_axis = NDArray::<i32>::new([0, 3], 1);
+    let empty_axis = NDArray::<i32>::new([0, 3], 1).unwrap();
     let one_dim = NDArray::from_shape_vec([4], vec![1_i32, 2, 3, 4]).unwrap();
-    let zero_lane = NDArray::<i32>::new([2, 0, 3], 1);
+    let zero_lane = NDArray::<i32>::new([2, 0, 3], 1).unwrap();
 
     assert_eq!(empty_axis.sum_axis(0).unwrap().data(), &[0, 0, 0]);
     assert_eq!(empty_axis.prod_axis(0).unwrap().data(), &[1, 1, 1]);

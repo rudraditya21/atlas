@@ -68,7 +68,7 @@ mod tests {
 
     #[test]
     fn reshape_rejects_different_element_counts() {
-        let array = NDArray::new(vec![2, 3], 0_i32);
+        let array = NDArray::new(vec![2, 3], 0_i32).unwrap();
         let error = array.view().reshape([5]).unwrap_err();
 
         assert_eq!(
@@ -83,8 +83,8 @@ mod tests {
 
     #[test]
     fn reshape_supports_scalar_and_zero_length_contiguous_views() {
-        let scalar = NDArray::new([], 9_i32);
-        let zero_length = NDArray::<i32>::zeros([2, 0, 3]);
+        let scalar = NDArray::new([], 9_i32).unwrap();
+        let zero_length = NDArray::<i32>::zeros([2, 0, 3]).unwrap();
 
         let reshaped_scalar = scalar.view().reshape([1]).unwrap();
         let reshaped_zero_length = zero_length.view().reshape([0]).unwrap();
@@ -100,7 +100,7 @@ mod tests {
 
     #[test]
     fn reshape_reports_scalar_element_count_errors_consistently() {
-        let scalar = NDArray::new([], 1_i32);
+        let scalar = NDArray::new([], 1_i32).unwrap();
 
         assert_eq!(
             scalar.view().reshape([2]).unwrap_err(),
@@ -114,7 +114,7 @@ mod tests {
 
     #[test]
     fn reshape_reports_shape_overflow_explicitly() {
-        let scalar = NDArray::new([], 1_i32);
+        let scalar = NDArray::new([], 1_i32).unwrap();
 
         assert_eq!(
             scalar.view().reshape([usize::MAX, 2]).unwrap_err(),

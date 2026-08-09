@@ -34,8 +34,8 @@ fn elementwise_mul_supports_scalar_like_inputs() {
 
 #[test]
 fn elementwise_ops_return_broadcast_errors_for_incompatible_shapes() {
-    let lhs = NDArray::new(vec![2, 3], 1_i32);
-    let rhs = NDArray::new(vec![4, 3], 1_i32);
+    let lhs = NDArray::new(vec![2, 3], 1_i32).unwrap();
+    let rhs = NDArray::new(vec![4, 3], 1_i32).unwrap();
     let error = lhs.sub(&rhs).unwrap_err();
 
     assert_eq!(
@@ -73,7 +73,7 @@ fn scalar_values_match_scalar_shaped_array_results() {
 
 #[test]
 fn scalar_and_scalar_shaped_array_paths_match_for_empty_outputs() {
-    let empty = NDArray::<i32>::zeros([0, 3]);
+    let empty = NDArray::<i32>::zeros([0, 3]).unwrap();
     let scalar = NDArray::from_shape_vec([], vec![7_i32]).unwrap();
 
     assert_array_eq(&empty.add(7), &empty.add(&scalar).unwrap());

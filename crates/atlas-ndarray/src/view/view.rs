@@ -17,20 +17,12 @@ pub struct ArrayView<'a, T: Numeric> {
 
 impl<T: Numeric> NDArray<T> {
     pub fn view(&self) -> ArrayView<'_, T> {
-        self.validate_invariants()
-            .unwrap_or_else(|error| panic!("NDArray::view failed invariant validation: {error}"));
-
-        let view = ArrayView {
+        ArrayView {
             data: &self.data,
             offset: 0,
             shape: self.shape.clone(),
             strides: self.strides.clone(),
-        };
-
-        view.validate_invariants()
-            .unwrap_or_else(|error| panic!("NDArray::view failed invariant validation: {error}"));
-
-        view
+        }
     }
 }
 
@@ -135,7 +127,7 @@ mod tests {
 
     #[test]
     fn view_get_rejects_dimension_mismatch() {
-        let array = NDArray::new(vec![2, 3], 0_i32);
+        let array = NDArray::new(vec![2, 3], 0_i32).unwrap();
         let view = array.view();
 
         let error = view.get(&[0]).unwrap_err();
@@ -145,7 +137,7 @@ mod tests {
 
     #[test]
     fn scalar_view_uses_empty_index_and_reports_rank_mismatch_consistently() {
-        let array = NDArray::new([], 13_i32);
+        let array = NDArray::new([], 13_i32).unwrap();
         let view = array.view();
 
         assert_eq!(*view.get(&[]).unwrap(), 13);
@@ -157,7 +149,7 @@ mod tests {
 
     #[test]
     fn view_get_reports_axis_specific_bounds_errors() {
-        let array = NDArray::new([2, 3], 0_i32);
+        let array = NDArray::new([2, 3], 0_i32).unwrap();
         let view = array.view();
 
         assert_eq!(

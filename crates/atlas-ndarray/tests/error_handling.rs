@@ -12,7 +12,7 @@ fn from_vec_returns_shape_mismatch_error() {
 
 #[test]
 fn get_returns_dimension_mismatch_error() {
-    let array = NDArray::new(vec![2, 3], 0_i32);
+    let array = NDArray::new(vec![2, 3], 0_i32).unwrap();
     let error = array.get(&[0]).unwrap_err();
 
     assert_eq!(error, AtlasNdError::DimensionMismatch { expected: 2, actual: 1 });
@@ -20,7 +20,7 @@ fn get_returns_dimension_mismatch_error() {
 
 #[test]
 fn get_returns_out_of_bounds_error() {
-    let array = NDArray::new(vec![2, 3], 0_i32);
+    let array = NDArray::new(vec![2, 3], 0_i32).unwrap();
     let error = array.get(&[0, 3]).unwrap_err();
 
     assert_eq!(error, AtlasNdError::IndexOutOfBounds { axis: 1, index: 3, dim: 3 });
@@ -28,7 +28,7 @@ fn get_returns_out_of_bounds_error() {
 
 #[test]
 fn get_mut_returns_consistent_indexing_errors() {
-    let mut array = NDArray::new([2, 2], 0_i32);
+    let mut array = NDArray::new([2, 2], 0_i32).unwrap();
 
     assert_eq!(
         array.get_mut(&[0]).unwrap_err(),
@@ -42,7 +42,7 @@ fn get_mut_returns_consistent_indexing_errors() {
 
 #[test]
 fn slice_and_reshape_return_stable_view_errors() {
-    let array = NDArray::new([2, 3], 0_i32);
+    let array = NDArray::new([2, 3], 0_i32).unwrap();
     let view = array.view();
 
     assert_eq!(
@@ -69,7 +69,10 @@ fn overflow_paths_report_exact_ndarray_errors() {
         AtlasNdError::ShapeOverflow { op: "stride computation", shape: vec![2, usize::MAX, 2] }
     );
     assert_eq!(NDArray::<i32>::from_shape_vec([usize::MAX, 2], Vec::new()).unwrap_err(), overflow);
-    assert_eq!(NDArray::new([], 1_i32).view().reshape([usize::MAX, 2]).unwrap_err(), overflow);
+    assert_eq!(
+        NDArray::new([], 1_i32).unwrap().view().reshape([usize::MAX, 2]).unwrap_err(),
+        overflow
+    );
     assert_eq!(
         contiguous_broadcast_metadata(&[2, usize::MAX, 2], &[1]).unwrap_err(),
         AtlasNdError::ShapeOverflow { op: "stride computation", shape: vec![2, usize::MAX, 2] }

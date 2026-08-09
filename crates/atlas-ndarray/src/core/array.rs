@@ -59,7 +59,7 @@ mod tests {
 
     #[test]
     fn scalar_arrays_are_contiguous() {
-        let array = NDArray::new(vec![], 7_i32);
+        let array = NDArray::new(vec![], 7_i32).unwrap();
 
         assert_eq!(array.len(), 1);
         assert_eq!(array.ndim(), 0);
@@ -72,7 +72,7 @@ mod tests {
     #[test]
     fn dense_slice_preserves_owned_storage_for_empty_and_multidimensional_arrays() {
         let matrix = NDArray::from_shape_vec([2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
-        let empty = NDArray::<i32>::zeros([2, 0, 3]);
+        let empty = NDArray::<i32>::zeros([2, 0, 3]).unwrap();
 
         assert_eq!(matrix.dense_slice(), matrix.data());
         assert_eq!(empty.dense_slice(), &[] as &[i32]);

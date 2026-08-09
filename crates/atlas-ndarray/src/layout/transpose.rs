@@ -25,7 +25,7 @@ mod tests {
 
     #[test]
     fn transpose_is_not_marked_contiguous_when_layout_becomes_strided() {
-        let array = NDArray::new(vec![2, 3], 1_i32);
+        let array = NDArray::new(vec![2, 3], 1_i32).unwrap();
         let transposed = array.view().transpose();
 
         assert!(!transposed.is_contiguous());
@@ -33,7 +33,7 @@ mod tests {
 
     #[test]
     fn transpose_preserves_scalar_and_vector_layout_invariants() {
-        let scalar = NDArray::new([], 5_i32);
+        let scalar = NDArray::new([], 5_i32).unwrap();
         let vector = NDArray::from_vec(vec![3], vec![1_i32, 2, 3]).unwrap();
 
         let scalar_transposed = scalar.view().transpose();

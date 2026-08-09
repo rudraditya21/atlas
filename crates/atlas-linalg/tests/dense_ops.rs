@@ -55,8 +55,8 @@ fn matmul_reports_exact_shape_mismatch_error() {
 
 #[test]
 fn matmul_rejects_ranks_above_two() {
-    let lhs = NDArray::<i32>::zeros([2, 2, 2]);
-    let rhs = NDArray::<i32>::zeros([2, 2]);
+    let lhs = NDArray::<i32>::zeros([2, 2, 2]).unwrap();
+    let rhs = NDArray::<i32>::zeros([2, 2]).unwrap();
 
     assert_eq!(
         matmul(&lhs, &rhs).unwrap_err(),

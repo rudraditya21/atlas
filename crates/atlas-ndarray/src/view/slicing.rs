@@ -82,7 +82,7 @@ mod tests {
 
     #[test]
     fn slice_rejects_invalid_extent() {
-        let array = NDArray::new(vec![2, 3], 0_i32);
+        let array = NDArray::new(vec![2, 3], 0_i32).unwrap();
         let view = array.view();
         let error = view.slice([0, 2], [2, 2]).unwrap_err();
 
@@ -91,7 +91,7 @@ mod tests {
 
     #[test]
     fn slice_rejects_rank_mismatch() {
-        let array = NDArray::new(vec![2, 3], 0_i32);
+        let array = NDArray::new(vec![2, 3], 0_i32).unwrap();
         let view = array.view();
         let error = view.slice([0], [1, 1]).unwrap_err();
 
@@ -124,7 +124,7 @@ mod tests {
 
     #[test]
     fn slice_reports_new_shape_rank_mismatch_consistently() {
-        let array = NDArray::new(vec![2, 3], 0_i32);
+        let array = NDArray::new(vec![2, 3], 0_i32).unwrap();
         let view = array.view();
 
         assert_eq!(

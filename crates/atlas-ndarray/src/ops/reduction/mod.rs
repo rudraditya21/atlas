@@ -269,7 +269,7 @@ mod tests {
 
     #[test]
     fn whole_array_reduction_entry_points_use_logical_empty_semantics_for_mixed_empty_views() {
-        let array = NDArray::<i32>::new([2, 0, 3], 1);
+        let array = NDArray::<i32>::new([2, 0, 3], 1).unwrap();
         let view = array.view().transpose();
 
         assert_eq!(view.sum(), 0);
@@ -281,7 +281,7 @@ mod tests {
 
     #[test]
     fn sum_and_prod_use_identity_for_empty_arrays() {
-        let array = NDArray::<i32>::new(vec![0, 3], 7);
+        let array = NDArray::<i32>::new(vec![0, 3], 7).unwrap();
 
         assert_eq!(array.sum(), 0);
         assert_eq!(array.prod(), 1);
@@ -289,7 +289,7 @@ mod tests {
 
     #[test]
     fn min_max_and_mean_reject_empty_arrays() {
-        let array = NDArray::<i32>::new(vec![0, 3], 7);
+        let array = NDArray::<i32>::new(vec![0, 3], 7).unwrap();
 
         assert_eq!(array.min().unwrap_err(), AtlasNdError::EmptyReduction { op: "min" });
         assert_eq!(array.max().unwrap_err(), AtlasNdError::EmptyReduction { op: "max" });
@@ -327,7 +327,7 @@ mod tests {
 
     #[test]
     fn axis_reductions_validate_axis_bounds() {
-        let array = NDArray::new(vec![2, 3], 1_i32);
+        let array = NDArray::new(vec![2, 3], 1_i32).unwrap();
 
         assert_eq!(array.sum_axis(2).unwrap_err(), AtlasNdError::InvalidAxis { axis: 2, ndim: 2 });
         assert_eq!(
@@ -343,7 +343,7 @@ mod tests {
 
     #[test]
     fn axis_reductions_handle_empty_axes_consistently() {
-        let array = NDArray::<i32>::new(vec![0, 3], 1);
+        let array = NDArray::<i32>::new(vec![0, 3], 1).unwrap();
 
         assert_eq!(array.sum_axis(0).unwrap().shape(), &[3]);
         assert_eq!(array.sum_axis(0).unwrap().data(), &[0, 0, 0]);
@@ -355,7 +355,7 @@ mod tests {
 
     #[test]
     fn axis_reductions_preserve_zero_length_output_shapes_when_lanes_are_empty() {
-        let array = NDArray::<i32>::new(vec![2, 0, 3], 1);
+        let array = NDArray::<i32>::new(vec![2, 0, 3], 1).unwrap();
 
         assert_eq!(array.sum_axis(0).unwrap().shape(), &[0, 3]);
         assert!(array.sum_axis(0).unwrap().data().is_empty());
