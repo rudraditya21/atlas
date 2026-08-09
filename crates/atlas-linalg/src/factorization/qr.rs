@@ -3,7 +3,7 @@ use num_traits::Float;
 
 use crate::core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand};
 use crate::internal::factorization::{
-    copy_matrix_row_major, dot_slice, tolerance, validate_rank_two, vector_norm, zero_matrix_data,
+    copy_matrix_row_major, dot_slice, validate_rank_two, vector_norm, zero_matrix_data,
 };
 
 #[derive(Clone, Debug)]
@@ -28,37 +28,41 @@ where
         });
     }
 
-    let tolerance = tolerance::<T>();
     let a = copy_matrix_row_major(&matrix);
     let mut q_columns = vec![T::zero(); rows * cols];
     let mut r = zero_matrix_data(cols, cols);
-    let mut v = vec![T::zero(); rows];
+    let mut work = vec![T::zero(); rows];
 
     for col in 0..cols {
-        for row in 0..rows {
-            v[row] = a[row * cols + col];
-        }
+        copy_column_from_row_major(&a, rows, cols, col, &mut work);
+        let column_norm = vector_norm(&work);
 
         for prior in 0..col {
             let q_col = &q_columns[prior * rows..(prior + 1) * rows];
-            let projection = dot_slice(q_col, &v);
+            let projection = dot_slice(q_col, &work);
             r[prior * cols + col] = projection;
-
-            for (value, &basis) in v.iter_mut().zip(q_col.iter()) {
-                *value -= projection * basis;
-            }
+            subtract_projection(&mut work, q_col, projection);
         }
 
-        let norm = vector_norm(&v);
+        // Reorthogonalize once to recover orthogonality lost to rounding
+        // when columns are nearly linearly dependent.
+        for prior in 0..col {
+            let q_col = &q_columns[prior * rows..(prior + 1) * rows];
+            let correction = dot_slice(q_col, &work);
+            r[prior * cols + col] += correction;
+            subtract_projection(&mut work, q_col, correction);
+        }
 
-        if norm <= tolerance {
+        let norm = vector_norm(&work);
+
+        if norm <= qr_rank_tolerance(column_norm, rows, cols) {
             return Err(AtlasLinalgError::RankDeficientMatrix { op: "qr", column: col });
         }
 
         r[col * cols + col] = norm;
         let q_col = &mut q_columns[col * rows..(col + 1) * rows];
 
-        for (slot, &value) in q_col.iter_mut().zip(v.iter()) {
+        for (slot, &value) in q_col.iter_mut().zip(work.iter()) {
             *slot = value / norm;
         }
     }
@@ -83,6 +87,29 @@ fn column_major_to_row_major<T: Numeric>(data: &[T], rows: usize, cols: usize) -
     }
 
     reordered
+}
+
+fn copy_column_from_row_major<T: Numeric>(
+    matrix: &[T],
+    rows: usize,
+    cols: usize,
+    col: usize,
+    out: &mut [T],
+) {
+    for row in 0..rows {
+        out[row] = matrix[row * cols + col];
+    }
+}
+
+fn subtract_projection<T: Numeric>(vector: &mut [T], basis: &[T], scale: T) {
+    for (value, &basis_value) in vector.iter_mut().zip(basis.iter()) {
+        *value -= scale * basis_value;
+    }
+}
+
+fn qr_rank_tolerance<T: Float>(column_norm: T, rows: usize, cols: usize) -> T {
+    let dimension_scale = T::from(rows.max(cols)).unwrap_or(T::one());
+    column_norm * T::epsilon() * dimension_scale
 }
 
 #[cfg(test)]
@@ -125,5 +152,28 @@ mod tests {
             qr(&rank_deficient).unwrap_err(),
             AtlasLinalgError::RankDeficientMatrix { op: "qr", .. }
         ));
+    }
+
+    #[test]
+    fn qr_preserves_orthogonality_for_nearly_dependent_columns() {
+        let epsilon = 1.0e-10_f64;
+        let matrix = NDArray::from_shape_vec(
+            [4, 3],
+            vec![
+                1.0, 1.0, 1.0,
+                1.0, 1.0 + epsilon, 1.0,
+                1.0, 1.0, 1.0 + epsilon,
+                1.0, 1.0 + epsilon, 1.0 + epsilon,
+            ],
+        )
+        .unwrap();
+        let factors = qr(&matrix).unwrap();
+
+        let gram = matmul(factors.q.view().transpose(), &factors.q).unwrap();
+        assert_close_slice(
+            gram.data(),
+            &[1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
+            1.0e-6,
+        );
     }
 }
