@@ -254,7 +254,10 @@ mod tests {
     fn eye_reports_shape_overflow_explicitly() {
         assert_eq!(
             NDArray::<i32>::eye(usize::MAX).unwrap_err(),
-            AtlasNdError::ShapeOverflow { op: "element count", shape: vec![usize::MAX, usize::MAX] }
+            AtlasNdError::ShapeOverflow {
+                op: "element count",
+                shape: vec![usize::MAX, usize::MAX]
+            }
         );
     }
 }

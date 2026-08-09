@@ -44,10 +44,7 @@ impl_signed_axis_index!(i8, i16, i32, i64, isize);
 impl_unsigned_axis_index!(u8, u16, u32, u64, usize);
 
 pub(crate) fn normalize_axis<A: AxisIndex>(axis: A, ndim: usize) -> AtlasNdResult<usize> {
-    let axis = axis.try_into_i64().ok_or(AtlasNdError::InvalidAxis {
-        axis: i64::MAX,
-        ndim,
-    })?;
+    let axis = axis.try_into_i64().ok_or(AtlasNdError::InvalidAxis { axis: i64::MAX, ndim })?;
     let ndim_i64 = ndim as i64;
 
     let normalized = if axis < 0 { ndim_i64 + axis } else { axis };

@@ -160,20 +160,24 @@ mod tests {
         let matrix = NDArray::from_shape_vec(
             [4, 3],
             vec![
-                1.0, 1.0, 1.0,
-                1.0, 1.0 + epsilon, 1.0,
-                1.0, 1.0, 1.0 + epsilon,
-                1.0, 1.0 + epsilon, 1.0 + epsilon,
+                1.0,
+                1.0,
+                1.0,
+                1.0,
+                1.0 + epsilon,
+                1.0,
+                1.0,
+                1.0,
+                1.0 + epsilon,
+                1.0,
+                1.0 + epsilon,
+                1.0 + epsilon,
             ],
         )
         .unwrap();
         let factors = qr(&matrix).unwrap();
 
         let gram = matmul(factors.q.view().transpose(), &factors.q).unwrap();
-        assert_close_slice(
-            gram.data(),
-            &[1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0],
-            1.0e-6,
-        );
+        assert_close_slice(gram.data(), &[1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0], 1.0e-6);
     }
 }
