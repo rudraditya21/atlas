@@ -21,10 +21,14 @@ where
     let mut covariance_total = 0.0_f64;
     let mut lhs_variance_total = 0.0_f64;
     let mut rhs_variance_total = 0.0_f64;
+    let mut lhs_scale = 0.0_f64;
+    let mut rhs_scale = 0.0_f64;
 
     try_for_each_vector_pair_f64(&lhs, &rhs, "correlation", |left, right| {
         let lhs_delta = left - lhs_mean;
         let rhs_delta = right - rhs_mean;
+        lhs_scale = lhs_scale.max(left.abs());
+        rhs_scale = rhs_scale.max(right.abs());
 
         covariance_total += lhs_delta * rhs_delta;
         lhs_variance_total += lhs_delta * lhs_delta;
@@ -32,11 +36,20 @@ where
         Ok(())
     })?;
 
-    if lhs_variance_total == 0.0 || rhs_variance_total == 0.0 {
+    if variance_total_is_effectively_zero(lhs_variance_total, lhs_mean, lhs_scale)
+        || variance_total_is_effectively_zero(rhs_variance_total, rhs_mean, rhs_scale)
+    {
         return Err(AtlasStatsError::ZeroVariance { op: "correlation" });
     }
 
     Ok(covariance_total / (lhs_variance_total.sqrt() * rhs_variance_total.sqrt()))
+}
+
+fn variance_total_is_effectively_zero(total: f64, mean: f64, scale: f64) -> bool {
+    let scale = scale.max(mean.abs()).max(f64::MIN_POSITIVE);
+    let tolerance = f64::EPSILON.sqrt() * scale;
+
+    total.sqrt() <= tolerance
 }
 
 #[cfg(test)]
@@ -74,5 +87,17 @@ mod tests {
             correlation(&constant, &lhs).unwrap_err(),
             AtlasStatsError::ZeroVariance { op: "correlation" }
         ));
+    }
+
+    #[test]
+    fn correlation_rejects_near_constant_large_magnitude_inputs() {
+        let near_constant =
+            NDArray::from_shape_vec([3], vec![1.0e16_f64, 1.0e16 + 1.0, 1.0e16 + 2.0]).unwrap();
+        let lhs = NDArray::from_shape_vec([3], vec![1.0_f64, 2.0, 3.0]).unwrap();
+
+        assert_eq!(
+            correlation(&near_constant, &lhs).unwrap_err(),
+            AtlasStatsError::ZeroVariance { op: "correlation" }
+        );
     }
 }
