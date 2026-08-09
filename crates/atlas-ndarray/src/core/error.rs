@@ -1,3 +1,4 @@
+use crate::{CastMode, DType};
 use thiserror::Error;
 
 pub type AtlasNdResult<T> = Result<T, AtlasNdError>;
@@ -45,6 +46,9 @@ pub enum AtlasNdError {
     #[error("invalid argument for {op}: {reason}")]
     InvalidArgument { op: &'static str, reason: &'static str },
 
+    #[error("invalid cast from {from} to {to} under {mode:?} mode")]
+    InvalidCast { from: DType, to: DType, mode: CastMode },
+
     #[error("invalid shape")]
     InvalidShape,
 }
@@ -52,6 +56,7 @@ pub enum AtlasNdError {
 #[cfg(test)]
 mod tests {
     use super::AtlasNdError;
+    use crate::{CastMode, DType};
 
     #[test]
     fn error_messages_follow_consistent_style() {
@@ -68,6 +73,11 @@ mod tests {
         assert_eq!(
             AtlasNdError::NumericConversionFailed { op: "mean" }.to_string(),
             "numeric conversion failed for mean"
+        );
+        assert_eq!(
+            AtlasNdError::InvalidCast { from: DType::I64, to: DType::I32, mode: CastMode::Checked }
+                .to_string(),
+            "invalid cast from int64 to int32 under Checked mode"
         );
     }
 }

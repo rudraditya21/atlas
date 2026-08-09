@@ -325,6 +325,10 @@ pub trait RuntimeScalar: RuntimeDType + Copy {
     }
 
     fn into_scalar_value(self) -> ScalarValue;
+
+    fn from_scalar_value(value: ScalarValue) -> Option<Self>
+    where
+        Self: Sized;
 }
 
 pub fn infer_scalar_dtype<T: RuntimeScalar>(value: T) -> DType {
@@ -545,6 +549,13 @@ macro_rules! impl_runtime_scalar {
                 fn into_scalar_value(self) -> ScalarValue {
                     ScalarValue::$variant(self)
                 }
+
+                fn from_scalar_value(value: ScalarValue) -> Option<Self> {
+                    match value {
+                        ScalarValue::$variant(value) => Some(value),
+                        _ => None,
+                    }
+                }
             }
 
             impl From<$ty> for ScalarValue {
@@ -656,6 +667,14 @@ mod tests {
         assert_eq!(int_value.dtype(), DType::I64);
         assert_eq!(float_value, ScalarValue::F64(3.25));
         assert_eq!(float_value.dtype(), DType::F64);
+    }
+
+    #[test]
+    fn runtime_scalar_round_trips_through_scalar_value() {
+        assert_eq!(i32::from_scalar_value(ScalarValue::I32(7)), Some(7));
+        assert_eq!(u64::from_scalar_value(ScalarValue::U64(11)), Some(11));
+        assert_eq!(f32::from_scalar_value(ScalarValue::F32(1.5)), Some(1.5));
+        assert_eq!(i32::from_scalar_value(ScalarValue::U32(7)), None);
     }
 
     #[test]

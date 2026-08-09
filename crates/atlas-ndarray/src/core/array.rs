@@ -1,6 +1,6 @@
 use super::traits::Numeric;
 use crate::{
-    AtlasNdError, AtlasNdResult, DType, RuntimeDType,
+    AtlasNdError, AtlasNdResult, CastMode, DType, RuntimeDType, RuntimeScalar,
     internal::{
         layout::{dense_storage_slice, is_contiguous_layout},
         shape::checked_row_major_metadata,
@@ -68,6 +68,35 @@ impl<T: Numeric> NDArray<T> {
             .expect("owned arrays always expose a dense storage region")
     }
 
+    pub fn astype<U>(&self) -> AtlasNdResult<NDArray<U>>
+    where
+        T: RuntimeScalar,
+        U: Numeric + RuntimeScalar,
+    {
+        self.astype_with_mode(CastMode::Lossy)
+    }
+
+    pub fn astype_with_mode<U>(&self, mode: CastMode) -> AtlasNdResult<NDArray<U>>
+    where
+        T: RuntimeScalar,
+        U: Numeric + RuntimeScalar,
+    {
+        let from = self.dtype();
+        let to = U::dtype();
+        let mut casted = Vec::with_capacity(self.data.len());
+
+        for &value in &self.data {
+            let casted_value = value
+                .into_scalar_value()
+                .cast(to, mode)
+                .and_then(U::from_scalar_value)
+                .ok_or(AtlasNdError::InvalidCast { from, to, mode })?;
+            casted.push(casted_value);
+        }
+
+        NDArray::from_row_major_parts(self.shape.clone(), casted)
+    }
+
     pub(crate) fn validate_invariants(&self) -> AtlasNdResult<()> {
         validate_owned_array_invariants(self.data.len(), &self.shape, &self.strides)
     }
@@ -75,7 +104,7 @@ impl<T: Numeric> NDArray<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{AtlasNdError, DType, NDArray};
+    use crate::{AtlasNdError, CastMode, DType, NDArray};
 
     #[test]
     fn scalar_arrays_are_contiguous() {
@@ -113,5 +142,35 @@ mod tests {
 
         assert_eq!(ints.dtype(), DType::I32);
         assert_eq!(floats.dtype(), DType::F64);
+    }
+
+    #[test]
+    fn astype_converts_arrays_between_supported_numeric_dtypes() {
+        let ints = NDArray::from_shape_vec([2, 2], vec![1_i32, 2, 3, 4]).unwrap();
+        let floats = ints.astype::<f64>().unwrap();
+
+        assert_eq!(floats.shape(), &[2, 2]);
+        assert_eq!(floats.strides(), &[2, 1]);
+        assert_eq!(floats.dtype(), DType::F64);
+        assert_eq!(floats.data(), &[1.0, 2.0, 3.0, 4.0]);
+    }
+
+    #[test]
+    fn astype_with_checked_mode_rejects_lossy_conversions() {
+        let floats = NDArray::from_shape_vec([2], vec![1.25_f64, 2.75]).unwrap();
+
+        assert_eq!(
+            floats.astype_with_mode::<i32>(CastMode::Checked).unwrap_err(),
+            AtlasNdError::InvalidCast { from: DType::F64, to: DType::I32, mode: CastMode::Checked }
+        );
+    }
+
+    #[test]
+    fn astype_defaults_to_explicit_lossy_cast_semantics() {
+        let floats = NDArray::from_shape_vec([3], vec![1.25_f64, 2.75, -3.5]).unwrap();
+        let ints = floats.astype::<i32>().unwrap();
+
+        assert_eq!(ints.dtype(), DType::I32);
+        assert_eq!(ints.data(), &[1, 2, -3]);
     }
 }
