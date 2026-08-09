@@ -135,7 +135,7 @@ fn descriptive_stats_report_exact_empty_input_errors() {
     let empty = NDArray::from_shape_vec([0], Vec::<f64>::new()).unwrap();
 
     assert_eq!(variance(&empty).unwrap_err(), AtlasStatsError::EmptyInput { op: "variance" });
-    assert_eq!(stddev(&empty).unwrap_err(), AtlasStatsError::EmptyInput { op: "variance" });
+    assert_eq!(stddev(&empty).unwrap_err(), AtlasStatsError::EmptyInput { op: "stddev" });
 }
 
 #[test]

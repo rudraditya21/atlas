@@ -160,7 +160,7 @@ fn empty_vector_views_report_stable_stats_errors_across_crates() {
     let rhs = rhs_base.view().slice([3], [0]).unwrap();
 
     assert_eq!(variance(lhs.clone()).unwrap_err(), AtlasStatsError::EmptyInput { op: "variance" });
-    assert_eq!(stddev(lhs.clone()).unwrap_err(), AtlasStatsError::EmptyInput { op: "variance" });
+    assert_eq!(stddev(lhs.clone()).unwrap_err(), AtlasStatsError::EmptyInput { op: "stddev" });
     assert_eq!(
         covariance(lhs.clone(), rhs.clone()).unwrap_err(),
         AtlasStatsError::EmptyInput { op: "covariance" }
@@ -232,6 +232,7 @@ fn post_hardening_error_messages_remain_exact_across_crates() {
     assert_eq!(empty_matrix.mean().unwrap_err().to_string(), "empty input for mean");
     assert_eq!(empty_matrix.min_axis(0).unwrap_err().to_string(), "empty input for min");
     assert_eq!(variance(&empty_vector).unwrap_err().to_string(), "empty input for variance");
+    assert_eq!(stddev(&empty_vector).unwrap_err().to_string(), "empty input for stddev");
     assert_eq!(
         covariance(&empty_vector, &empty_vector).unwrap_err().to_string(),
         "empty input for covariance"
