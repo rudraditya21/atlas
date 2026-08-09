@@ -1,6 +1,6 @@
 use super::traits::Numeric;
 use crate::{
-    AtlasNdError, AtlasNdResult,
+    AtlasNdError, AtlasNdResult, DType, RuntimeDType,
     internal::{
         layout::{dense_storage_slice, is_contiguous_layout},
         shape::checked_row_major_metadata,
@@ -48,6 +48,13 @@ impl<T: Numeric> NDArray<T> {
         self.shape.len()
     }
 
+    pub fn dtype(&self) -> DType
+    where
+        T: RuntimeDType,
+    {
+        DType::of::<T>()
+    }
+
     pub fn is_empty(&self) -> bool {
         self.data.is_empty()
     }
@@ -68,7 +75,7 @@ impl<T: Numeric> NDArray<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{AtlasNdError, NDArray};
+    use crate::{AtlasNdError, DType, NDArray};
 
     #[test]
     fn scalar_arrays_are_contiguous() {
@@ -97,5 +104,14 @@ mod tests {
             NDArray::<i32>::from_row_major_parts(vec![2, 2], vec![1, 2, 3]).unwrap_err(),
             AtlasNdError::ShapeMismatch { expected: 4, actual: 3 }
         );
+    }
+
+    #[test]
+    fn arrays_expose_runtime_dtype_information() {
+        let ints = NDArray::from_shape_vec([2], vec![1_i32, 2]).unwrap();
+        let floats = NDArray::from_shape_vec([2], vec![1.0_f64, 2.0]).unwrap();
+
+        assert_eq!(ints.dtype(), DType::I32);
+        assert_eq!(floats.dtype(), DType::F64);
     }
 }

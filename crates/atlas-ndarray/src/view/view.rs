@@ -1,5 +1,5 @@
 use crate::{
-    AtlasNdError, AtlasNdResult, NDArray, Numeric,
+    AtlasNdError, AtlasNdResult, DType, NDArray, Numeric, RuntimeDType,
     internal::{
         layout::{dense_storage_slice, is_contiguous_layout},
         shape::element_count,
@@ -79,6 +79,13 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
         self.shape.len()
     }
 
+    pub fn dtype(&self) -> DType
+    where
+        T: RuntimeDType,
+    {
+        DType::of::<T>()
+    }
+
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -98,7 +105,7 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{AtlasNdError, NDArray};
+    use crate::{AtlasNdError, DType, NDArray};
 
     #[test]
     fn view_preserves_owned_layout_metadata() {
@@ -111,6 +118,7 @@ mod tests {
         assert_eq!(view.strides(), &[3, 1]);
         assert_eq!(view.len(), 6);
         assert_eq!(view.ndim(), 2);
+        assert_eq!(view.dtype(), DType::I32);
         assert!(view.is_contiguous());
         assert!(view.dense_slice().is_some());
         assert_eq!(view.dense_slice().unwrap(), array.data());
