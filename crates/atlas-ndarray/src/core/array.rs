@@ -73,7 +73,7 @@ impl<T: Numeric> NDArray<T> {
         T: RuntimeScalar,
         U: Numeric + RuntimeScalar,
     {
-        self.astype_with_mode(CastMode::Lossy)
+        self.astype_with_mode(CastMode::Checked)
     }
 
     pub fn astype_with_mode<U>(&self, mode: CastMode) -> AtlasNdResult<NDArray<U>>
@@ -166,9 +166,19 @@ mod tests {
     }
 
     #[test]
-    fn astype_defaults_to_explicit_lossy_cast_semantics() {
+    fn astype_rejects_lossy_conversions_by_default() {
         let floats = NDArray::from_shape_vec([3], vec![1.25_f64, 2.75, -3.5]).unwrap();
-        let ints = floats.astype::<i32>().unwrap();
+
+        assert_eq!(
+            floats.astype::<i32>().unwrap_err(),
+            AtlasNdError::InvalidCast { from: DType::F64, to: DType::I32, mode: CastMode::Checked }
+        );
+    }
+
+    #[test]
+    fn astype_with_lossy_mode_allows_explicit_narrowing_and_truncation() {
+        let floats = NDArray::from_shape_vec([3], vec![1.25_f64, 2.75, -3.5]).unwrap();
+        let ints = floats.astype_with_mode::<i32>(CastMode::Lossy).unwrap();
 
         assert_eq!(ints.dtype(), DType::I32);
         assert_eq!(ints.data(), &[1, 2, -3]);
