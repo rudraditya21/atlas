@@ -1,4 +1,4 @@
-use crate::{AtlasNdResult, NDArray, Numeric, ShapeArg};
+use crate::{AtlasNdResult, NDArray, Numeric, OperandMetadata, ShapeArg};
 
 impl<T: Numeric> NDArray<T> {
     /// Creates a dense row-major array filled with `value`.
@@ -43,12 +43,28 @@ impl<T: Numeric> NDArray<T> {
         Self::full(shape, T::zero())
     }
 
+    /// Creates a dense row-major array of zeros with the same logical shape and dtype.
+    pub fn zeros_like<O>(other: &O) -> AtlasNdResult<Self>
+    where
+        O: OperandMetadata<T> + ?Sized,
+    {
+        Self::zeros(other.shape())
+    }
+
     /// Creates a dense row-major array filled with ones.
     pub fn ones<S>(shape: S) -> AtlasNdResult<Self>
     where
         S: ShapeArg,
     {
         Self::full(shape, T::one())
+    }
+
+    /// Creates a dense row-major array of ones with the same logical shape and dtype.
+    pub fn ones_like<O>(other: &O) -> AtlasNdResult<Self>
+    where
+        O: OperandMetadata<T> + ?Sized,
+    {
+        Self::ones(other.shape())
     }
 
     /// Creates a square identity matrix with ones on the main diagonal.
@@ -78,6 +94,14 @@ impl<T: Numeric> NDArray<T> {
         S: ShapeArg,
     {
         Self::from_shape_vec(shape, data)
+    }
+
+    /// Creates a dense row-major array filled with `value` and the same logical shape and dtype.
+    pub fn full_like<O>(other: &O, value: T) -> AtlasNdResult<Self>
+    where
+        O: OperandMetadata<T> + ?Sized,
+    {
+        Self::full(other.shape(), value)
     }
 }
 
@@ -220,6 +244,78 @@ mod tests {
         assert!(zeros.is_contiguous());
         assert!(ones.is_contiguous());
         assert!(from_shape_vec.is_contiguous());
+    }
+
+    #[test]
+    fn like_constructors_preserve_owned_array_shape_and_dtype() {
+        let source = NDArray::from_shape_vec([2, 3], vec![1_i32, 2, 3, 4, 5, 6]).unwrap();
+        let zeros = NDArray::zeros_like(&source).unwrap();
+        let ones = NDArray::ones_like(&source).unwrap();
+        let full = NDArray::full_like(&source, 9_i32).unwrap();
+
+        assert_eq!(zeros.shape(), source.shape());
+        assert_eq!(ones.shape(), source.shape());
+        assert_eq!(full.shape(), source.shape());
+        assert_eq!(zeros.dtype(), source.dtype());
+        assert_eq!(ones.dtype(), source.dtype());
+        assert_eq!(full.dtype(), source.dtype());
+        assert_eq!(zeros.strides(), &[3, 1]);
+        assert_eq!(ones.strides(), &[3, 1]);
+        assert_eq!(full.strides(), &[3, 1]);
+        assert_eq!(zeros.data(), &[0, 0, 0, 0, 0, 0]);
+        assert_eq!(ones.data(), &[1, 1, 1, 1, 1, 1]);
+        assert_eq!(full.data(), &[9, 9, 9, 9, 9, 9]);
+    }
+
+    #[test]
+    fn like_constructors_preserve_view_shape_but_return_owned_row_major_arrays() {
+        let source = NDArray::from_shape_vec([2, 3], vec![1_i32, 2, 3, 4, 5, 6]).unwrap();
+        let view = source.view().transpose();
+        let zeros = NDArray::zeros_like(&view).unwrap();
+        let ones = NDArray::ones_like(&view).unwrap();
+        let full = NDArray::full_like(&view, 7_i32).unwrap();
+
+        assert_eq!(zeros.shape(), view.shape());
+        assert_eq!(ones.shape(), view.shape());
+        assert_eq!(full.shape(), view.shape());
+        assert_eq!(zeros.dtype(), view.dtype());
+        assert_eq!(ones.dtype(), view.dtype());
+        assert_eq!(full.dtype(), view.dtype());
+        assert_eq!(zeros.strides(), &[2, 1]);
+        assert_eq!(ones.strides(), &[2, 1]);
+        assert_eq!(full.strides(), &[2, 1]);
+        assert!(zeros.is_contiguous());
+        assert!(ones.is_contiguous());
+        assert!(full.is_contiguous());
+        assert_eq!(zeros.data(), &[0, 0, 0, 0, 0, 0]);
+        assert_eq!(ones.data(), &[1, 1, 1, 1, 1, 1]);
+        assert_eq!(full.data(), &[7, 7, 7, 7, 7, 7]);
+    }
+
+    #[test]
+    fn like_constructors_preserve_scalar_and_zero_sized_shapes() {
+        let scalar = NDArray::from_shape_vec([], vec![5_i32]).unwrap();
+        let zero_sized = NDArray::<i32>::from_shape_vec([2, 0, 3], Vec::new()).unwrap();
+
+        let scalar_zeros = NDArray::zeros_like(&scalar).unwrap();
+        let scalar_ones = NDArray::ones_like(&scalar).unwrap();
+        let scalar_full = NDArray::full_like(&scalar, 8_i32).unwrap();
+        let zero_sized_zeros = NDArray::zeros_like(&zero_sized).unwrap();
+        let zero_sized_full = NDArray::full_like(&zero_sized, 8_i32).unwrap();
+
+        assert_eq!(scalar_zeros.shape(), &[] as &[usize]);
+        assert_eq!(scalar_ones.shape(), &[] as &[usize]);
+        assert_eq!(scalar_full.shape(), &[] as &[usize]);
+        assert_eq!(scalar_zeros.data(), &[0]);
+        assert_eq!(scalar_ones.data(), &[1]);
+        assert_eq!(scalar_full.data(), &[8]);
+
+        assert_eq!(zero_sized_zeros.shape(), &[2, 0, 3]);
+        assert_eq!(zero_sized_full.shape(), &[2, 0, 3]);
+        assert_eq!(zero_sized_zeros.strides(), &[0, 3, 1]);
+        assert_eq!(zero_sized_full.strides(), &[0, 3, 1]);
+        assert!(zero_sized_zeros.data().is_empty());
+        assert!(zero_sized_full.data().is_empty());
     }
 
     #[test]
