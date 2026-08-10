@@ -1,4 +1,4 @@
-use atlas_ndarray::{AsArray, AtlasNdError, NDArray};
+use atlas_ndarray::{AsArray, AtlasNdError, NDArray, SliceRange};
 
 #[test]
 fn slicing_and_indexing_preserve_underlying_mapping() {
@@ -7,6 +7,21 @@ fn slicing_and_indexing_preserve_underlying_mapping() {
 
     assert_eq!(*slice.get(&[0, 0]).unwrap(), 1);
     assert_eq!(*slice.get(&[1, 1]).unwrap(), 5);
+}
+
+#[test]
+fn step_aware_slicing_builds_strided_views_from_normalized_ranges() {
+    let array = NDArray::from_vec(vec![2, 5], vec![0_i32, 1, 2, 3, 4, 5, 6, 7, 8, 9]).unwrap();
+    let slice = array
+        .view()
+        .slice_ranges([SliceRange::full(), SliceRange::new(Some(-4), None, 2)])
+        .unwrap();
+
+    assert_eq!(slice.shape(), &[2, 2]);
+    assert_eq!(slice.strides(), &[5, 2]);
+    assert_eq!(slice.offset(), 1);
+    assert_eq!(*slice.get(&[0, 0]).unwrap(), 1);
+    assert_eq!(*slice.get(&[1, 1]).unwrap(), 8);
 }
 
 #[test]
