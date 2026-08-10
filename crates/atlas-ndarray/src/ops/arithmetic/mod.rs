@@ -1,18 +1,22 @@
 mod broadcast;
 mod contiguous;
 mod dispatch;
+mod promotion;
 mod scalar;
 mod strided;
 
 use std::ops::{Add, Div, Mul, Sub};
 
-use crate::{AtlasNdResult, NDArray, Numeric};
+use crate::{AtlasNdResult, NDArray, Numeric, RuntimeScalar};
 
 use self::{
     contiguous::{elementwise_add_contiguous, elementwise_mul_contiguous},
     dispatch::{BinaryOperand, dispatch_elementwise_binary, dispatch_elementwise_binary_with},
+    promotion::{ArithmeticScalar, cast_array_for_promotion, cast_scalar_for_promotion},
     scalar::{add_scalar_lhs, add_scalar_rhs, mul_scalar_lhs, mul_scalar_rhs},
 };
+
+pub use self::promotion::ArithmeticPromote;
 
 pub trait AddOperand<T: Numeric> {
     type Output;
@@ -129,130 +133,258 @@ pub(super) fn from_owned_parts<T: Numeric>(shape: Vec<usize>, data: Vec<T>) -> N
         .expect("internal owned array construction must preserve row-major ndarray invariants")
 }
 
-impl<T: Numeric> AddOperand<T> for &NDArray<T> {
-    type Output = AtlasNdResult<NDArray<T>>;
+fn promoted_array_array<T, U, P, F>(
+    lhs: &NDArray<T>,
+    rhs: &NDArray<U>,
+    op: F,
+) -> AtlasNdResult<NDArray<P>>
+where
+    T: Numeric + RuntimeScalar,
+    U: Numeric + RuntimeScalar,
+    P: Numeric + RuntimeScalar,
+    F: Fn(&NDArray<P>, &NDArray<P>) -> AtlasNdResult<NDArray<P>>,
+{
+    let lhs = cast_array_for_promotion::<T, P>(lhs);
+    let rhs = cast_array_for_promotion::<U, P>(rhs);
+    op(&lhs, &rhs)
+}
+
+fn promoted_array_scalar<T, U, P, F>(lhs: &NDArray<T>, rhs: U, op: F) -> NDArray<P>
+where
+    T: Numeric + RuntimeScalar,
+    U: ArithmeticScalar,
+    P: Numeric + RuntimeScalar,
+    F: Fn(&NDArray<P>, P) -> NDArray<P>,
+{
+    let lhs = cast_array_for_promotion::<T, P>(lhs);
+    let rhs = cast_scalar_for_promotion::<U, P>(rhs);
+    op(&lhs, rhs)
+}
+
+impl<T, U> AddOperand<T> for &NDArray<U>
+where
+    T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
+    U: Numeric + RuntimeScalar,
+{
+    type Output = AtlasNdResult<NDArray<<T as ArithmeticPromote<U>>::Output>>;
 
     fn add_to(self, lhs: &NDArray<T>) -> Self::Output {
-        lhs.add_array(self)
+        promoted_array_array::<T, U, <T as ArithmeticPromote<U>>::Output, _>(
+            lhs,
+            self,
+            |lhs, rhs| lhs.add_array(rhs),
+        )
     }
 }
 
-impl<T: Numeric> AddOperand<T> for T {
-    type Output = NDArray<T>;
+impl<T, U> AddOperand<T> for U
+where
+    T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
+    U: ArithmeticScalar,
+{
+    type Output = NDArray<<T as ArithmeticPromote<U>>::Output>;
 
     fn add_to(self, lhs: &NDArray<T>) -> Self::Output {
-        lhs.add_scalar(self)
+        promoted_array_scalar::<T, U, <T as ArithmeticPromote<U>>::Output, _>(
+            lhs,
+            self,
+            |lhs, rhs| lhs.add_scalar(rhs),
+        )
     }
 }
 
-impl<T: Numeric> SubOperand<T> for &NDArray<T> {
-    type Output = AtlasNdResult<NDArray<T>>;
+impl<T, U> SubOperand<T> for &NDArray<U>
+where
+    T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
+    U: Numeric + RuntimeScalar,
+{
+    type Output = AtlasNdResult<NDArray<<T as ArithmeticPromote<U>>::Output>>;
 
     fn sub_from(self, lhs: &NDArray<T>) -> Self::Output {
-        dispatch_elementwise_binary(lhs, BinaryOperand::Array(self), |lhs, rhs| lhs - rhs)
+        promoted_array_array::<T, U, <T as ArithmeticPromote<U>>::Output, _>(
+            lhs,
+            self,
+            |lhs, rhs| {
+                dispatch_elementwise_binary(lhs, BinaryOperand::Array(rhs), |lhs, rhs| lhs - rhs)
+            },
+        )
     }
 }
 
-impl<T: Numeric> SubOperand<T> for T {
-    type Output = NDArray<T>;
+impl<T, U> SubOperand<T> for U
+where
+    T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
+    U: ArithmeticScalar,
+{
+    type Output = NDArray<<T as ArithmeticPromote<U>>::Output>;
 
     fn sub_from(self, lhs: &NDArray<T>) -> Self::Output {
-        lhs.sub_scalar(self)
+        promoted_array_scalar::<T, U, <T as ArithmeticPromote<U>>::Output, _>(
+            lhs,
+            self,
+            |lhs, rhs| lhs.sub_scalar(rhs),
+        )
     }
 }
 
-impl<T: Numeric> MulOperand<T> for &NDArray<T> {
-    type Output = AtlasNdResult<NDArray<T>>;
+impl<T, U> MulOperand<T> for &NDArray<U>
+where
+    T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
+    U: Numeric + RuntimeScalar,
+{
+    type Output = AtlasNdResult<NDArray<<T as ArithmeticPromote<U>>::Output>>;
 
     fn mul_with(self, lhs: &NDArray<T>) -> Self::Output {
-        lhs.mul_array(self)
+        promoted_array_array::<T, U, <T as ArithmeticPromote<U>>::Output, _>(
+            lhs,
+            self,
+            |lhs, rhs| lhs.mul_array(rhs),
+        )
     }
 }
 
-impl<T: Numeric> MulOperand<T> for T {
-    type Output = NDArray<T>;
+impl<T, U> MulOperand<T> for U
+where
+    T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
+    U: ArithmeticScalar,
+{
+    type Output = NDArray<<T as ArithmeticPromote<U>>::Output>;
 
     fn mul_with(self, lhs: &NDArray<T>) -> Self::Output {
-        lhs.mul_scalar(self)
+        promoted_array_scalar::<T, U, <T as ArithmeticPromote<U>>::Output, _>(
+            lhs,
+            self,
+            |lhs, rhs| lhs.mul_scalar(rhs),
+        )
     }
 }
 
-impl<T: Numeric> DivOperand<T> for &NDArray<T> {
-    type Output = AtlasNdResult<NDArray<T>>;
+impl<T, U> DivOperand<T> for &NDArray<U>
+where
+    T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
+    U: Numeric + RuntimeScalar,
+{
+    type Output = AtlasNdResult<NDArray<<T as ArithmeticPromote<U>>::Output>>;
 
     fn div_into(self, lhs: &NDArray<T>) -> Self::Output {
-        dispatch_elementwise_binary(lhs, BinaryOperand::Array(self), |lhs, rhs| lhs / rhs)
+        promoted_array_array::<T, U, <T as ArithmeticPromote<U>>::Output, _>(
+            lhs,
+            self,
+            |lhs, rhs| {
+                dispatch_elementwise_binary(lhs, BinaryOperand::Array(rhs), |lhs, rhs| lhs / rhs)
+            },
+        )
     }
 }
 
-impl<T: Numeric> DivOperand<T> for T {
-    type Output = NDArray<T>;
+impl<T, U> DivOperand<T> for U
+where
+    T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
+    U: ArithmeticScalar,
+{
+    type Output = NDArray<<T as ArithmeticPromote<U>>::Output>;
 
     fn div_into(self, lhs: &NDArray<T>) -> Self::Output {
-        lhs.div_scalar(self)
+        promoted_array_scalar::<T, U, <T as ArithmeticPromote<U>>::Output, _>(
+            lhs,
+            self,
+            |lhs, rhs| lhs.div_scalar(rhs),
+        )
     }
 }
 
-impl<T: Numeric> Add for &NDArray<T> {
-    type Output = AtlasNdResult<NDArray<T>>;
+impl<T, U> Add<&NDArray<U>> for &NDArray<T>
+where
+    T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
+    U: Numeric + RuntimeScalar,
+{
+    type Output = AtlasNdResult<NDArray<<T as ArithmeticPromote<U>>::Output>>;
 
-    fn add(self, rhs: Self) -> Self::Output {
+    fn add(self, rhs: &NDArray<U>) -> Self::Output {
         NDArray::add(self, rhs)
     }
 }
 
-impl<T: Numeric> Sub for &NDArray<T> {
-    type Output = AtlasNdResult<NDArray<T>>;
+impl<T, U> Sub<&NDArray<U>> for &NDArray<T>
+where
+    T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
+    U: Numeric + RuntimeScalar,
+{
+    type Output = AtlasNdResult<NDArray<<T as ArithmeticPromote<U>>::Output>>;
 
-    fn sub(self, rhs: Self) -> Self::Output {
+    fn sub(self, rhs: &NDArray<U>) -> Self::Output {
         NDArray::sub(self, rhs)
     }
 }
 
-impl<T: Numeric> Mul for &NDArray<T> {
-    type Output = AtlasNdResult<NDArray<T>>;
+impl<T, U> Mul<&NDArray<U>> for &NDArray<T>
+where
+    T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
+    U: Numeric + RuntimeScalar,
+{
+    type Output = AtlasNdResult<NDArray<<T as ArithmeticPromote<U>>::Output>>;
 
-    fn mul(self, rhs: Self) -> Self::Output {
+    fn mul(self, rhs: &NDArray<U>) -> Self::Output {
         NDArray::mul(self, rhs)
     }
 }
 
-impl<T: Numeric> Div for &NDArray<T> {
-    type Output = AtlasNdResult<NDArray<T>>;
+impl<T, U> Div<&NDArray<U>> for &NDArray<T>
+where
+    T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
+    U: Numeric + RuntimeScalar,
+{
+    type Output = AtlasNdResult<NDArray<<T as ArithmeticPromote<U>>::Output>>;
 
-    fn div(self, rhs: Self) -> Self::Output {
+    fn div(self, rhs: &NDArray<U>) -> Self::Output {
         NDArray::div(self, rhs)
     }
 }
 
-impl<T: Numeric> Add<T> for &NDArray<T> {
-    type Output = NDArray<T>;
+impl<T, U> Add<U> for &NDArray<T>
+where
+    T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
+    U: ArithmeticScalar,
+{
+    type Output = <U as AddOperand<T>>::Output;
 
-    fn add(self, rhs: T) -> Self::Output {
+    fn add(self, rhs: U) -> Self::Output {
         NDArray::add(self, rhs)
     }
 }
 
-impl<T: Numeric> Sub<T> for &NDArray<T> {
-    type Output = NDArray<T>;
+impl<T, U> Sub<U> for &NDArray<T>
+where
+    T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
+    U: ArithmeticScalar,
+{
+    type Output = <U as SubOperand<T>>::Output;
 
-    fn sub(self, rhs: T) -> Self::Output {
+    fn sub(self, rhs: U) -> Self::Output {
         NDArray::sub(self, rhs)
     }
 }
 
-impl<T: Numeric> Mul<T> for &NDArray<T> {
-    type Output = NDArray<T>;
+impl<T, U> Mul<U> for &NDArray<T>
+where
+    T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
+    U: ArithmeticScalar,
+{
+    type Output = <U as MulOperand<T>>::Output;
 
-    fn mul(self, rhs: T) -> Self::Output {
+    fn mul(self, rhs: U) -> Self::Output {
         NDArray::mul(self, rhs)
     }
 }
 
-impl<T: Numeric> Div<T> for &NDArray<T> {
-    type Output = NDArray<T>;
+impl<T, U> Div<U> for &NDArray<T>
+where
+    T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
+    U: ArithmeticScalar,
+{
+    type Output = <U as DivOperand<T>>::Output;
 
-    fn div(self, rhs: T) -> Self::Output {
+    fn div(self, rhs: U) -> Self::Output {
         NDArray::div(self, rhs)
     }
 }
