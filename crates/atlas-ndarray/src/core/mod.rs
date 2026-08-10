@@ -1,4 +1,5 @@
 pub(crate) mod array;
+pub(crate) mod asarray;
 pub(crate) mod axis;
 pub(crate) mod dtype;
 pub(crate) mod error;

@@ -1,4 +1,4 @@
-use crate::{NDArray, Numeric, internal::layout::dense_storage_slice, view::ArrayView};
+use crate::{AsArray, NDArray, Numeric, internal::layout::dense_storage_slice, view::ArrayView};
 
 pub trait OperandMetadata<T: Numeric>: sealed::Sealed {
     fn data(&self) -> &[T];
@@ -54,23 +54,55 @@ impl<T: Numeric> OperandMetadata<T> for ArrayView<'_, T> {
     }
 }
 
+impl<T: Numeric> OperandMetadata<T> for AsArray<'_, T> {
+    fn data(&self) -> &[T] {
+        match self {
+            AsArray::Borrowed(view) => view.data(),
+            AsArray::Owned(array) => array.data(),
+        }
+    }
+
+    fn offset(&self) -> usize {
+        match self {
+            AsArray::Borrowed(view) => view.offset(),
+            AsArray::Owned(_) => 0,
+        }
+    }
+
+    fn shape(&self) -> &[usize] {
+        match self {
+            AsArray::Borrowed(view) => view.shape(),
+            AsArray::Owned(array) => array.shape(),
+        }
+    }
+
+    fn strides(&self) -> &[usize] {
+        match self {
+            AsArray::Borrowed(view) => view.strides(),
+            AsArray::Owned(array) => array.strides(),
+        }
+    }
+}
+
 mod sealed {
-    use crate::{NDArray, Numeric, view::ArrayView};
+    use crate::{AsArray, NDArray, Numeric, view::ArrayView};
 
     pub trait Sealed {}
 
     impl<T: Numeric> Sealed for NDArray<T> {}
     impl<T: Numeric> Sealed for ArrayView<'_, T> {}
+    impl<T: Numeric> Sealed for AsArray<'_, T> {}
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::{NDArray, OperandMetadata};
+    use crate::{AsArray, NDArray, OperandMetadata};
 
     #[test]
     fn operand_metadata_reports_owned_and_view_metadata_consistently() {
         let array = NDArray::from_shape_vec([2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
         let view = array.view().transpose();
+        let asarray = AsArray::Borrowed(view.clone());
 
         assert_eq!(OperandMetadata::shape(&array), &[2, 3]);
         assert_eq!(OperandMetadata::strides(&array), &[3, 1]);
@@ -83,5 +115,11 @@ mod tests {
         assert_eq!(OperandMetadata::offset(&view), 0);
         assert_eq!(OperandMetadata::ndim(&view), 2);
         assert_eq!(OperandMetadata::dense_slice(&view), Some(array.data()));
+
+        assert_eq!(OperandMetadata::shape(&asarray), &[3, 2]);
+        assert_eq!(OperandMetadata::strides(&asarray), &[1, 3]);
+        assert_eq!(OperandMetadata::offset(&asarray), 0);
+        assert_eq!(OperandMetadata::ndim(&asarray), 2);
+        assert_eq!(OperandMetadata::dense_slice(&asarray), Some(array.data()));
     }
 }

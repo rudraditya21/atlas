@@ -22,6 +22,7 @@ mod ops;
 mod view;
 
 pub use core::array::NDArray;
+pub use core::asarray::AsArray;
 pub use core::axis::AxisIndex;
 pub use core::dtype::{
     CastMode, CastPolicy, DType, RuntimeDType, RuntimeScalar, ScalarValue, infer_scalar_dtype,

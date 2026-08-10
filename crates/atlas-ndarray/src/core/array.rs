@@ -1,6 +1,6 @@
 use super::traits::Numeric;
 use crate::{
-    AtlasNdError, AtlasNdResult, CastMode, DType, RuntimeDType, RuntimeScalar,
+    AsArray, AtlasNdError, AtlasNdResult, CastMode, DType, RuntimeDType, RuntimeScalar,
     internal::{
         layout::{dense_storage_slice, is_contiguous_layout},
         shape::checked_row_major_metadata,
@@ -34,6 +34,10 @@ impl<T: Numeric> NDArray<T> {
 
     pub fn data(&self) -> &[T] {
         &self.data
+    }
+
+    pub fn asarray(&self) -> AsArray<'_, T> {
+        AsArray::Borrowed(self.view())
     }
 
     pub fn shape(&self) -> &[usize] {
@@ -160,6 +164,18 @@ mod tests {
 
         assert_eq!(ints.dtype(), DType::I32);
         assert_eq!(floats.dtype(), DType::F64);
+    }
+
+    #[test]
+    fn asarray_reuses_owned_ndarray_storage_without_copying() {
+        let array = NDArray::from_shape_vec([2, 2], vec![1_i32, 2, 3, 4]).unwrap();
+        let asarray = array.asarray();
+
+        assert!(asarray.is_borrowed());
+        assert_eq!(asarray.view().shape(), &[2, 2]);
+        assert_eq!(asarray.view().strides(), &[2, 1]);
+        assert_eq!(asarray.view().data(), array.data());
+        assert_eq!(asarray.view().dense_slice(), Some(array.data()));
     }
 
     #[test]

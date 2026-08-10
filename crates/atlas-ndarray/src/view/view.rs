@@ -3,7 +3,7 @@ use crate::{
     internal::{
         layout::{dense_storage_slice, is_contiguous_layout},
         shape::element_count,
-        validate_view_invariants,
+        validate_view_invariants, value_iter,
     },
 };
 
@@ -96,6 +96,14 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
 
     pub fn dense_slice(&self) -> Option<&'a [T]> {
         dense_storage_slice(self.data, self.offset, &self.shape, &self.strides)
+    }
+
+    pub fn to_owned(&self) -> NDArray<T> {
+        let data =
+            value_iter(self.data, self.offset, &self.shape, &self.strides).copied().collect();
+
+        NDArray::from_row_major_parts(self.shape.clone(), data)
+            .expect("valid views always materialize into valid owned arrays")
     }
 
     pub(crate) fn validate_invariants(&self) -> AtlasNdResult<()> {
@@ -193,5 +201,17 @@ mod tests {
         assert!(view.dense_slice().is_some());
         assert_eq!(view.dense_slice().unwrap(), &[] as &[i32]);
         assert_eq!(view.validate_invariants(), Ok(()));
+    }
+
+    #[test]
+    fn to_owned_materializes_views_as_contiguous_owned_arrays() {
+        let array = NDArray::from_vec([2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+        let view = array.view().transpose();
+        let owned = view.to_owned();
+
+        assert_eq!(owned.shape(), &[3, 2]);
+        assert_eq!(owned.strides(), &[2, 1]);
+        assert_eq!(owned.data(), &[0, 3, 1, 4, 2, 5]);
+        assert!(owned.is_contiguous());
     }
 }
