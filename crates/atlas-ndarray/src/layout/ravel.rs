@@ -9,12 +9,10 @@ impl<T: Numeric> NDArray<T> {
 impl<'a, T: Numeric> ArrayView<'a, T> {
     pub fn ravel(&self) -> AsArray<'a, T> {
         if self.is_empty() {
-            return AsArray::Borrowed(ArrayView {
-                data: self.data,
-                offset: self.offset,
-                shape: vec![0],
-                strides: vec![1],
-            });
+            return AsArray::Borrowed(
+                ArrayView::from_parts(self.data, self.offset, vec![0], vec![1])
+                    .expect("empty views can always be flattened without copying"),
+            );
         }
 
         if self.is_contiguous() {

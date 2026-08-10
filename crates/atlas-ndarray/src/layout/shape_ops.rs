@@ -19,7 +19,7 @@ impl<T: Numeric> NDArray<T> {
 }
 
 impl<'a, T: Numeric> ArrayView<'a, T> {
-    pub fn squeeze(mut self) -> ArrayView<'a, T> {
+    pub fn squeeze(self) -> ArrayView<'a, T> {
         let mut squeezed_shape = Vec::with_capacity(self.shape.len());
         let mut squeezed_strides = Vec::with_capacity(self.strides.len());
 
@@ -30,9 +30,8 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
             }
         }
 
-        self.shape = squeezed_shape;
-        self.strides = squeezed_strides;
-        self
+        ArrayView::from_parts(self.data, self.offset, squeezed_shape, squeezed_strides)
+            .expect("squeezing a valid view must preserve valid metadata")
     }
 
     pub fn squeeze_axis<A: AxisIndex>(mut self, axis: A) -> AtlasNdResult<ArrayView<'a, T>> {
@@ -46,9 +45,7 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
 
         self.shape.remove(axis);
         self.strides.remove(axis);
-        self.validate_invariants()?;
-
-        Ok(self)
+        ArrayView::from_parts(self.data, self.offset, self.shape, self.strides)
     }
 
     pub fn expand_dims<A: AxisIndex>(mut self, axis: A) -> AtlasNdResult<ArrayView<'a, T>> {
@@ -63,9 +60,7 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
 
         self.shape.insert(axis, 1);
         self.strides.insert(axis, inserted_stride);
-        self.validate_invariants()?;
-
-        Ok(self)
+        ArrayView::from_parts(self.data, self.offset, self.shape, self.strides)
     }
 }
 

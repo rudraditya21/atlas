@@ -18,16 +18,23 @@ pub struct ArrayView<'a, T: Numeric> {
 
 impl<T: Numeric> NDArray<T> {
     pub fn view(&self) -> ArrayView<'_, T> {
-        ArrayView {
-            data: &self.data,
-            offset: 0,
-            shape: self.shape.clone(),
-            strides: self.strides.clone(),
-        }
+        ArrayView::from_parts(&self.data, 0, self.shape.clone(), self.strides.clone())
+            .expect("owned arrays always expose valid view metadata")
     }
 }
 
 impl<'a, T: Numeric> ArrayView<'a, T> {
+    pub(crate) fn from_parts(
+        data: &'a [T],
+        offset: usize,
+        shape: Vec<usize>,
+        strides: Vec<usize>,
+    ) -> AtlasNdResult<Self> {
+        let view = Self { data, offset, shape, strides };
+        view.validate_invariants()?;
+        Ok(view)
+    }
+
     fn offset_for_index(&self, index: &[usize]) -> AtlasNdResult<usize> {
         debug_assert_eq!(self.shape.len(), self.strides.len());
         if index.len() != self.shape.len() {

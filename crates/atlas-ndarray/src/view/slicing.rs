@@ -52,14 +52,15 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
                 break;
             }
 
-            offset += start * stride;
+            let axis_offset = start.checked_mul(*stride).ok_or_else(|| {
+                AtlasNdError::ShapeOverflow { op: "slice offset", shape: self.shape.clone() }
+            })?;
+            offset = offset.checked_add(axis_offset).ok_or_else(|| {
+                AtlasNdError::ShapeOverflow { op: "slice offset", shape: self.shape.clone() }
+            })?;
         }
 
-        let view =
-            ArrayView { data: self.data, offset, shape: new_shape, strides: self.strides.clone() };
-        view.validate_invariants()?;
-
-        Ok(view)
+        ArrayView::from_parts(self.data, offset, new_shape, self.strides.clone())
     }
 }
 

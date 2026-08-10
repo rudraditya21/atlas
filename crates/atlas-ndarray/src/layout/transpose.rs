@@ -5,7 +5,8 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
         self.shape.reverse();
         self.strides.reverse();
 
-        self
+        ArrayView::from_parts(self.data, self.offset, self.shape, self.strides)
+            .expect("transposing a valid view must preserve valid metadata")
     }
 }
 

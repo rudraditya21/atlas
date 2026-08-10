@@ -4,7 +4,7 @@ use crate::{
 };
 
 impl<'a, T: Numeric> ArrayView<'a, T> {
-    pub fn reshape<S>(mut self, new_shape: S) -> AtlasNdResult<Self>
+    pub fn reshape<S>(self, new_shape: S) -> AtlasNdResult<Self>
     where
         S: ShapeArg,
     {
@@ -28,11 +28,8 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
             });
         }
 
-        self.shape = new_shape;
-        self.strides = checked_compute_strides(&self.shape)?;
-        self.validate_invariants()?;
-
-        Ok(self)
+        let new_strides = checked_compute_strides(&new_shape)?;
+        ArrayView::from_parts(self.data, self.offset, new_shape, new_strides)
     }
 }
 

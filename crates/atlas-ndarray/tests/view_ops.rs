@@ -62,6 +62,23 @@ fn reshape_allows_zero_length_non_contiguous_views() {
 }
 
 #[test]
+fn chained_transpose_slice_and_empty_reshape_preserve_offset_and_mapping() {
+    let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+    let chained = array.view().transpose().slice([1, 2], [2, 0]).unwrap();
+    let reshaped = chained.clone().reshape([0]).unwrap();
+
+    assert_eq!(chained.shape(), &[2, 0]);
+    assert_eq!(chained.strides(), &[1, 3]);
+    assert_eq!(chained.offset(), 1);
+    assert!(chained.is_empty());
+
+    assert_eq!(reshaped.shape(), &[0]);
+    assert_eq!(reshaped.strides(), &[1]);
+    assert_eq!(reshaped.offset(), 1);
+    assert!(reshaped.is_empty());
+}
+
+#[test]
 fn zero_length_slices_are_allowed_at_axis_boundaries() {
     let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
     let slice = array.view().slice([2, 3], [0, 0]).unwrap();
@@ -130,4 +147,21 @@ fn squeeze_and_expand_dims_preserve_shape_mapping_through_singleton_axes() {
     assert_eq!(expanded.shape(), &[2, 1, 3]);
     assert_eq!(expanded.strides(), &[3, 3, 1]);
     assert_eq!(*expanded.get(&[1, 0, 2]).unwrap(), 5);
+}
+
+#[test]
+fn contiguous_slice_then_reshape_preserves_offset_and_logical_order() {
+    let array = NDArray::from_vec(vec![2, 3, 4], (0_i32..24).collect()).unwrap();
+    let sliced = array.view().slice([1, 0, 0], [1, 3, 4]).unwrap();
+    let reshaped = sliced.clone().reshape([12]).unwrap();
+
+    assert_eq!(sliced.shape(), &[1, 3, 4]);
+    assert_eq!(sliced.strides(), &[12, 4, 1]);
+    assert_eq!(sliced.offset(), 12);
+    assert_eq!(*sliced.get(&[0, 2, 3]).unwrap(), 23);
+
+    assert_eq!(reshaped.shape(), &[12]);
+    assert_eq!(reshaped.strides(), &[1]);
+    assert_eq!(reshaped.offset(), 12);
+    assert_eq!(*reshaped.get(&[11]).unwrap(), 23);
 }
