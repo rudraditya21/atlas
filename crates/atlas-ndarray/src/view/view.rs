@@ -2,8 +2,9 @@ use crate::{
     AtlasNdError, AtlasNdResult, DType, NDArray, Numeric, RuntimeDType,
     internal::{
         layout::{dense_storage_slice, is_contiguous_layout},
+        materialize_contiguous_array,
         shape::element_count,
-        validate_view_invariants, value_iter,
+        validate_view_invariants,
     },
 };
 
@@ -99,11 +100,7 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
     }
 
     pub fn to_owned(&self) -> NDArray<T> {
-        let data =
-            value_iter(self.data, self.offset, &self.shape, &self.strides).copied().collect();
-
-        NDArray::from_row_major_parts(self.shape.clone(), data)
-            .expect("valid views always materialize into valid owned arrays")
+        materialize_contiguous_array(self)
     }
 
     pub(crate) fn validate_invariants(&self) -> AtlasNdResult<()> {

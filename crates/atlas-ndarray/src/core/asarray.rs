@@ -1,4 +1,4 @@
-use crate::{NDArray, Numeric, view::ArrayView};
+use crate::{NDArray, Numeric, internal::materialize_contiguous_array, view::ArrayView};
 
 #[derive(Clone, Debug)]
 pub enum AsArray<'a, T: Numeric> {
@@ -24,7 +24,7 @@ impl<'a, T: Numeric> AsArray<'a, T> {
 
     pub fn into_owned(self) -> NDArray<T> {
         match self {
-            Self::Borrowed(view) => view.to_owned(),
+            Self::Borrowed(view) => materialize_contiguous_array(&view),
             Self::Owned(array) => array,
         }
     }
