@@ -5,6 +5,14 @@ impl<T: Numeric> NDArray<T> {
         normalize_and_offset_indices(0, indices, &self.shape, &self.strides)
     }
 
+    pub fn item(&self) -> AtlasNdResult<T> {
+        self.view().item()
+    }
+
+    pub fn item_at<I: AxisIndex>(&self, indices: &[I]) -> AtlasNdResult<T> {
+        self.view().item_at(indices)
+    }
+
     pub fn get<I: AxisIndex>(&self, indices: &[I]) -> AtlasNdResult<&T> {
         let idx = self.offset(indices)?;
         Ok(&self.data[idx])
@@ -75,9 +83,38 @@ mod tests {
         let array = NDArray::new([], 7_i32).unwrap();
 
         assert_eq!(*array.get(&[] as &[i64]).unwrap(), 7);
+        assert_eq!(array.item().unwrap(), 7);
+        assert_eq!(array.item_at(&[] as &[i64]).unwrap(), 7);
         assert_eq!(
             array.get(&[0]).unwrap_err(),
             AtlasNdError::DimensionMismatch { expected: 0, actual: 1 }
+        );
+    }
+
+    #[test]
+    fn item_supports_single_element_arrays_and_rejects_larger_inputs() {
+        let single = NDArray::from_vec([1, 1], vec![7_i32]).unwrap();
+        let larger = NDArray::from_vec([1, 2], vec![7_i32, 8]).unwrap();
+
+        assert_eq!(single.item().unwrap(), 7);
+        assert_eq!(
+            larger.item().unwrap_err(),
+            AtlasNdError::InvalidArgument {
+                op: "item",
+                reason: "array must contain exactly one element",
+            }
+        );
+    }
+
+    #[test]
+    fn item_at_copies_values_through_shared_index_normalization() {
+        let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+
+        assert_eq!(array.item_at(&[1, 2]).unwrap(), 5);
+        assert_eq!(array.item_at(&[-2, 1]).unwrap(), 1);
+        assert_eq!(
+            array.item_at(&[-3, 0]).unwrap_err(),
+            AtlasNdError::IndexOutOfBounds { axis: 0, index: -3, dim: 2 }
         );
     }
 

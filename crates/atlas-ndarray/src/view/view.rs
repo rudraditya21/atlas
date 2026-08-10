@@ -25,6 +25,8 @@ impl<T: Numeric> NDArray<T> {
 }
 
 impl<'a, T: Numeric> ArrayView<'a, T> {
+    const ITEM_OP: &'static str = "item";
+
     pub(crate) fn from_parts(
         data: &'a [T],
         offset: usize,
@@ -43,6 +45,21 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
     pub fn get<I: AxisIndex>(&self, index: &[I]) -> AtlasNdResult<&T> {
         let idx = self.offset_for_index(index)?;
         Ok(&self.data[idx])
+    }
+
+    pub fn item(&self) -> AtlasNdResult<T> {
+        if self.len() != 1 {
+            return Err(crate::AtlasNdError::InvalidArgument {
+                op: Self::ITEM_OP,
+                reason: "array must contain exactly one element",
+            });
+        }
+
+        Ok(self.data[self.offset])
+    }
+
+    pub fn item_at<I: AxisIndex>(&self, index: &[I]) -> AtlasNdResult<T> {
+        Ok(*self.get(index)?)
     }
 
     pub fn data(&self) -> &'a [T] {
@@ -143,9 +160,40 @@ mod tests {
         let view = array.view();
 
         assert_eq!(*view.get(&[] as &[i64]).unwrap(), 13);
+        assert_eq!(view.item().unwrap(), 13);
+        assert_eq!(view.item_at(&[] as &[i64]).unwrap(), 13);
         assert_eq!(
             view.get(&[0]).unwrap_err(),
             AtlasNdError::DimensionMismatch { expected: 0, actual: 1 }
+        );
+    }
+
+    #[test]
+    fn item_supports_single_element_non_scalar_views_and_rejects_larger_inputs() {
+        let array = NDArray::from_vec([1, 1], vec![7_i32]).unwrap();
+        let single = array.view();
+        let larger = NDArray::from_vec([1, 2], vec![7_i32, 8]).unwrap();
+
+        assert_eq!(single.item().unwrap(), 7);
+        assert_eq!(
+            larger.view().item().unwrap_err(),
+            AtlasNdError::InvalidArgument {
+                op: "item",
+                reason: "array must contain exactly one element",
+            }
+        );
+    }
+
+    #[test]
+    fn item_at_copies_indexed_values_from_views_with_shared_normalization() {
+        let array = NDArray::from_vec([2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+        let view = array.view().transpose();
+
+        assert_eq!(view.item_at(&[2, 1]).unwrap(), 5);
+        assert_eq!(view.item_at(&[-2, 0]).unwrap(), 1);
+        assert_eq!(
+            view.item_at(&[3, 0]).unwrap_err(),
+            AtlasNdError::IndexOutOfBounds { axis: 0, index: 3, dim: 3 }
         );
     }
 
