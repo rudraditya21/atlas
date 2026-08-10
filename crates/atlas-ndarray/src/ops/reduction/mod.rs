@@ -1,6 +1,7 @@
 mod axis;
 mod dispatch;
 mod mean;
+mod truth;
 mod whole;
 
 use num_traits::ToPrimitive;
@@ -9,6 +10,7 @@ use crate::{AtlasNdResult, AxisIndex, NDArray, Numeric, OperandMetadata, view::A
 
 use self::{
     axis::{max_axis_impl, mean_axis_impl, min_axis_impl, prod_axis_impl, sum_axis_impl},
+    truth::{all_all, all_axis_impl, any_all, any_axis_impl},
     whole::{max_all, mean_all, min_all, prod_all, sum_all},
 };
 
@@ -72,6 +74,24 @@ impl<T: Numeric> NDArray<T> {
     }
 }
 
+impl NDArray<bool> {
+    pub fn all(&self) -> bool {
+        all_operand(self)
+    }
+
+    pub fn any(&self) -> bool {
+        any_operand(self)
+    }
+
+    pub fn all_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self> {
+        all_axis_operand(self, axis)
+    }
+
+    pub fn any_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self> {
+        any_axis_operand(self, axis)
+    }
+}
+
 impl<'a, T: Numeric> ArrayView<'a, T> {
     pub fn sum(&self) -> T {
         sum_operand(self)
@@ -132,6 +152,24 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
     }
 }
 
+impl<'a> ArrayView<'a, bool> {
+    pub fn all(&self) -> bool {
+        all_operand(self)
+    }
+
+    pub fn any(&self) -> bool {
+        any_operand(self)
+    }
+
+    pub fn all_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<bool>> {
+        all_axis_operand(self, axis)
+    }
+
+    pub fn any_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<bool>> {
+        any_axis_operand(self, axis)
+    }
+}
+
 fn sum_operand<T, O>(operand: &O) -> T
 where
     T: Numeric,
@@ -170,6 +208,20 @@ where
     O: OperandMetadata<T> + ?Sized,
 {
     mean_all(operand.data(), operand.offset(), operand.shape(), operand.strides())
+}
+
+fn all_operand<O>(operand: &O) -> bool
+where
+    O: OperandMetadata<bool> + ?Sized,
+{
+    all_all(operand.data(), operand.offset(), operand.shape(), operand.strides())
+}
+
+fn any_operand<O>(operand: &O) -> bool
+where
+    O: OperandMetadata<bool> + ?Sized,
+{
+    any_all(operand.data(), operand.offset(), operand.shape(), operand.strides())
 }
 
 fn sum_axis_operand<T, O, A>(operand: &O, axis: A) -> AtlasNdResult<NDArray<T>>
@@ -217,6 +269,22 @@ where
     mean_axis_impl(operand.data(), operand.offset(), operand.shape(), operand.strides(), axis)
 }
 
+fn all_axis_operand<O, A>(operand: &O, axis: A) -> AtlasNdResult<NDArray<bool>>
+where
+    O: OperandMetadata<bool> + ?Sized,
+    A: AxisIndex,
+{
+    all_axis_impl(operand.data(), operand.offset(), operand.shape(), operand.strides(), axis)
+}
+
+fn any_axis_operand<O, A>(operand: &O, axis: A) -> AtlasNdResult<NDArray<bool>>
+where
+    O: OperandMetadata<bool> + ?Sized,
+    A: AxisIndex,
+{
+    any_axis_impl(operand.data(), operand.offset(), operand.shape(), operand.strides(), axis)
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{AtlasNdError, NDArray};
@@ -244,6 +312,20 @@ mod tests {
     }
 
     #[test]
+    fn whole_array_truth_reductions_follow_boolean_identities() {
+        let array = NDArray::from_shape_vec([2, 2], vec![true, true, false, true]).unwrap();
+        let scalar = NDArray::from_shape_vec([], vec![true]).unwrap();
+        let empty = NDArray::<bool>::new([0, 3], false).unwrap();
+
+        assert!(!array.all());
+        assert!(array.any());
+        assert!(scalar.all());
+        assert!(scalar.any());
+        assert!(empty.all());
+        assert!(!empty.any());
+    }
+
+    #[test]
     fn whole_array_reductions_work_for_non_contiguous_views() {
         let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
         let view = array.view().slice([0, 1], vec![2, 2]).unwrap();
@@ -265,6 +347,20 @@ mod tests {
         assert_eq!(view.min().unwrap_err(), AtlasNdError::EmptyReduction { op: "min" });
         assert_eq!(view.max().unwrap_err(), AtlasNdError::EmptyReduction { op: "max" });
         assert_eq!(view.mean().unwrap_err(), AtlasNdError::EmptyReduction { op: "mean" });
+    }
+
+    #[test]
+    fn whole_array_truth_reductions_work_for_non_contiguous_views() {
+        let array =
+            NDArray::from_shape_vec([2, 3], vec![true, false, true, true, true, false]).unwrap();
+        let view = array.view().transpose();
+
+        assert!(!view.all());
+        assert!(view.any());
+
+        let empty = view.slice([0, 1], [3, 0]).unwrap();
+        assert!(empty.all());
+        assert!(!empty.any());
     }
 
     #[test]
@@ -313,6 +409,17 @@ mod tests {
     }
 
     #[test]
+    fn axis_truth_reductions_work_for_contiguous_arrays() {
+        let array =
+            NDArray::from_shape_vec([2, 3], vec![true, true, false, true, false, false]).unwrap();
+
+        assert_eq!(array.all_axis(0).unwrap().data(), &[true, false, false]);
+        assert_eq!(array.all_axis(1).unwrap().data(), &[false, false]);
+        assert_eq!(array.any_axis(0).unwrap().data(), &[true, true, false]);
+        assert_eq!(array.any_axis(1).unwrap().data(), &[true, true]);
+    }
+
+    #[test]
     fn axis_reductions_work_for_strided_views() {
         let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
         let view = array.view().transpose();
@@ -323,6 +430,16 @@ mod tests {
         assert_eq!(view.min_axis(-1).unwrap().data(), &[0, 1, 2]);
         assert_eq!(view.max_axis(-2).unwrap().data(), &[2, 5]);
         assert_eq!(view.mean_axis(-1).unwrap().data(), &[1.5, 2.5, 3.5]);
+    }
+
+    #[test]
+    fn axis_truth_reductions_work_for_strided_views() {
+        let array =
+            NDArray::from_shape_vec([2, 3], vec![true, false, true, true, true, false]).unwrap();
+        let view = array.view().transpose();
+
+        assert_eq!(view.all_axis(-2).unwrap().data(), &[false, false]);
+        assert_eq!(view.any_axis(-1).unwrap().data(), &[true, true, true]);
     }
 
     #[test]
@@ -354,6 +471,15 @@ mod tests {
     }
 
     #[test]
+    fn axis_truth_reductions_use_boolean_identities_for_empty_axes() {
+        let array = NDArray::<bool>::new([0, 3], false).unwrap();
+
+        assert_eq!(array.all_axis(0).unwrap().shape(), &[3]);
+        assert_eq!(array.all_axis(0).unwrap().data(), &[true, true, true]);
+        assert_eq!(array.any_axis(0).unwrap().data(), &[false, false, false]);
+    }
+
+    #[test]
     fn axis_reductions_preserve_zero_length_output_shapes_when_lanes_are_empty() {
         let array = NDArray::<i32>::new(vec![2, 0, 3], 1).unwrap();
 
@@ -370,6 +496,16 @@ mod tests {
     }
 
     #[test]
+    fn axis_truth_reductions_preserve_zero_length_output_shapes_when_outputs_are_empty() {
+        let array = NDArray::<bool>::new([2, 0, 3], true).unwrap();
+
+        assert_eq!(array.all_axis(0).unwrap().shape(), &[0, 3]);
+        assert!(array.all_axis(0).unwrap().data().is_empty());
+        assert_eq!(array.any_axis(2).unwrap().shape(), &[2, 0]);
+        assert!(array.any_axis(2).unwrap().data().is_empty());
+    }
+
+    #[test]
     fn axis_reductions_return_scalar_outputs_for_one_dimensional_inputs() {
         let array = NDArray::from_shape_vec([4], vec![1_i32, 2, 3, 4]).unwrap();
 
@@ -379,6 +515,15 @@ mod tests {
         assert_eq!(array.min_axis(-1).unwrap().data(), &[1]);
         assert_eq!(array.max_axis(-1).unwrap().data(), &[4]);
         assert_eq!(array.mean_axis(-1).unwrap().data(), &[2.5]);
+    }
+
+    #[test]
+    fn axis_truth_reductions_return_scalar_outputs_for_one_dimensional_inputs() {
+        let array = NDArray::from_shape_vec([4], vec![true, true, false, true]).unwrap();
+
+        assert_eq!(array.all_axis(-1).unwrap().shape(), &[] as &[usize]);
+        assert_eq!(array.all_axis(-1).unwrap().data(), &[false]);
+        assert_eq!(array.any_axis(-1).unwrap().data(), &[true]);
     }
 
     #[test]

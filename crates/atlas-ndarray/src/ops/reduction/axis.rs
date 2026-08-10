@@ -135,7 +135,7 @@ where
     }
 }
 
-fn axis_reduction_metadata(
+pub(super) fn axis_reduction_metadata(
     shape: &[usize],
     strides: &[usize],
     axis: impl AxisIndex,
