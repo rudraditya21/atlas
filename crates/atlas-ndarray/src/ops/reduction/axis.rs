@@ -1,3 +1,4 @@
+use crate::internal::simd;
 use num_traits::ToPrimitive;
 use rayon::prelude::*;
 
@@ -241,6 +242,15 @@ fn sum_axis_dense_contiguous<T: Numeric>(
 ) -> AtlasNdResult<NDArray<T>> {
     let values =
         contiguous_region(data, base_offset, metadata.output.len.saturating_mul(metadata.axis_len));
+
+    if simd::is_f32::<T>() {
+        return sum_axis_dense_contiguous_f32::<T>(simd::cast_slice(values), metadata);
+    }
+
+    if simd::is_f64::<T>() {
+        return sum_axis_dense_contiguous_f64::<T>(simd::cast_slice(values), metadata);
+    }
+
     let mut reduced = vec![T::zero(); metadata.output.len];
 
     if should_parallelize_reduction(metadata.output.len.saturating_mul(metadata.axis_len))
@@ -497,6 +507,14 @@ fn sum_axis_strided<T: Numeric>(
     base_offset: usize,
     metadata: AxisReductionMetadata,
 ) -> AtlasNdResult<NDArray<T>> {
+    if simd::is_f32::<T>() {
+        return sum_axis_strided_f32::<T>(simd::cast_slice(data), base_offset, metadata);
+    }
+
+    if simd::is_f64::<T>() {
+        return sum_axis_strided_f64::<T>(simd::cast_slice(data), base_offset, metadata);
+    }
+
     let mut reduced = vec![T::zero(); metadata.output.len];
 
     if should_parallelize_reduction(metadata.output.len.saturating_mul(metadata.axis_len))
@@ -770,6 +788,220 @@ fn sum_strided_lane<T: Numeric>(
     }
 
     total
+}
+
+fn sum_axis_dense_contiguous_f32<T: Numeric>(
+    values: &[f32],
+    metadata: AxisReductionMetadata,
+) -> AtlasNdResult<NDArray<T>> {
+    let mut reduced = vec![T::zero(); metadata.output.len];
+
+    if should_parallelize_reduction(metadata.output.len.saturating_mul(metadata.axis_len))
+        && !reduced.is_empty()
+    {
+        reduced.par_chunks_mut(metadata.contiguous_inner_len).enumerate().for_each(
+            |(outer, output_row)| {
+                let block_start = outer * metadata.axis_len * metadata.contiguous_inner_len;
+
+                for (inner, slot) in output_row.iter_mut().enumerate() {
+                    let mut total = simd::CompensatedSum::new();
+                    let mut offset = block_start + inner;
+
+                    for _ in 0..metadata.axis_len {
+                        total.add(f64::from(values[offset]));
+                        offset += metadata.contiguous_inner_len;
+                    }
+
+                    *slot = simd::cast_value_exact(total.finish() as f32);
+                }
+            },
+        );
+    } else {
+        for outer in 0..metadata.contiguous_outer_len {
+            let block_start = outer * metadata.axis_len * metadata.contiguous_inner_len;
+            let output_start = outer * metadata.contiguous_inner_len;
+
+            for inner in 0..metadata.contiguous_inner_len {
+                let mut total = simd::CompensatedSum::new();
+                let mut offset = block_start + inner;
+
+                for _ in 0..metadata.axis_len {
+                    total.add(f64::from(values[offset]));
+                    offset += metadata.contiguous_inner_len;
+                }
+
+                reduced[output_start + inner] = simd::cast_value_exact(total.finish() as f32);
+            }
+        }
+    }
+
+    NDArray::from_shape_vec(metadata.output.shape, reduced)
+}
+
+fn sum_axis_dense_contiguous_f64<T: Numeric>(
+    values: &[f64],
+    metadata: AxisReductionMetadata,
+) -> AtlasNdResult<NDArray<T>> {
+    let mut reduced = vec![T::zero(); metadata.output.len];
+
+    if should_parallelize_reduction(metadata.output.len.saturating_mul(metadata.axis_len))
+        && !reduced.is_empty()
+    {
+        reduced.par_chunks_mut(metadata.contiguous_inner_len).enumerate().for_each(
+            |(outer, output_row)| {
+                let block_start = outer * metadata.axis_len * metadata.contiguous_inner_len;
+
+                for (inner, slot) in output_row.iter_mut().enumerate() {
+                    let mut total = simd::CompensatedSum::new();
+                    let mut offset = block_start + inner;
+
+                    for _ in 0..metadata.axis_len {
+                        total.add(values[offset]);
+                        offset += metadata.contiguous_inner_len;
+                    }
+
+                    *slot = simd::cast_value_exact(total.finish());
+                }
+            },
+        );
+    } else {
+        for outer in 0..metadata.contiguous_outer_len {
+            let block_start = outer * metadata.axis_len * metadata.contiguous_inner_len;
+            let output_start = outer * metadata.contiguous_inner_len;
+
+            for inner in 0..metadata.contiguous_inner_len {
+                let mut total = simd::CompensatedSum::new();
+                let mut offset = block_start + inner;
+
+                for _ in 0..metadata.axis_len {
+                    total.add(values[offset]);
+                    offset += metadata.contiguous_inner_len;
+                }
+
+                reduced[output_start + inner] = simd::cast_value_exact(total.finish());
+            }
+        }
+    }
+
+    NDArray::from_shape_vec(metadata.output.shape, reduced)
+}
+
+fn sum_axis_strided_f32<T: Numeric>(
+    data: &[f32],
+    base_offset: usize,
+    metadata: AxisReductionMetadata,
+) -> AtlasNdResult<NDArray<T>> {
+    let mut reduced = vec![T::zero(); metadata.output.len];
+
+    if should_parallelize_reduction(metadata.output.len.saturating_mul(metadata.axis_len))
+        && !reduced.is_empty()
+    {
+        reduced.par_iter_mut().enumerate().for_each(|(index, slot)| {
+            let lane_offset = linear_offset(
+                base_offset,
+                &metadata.output.shape,
+                &metadata.output.outer_strides,
+                index,
+            );
+            *slot = simd::cast_value_exact(sum_strided_lane_f32(
+                data,
+                lane_offset,
+                metadata.axis_len,
+                metadata.axis_stride,
+            ));
+        });
+    } else {
+        for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
+            base_offset,
+            &metadata.output.shape,
+            &metadata.output.outer_strides,
+        )) {
+            *slot = simd::cast_value_exact(sum_strided_lane_f32(
+                data,
+                lane_offset,
+                metadata.axis_len,
+                metadata.axis_stride,
+            ));
+        }
+    }
+
+    NDArray::from_shape_vec(metadata.output.shape, reduced)
+}
+
+fn sum_axis_strided_f64<T: Numeric>(
+    data: &[f64],
+    base_offset: usize,
+    metadata: AxisReductionMetadata,
+) -> AtlasNdResult<NDArray<T>> {
+    let mut reduced = vec![T::zero(); metadata.output.len];
+
+    if should_parallelize_reduction(metadata.output.len.saturating_mul(metadata.axis_len))
+        && !reduced.is_empty()
+    {
+        reduced.par_iter_mut().enumerate().for_each(|(index, slot)| {
+            let lane_offset = linear_offset(
+                base_offset,
+                &metadata.output.shape,
+                &metadata.output.outer_strides,
+                index,
+            );
+            *slot = simd::cast_value_exact(sum_strided_lane_f64(
+                data,
+                lane_offset,
+                metadata.axis_len,
+                metadata.axis_stride,
+            ));
+        });
+    } else {
+        for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
+            base_offset,
+            &metadata.output.shape,
+            &metadata.output.outer_strides,
+        )) {
+            *slot = simd::cast_value_exact(sum_strided_lane_f64(
+                data,
+                lane_offset,
+                metadata.axis_len,
+                metadata.axis_stride,
+            ));
+        }
+    }
+
+    NDArray::from_shape_vec(metadata.output.shape, reduced)
+}
+
+fn sum_strided_lane_f32(
+    data: &[f32],
+    lane_offset: usize,
+    axis_len: usize,
+    axis_stride: usize,
+) -> f32 {
+    let mut total = simd::CompensatedSum::new();
+    let mut offset = lane_offset;
+
+    for _ in 0..axis_len {
+        total.add(f64::from(data[offset]));
+        offset += axis_stride;
+    }
+
+    total.finish() as f32
+}
+
+fn sum_strided_lane_f64(
+    data: &[f64],
+    lane_offset: usize,
+    axis_len: usize,
+    axis_stride: usize,
+) -> f64 {
+    let mut total = simd::CompensatedSum::new();
+    let mut offset = lane_offset;
+
+    for _ in 0..axis_len {
+        total.add(data[offset]);
+        offset += axis_stride;
+    }
+
+    total.finish()
 }
 
 fn prod_strided_lane<T: Numeric>(

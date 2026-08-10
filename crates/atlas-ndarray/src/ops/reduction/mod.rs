@@ -523,6 +523,16 @@ mod tests {
     }
 
     #[test]
+    fn whole_array_floating_reductions_preserve_small_terms_for_strided_views() {
+        let array =
+            NDArray::from_shape_vec([3, 2], vec![1.0e16_f64, 0.0, 1.0, 0.0, -1.0e16, 0.0]).unwrap();
+        let view = array.view().slice([0, 0], [3, 1]).unwrap();
+
+        assert_eq!(view.sum().unwrap(), 1.0);
+        assert_eq!(view.mean().unwrap(), 1.0 / 3.0);
+    }
+
+    #[test]
     fn whole_array_reductions_work_for_empty_dense_views() {
         let array = NDArray::from_vec([2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
         let view = array.view().slice([1, 3], [1, 0]).unwrap();
@@ -631,6 +641,22 @@ mod tests {
         assert_eq!(view.min_axis(-1).unwrap().data(), &[0, 1, 2]);
         assert_eq!(view.max_axis(-2).unwrap().data(), &[2, 5]);
         assert_eq!(view.mean_axis(-1).unwrap().data(), &[1.5, 2.5, 3.5]);
+    }
+
+    #[test]
+    fn axis_floating_reductions_preserve_small_terms_for_dense_and_strided_lanes() {
+        let dense =
+            NDArray::from_shape_vec([2, 3], vec![1.0e16_f64, 1.0, -1.0e16, 1.0e16, 1.0, -1.0e16])
+                .unwrap();
+        let strided_source =
+            NDArray::from_shape_vec([3, 2], vec![1.0e16_f64, 1.0e16, 1.0, 1.0, -1.0e16, -1.0e16])
+                .unwrap();
+        let strided = strided_source.view().transpose();
+
+        assert_eq!(dense.sum_axis(1).unwrap().data(), &[1.0, 1.0]);
+        assert_eq!(dense.mean_axis(1).unwrap().data(), &[1.0 / 3.0, 1.0 / 3.0]);
+        assert_eq!(strided.sum_axis(1).unwrap().data(), &[1.0, 1.0]);
+        assert_eq!(strided.mean_axis(1).unwrap().data(), &[1.0 / 3.0, 1.0 / 3.0]);
     }
 
     #[test]

@@ -83,6 +83,24 @@ pub(super) fn sum_all<T: Numeric>(
         return Ok(sum_contiguous(values));
     }
 
+    if simd::is_f32::<T>() {
+        return Ok(simd::cast_value_exact(sum_all_f32(
+            simd::cast_slice(data),
+            offset,
+            shape,
+            strides,
+        )));
+    }
+
+    if simd::is_f64::<T>() {
+        return Ok(simd::cast_value_exact(sum_all_f64(
+            simd::cast_slice(data),
+            offset,
+            shape,
+            strides,
+        )));
+    }
+
     let mut total = T::zero();
     for_each_value(data, offset, shape, strides, |value| {
         total += *value;
@@ -208,4 +226,24 @@ where
     }
 
     Ok(current)
+}
+
+fn sum_all_f32(data: &[f32], offset: usize, shape: &[usize], strides: &[usize]) -> f32 {
+    let mut total = simd::CompensatedSum::new();
+
+    for_each_value(data, offset, shape, strides, |value| {
+        total.add(f64::from(*value));
+    });
+
+    total.finish() as f32
+}
+
+fn sum_all_f64(data: &[f64], offset: usize, shape: &[usize], strides: &[usize]) -> f64 {
+    let mut total = simd::CompensatedSum::new();
+
+    for_each_value(data, offset, shape, strides, |value| {
+        total.add(*value);
+    });
+
+    total.finish()
 }

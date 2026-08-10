@@ -133,14 +133,22 @@ pub(crate) fn sum_contiguous<T: Numeric>(values: &[T]) -> T {
         if is_f32::<T>() && std::is_x86_feature_detected!("avx") {
             // SAFETY: The type check guarantees exact element layout.
             let value = unsafe { x86_64::sum_f32(cast_slice(values)) };
-            return cast_value(value);
+            return cast_value_exact(value);
         }
 
         if is_f64::<T>() && std::is_x86_feature_detected!("avx") {
             // SAFETY: The type check guarantees exact element layout.
             let value = unsafe { x86_64::sum_f64(cast_slice(values)) };
-            return cast_value(value);
+            return cast_value_exact(value);
         }
+    }
+
+    if is_f32::<T>() {
+        return cast_value_exact(compensated_sum_f32(cast_slice(values)));
+    }
+
+    if is_f64::<T>() {
+        return cast_value_exact(compensated_sum_f64(cast_slice(values)));
     }
 
     sum_scalar(values)
@@ -152,13 +160,13 @@ pub(crate) fn prod_contiguous<T: Numeric>(values: &[T]) -> T {
         if is_f32::<T>() && std::is_x86_feature_detected!("avx") {
             // SAFETY: The type check guarantees exact element layout.
             let value = unsafe { x86_64::prod_f32(cast_slice(values)) };
-            return cast_value(value);
+            return cast_value_exact(value);
         }
 
         if is_f64::<T>() && std::is_x86_feature_detected!("avx") {
             // SAFETY: The type check guarantees exact element layout.
             let value = unsafe { x86_64::prod_f64(cast_slice(values)) };
-            return cast_value(value);
+            return cast_value_exact(value);
         }
     }
 
@@ -178,7 +186,7 @@ where
 
             // SAFETY: The type check guarantees exact element layout.
             let value = unsafe { x86_64::min_f32(cast_slice(values)) };
-            return Ok(cast_value(value));
+            return Ok(cast_value_exact(value));
         }
 
         if is_f64::<T>() && std::is_x86_feature_detected!("avx") {
@@ -188,7 +196,7 @@ where
 
             // SAFETY: The type check guarantees exact element layout.
             let value = unsafe { x86_64::min_f64(cast_slice(values)) };
-            return Ok(cast_value(value));
+            return Ok(cast_value_exact(value));
         }
     }
 
@@ -208,7 +216,7 @@ where
 
             // SAFETY: The type check guarantees exact element layout.
             let value = unsafe { x86_64::max_f32(cast_slice(values)) };
-            return Ok(cast_value(value));
+            return Ok(cast_value_exact(value));
         }
 
         if is_f64::<T>() && std::is_x86_feature_detected!("avx") {
@@ -218,7 +226,7 @@ where
 
             // SAFETY: The type check guarantees exact element layout.
             let value = unsafe { x86_64::max_f64(cast_slice(values)) };
-            return Ok(cast_value(value));
+            return Ok(cast_value_exact(value));
         }
     }
 
@@ -248,7 +256,43 @@ where
         }
     }
 
+    if is_f32::<T>() {
+        return Ok(compensated_sum_f32_as_f64(cast_slice(values)) / values.len() as f64);
+    }
+
+    if is_f64::<T>() {
+        return Ok(compensated_sum_f64(cast_slice(values)) / values.len() as f64);
+    }
+
     mean_scalar(values, op)
+}
+
+#[derive(Clone, Copy, Debug, Default)]
+pub(crate) struct CompensatedSum {
+    sum: f64,
+    correction: f64,
+}
+
+impl CompensatedSum {
+    pub(crate) const fn new() -> Self {
+        Self { sum: 0.0, correction: 0.0 }
+    }
+
+    pub(crate) fn add(&mut self, value: f64) {
+        let adjusted = self.sum + value;
+
+        if self.sum.abs() >= value.abs() {
+            self.correction += (self.sum - adjusted) + value;
+        } else {
+            self.correction += (value - adjusted) + self.sum;
+        }
+
+        self.sum = adjusted;
+    }
+
+    pub(crate) fn finish(self) -> f64 {
+        self.sum + self.correction
+    }
 }
 
 fn map_binary_scalar<T, F>(lhs: &[T], rhs: &[T], out: &mut [T], op: F)
@@ -417,13 +461,13 @@ fn mean_scalar<T>(values: &[T], op: &'static str) -> AtlasNdResult<f64>
 where
     T: Numeric + ToPrimitive,
 {
-    let mut total = 0.0_f64;
+    let mut total = CompensatedSum::new();
 
     for &value in values {
-        total += value.to_f64().ok_or(AtlasNdError::NumericConversionFailed { op })?;
+        total.add(value.to_f64().ok_or(AtlasNdError::NumericConversionFailed { op })?);
     }
 
-    Ok(total / values.len() as f64)
+    Ok(total.finish() / values.len() as f64)
 }
 
 #[inline]
@@ -456,7 +500,7 @@ fn to_f64<T: Numeric>(value: T) -> f64 {
 }
 
 #[inline]
-fn cast_value<U, T>(value: U) -> T
+pub(crate) fn cast_value_exact<U, T>(value: U) -> T
 where
     U: Copy + 'static,
     T: Copy + 'static,
@@ -464,6 +508,30 @@ where
     assert_exact_type::<U, T>();
     // SAFETY: Callers only use this after an exact type match between U and T.
     unsafe { std::mem::transmute_copy::<U, T>(&value) }
+}
+
+fn compensated_sum_f32(values: &[f32]) -> f32 {
+    compensated_sum_f32_as_f64(values) as f32
+}
+
+pub(crate) fn compensated_sum_f32_as_f64(values: &[f32]) -> f64 {
+    let mut total = CompensatedSum::new();
+
+    for &value in values {
+        total.add(f64::from(value));
+    }
+
+    total.finish()
+}
+
+pub(crate) fn compensated_sum_f64(values: &[f64]) -> f64 {
+    let mut total = CompensatedSum::new();
+
+    for &value in values {
+        total.add(value);
+    }
+
+    total.finish()
 }
 
 #[inline]
@@ -534,7 +602,7 @@ mod x86_64 {
     #[target_feature(enable = "avx")]
     pub(super) unsafe fn sum_f32(values: &[f32]) -> f32 {
         if values.len() < 8 {
-            return values.iter().copied().sum();
+            return super::compensated_sum_f32(values);
         }
 
         let body_len = values.len() / 8 * 8;
@@ -549,14 +617,18 @@ mod x86_64 {
 
         let mut lanes = [0.0_f32; 8];
         _mm256_storeu_ps(lanes.as_mut_ptr(), acc);
-        let mut total: f32 = lanes.into_iter().sum();
+        let mut total = super::CompensatedSum::new();
+
+        for lane in lanes {
+            total.add(f64::from(lane));
+        }
 
         while index < values.len() {
-            total += values[index];
+            total.add(f64::from(values[index]));
             index += 1;
         }
 
-        total
+        total.finish() as f32
     }
 
     #[target_feature(enable = "avx")]
@@ -648,7 +720,7 @@ mod x86_64 {
     #[target_feature(enable = "avx")]
     pub(super) unsafe fn sum_f64(values: &[f64]) -> f64 {
         if values.len() < 4 {
-            return values.iter().copied().sum();
+            return super::compensated_sum_f64(values);
         }
 
         let body_len = values.len() / 4 * 4;
@@ -663,14 +735,18 @@ mod x86_64 {
 
         let mut lanes = [0.0_f64; 4];
         _mm256_storeu_pd(lanes.as_mut_ptr(), acc);
-        let mut total: f64 = lanes.into_iter().sum();
+        let mut total = super::CompensatedSum::new();
+
+        for lane in lanes {
+            total.add(lane);
+        }
 
         while index < values.len() {
-            total += values[index];
+            total.add(values[index]);
             index += 1;
         }
 
-        total
+        total.finish()
     }
 
     #[target_feature(enable = "avx")]
