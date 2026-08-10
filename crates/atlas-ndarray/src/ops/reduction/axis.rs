@@ -9,7 +9,7 @@ use crate::{
 use super::{
     dispatch::{ensure_non_empty_axis_reduction, should_parallelize_reduction},
     mean::{mean_axis_contiguous, mean_axis_dense_contiguous, mean_axis_strided},
-    metadata::{AxisReductionMetadata, axis_reduction_metadata},
+    metadata::{AxisReductionMetadata, axis_reduction_metadata, axis_reduction_metadata_keepdims},
     whole::{max_contiguous, min_contiguous, prod_contiguous, sum_contiguous},
 };
 
@@ -21,7 +21,25 @@ pub(super) fn sum_axis_impl<T: Numeric>(
     axis: impl AxisIndex,
 ) -> AtlasNdResult<NDArray<T>> {
     let metadata = axis_reduction_metadata(shape, strides, axis)?;
+    dispatch_sum_axis(data, base_offset, metadata)
+}
 
+pub(super) fn sum_axis_keepdims_impl<T: Numeric>(
+    data: &[T],
+    base_offset: usize,
+    shape: &[usize],
+    strides: &[usize],
+    axis: impl AxisIndex,
+) -> AtlasNdResult<NDArray<T>> {
+    let metadata = axis_reduction_metadata_keepdims(shape, strides, axis)?;
+    dispatch_sum_axis(data, base_offset, metadata)
+}
+
+fn dispatch_sum_axis<T: Numeric>(
+    data: &[T],
+    base_offset: usize,
+    metadata: AxisReductionMetadata,
+) -> AtlasNdResult<NDArray<T>> {
     match (metadata.source_layout, metadata.axis_layout) {
         (LayoutKind::Contiguous, _) => sum_axis_dense_contiguous(data, base_offset, metadata),
         (LayoutKind::Strided, LayoutKind::Contiguous) => {
@@ -39,7 +57,25 @@ pub(super) fn prod_axis_impl<T: Numeric>(
     axis: impl AxisIndex,
 ) -> AtlasNdResult<NDArray<T>> {
     let metadata = axis_reduction_metadata(shape, strides, axis)?;
+    dispatch_prod_axis(data, base_offset, metadata)
+}
 
+pub(super) fn prod_axis_keepdims_impl<T: Numeric>(
+    data: &[T],
+    base_offset: usize,
+    shape: &[usize],
+    strides: &[usize],
+    axis: impl AxisIndex,
+) -> AtlasNdResult<NDArray<T>> {
+    let metadata = axis_reduction_metadata_keepdims(shape, strides, axis)?;
+    dispatch_prod_axis(data, base_offset, metadata)
+}
+
+fn dispatch_prod_axis<T: Numeric>(
+    data: &[T],
+    base_offset: usize,
+    metadata: AxisReductionMetadata,
+) -> AtlasNdResult<NDArray<T>> {
     match (metadata.source_layout, metadata.axis_layout) {
         (LayoutKind::Contiguous, _) => prod_axis_dense_contiguous(data, base_offset, metadata),
         (LayoutKind::Strided, LayoutKind::Contiguous) => {
@@ -63,7 +99,32 @@ where
 {
     let metadata = axis_reduction_metadata(shape, strides, axis)?;
     ensure_non_empty_axis_reduction(metadata.axis_len, "min")?;
+    dispatch_min_axis(data, base_offset, metadata)
+}
 
+pub(super) fn min_axis_keepdims_impl<T>(
+    data: &[T],
+    base_offset: usize,
+    shape: &[usize],
+    strides: &[usize],
+    axis: impl AxisIndex,
+) -> AtlasNdResult<NDArray<T>>
+where
+    T: Numeric + PartialOrd,
+{
+    let metadata = axis_reduction_metadata_keepdims(shape, strides, axis)?;
+    ensure_non_empty_axis_reduction(metadata.axis_len, "min")?;
+    dispatch_min_axis(data, base_offset, metadata)
+}
+
+fn dispatch_min_axis<T>(
+    data: &[T],
+    base_offset: usize,
+    metadata: AxisReductionMetadata,
+) -> AtlasNdResult<NDArray<T>>
+where
+    T: Numeric + PartialOrd,
+{
     match (metadata.source_layout, metadata.axis_layout) {
         (LayoutKind::Contiguous, _) => min_axis_dense_contiguous(data, base_offset, metadata),
         (LayoutKind::Strided, LayoutKind::Contiguous) => {
@@ -85,7 +146,32 @@ where
 {
     let metadata = axis_reduction_metadata(shape, strides, axis)?;
     ensure_non_empty_axis_reduction(metadata.axis_len, "max")?;
+    dispatch_max_axis(data, base_offset, metadata)
+}
 
+pub(super) fn max_axis_keepdims_impl<T>(
+    data: &[T],
+    base_offset: usize,
+    shape: &[usize],
+    strides: &[usize],
+    axis: impl AxisIndex,
+) -> AtlasNdResult<NDArray<T>>
+where
+    T: Numeric + PartialOrd,
+{
+    let metadata = axis_reduction_metadata_keepdims(shape, strides, axis)?;
+    ensure_non_empty_axis_reduction(metadata.axis_len, "max")?;
+    dispatch_max_axis(data, base_offset, metadata)
+}
+
+fn dispatch_max_axis<T>(
+    data: &[T],
+    base_offset: usize,
+    metadata: AxisReductionMetadata,
+) -> AtlasNdResult<NDArray<T>>
+where
+    T: Numeric + PartialOrd,
+{
     match (metadata.source_layout, metadata.axis_layout) {
         (LayoutKind::Contiguous, _) => max_axis_dense_contiguous(data, base_offset, metadata),
         (LayoutKind::Strided, LayoutKind::Contiguous) => {
@@ -107,7 +193,32 @@ where
 {
     let metadata = axis_reduction_metadata(shape, strides, axis)?;
     ensure_non_empty_axis_reduction(metadata.axis_len, "mean")?;
+    dispatch_mean_axis(data, base_offset, metadata)
+}
 
+pub(super) fn mean_axis_keepdims_impl<T>(
+    data: &[T],
+    base_offset: usize,
+    shape: &[usize],
+    strides: &[usize],
+    axis: impl AxisIndex,
+) -> AtlasNdResult<NDArray<f64>>
+where
+    T: Numeric + ToPrimitive,
+{
+    let metadata = axis_reduction_metadata_keepdims(shape, strides, axis)?;
+    ensure_non_empty_axis_reduction(metadata.axis_len, "mean")?;
+    dispatch_mean_axis(data, base_offset, metadata)
+}
+
+fn dispatch_mean_axis<T>(
+    data: &[T],
+    base_offset: usize,
+    metadata: AxisReductionMetadata,
+) -> AtlasNdResult<NDArray<f64>>
+where
+    T: Numeric + ToPrimitive,
+{
     match (metadata.source_layout, metadata.axis_layout) {
         (LayoutKind::Contiguous, _) => mean_axis_dense_contiguous(data, base_offset, metadata),
         (LayoutKind::Strided, LayoutKind::Contiguous) => {

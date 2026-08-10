@@ -7,6 +7,9 @@ fn axis_reductions_return_predictable_shapes() {
     assert_eq!(array.sum_axis(0).unwrap().shape(), &[3, 4]);
     assert_eq!(array.sum_axis(1).unwrap().shape(), &[2, 4]);
     assert_eq!(array.sum_axis(2).unwrap().shape(), &[2, 3]);
+    assert_eq!(array.sum_axis_keepdims(0).unwrap().shape(), &[1, 3, 4]);
+    assert_eq!(array.sum_axis_keepdims(1).unwrap().shape(), &[2, 1, 4]);
+    assert_eq!(array.sum_axis_keepdims(2).unwrap().shape(), &[2, 3, 1]);
 }
 
 #[test]
@@ -23,6 +26,10 @@ fn axis_reductions_support_scalar_outputs() {
     assert_eq!(array.max_axis(-1).unwrap().data(), &[4]);
     assert_eq!(array.mean_axis(-1).unwrap().shape(), &[] as &[usize]);
     assert_eq!(array.mean_axis(-1).unwrap().data(), &[2.5]);
+    assert_eq!(array.sum_axis_keepdims(-1).unwrap().shape(), &[1]);
+    assert_eq!(array.sum_axis_keepdims(-1).unwrap().data(), &[10]);
+    assert_eq!(array.mean_axis_keepdims(-1).unwrap().shape(), &[1]);
+    assert_eq!(array.mean_axis_keepdims(-1).unwrap().data(), &[2.5]);
 }
 
 #[test]
@@ -55,6 +62,10 @@ fn axis_reductions_preserve_zero_length_output_shapes() {
     assert!(array.prod_axis(2).unwrap().data().is_empty());
     assert_eq!(array.mean_axis(2).unwrap().shape(), &[2, 0]);
     assert!(array.mean_axis(2).unwrap().data().is_empty());
+    assert_eq!(array.sum_axis_keepdims(0).unwrap().shape(), &[1, 0, 3]);
+    assert!(array.sum_axis_keepdims(0).unwrap().data().is_empty());
+    assert_eq!(array.mean_axis_keepdims(2).unwrap().shape(), &[2, 0, 1]);
+    assert!(array.mean_axis_keepdims(2).unwrap().data().is_empty());
 }
 
 #[test]

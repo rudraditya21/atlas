@@ -10,8 +10,15 @@ use num_traits::ToPrimitive;
 use crate::{AtlasNdResult, AxisIndex, NDArray, Numeric, OperandMetadata, view::ArrayView};
 
 use self::{
-    axis::{max_axis_impl, mean_axis_impl, min_axis_impl, prod_axis_impl, sum_axis_impl},
-    truth::{all_all, all_axis_impl, any_all, any_axis_impl},
+    axis::{
+        max_axis_impl, max_axis_keepdims_impl, mean_axis_impl, mean_axis_keepdims_impl,
+        min_axis_impl, min_axis_keepdims_impl, prod_axis_impl, prod_axis_keepdims_impl,
+        sum_axis_impl, sum_axis_keepdims_impl,
+    },
+    truth::{
+        all_all, all_axis_impl, all_axis_keepdims_impl, any_all, any_axis_impl,
+        any_axis_keepdims_impl,
+    },
     whole::{max_all, mean_all, min_all, prod_all, sum_all},
 };
 
@@ -49,8 +56,16 @@ impl<T: Numeric> NDArray<T> {
         sum_axis_operand(self, axis)
     }
 
+    pub fn sum_axis_keepdims<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self> {
+        sum_axis_keepdims_operand(self, axis)
+    }
+
     pub fn prod_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self> {
         prod_axis_operand(self, axis)
+    }
+
+    pub fn prod_axis_keepdims<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self> {
+        prod_axis_keepdims_operand(self, axis)
     }
 
     pub fn min_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self>
@@ -60,6 +75,13 @@ impl<T: Numeric> NDArray<T> {
         min_axis_operand(self, axis)
     }
 
+    pub fn min_axis_keepdims<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self>
+    where
+        T: PartialOrd,
+    {
+        min_axis_keepdims_operand(self, axis)
+    }
+
     pub fn max_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self>
     where
         T: PartialOrd,
@@ -67,11 +89,25 @@ impl<T: Numeric> NDArray<T> {
         max_axis_operand(self, axis)
     }
 
+    pub fn max_axis_keepdims<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self>
+    where
+        T: PartialOrd,
+    {
+        max_axis_keepdims_operand(self, axis)
+    }
+
     pub fn mean_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<f64>>
     where
         T: ToPrimitive,
     {
         mean_axis_operand(self, axis)
+    }
+
+    pub fn mean_axis_keepdims<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<f64>>
+    where
+        T: ToPrimitive,
+    {
+        mean_axis_keepdims_operand(self, axis)
     }
 }
 
@@ -88,8 +124,16 @@ impl NDArray<bool> {
         all_axis_operand(self, axis)
     }
 
+    pub fn all_axis_keepdims<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self> {
+        all_axis_keepdims_operand(self, axis)
+    }
+
     pub fn any_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self> {
         any_axis_operand(self, axis)
+    }
+
+    pub fn any_axis_keepdims<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self> {
+        any_axis_keepdims_operand(self, axis)
     }
 }
 
@@ -127,8 +171,16 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
         sum_axis_operand(self, axis)
     }
 
+    pub fn sum_axis_keepdims<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>> {
+        sum_axis_keepdims_operand(self, axis)
+    }
+
     pub fn prod_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>> {
         prod_axis_operand(self, axis)
+    }
+
+    pub fn prod_axis_keepdims<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>> {
+        prod_axis_keepdims_operand(self, axis)
     }
 
     pub fn min_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>>
@@ -138,6 +190,13 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
         min_axis_operand(self, axis)
     }
 
+    pub fn min_axis_keepdims<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>>
+    where
+        T: PartialOrd,
+    {
+        min_axis_keepdims_operand(self, axis)
+    }
+
     pub fn max_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>>
     where
         T: PartialOrd,
@@ -145,11 +204,25 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
         max_axis_operand(self, axis)
     }
 
+    pub fn max_axis_keepdims<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>>
+    where
+        T: PartialOrd,
+    {
+        max_axis_keepdims_operand(self, axis)
+    }
+
     pub fn mean_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<f64>>
     where
         T: ToPrimitive,
     {
         mean_axis_operand(self, axis)
+    }
+
+    pub fn mean_axis_keepdims<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<f64>>
+    where
+        T: ToPrimitive,
+    {
+        mean_axis_keepdims_operand(self, axis)
     }
 }
 
@@ -166,8 +239,16 @@ impl<'a> ArrayView<'a, bool> {
         all_axis_operand(self, axis)
     }
 
+    pub fn all_axis_keepdims<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<bool>> {
+        all_axis_keepdims_operand(self, axis)
+    }
+
     pub fn any_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<bool>> {
         any_axis_operand(self, axis)
+    }
+
+    pub fn any_axis_keepdims<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<bool>> {
+        any_axis_keepdims_operand(self, axis)
     }
 }
 
@@ -234,6 +315,21 @@ where
     sum_axis_impl(operand.data(), operand.offset(), operand.shape(), operand.strides(), axis)
 }
 
+fn sum_axis_keepdims_operand<T, O, A>(operand: &O, axis: A) -> AtlasNdResult<NDArray<T>>
+where
+    T: Numeric,
+    O: OperandMetadata<T> + ?Sized,
+    A: AxisIndex,
+{
+    sum_axis_keepdims_impl(
+        operand.data(),
+        operand.offset(),
+        operand.shape(),
+        operand.strides(),
+        axis,
+    )
+}
+
 fn prod_axis_operand<T, O, A>(operand: &O, axis: A) -> AtlasNdResult<NDArray<T>>
 where
     T: Numeric,
@@ -241,6 +337,21 @@ where
     A: AxisIndex,
 {
     prod_axis_impl(operand.data(), operand.offset(), operand.shape(), operand.strides(), axis)
+}
+
+fn prod_axis_keepdims_operand<T, O, A>(operand: &O, axis: A) -> AtlasNdResult<NDArray<T>>
+where
+    T: Numeric,
+    O: OperandMetadata<T> + ?Sized,
+    A: AxisIndex,
+{
+    prod_axis_keepdims_impl(
+        operand.data(),
+        operand.offset(),
+        operand.shape(),
+        operand.strides(),
+        axis,
+    )
 }
 
 fn min_axis_operand<T, O, A>(operand: &O, axis: A) -> AtlasNdResult<NDArray<T>>
@@ -252,6 +363,21 @@ where
     min_axis_impl(operand.data(), operand.offset(), operand.shape(), operand.strides(), axis)
 }
 
+fn min_axis_keepdims_operand<T, O, A>(operand: &O, axis: A) -> AtlasNdResult<NDArray<T>>
+where
+    T: Numeric + PartialOrd,
+    O: OperandMetadata<T> + ?Sized,
+    A: AxisIndex,
+{
+    min_axis_keepdims_impl(
+        operand.data(),
+        operand.offset(),
+        operand.shape(),
+        operand.strides(),
+        axis,
+    )
+}
+
 fn max_axis_operand<T, O, A>(operand: &O, axis: A) -> AtlasNdResult<NDArray<T>>
 where
     T: Numeric + PartialOrd,
@@ -259,6 +385,21 @@ where
     A: AxisIndex,
 {
     max_axis_impl(operand.data(), operand.offset(), operand.shape(), operand.strides(), axis)
+}
+
+fn max_axis_keepdims_operand<T, O, A>(operand: &O, axis: A) -> AtlasNdResult<NDArray<T>>
+where
+    T: Numeric + PartialOrd,
+    O: OperandMetadata<T> + ?Sized,
+    A: AxisIndex,
+{
+    max_axis_keepdims_impl(
+        operand.data(),
+        operand.offset(),
+        operand.shape(),
+        operand.strides(),
+        axis,
+    )
 }
 
 fn mean_axis_operand<T, O, A>(operand: &O, axis: A) -> AtlasNdResult<NDArray<f64>>
@@ -270,6 +411,21 @@ where
     mean_axis_impl(operand.data(), operand.offset(), operand.shape(), operand.strides(), axis)
 }
 
+fn mean_axis_keepdims_operand<T, O, A>(operand: &O, axis: A) -> AtlasNdResult<NDArray<f64>>
+where
+    T: Numeric + ToPrimitive,
+    O: OperandMetadata<T> + ?Sized,
+    A: AxisIndex,
+{
+    mean_axis_keepdims_impl(
+        operand.data(),
+        operand.offset(),
+        operand.shape(),
+        operand.strides(),
+        axis,
+    )
+}
+
 fn all_axis_operand<O, A>(operand: &O, axis: A) -> AtlasNdResult<NDArray<bool>>
 where
     O: OperandMetadata<bool> + ?Sized,
@@ -278,12 +434,40 @@ where
     all_axis_impl(operand.data(), operand.offset(), operand.shape(), operand.strides(), axis)
 }
 
+fn all_axis_keepdims_operand<O, A>(operand: &O, axis: A) -> AtlasNdResult<NDArray<bool>>
+where
+    O: OperandMetadata<bool> + ?Sized,
+    A: AxisIndex,
+{
+    all_axis_keepdims_impl(
+        operand.data(),
+        operand.offset(),
+        operand.shape(),
+        operand.strides(),
+        axis,
+    )
+}
+
 fn any_axis_operand<O, A>(operand: &O, axis: A) -> AtlasNdResult<NDArray<bool>>
 where
     O: OperandMetadata<bool> + ?Sized,
     A: AxisIndex,
 {
     any_axis_impl(operand.data(), operand.offset(), operand.shape(), operand.strides(), axis)
+}
+
+fn any_axis_keepdims_operand<O, A>(operand: &O, axis: A) -> AtlasNdResult<NDArray<bool>>
+where
+    O: OperandMetadata<bool> + ?Sized,
+    A: AxisIndex,
+{
+    any_axis_keepdims_impl(
+        operand.data(),
+        operand.offset(),
+        operand.shape(),
+        operand.strides(),
+        axis,
+    )
 }
 
 #[cfg(test)]
@@ -421,6 +605,22 @@ mod tests {
     }
 
     #[test]
+    fn axis_reductions_support_keepdims_shapes_for_numeric_and_boolean_outputs() {
+        let array = NDArray::from_vec(vec![2, 3], vec![1_i32, 2, 3, 4, 5, 6]).unwrap();
+        let mask =
+            NDArray::from_shape_vec([2, 3], vec![true, true, false, true, false, false]).unwrap();
+
+        assert_eq!(array.sum_axis_keepdims(0).unwrap().shape(), &[1, 3]);
+        assert_eq!(array.sum_axis_keepdims(0).unwrap().data(), &[5, 7, 9]);
+        assert_eq!(array.mean_axis_keepdims(1).unwrap().shape(), &[2, 1]);
+        assert_eq!(array.mean_axis_keepdims(1).unwrap().data(), &[2.0, 5.0]);
+        assert_eq!(mask.all_axis_keepdims(1).unwrap().shape(), &[2, 1]);
+        assert_eq!(mask.all_axis_keepdims(1).unwrap().data(), &[false, false]);
+        assert_eq!(mask.any_axis_keepdims(0).unwrap().shape(), &[1, 3]);
+        assert_eq!(mask.any_axis_keepdims(0).unwrap().data(), &[true, true, false]);
+    }
+
+    #[test]
     fn axis_reductions_work_for_strided_views() {
         let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
         let view = array.view().transpose();
@@ -525,6 +725,19 @@ mod tests {
         assert_eq!(array.all_axis(-1).unwrap().shape(), &[] as &[usize]);
         assert_eq!(array.all_axis(-1).unwrap().data(), &[false]);
         assert_eq!(array.any_axis(-1).unwrap().data(), &[true]);
+    }
+
+    #[test]
+    fn axis_keepdims_reductions_preserve_singleton_axes_for_one_dimensional_inputs() {
+        let array = NDArray::from_shape_vec([4], vec![1_i32, 2, 3, 4]).unwrap();
+        let mask = NDArray::from_shape_vec([4], vec![true, true, false, true]).unwrap();
+
+        assert_eq!(array.sum_axis_keepdims(-1).unwrap().shape(), &[1]);
+        assert_eq!(array.sum_axis_keepdims(-1).unwrap().data(), &[10]);
+        assert_eq!(array.mean_axis_keepdims(-1).unwrap().data(), &[2.5]);
+        assert_eq!(mask.all_axis_keepdims(-1).unwrap().shape(), &[1]);
+        assert_eq!(mask.all_axis_keepdims(-1).unwrap().data(), &[false]);
+        assert_eq!(mask.any_axis_keepdims(-1).unwrap().data(), &[true]);
     }
 
     #[test]

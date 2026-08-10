@@ -47,13 +47,36 @@ pub(super) fn axis_reduction_metadata(
     strides: &[usize],
     axis: impl AxisIndex,
 ) -> AtlasNdResult<AxisReductionMetadata> {
+    axis_reduction_metadata_with(shape, strides, axis, false)
+}
+
+pub(super) fn axis_reduction_metadata_keepdims(
+    shape: &[usize],
+    strides: &[usize],
+    axis: impl AxisIndex,
+) -> AtlasNdResult<AxisReductionMetadata> {
+    axis_reduction_metadata_with(shape, strides, axis, true)
+}
+
+fn axis_reduction_metadata_with(
+    shape: &[usize],
+    strides: &[usize],
+    axis: impl AxisIndex,
+    keepdims: bool,
+) -> AtlasNdResult<AxisReductionMetadata> {
     let axis = normalize_axis(axis, shape.len())?;
 
-    let mut output_shape = Vec::with_capacity(shape.len().saturating_sub(1));
-    let mut outer_strides = Vec::with_capacity(strides.len().saturating_sub(1));
+    let mut output_shape =
+        Vec::with_capacity(if keepdims { shape.len() } else { shape.len().saturating_sub(1) });
+    let mut outer_strides =
+        Vec::with_capacity(if keepdims { strides.len() } else { strides.len().saturating_sub(1) });
 
     for (current_axis, (&dim, &stride)) in shape.iter().zip(strides.iter()).enumerate() {
         if current_axis == axis {
+            if keepdims {
+                output_shape.push(1);
+                outer_strides.push(stride);
+            }
             continue;
         }
 

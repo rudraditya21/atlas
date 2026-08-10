@@ -12,7 +12,10 @@ use crate::{
 use super::{
     axis::{contiguous_lane, contiguous_region, linear_offset},
     dispatch::should_parallelize_reduction,
-    metadata::{AxisReductionMetadata, WholeReductionMetadata, axis_reduction_metadata},
+    metadata::{
+        AxisReductionMetadata, WholeReductionMetadata, axis_reduction_metadata,
+        axis_reduction_metadata_keepdims,
+    },
 };
 
 pub(super) fn all_all(data: &[bool], offset: usize, shape: &[usize], strides: &[usize]) -> bool {
@@ -57,7 +60,25 @@ pub(super) fn all_axis_impl(
     axis: impl AxisIndex,
 ) -> AtlasNdResult<NDArray<bool>> {
     let metadata = axis_reduction_metadata(shape, strides, axis)?;
+    dispatch_all_axis(data, base_offset, metadata)
+}
 
+pub(super) fn all_axis_keepdims_impl(
+    data: &[bool],
+    base_offset: usize,
+    shape: &[usize],
+    strides: &[usize],
+    axis: impl AxisIndex,
+) -> AtlasNdResult<NDArray<bool>> {
+    let metadata = axis_reduction_metadata_keepdims(shape, strides, axis)?;
+    dispatch_all_axis(data, base_offset, metadata)
+}
+
+fn dispatch_all_axis(
+    data: &[bool],
+    base_offset: usize,
+    metadata: AxisReductionMetadata,
+) -> AtlasNdResult<NDArray<bool>> {
     match (metadata.source_layout, metadata.axis_layout) {
         (LayoutKind::Contiguous, _) => all_axis_dense_contiguous(data, base_offset, metadata),
         (LayoutKind::Strided, LayoutKind::Contiguous) => {
@@ -75,7 +96,25 @@ pub(super) fn any_axis_impl(
     axis: impl AxisIndex,
 ) -> AtlasNdResult<NDArray<bool>> {
     let metadata = axis_reduction_metadata(shape, strides, axis)?;
+    dispatch_any_axis(data, base_offset, metadata)
+}
 
+pub(super) fn any_axis_keepdims_impl(
+    data: &[bool],
+    base_offset: usize,
+    shape: &[usize],
+    strides: &[usize],
+    axis: impl AxisIndex,
+) -> AtlasNdResult<NDArray<bool>> {
+    let metadata = axis_reduction_metadata_keepdims(shape, strides, axis)?;
+    dispatch_any_axis(data, base_offset, metadata)
+}
+
+fn dispatch_any_axis(
+    data: &[bool],
+    base_offset: usize,
+    metadata: AxisReductionMetadata,
+) -> AtlasNdResult<NDArray<bool>> {
     match (metadata.source_layout, metadata.axis_layout) {
         (LayoutKind::Contiguous, _) => any_axis_dense_contiguous(data, base_offset, metadata),
         (LayoutKind::Strided, LayoutKind::Contiguous) => {
