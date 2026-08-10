@@ -75,21 +75,19 @@ pub(super) fn sum_all<T: Numeric>(
     offset: usize,
     shape: &[usize],
     strides: &[usize],
-) -> T {
+) -> AtlasNdResult<T> {
     let metadata = WholeReductionMetadata::from_shape(shape);
-    if metadata.is_empty() {
-        return T::zero();
-    }
+    ensure_non_empty_reduction(metadata.len, "sum")?;
 
     if let Some(values) = dense_storage_slice(data, offset, shape, strides) {
-        return sum_contiguous(values);
+        return Ok(sum_contiguous(values));
     }
 
     let mut total = T::zero();
     for_each_value(data, offset, shape, strides, |value| {
         total += *value;
     });
-    total
+    Ok(total)
 }
 
 pub(super) fn prod_all<T: Numeric>(
@@ -97,21 +95,19 @@ pub(super) fn prod_all<T: Numeric>(
     offset: usize,
     shape: &[usize],
     strides: &[usize],
-) -> T {
+) -> AtlasNdResult<T> {
     let metadata = WholeReductionMetadata::from_shape(shape);
-    if metadata.is_empty() {
-        return T::one();
-    }
+    ensure_non_empty_reduction(metadata.len, "prod")?;
 
     if let Some(values) = dense_storage_slice(data, offset, shape, strides) {
-        return prod_contiguous(values);
+        return Ok(prod_contiguous(values));
     }
 
     let mut total = T::one();
     for_each_value(data, offset, shape, strides, |value| {
         total *= *value;
     });
-    total
+    Ok(total)
 }
 
 pub(super) fn min_all<T>(

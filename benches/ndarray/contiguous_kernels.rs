@@ -130,13 +130,13 @@ fn bench_sum_layouts(c: &mut Criterion) {
         let sliced = padded.view().slice([0, 0], [side, side]).unwrap();
 
         group.bench_with_input(BenchmarkId::new("contiguous", &label), &elements, |b, _| {
-            b.iter(|| black_box(contiguous.sum()))
+            b.iter(|| black_box(contiguous.sum().unwrap()))
         });
         group.bench_with_input(BenchmarkId::new("strided_transpose", &label), &elements, |b, _| {
-            b.iter(|| black_box(transposed.sum()))
+            b.iter(|| black_box(transposed.sum().unwrap()))
         });
         group.bench_with_input(BenchmarkId::new("strided_slice", &label), &elements, |b, _| {
-            b.iter(|| black_box(sliced.sum()))
+            b.iter(|| black_box(sliced.sum().unwrap()))
         });
     }
 

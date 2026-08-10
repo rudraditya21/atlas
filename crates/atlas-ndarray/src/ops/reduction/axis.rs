@@ -40,6 +40,8 @@ fn dispatch_sum_axis<T: Numeric>(
     base_offset: usize,
     metadata: AxisReductionMetadata,
 ) -> AtlasNdResult<NDArray<T>> {
+    ensure_non_empty_axis_reduction(metadata.axis_len, "sum")?;
+
     match (metadata.source_layout, metadata.axis_layout) {
         (LayoutKind::Contiguous, _) => sum_axis_dense_contiguous(data, base_offset, metadata),
         (LayoutKind::Strided, LayoutKind::Contiguous) => {
@@ -76,6 +78,8 @@ fn dispatch_prod_axis<T: Numeric>(
     base_offset: usize,
     metadata: AxisReductionMetadata,
 ) -> AtlasNdResult<NDArray<T>> {
+    ensure_non_empty_axis_reduction(metadata.axis_len, "prod")?;
+
     match (metadata.source_layout, metadata.axis_layout) {
         (LayoutKind::Contiguous, _) => prod_axis_dense_contiguous(data, base_offset, metadata),
         (LayoutKind::Strided, LayoutKind::Contiguous) => {

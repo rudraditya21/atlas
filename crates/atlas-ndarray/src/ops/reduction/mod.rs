@@ -23,11 +23,11 @@ use self::{
 };
 
 impl<T: Numeric> NDArray<T> {
-    pub fn sum(&self) -> T {
+    pub fn sum(&self) -> AtlasNdResult<T> {
         sum_operand(self)
     }
 
-    pub fn prod(&self) -> T {
+    pub fn prod(&self) -> AtlasNdResult<T> {
         prod_operand(self)
     }
 
@@ -138,11 +138,11 @@ impl NDArray<bool> {
 }
 
 impl<'a, T: Numeric> ArrayView<'a, T> {
-    pub fn sum(&self) -> T {
+    pub fn sum(&self) -> AtlasNdResult<T> {
         sum_operand(self)
     }
 
-    pub fn prod(&self) -> T {
+    pub fn prod(&self) -> AtlasNdResult<T> {
         prod_operand(self)
     }
 
@@ -252,7 +252,7 @@ impl<'a> ArrayView<'a, bool> {
     }
 }
 
-fn sum_operand<T, O>(operand: &O) -> T
+fn sum_operand<T, O>(operand: &O) -> AtlasNdResult<T>
 where
     T: Numeric,
     O: OperandMetadata<T> + ?Sized,
@@ -260,7 +260,7 @@ where
     sum_all(operand.data(), operand.offset(), operand.shape(), operand.strides())
 }
 
-fn prod_operand<T, O>(operand: &O) -> T
+fn prod_operand<T, O>(operand: &O) -> AtlasNdResult<T>
 where
     T: Numeric,
     O: OperandMetadata<T> + ?Sized,
@@ -478,8 +478,8 @@ mod tests {
     fn whole_array_reductions_work_for_contiguous_arrays() {
         let array = NDArray::from_vec(vec![2, 2], vec![1_i32, 2, 3, 4]).unwrap();
 
-        assert_eq!(array.sum(), 10);
-        assert_eq!(array.prod(), 24);
+        assert_eq!(array.sum().unwrap(), 10);
+        assert_eq!(array.prod().unwrap(), 24);
         assert_eq!(array.min().unwrap(), 1);
         assert_eq!(array.max().unwrap(), 4);
         assert_eq!(array.mean().unwrap(), 2.5);
@@ -489,8 +489,8 @@ mod tests {
     fn whole_array_reductions_work_for_scalar_arrays() {
         let array = NDArray::from_shape_vec([], vec![7_i32]).unwrap();
 
-        assert_eq!(array.sum(), 7);
-        assert_eq!(array.prod(), 7);
+        assert_eq!(array.sum().unwrap(), 7);
+        assert_eq!(array.prod().unwrap(), 7);
         assert_eq!(array.min().unwrap(), 7);
         assert_eq!(array.max().unwrap(), 7);
         assert_eq!(array.mean().unwrap(), 7.0);
@@ -515,8 +515,8 @@ mod tests {
         let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
         let view = array.view().slice([0, 1], vec![2, 2]).unwrap();
 
-        assert_eq!(view.sum(), 12);
-        assert_eq!(view.prod(), 40);
+        assert_eq!(view.sum().unwrap(), 12);
+        assert_eq!(view.prod().unwrap(), 40);
         assert_eq!(view.min().unwrap(), 1);
         assert_eq!(view.max().unwrap(), 5);
         assert_eq!(view.mean().unwrap(), 3.0);
@@ -527,8 +527,8 @@ mod tests {
         let array = NDArray::from_vec([2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
         let view = array.view().slice([1, 3], [1, 0]).unwrap();
 
-        assert_eq!(view.sum(), 0);
-        assert_eq!(view.prod(), 1);
+        assert_eq!(view.sum().unwrap_err(), AtlasNdError::EmptyReduction { op: "sum" });
+        assert_eq!(view.prod().unwrap_err(), AtlasNdError::EmptyReduction { op: "prod" });
         assert_eq!(view.min().unwrap_err(), AtlasNdError::EmptyReduction { op: "min" });
         assert_eq!(view.max().unwrap_err(), AtlasNdError::EmptyReduction { op: "max" });
         assert_eq!(view.mean().unwrap_err(), AtlasNdError::EmptyReduction { op: "mean" });
@@ -553,19 +553,19 @@ mod tests {
         let array = NDArray::<i32>::new([2, 0, 3], 1).unwrap();
         let view = array.view().transpose();
 
-        assert_eq!(view.sum(), 0);
-        assert_eq!(view.prod(), 1);
+        assert_eq!(view.sum().unwrap_err(), AtlasNdError::EmptyReduction { op: "sum" });
+        assert_eq!(view.prod().unwrap_err(), AtlasNdError::EmptyReduction { op: "prod" });
         assert_eq!(view.min().unwrap_err(), AtlasNdError::EmptyReduction { op: "min" });
         assert_eq!(view.max().unwrap_err(), AtlasNdError::EmptyReduction { op: "max" });
         assert_eq!(view.mean().unwrap_err(), AtlasNdError::EmptyReduction { op: "mean" });
     }
 
     #[test]
-    fn sum_and_prod_use_identity_for_empty_arrays() {
+    fn sum_and_prod_reject_empty_arrays() {
         let array = NDArray::<i32>::new(vec![0, 3], 7).unwrap();
 
-        assert_eq!(array.sum(), 0);
-        assert_eq!(array.prod(), 1);
+        assert_eq!(array.sum().unwrap_err(), AtlasNdError::EmptyReduction { op: "sum" });
+        assert_eq!(array.prod().unwrap_err(), AtlasNdError::EmptyReduction { op: "prod" });
     }
 
     #[test]
@@ -663,9 +663,8 @@ mod tests {
     fn axis_reductions_handle_empty_axes_consistently() {
         let array = NDArray::<i32>::new(vec![0, 3], 1).unwrap();
 
-        assert_eq!(array.sum_axis(0).unwrap().shape(), &[3]);
-        assert_eq!(array.sum_axis(0).unwrap().data(), &[0, 0, 0]);
-        assert_eq!(array.prod_axis(0).unwrap().data(), &[1, 1, 1]);
+        assert_eq!(array.sum_axis(0).unwrap_err(), AtlasNdError::EmptyReduction { op: "sum" });
+        assert_eq!(array.prod_axis(0).unwrap_err(), AtlasNdError::EmptyReduction { op: "prod" });
         assert_eq!(array.min_axis(0).unwrap_err(), AtlasNdError::EmptyReduction { op: "min" });
         assert_eq!(array.max_axis(0).unwrap_err(), AtlasNdError::EmptyReduction { op: "max" });
         assert_eq!(array.mean_axis(0).unwrap_err(), AtlasNdError::EmptyReduction { op: "mean" });
@@ -747,7 +746,10 @@ mod tests {
             NDArray::from_shape_vec([super::dispatch::PARALLEL_REDUCTION_THRESHOLD], values)
                 .unwrap();
 
-        assert_eq!(array.sum(), (super::dispatch::PARALLEL_REDUCTION_THRESHOLD as i32) * 2);
+        assert_eq!(
+            array.sum().unwrap(),
+            (super::dispatch::PARALLEL_REDUCTION_THRESHOLD as i32) * 2
+        );
         assert_eq!(array.min().unwrap(), 2);
         assert_eq!(array.max().unwrap(), 2);
         assert_eq!(array.mean().unwrap(), 2.0);
