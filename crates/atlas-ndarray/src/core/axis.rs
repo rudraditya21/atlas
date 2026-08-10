@@ -56,6 +56,58 @@ pub(crate) fn normalize_axis<A: AxisIndex>(axis: A, ndim: usize) -> AtlasNdResul
     Ok(normalized as usize)
 }
 
+pub(crate) fn normalize_scalar_index<A: AxisIndex>(
+    index: A,
+    axis: usize,
+    dim: usize,
+) -> AtlasNdResult<usize> {
+    let index = index.try_into_i64().ok_or(AtlasNdError::IndexOutOfBounds {
+        axis,
+        index: i64::MAX,
+        dim,
+    })?;
+    let dim_i128 = dim as i128;
+    let normalized = if index < 0 { dim_i128 + index as i128 } else { index as i128 };
+
+    if normalized < 0 || normalized >= dim_i128 {
+        return Err(AtlasNdError::IndexOutOfBounds { axis, index, dim });
+    }
+
+    Ok(normalized as usize)
+}
+
+pub(crate) fn normalize_and_offset_indices<A: AxisIndex>(
+    base_offset: usize,
+    indices: &[A],
+    shape: &[usize],
+    strides: &[usize],
+) -> AtlasNdResult<usize> {
+    debug_assert_eq!(shape.len(), strides.len());
+    if indices.len() != shape.len() {
+        return Err(AtlasNdError::DimensionMismatch {
+            expected: shape.len(),
+            actual: indices.len(),
+        });
+    }
+
+    let mut offset = base_offset;
+
+    for (axis, ((index, dim), stride)) in
+        indices.iter().zip(shape.iter()).zip(strides.iter()).enumerate()
+    {
+        let normalized = normalize_scalar_index(*index, axis, *dim)?;
+        let axis_offset = normalized.checked_mul(*stride).ok_or_else(|| {
+            AtlasNdError::ShapeOverflow { op: "index offset", shape: shape.to_vec() }
+        })?;
+        offset = offset.checked_add(axis_offset).ok_or_else(|| AtlasNdError::ShapeOverflow {
+            op: "index offset",
+            shape: shape.to_vec(),
+        })?;
+    }
+
+    Ok(offset)
+}
+
 pub(crate) fn normalize_insertion_axis<A: AxisIndex>(axis: A, ndim: usize) -> AtlasNdResult<usize> {
     let axis = axis.try_into_i64().ok_or(AtlasNdError::InvalidAxis { axis: i64::MAX, ndim })?;
     let upper_bound = ndim as i64;
@@ -72,7 +124,10 @@ pub(crate) fn normalize_insertion_axis<A: AxisIndex>(axis: A, ndim: usize) -> At
 mod tests {
     use crate::AtlasNdError;
 
-    use super::{normalize_axis, normalize_insertion_axis};
+    use super::{
+        normalize_and_offset_indices, normalize_axis, normalize_insertion_axis,
+        normalize_scalar_index,
+    };
 
     #[test]
     fn normalize_axis_supports_positive_and_negative_indices() {
@@ -125,6 +180,47 @@ mod tests {
         assert_eq!(
             normalize_insertion_axis(-4_i32, 2).unwrap_err(),
             AtlasNdError::InvalidAxis { axis: -4, ndim: 2 }
+        );
+    }
+
+    #[test]
+    fn normalize_scalar_index_supports_positive_and_negative_indices() {
+        assert_eq!(normalize_scalar_index(0_i32, 0, 3).unwrap(), 0);
+        assert_eq!(normalize_scalar_index(2_i32, 0, 3).unwrap(), 2);
+        assert_eq!(normalize_scalar_index(-1_i32, 0, 3).unwrap(), 2);
+        assert_eq!(normalize_scalar_index(-3_i32, 0, 3).unwrap(), 0);
+    }
+
+    #[test]
+    fn normalize_scalar_index_rejects_out_of_bounds_indices() {
+        assert_eq!(
+            normalize_scalar_index(3_i32, 0, 3).unwrap_err(),
+            AtlasNdError::IndexOutOfBounds { axis: 0, index: 3, dim: 3 }
+        );
+        assert_eq!(
+            normalize_scalar_index(-4_i32, 0, 3).unwrap_err(),
+            AtlasNdError::IndexOutOfBounds { axis: 0, index: -4, dim: 3 }
+        );
+    }
+
+    #[test]
+    fn normalize_scalar_index_rejects_unsigned_values_above_i64_max() {
+        assert_eq!(
+            normalize_scalar_index(usize::MAX, 1, 3).unwrap_err(),
+            AtlasNdError::IndexOutOfBounds { axis: 1, index: i64::MAX, dim: 3 }
+        );
+    }
+
+    #[test]
+    fn normalize_and_offset_indices_centralizes_dimension_and_bounds_checks() {
+        assert_eq!(normalize_and_offset_indices(5, &[1_i32, -1], &[2, 3], &[3, 1]).unwrap(), 10);
+        assert_eq!(
+            normalize_and_offset_indices(0, &[0_i32], &[2, 3], &[3, 1]).unwrap_err(),
+            AtlasNdError::DimensionMismatch { expected: 2, actual: 1 }
+        );
+        assert_eq!(
+            normalize_and_offset_indices(0, &[0_i32, 3], &[2, 3], &[3, 1]).unwrap_err(),
+            AtlasNdError::IndexOutOfBounds { axis: 1, index: 3, dim: 3 }
         );
     }
 }

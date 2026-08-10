@@ -43,7 +43,7 @@ mod tests {
         assert_eq!(scalar_transposed.shape(), &[] as &[usize]);
         assert_eq!(scalar_transposed.strides(), &[] as &[usize]);
         assert!(scalar_transposed.is_contiguous());
-        assert_eq!(*scalar_transposed.get(&[]).unwrap(), 5);
+        assert_eq!(*scalar_transposed.get(&[] as &[i64]).unwrap(), 5);
 
         assert_eq!(vector_transposed.shape(), &[3]);
         assert_eq!(vector_transposed.strides(), &[1]);

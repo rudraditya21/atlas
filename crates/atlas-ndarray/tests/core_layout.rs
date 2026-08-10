@@ -23,3 +23,11 @@ fn indexing_follows_row_major_layout() {
     assert_eq!(*array.get(&[0, 2]).unwrap(), 2);
     assert_eq!(*array.get(&[1, 1]).unwrap(), 4);
 }
+
+#[test]
+fn indexing_supports_negative_indices_consistently() {
+    let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+
+    assert_eq!(*array.get(&[-1, -1]).unwrap(), 5);
+    assert_eq!(*array.get(&[-2, 1]).unwrap(), 1);
+}

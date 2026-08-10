@@ -28,7 +28,7 @@ fn transpose_and_reshape_handle_scalar_and_zero_length_views() {
     let zero_length_reshaped = zero_length.view().reshape([0]).unwrap();
 
     assert_eq!(scalar_transposed.shape(), &[] as &[usize]);
-    assert_eq!(*scalar_transposed.get(&[]).unwrap(), 42);
+    assert_eq!(*scalar_transposed.get(&[] as &[i64]).unwrap(), 42);
     assert_eq!(zero_length_reshaped.shape(), &[0]);
     assert!(zero_length_reshaped.is_empty());
 }

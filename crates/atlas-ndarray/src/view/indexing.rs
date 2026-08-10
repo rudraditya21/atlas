@@ -1,34 +1,16 @@
-use crate::{AtlasNdError, AtlasNdResult, NDArray, Numeric};
+use crate::{AtlasNdResult, AxisIndex, NDArray, Numeric, core::axis::normalize_and_offset_indices};
 
 impl<T: Numeric> NDArray<T> {
-    fn offset(&self, indices: &[usize]) -> AtlasNdResult<usize> {
-        debug_assert_eq!(self.shape.len(), self.strides.len());
-        if indices.len() != self.shape.len() {
-            return Err(AtlasNdError::DimensionMismatch {
-                expected: self.shape.len(),
-                actual: indices.len(),
-            });
-        }
-
-        let mut offset = 0;
-        for (axis, ((index, dim), stride)) in
-            indices.iter().zip(self.shape.iter()).zip(self.strides.iter()).enumerate()
-        {
-            if *index >= *dim {
-                return Err(AtlasNdError::IndexOutOfBounds { axis, index: *index, dim: *dim });
-            }
-            offset += index * stride;
-        }
-
-        Ok(offset)
+    fn offset<I: AxisIndex>(&self, indices: &[I]) -> AtlasNdResult<usize> {
+        normalize_and_offset_indices(0, indices, &self.shape, &self.strides)
     }
 
-    pub fn get(&self, indices: &[usize]) -> AtlasNdResult<&T> {
+    pub fn get<I: AxisIndex>(&self, indices: &[I]) -> AtlasNdResult<&T> {
         let idx = self.offset(indices)?;
         Ok(&self.data[idx])
     }
 
-    pub fn get_mut(&mut self, indices: &[usize]) -> AtlasNdResult<&mut T> {
+    pub fn get_mut<I: AxisIndex>(&mut self, indices: &[I]) -> AtlasNdResult<&mut T> {
         let idx = self.offset(indices)?;
         Ok(&mut self.data[idx])
     }
@@ -77,10 +59,22 @@ mod tests {
     }
 
     #[test]
+    fn get_supports_negative_indices_through_shared_normalization() {
+        let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+
+        assert_eq!(*array.get(&[-1, -1]).unwrap(), 5);
+        assert_eq!(*array.get(&[-2, 1]).unwrap(), 1);
+        assert_eq!(
+            array.get(&[-3, 0]).unwrap_err(),
+            AtlasNdError::IndexOutOfBounds { axis: 0, index: -3, dim: 2 }
+        );
+    }
+
+    #[test]
     fn get_supports_scalar_arrays_and_rejects_scalar_index_mismatch() {
         let array = NDArray::new([], 7_i32).unwrap();
 
-        assert_eq!(*array.get(&[]).unwrap(), 7);
+        assert_eq!(*array.get(&[] as &[i64]).unwrap(), 7);
         assert_eq!(
             array.get(&[0]).unwrap_err(),
             AtlasNdError::DimensionMismatch { expected: 0, actual: 1 }
@@ -108,5 +102,14 @@ mod tests {
             array.get_mut(&[0, 2]).unwrap_err(),
             AtlasNdError::IndexOutOfBounds { axis: 1, index: 2, dim: 2 }
         );
+    }
+
+    #[test]
+    fn get_mut_supports_negative_indices() {
+        let mut array = NDArray::from_vec(vec![2, 2], vec![1_i32, 2, 3, 4]).unwrap();
+
+        *array.get_mut(&[-1, -2]).unwrap() = 9;
+
+        assert_eq!(array.data(), &[1, 2, 9, 4]);
     }
 }

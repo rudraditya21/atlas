@@ -18,7 +18,7 @@ pub enum AtlasNdError {
     InvalidAxis { axis: i64, ndim: usize },
 
     #[error("index out of bounds on axis {axis}: index {index}, length {dim}")]
-    IndexOutOfBounds { axis: usize, index: usize, dim: usize },
+    IndexOutOfBounds { axis: usize, index: i64, dim: usize },
 
     #[error("invalid slice on axis {axis}: start {start}, len {len}, dim {dim}")]
     InvalidSlice { axis: usize, start: usize, len: usize, dim: usize },

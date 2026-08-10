@@ -1,5 +1,6 @@
 use crate::{
-    AtlasNdError, AtlasNdResult, DType, NDArray, Numeric, RuntimeDType,
+    AtlasNdResult, AxisIndex, DType, NDArray, Numeric, RuntimeDType,
+    core::axis::normalize_and_offset_indices,
     internal::{
         layout::{dense_storage_slice, is_contiguous_layout},
         materialize_contiguous_array,
@@ -35,30 +36,11 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
         Ok(view)
     }
 
-    fn offset_for_index(&self, index: &[usize]) -> AtlasNdResult<usize> {
-        debug_assert_eq!(self.shape.len(), self.strides.len());
-        if index.len() != self.shape.len() {
-            return Err(AtlasNdError::DimensionMismatch {
-                expected: self.shape.len(),
-                actual: index.len(),
-            });
-        }
-
-        let mut offset = self.offset;
-
-        for (axis, ((index, dim), stride)) in
-            index.iter().zip(self.shape.iter()).zip(self.strides.iter()).enumerate()
-        {
-            if *index >= *dim {
-                return Err(AtlasNdError::IndexOutOfBounds { axis, index: *index, dim: *dim });
-            }
-            offset += index * stride;
-        }
-
-        Ok(offset)
+    fn offset_for_index<I: AxisIndex>(&self, index: &[I]) -> AtlasNdResult<usize> {
+        normalize_and_offset_indices(self.offset, index, &self.shape, &self.strides)
     }
 
-    pub fn get(&self, index: &[usize]) -> AtlasNdResult<&T> {
+    pub fn get<I: AxisIndex>(&self, index: &[I]) -> AtlasNdResult<&T> {
         let idx = self.offset_for_index(index)?;
         Ok(&self.data[idx])
     }
@@ -160,7 +142,7 @@ mod tests {
         let array = NDArray::new([], 13_i32).unwrap();
         let view = array.view();
 
-        assert_eq!(*view.get(&[]).unwrap(), 13);
+        assert_eq!(*view.get(&[] as &[i64]).unwrap(), 13);
         assert_eq!(
             view.get(&[0]).unwrap_err(),
             AtlasNdError::DimensionMismatch { expected: 0, actual: 1 }
@@ -175,6 +157,19 @@ mod tests {
         assert_eq!(
             view.get(&[0, 3]).unwrap_err(),
             AtlasNdError::IndexOutOfBounds { axis: 1, index: 3, dim: 3 }
+        );
+    }
+
+    #[test]
+    fn view_get_supports_negative_indices_through_shared_normalization() {
+        let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+        let view = array.view().transpose();
+
+        assert_eq!(*view.get(&[-1, -1]).unwrap(), 5);
+        assert_eq!(*view.get(&[-2, 0]).unwrap(), 1);
+        assert_eq!(
+            view.get(&[-4, 0]).unwrap_err(),
+            AtlasNdError::IndexOutOfBounds { axis: 0, index: -4, dim: 3 }
         );
     }
 
