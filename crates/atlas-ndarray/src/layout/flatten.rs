@@ -1,12 +1,12 @@
-use crate::{NDArray, Numeric, view::ArrayView};
+use crate::{ArrayElement, NDArray, view::ArrayView};
 
-impl<T: Numeric> NDArray<T> {
+impl<T: ArrayElement> NDArray<T> {
     pub fn flatten(&self) -> NDArray<T> {
         self.ravel().into_owned()
     }
 }
 
-impl<'a, T: Numeric> ArrayView<'a, T> {
+impl<'a, T: ArrayElement> ArrayView<'a, T> {
     pub fn flatten(&self) -> NDArray<T> {
         self.ravel().into_owned()
     }

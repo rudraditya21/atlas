@@ -1,7 +1,7 @@
 use std::slice::{Iter, IterMut};
 use std::vec::IntoIter;
 
-use crate::{NDArray, Numeric, internal, view::ArrayView};
+use crate::{ArrayElement, NDArray, internal, view::ArrayView};
 
 pub struct ArrayViewIter<'a, T> {
     inner: internal::ValueIter<'a, T>,
@@ -15,7 +15,7 @@ impl<'a, T> Iterator for ArrayViewIter<'a, T> {
     }
 }
 
-impl<T: Numeric> NDArray<T> {
+impl<T: ArrayElement> NDArray<T> {
     pub fn iter(&self) -> Iter<'_, T> {
         self.data.iter()
     }
@@ -25,7 +25,7 @@ impl<T: Numeric> NDArray<T> {
     }
 }
 
-impl<'a, T: Numeric> ArrayView<'a, T> {
+impl<'a, T: ArrayElement> ArrayView<'a, T> {
     pub fn iter(&'a self) -> ArrayViewIter<'a, T> {
         ArrayViewIter {
             inner: internal::value_iter(self.data, self.offset, &self.shape, &self.strides),
@@ -33,7 +33,7 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
     }
 }
 
-impl<'a, T: Numeric> IntoIterator for &'a NDArray<T> {
+impl<'a, T: ArrayElement> IntoIterator for &'a NDArray<T> {
     type Item = &'a T;
     type IntoIter = Iter<'a, T>;
 
@@ -42,7 +42,7 @@ impl<'a, T: Numeric> IntoIterator for &'a NDArray<T> {
     }
 }
 
-impl<'a, T: Numeric> IntoIterator for &'a mut NDArray<T> {
+impl<'a, T: ArrayElement> IntoIterator for &'a mut NDArray<T> {
     type Item = &'a mut T;
     type IntoIter = IterMut<'a, T>;
 
@@ -51,7 +51,7 @@ impl<'a, T: Numeric> IntoIterator for &'a mut NDArray<T> {
     }
 }
 
-impl<T: Numeric> IntoIterator for NDArray<T> {
+impl<T: ArrayElement> IntoIterator for NDArray<T> {
     type Item = T;
     type IntoIter = IntoIter<T>;
 
@@ -60,7 +60,7 @@ impl<T: Numeric> IntoIterator for NDArray<T> {
     }
 }
 
-impl<'a, T: Numeric> IntoIterator for &'a ArrayView<'a, T> {
+impl<'a, T: ArrayElement> IntoIterator for &'a ArrayView<'a, T> {
     type Item = &'a T;
     type IntoIter = ArrayViewIter<'a, T>;
 

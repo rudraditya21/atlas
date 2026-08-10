@@ -1,4 +1,4 @@
-use super::traits::Numeric;
+use super::traits::{ArrayElement, Numeric};
 use crate::{
     AsArray, AtlasNdError, AtlasNdResult, CastMode, DType, RuntimeDType, RuntimeScalar,
     internal::{
@@ -9,13 +9,13 @@ use crate::{
 };
 
 #[derive(Clone, Debug)]
-pub struct NDArray<T: Numeric> {
+pub struct NDArray<T: ArrayElement> {
     pub(crate) data: Vec<T>,
     pub(crate) shape: Vec<usize>,
     pub(crate) strides: Vec<usize>,
 }
 
-impl<T: Numeric> NDArray<T> {
+impl<T: ArrayElement> NDArray<T> {
     pub(crate) fn from_row_major_parts(shape: Vec<usize>, data: Vec<T>) -> AtlasNdResult<Self> {
         let (expected_len, strides) = checked_row_major_metadata(&shape)?;
         if data.len() != expected_len {
@@ -79,7 +79,7 @@ impl<T: Numeric> NDArray<T> {
     pub fn astype<U>(&self) -> AtlasNdResult<NDArray<U>>
     where
         T: RuntimeScalar,
-        U: Numeric + RuntimeScalar,
+        U: ArrayElement + RuntimeScalar,
     {
         self.astype_with_mode(CastMode::Checked)
     }
@@ -87,7 +87,7 @@ impl<T: Numeric> NDArray<T> {
     pub fn astype_with_mode<U>(&self, mode: CastMode) -> AtlasNdResult<NDArray<U>>
     where
         T: RuntimeScalar,
-        U: Numeric + RuntimeScalar,
+        U: ArrayElement + RuntimeScalar,
     {
         let from = self.dtype();
         let to = U::dtype();

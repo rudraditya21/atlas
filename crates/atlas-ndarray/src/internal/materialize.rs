@@ -1,8 +1,8 @@
-use crate::{NDArray, Numeric, OperandMetadata, internal::layout::is_contiguous_layout};
+use crate::{ArrayElement, NDArray, OperandMetadata, internal::layout::is_contiguous_layout};
 
 pub(crate) fn materialize_contiguous_array<T, O>(operand: &O) -> NDArray<T>
 where
-    T: Numeric,
+    T: ArrayElement,
     O: OperandMetadata<T> + ?Sized,
 {
     let data = if is_contiguous_layout(operand.shape(), operand.strides()) {

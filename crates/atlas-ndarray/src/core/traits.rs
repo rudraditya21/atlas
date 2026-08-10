@@ -1,14 +1,15 @@
 use num_traits::{Num, NumAssign};
 
+pub trait ArrayElement: Copy + Clone + Send + Sync + std::fmt::Debug + 'static {}
+
+impl<T> ArrayElement for T where T: Copy + Clone + Send + Sync + std::fmt::Debug + 'static {}
+
 pub trait Numeric:
-    Num + NumAssign + Copy + Clone + Send + Sync + std::fmt::Debug + 'static
+    ArrayElement + Num + NumAssign
 {
 }
 
-impl<T> Numeric for T where
-    T: Num + NumAssign + Copy + Clone + Send + Sync + std::fmt::Debug + 'static
-{
-}
+impl<T> Numeric for T where T: ArrayElement + Num + NumAssign {}
 
 pub trait ShapeArg {
     fn into_shape_vec(self) -> Vec<usize>;

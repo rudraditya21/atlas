@@ -1,10 +1,10 @@
 use crate::{
-    AtlasNdError, AtlasNdResult, AxisIndex, NDArray, Numeric,
+    ArrayElement, AtlasNdError, AtlasNdResult, AxisIndex, NDArray,
     core::axis::{normalize_axis, normalize_insertion_axis},
     view::ArrayView,
 };
 
-impl<T: Numeric> NDArray<T> {
+impl<T: ArrayElement> NDArray<T> {
     pub fn squeeze(&self) -> ArrayView<'_, T> {
         self.view().squeeze()
     }
@@ -18,7 +18,7 @@ impl<T: Numeric> NDArray<T> {
     }
 }
 
-impl<'a, T: Numeric> ArrayView<'a, T> {
+impl<'a, T: ArrayElement> ArrayView<'a, T> {
     pub fn squeeze(self) -> ArrayView<'a, T> {
         let mut squeezed_shape = Vec::with_capacity(self.shape.len());
         let mut squeezed_strides = Vec::with_capacity(self.strides.len());

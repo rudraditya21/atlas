@@ -1,6 +1,6 @@
-use crate::{Numeric, view::ArrayView};
+use crate::{ArrayElement, view::ArrayView};
 
-impl<'a, T: Numeric> ArrayView<'a, T> {
+impl<'a, T: ArrayElement> ArrayView<'a, T> {
     pub fn transpose(mut self) -> Self {
         self.shape.reverse();
         self.strides.reverse();

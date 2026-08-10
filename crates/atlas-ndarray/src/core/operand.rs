@@ -1,6 +1,8 @@
-use crate::{AsArray, NDArray, Numeric, internal::layout::dense_storage_slice, view::ArrayView};
+use crate::{
+    ArrayElement, AsArray, NDArray, internal::layout::dense_storage_slice, view::ArrayView,
+};
 
-pub trait OperandMetadata<T: Numeric>: sealed::Sealed {
+pub trait OperandMetadata<T: ArrayElement>: sealed::Sealed {
     fn data(&self) -> &[T];
 
     fn offset(&self) -> usize;
@@ -18,7 +20,7 @@ pub trait OperandMetadata<T: Numeric>: sealed::Sealed {
     }
 }
 
-impl<T: Numeric> OperandMetadata<T> for NDArray<T> {
+impl<T: ArrayElement> OperandMetadata<T> for NDArray<T> {
     fn data(&self) -> &[T] {
         self.data()
     }
@@ -36,7 +38,7 @@ impl<T: Numeric> OperandMetadata<T> for NDArray<T> {
     }
 }
 
-impl<T: Numeric> OperandMetadata<T> for ArrayView<'_, T> {
+impl<T: ArrayElement> OperandMetadata<T> for ArrayView<'_, T> {
     fn data(&self) -> &[T] {
         self.data()
     }
@@ -54,7 +56,7 @@ impl<T: Numeric> OperandMetadata<T> for ArrayView<'_, T> {
     }
 }
 
-impl<T: Numeric> OperandMetadata<T> for AsArray<'_, T> {
+impl<T: ArrayElement> OperandMetadata<T> for AsArray<'_, T> {
     fn data(&self) -> &[T] {
         match self {
             AsArray::Borrowed(view) => view.data(),
@@ -85,13 +87,13 @@ impl<T: Numeric> OperandMetadata<T> for AsArray<'_, T> {
 }
 
 mod sealed {
-    use crate::{AsArray, NDArray, Numeric, view::ArrayView};
+    use crate::{ArrayElement, AsArray, NDArray, view::ArrayView};
 
     pub trait Sealed {}
 
-    impl<T: Numeric> Sealed for NDArray<T> {}
-    impl<T: Numeric> Sealed for ArrayView<'_, T> {}
-    impl<T: Numeric> Sealed for AsArray<'_, T> {}
+    impl<T: ArrayElement> Sealed for NDArray<T> {}
+    impl<T: ArrayElement> Sealed for ArrayView<'_, T> {}
+    impl<T: ArrayElement> Sealed for AsArray<'_, T> {}
 }
 
 #[cfg(test)]

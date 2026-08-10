@@ -1,9 +1,10 @@
 use crate::{
-    AtlasNdError, AtlasNdResult, Numeric, ShapeArg, checked_compute_strides, checked_element_count,
+    ArrayElement, AtlasNdError, AtlasNdResult, ShapeArg, checked_compute_strides,
+    checked_element_count,
     view::ArrayView,
 };
 
-impl<'a, T: Numeric> ArrayView<'a, T> {
+impl<'a, T: ArrayElement> ArrayView<'a, T> {
     pub fn reshape<S>(self, new_shape: S) -> AtlasNdResult<Self>
     where
         S: ShapeArg,

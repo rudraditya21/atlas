@@ -1,12 +1,12 @@
-use crate::{AsArray, NDArray, Numeric, view::ArrayView};
+use crate::{ArrayElement, AsArray, NDArray, view::ArrayView};
 
-impl<T: Numeric> NDArray<T> {
+impl<T: ArrayElement> NDArray<T> {
     pub fn ravel(&self) -> AsArray<'_, T> {
         self.view().ravel()
     }
 }
 
-impl<'a, T: Numeric> ArrayView<'a, T> {
+impl<'a, T: ArrayElement> ArrayView<'a, T> {
     pub fn ravel(&self) -> AsArray<'a, T> {
         if self.is_empty() {
             return AsArray::Borrowed(

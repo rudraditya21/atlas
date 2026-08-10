@@ -1,4 +1,4 @@
-use crate::{AtlasNdError, AtlasNdResult, Numeric, ShapeArg, view::ArrayView};
+use crate::{ArrayElement, AtlasNdError, AtlasNdResult, ShapeArg, view::ArrayView};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct SliceRange {
@@ -27,7 +27,7 @@ impl Default for SliceRange {
     }
 }
 
-impl<'a, T: Numeric> ArrayView<'a, T> {
+impl<'a, T: ArrayElement> ArrayView<'a, T> {
     pub fn slice<I, S>(&self, starts: I, new_shape: S) -> AtlasNdResult<ArrayView<'a, T>>
     where
         I: AsRef<[usize]>,

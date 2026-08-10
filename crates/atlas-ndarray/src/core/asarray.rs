@@ -1,12 +1,12 @@
-use crate::{NDArray, Numeric, internal::materialize_contiguous_array, view::ArrayView};
+use crate::{ArrayElement, NDArray, internal::materialize_contiguous_array, view::ArrayView};
 
 #[derive(Clone, Debug)]
-pub enum AsArray<'a, T: Numeric> {
+pub enum AsArray<'a, T: ArrayElement> {
     Borrowed(ArrayView<'a, T>),
     Owned(NDArray<T>),
 }
 
-impl<'a, T: Numeric> AsArray<'a, T> {
+impl<'a, T: ArrayElement> AsArray<'a, T> {
     pub fn is_borrowed(&self) -> bool {
         matches!(self, Self::Borrowed(_))
     }

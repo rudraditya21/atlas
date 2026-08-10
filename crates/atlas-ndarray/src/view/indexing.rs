@@ -1,6 +1,8 @@
-use crate::{AtlasNdResult, AxisIndex, NDArray, Numeric, core::axis::normalize_and_offset_indices};
+use crate::{
+    ArrayElement, AtlasNdResult, AxisIndex, NDArray, core::axis::normalize_and_offset_indices,
+};
 
-impl<T: Numeric> NDArray<T> {
+impl<T: ArrayElement> NDArray<T> {
     fn offset<I: AxisIndex>(&self, indices: &[I]) -> AtlasNdResult<usize> {
         normalize_and_offset_indices(0, indices, &self.shape, &self.strides)
     }

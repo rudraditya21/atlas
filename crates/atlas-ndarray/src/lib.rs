@@ -29,7 +29,7 @@ pub use core::dtype::{
 };
 pub use core::error::{AtlasNdError, AtlasNdResult};
 pub use core::operand::OperandMetadata;
-pub use core::traits::{Numeric, ShapeArg};
+pub use core::traits::{ArrayElement, Numeric, ShapeArg};
 pub use internal::shape::{
     checked_compute_strides, checked_element_count, compute_strides, element_count,
 };
@@ -38,6 +38,7 @@ pub use layout::broadcast::{
     contiguous_broadcast_metadata,
 };
 pub use ops::arithmetic::{AddOperand, ArithmeticPromote, DivOperand, MulOperand, SubOperand};
+pub use ops::comparison::{EqOperand, GeOperand, GtOperand, LeOperand, LtOperand, NeOperand};
 pub use view::iter::ArrayViewIter;
 pub use view::slicing::SliceRange;
 pub use view::view::ArrayView;

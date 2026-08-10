@@ -1,5 +1,5 @@
 use crate::{
-    AtlasNdResult, AxisIndex, DType, NDArray, Numeric, RuntimeDType,
+    ArrayElement, AtlasNdResult, AxisIndex, DType, NDArray, RuntimeDType,
     core::axis::normalize_and_offset_indices,
     internal::{
         layout::{dense_storage_slice, is_contiguous_layout},
@@ -10,21 +10,21 @@ use crate::{
 };
 
 #[derive(Debug, Clone)]
-pub struct ArrayView<'a, T: Numeric> {
+pub struct ArrayView<'a, T: ArrayElement> {
     pub(crate) data: &'a [T],
     pub(crate) offset: usize,
     pub(crate) shape: Vec<usize>,
     pub(crate) strides: Vec<usize>,
 }
 
-impl<T: Numeric> NDArray<T> {
+impl<T: ArrayElement> NDArray<T> {
     pub fn view(&self) -> ArrayView<'_, T> {
         ArrayView::from_parts(&self.data, 0, self.shape.clone(), self.strides.clone())
             .expect("owned arrays always expose valid view metadata")
     }
 }
 
-impl<'a, T: Numeric> ArrayView<'a, T> {
+impl<'a, T: ArrayElement> ArrayView<'a, T> {
     const ITEM_OP: &'static str = "item";
 
     pub(crate) fn from_parts(

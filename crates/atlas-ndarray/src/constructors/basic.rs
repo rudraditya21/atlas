@@ -1,6 +1,6 @@
-use crate::{AtlasNdResult, NDArray, Numeric, OperandMetadata, ShapeArg};
+use crate::{ArrayElement, AtlasNdResult, NDArray, Numeric, OperandMetadata, ShapeArg};
 
-impl<T: Numeric> NDArray<T> {
+impl<T: ArrayElement> NDArray<T> {
     /// Creates a dense row-major array filled with `value`.
     pub fn new<S>(shape: S, value: T) -> AtlasNdResult<Self>
     where
@@ -9,6 +9,43 @@ impl<T: Numeric> NDArray<T> {
         Self::full(shape, value)
     }
 
+    /// Creates a dense row-major array filled with `value`.
+    pub fn full<S>(shape: S, value: T) -> AtlasNdResult<Self>
+    where
+        S: ShapeArg,
+    {
+        let shape = shape.into_shape_vec();
+        let size = crate::checked_element_count(&shape)?;
+
+        Self::from_row_major_parts(shape, vec![value; size])
+    }
+
+    /// Creates a dense row-major array from an explicit shape and backing data.
+    pub fn from_shape_vec<S>(shape: S, data: Vec<T>) -> AtlasNdResult<Self>
+    where
+        S: ShapeArg,
+    {
+        Self::from_row_major_parts(shape.into_shape_vec(), data)
+    }
+
+    /// Creates a dense row-major array from an explicit shape and backing data.
+    pub fn from_vec<S>(shape: S, data: Vec<T>) -> AtlasNdResult<Self>
+    where
+        S: ShapeArg,
+    {
+        Self::from_shape_vec(shape, data)
+    }
+
+    /// Creates a dense row-major array filled with `value` and the same logical shape and dtype.
+    pub fn full_like<O>(other: &O, value: T) -> AtlasNdResult<Self>
+    where
+        O: OperandMetadata<T> + ?Sized,
+    {
+        Self::full(other.shape(), value)
+    }
+}
+
+impl<T: Numeric> NDArray<T> {
     /// Creates a dense row-major array through the dedicated empty-construction path.
     pub fn empty<S>(shape: S) -> AtlasNdResult<Self>
     where
@@ -22,17 +59,6 @@ impl<T: Numeric> NDArray<T> {
         data.resize_with(size, T::zero);
 
         Self::from_row_major_parts(shape, data)
-    }
-
-    /// Creates a dense row-major array filled with `value`.
-    pub fn full<S>(shape: S, value: T) -> AtlasNdResult<Self>
-    where
-        S: ShapeArg,
-    {
-        let shape = shape.into_shape_vec();
-        let size = crate::checked_element_count(&shape)?;
-
-        Self::from_row_major_parts(shape, vec![value; size])
     }
 
     /// Creates a dense row-major array filled with zeros.
@@ -78,30 +104,6 @@ impl<T: Numeric> NDArray<T> {
         }
 
         Self::from_row_major_parts(shape, data)
-    }
-
-    /// Creates a dense row-major array from an explicit shape and backing data.
-    pub fn from_shape_vec<S>(shape: S, data: Vec<T>) -> AtlasNdResult<Self>
-    where
-        S: ShapeArg,
-    {
-        Self::from_row_major_parts(shape.into_shape_vec(), data)
-    }
-
-    /// Creates a dense row-major array from an explicit shape and backing data.
-    pub fn from_vec<S>(shape: S, data: Vec<T>) -> AtlasNdResult<Self>
-    where
-        S: ShapeArg,
-    {
-        Self::from_shape_vec(shape, data)
-    }
-
-    /// Creates a dense row-major array filled with `value` and the same logical shape and dtype.
-    pub fn full_like<O>(other: &O, value: T) -> AtlasNdResult<Self>
-    where
-        O: OperandMetadata<T> + ?Sized,
-    {
-        Self::full(other.shape(), value)
     }
 }
 
