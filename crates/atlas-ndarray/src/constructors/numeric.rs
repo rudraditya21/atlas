@@ -1,12 +1,52 @@
 use crate::{AtlasNdError, AtlasNdResult, NDArray, Numeric};
 use num_traits::Float;
 
+#[doc(hidden)]
+pub trait ArangeElement: Numeric + PartialOrd {
+    fn validate_arange_inputs(start: Self, end: Self, step: Self) -> AtlasNdResult<()>;
+}
+
+macro_rules! impl_integer_arange_element {
+    ($($ty:ty),+ $(,)?) => {
+        $(
+            impl ArangeElement for $ty {
+                fn validate_arange_inputs(_start: Self, _end: Self, _step: Self) -> AtlasNdResult<()> {
+                    Ok(())
+                }
+            }
+        )+
+    };
+}
+
+macro_rules! impl_float_arange_element {
+    ($($ty:ty),+ $(,)?) => {
+        $(
+            impl ArangeElement for $ty {
+                fn validate_arange_inputs(start: Self, end: Self, step: Self) -> AtlasNdResult<()> {
+                    if !start.is_finite() || !end.is_finite() || !step.is_finite() {
+                        return Err(AtlasNdError::InvalidArgument {
+                            op: "arange",
+                            reason: "start end and step must be finite",
+                        });
+                    }
+
+                    Ok(())
+                }
+            }
+        )+
+    };
+}
+
+impl_integer_arange_element!(i8, i16, i32, i64, isize, u8, u16, u32, u64, usize);
+impl_float_arange_element!(f32, f64);
+
 impl<T> NDArray<T>
 where
-    T: Numeric + PartialOrd,
+    T: ArangeElement,
 {
     /// Creates a 1D array from a half-open interval `[start, end)` with `step`.
     pub fn arange(start: T, end: T, step: T) -> AtlasNdResult<Self> {
+        T::validate_arange_inputs(start, end, step)?;
         let zero = T::zero();
 
         if step == zero {
@@ -16,18 +56,8 @@ where
             });
         }
 
-        if step > zero && start > end {
-            return Err(AtlasNdError::InvalidArgument {
-                op: "arange",
-                reason: "positive step does not advance toward end",
-            });
-        }
-
-        if step < zero && start < end {
-            return Err(AtlasNdError::InvalidArgument {
-                op: "arange",
-                reason: "negative step does not advance toward end",
-            });
+        if start == end || (step > zero && start > end) || (step < zero && start < end) {
+            return Self::from_vector_data(Vec::new());
         }
 
         let mut data = Vec::new();
@@ -36,12 +66,26 @@ where
         if step > zero {
             while current < end {
                 data.push(current);
-                current += step;
+                let next = current + step;
+                if next <= current {
+                    return Err(AtlasNdError::InvalidArgument {
+                        op: "arange",
+                        reason: "step must advance values",
+                    });
+                }
+                current = next;
             }
         } else {
             while current > end {
                 data.push(current);
-                current += step;
+                let next = current + step;
+                if next >= current {
+                    return Err(AtlasNdError::InvalidArgument {
+                        op: "arange",
+                        reason: "step must advance values",
+                    });
+                }
+                current = next;
             }
         }
 
@@ -103,37 +147,48 @@ mod tests {
     }
 
     #[test]
-    fn arange_handles_empty_equal_endpoint_ranges() {
+    fn arange_handles_empty_equal_and_direction_mismatched_ranges() {
         let increasing = NDArray::arange(3_i32, 3, 1).unwrap();
         let decreasing = NDArray::arange(3_i32, 3, -1).unwrap();
+        let positive_mismatch = NDArray::arange(5_i32, 0, 1).unwrap();
+        let negative_mismatch = NDArray::arange(0_i32, 5, -1).unwrap();
 
         assert_eq!(increasing.shape(), &[0]);
         assert!(increasing.data().is_empty());
         assert_eq!(decreasing.shape(), &[0]);
         assert!(decreasing.data().is_empty());
+        assert_eq!(positive_mismatch.shape(), &[0]);
+        assert!(positive_mismatch.data().is_empty());
+        assert_eq!(negative_mismatch.shape(), &[0]);
+        assert!(negative_mismatch.data().is_empty());
     }
 
     #[test]
-    fn arange_rejects_invalid_step_configuration() {
+    fn arange_rejects_zero_non_finite_and_non_advancing_steps() {
         assert_eq!(
             NDArray::arange(0_i32, 5, 0).unwrap_err(),
             AtlasNdError::InvalidArgument { op: "arange", reason: "step must be non-zero" }
         );
 
         assert_eq!(
-            NDArray::arange(5_i32, 0, 1).unwrap_err(),
+            NDArray::arange(f64::NAN, 5.0, 1.0).unwrap_err(),
             AtlasNdError::InvalidArgument {
                 op: "arange",
-                reason: "positive step does not advance toward end",
+                reason: "start end and step must be finite",
             }
         );
 
         assert_eq!(
-            NDArray::arange(0_i32, 5, -1).unwrap_err(),
+            NDArray::arange(0.0_f64, f64::INFINITY, 1.0).unwrap_err(),
             AtlasNdError::InvalidArgument {
                 op: "arange",
-                reason: "negative step does not advance toward end",
+                reason: "start end and step must be finite",
             }
+        );
+
+        assert_eq!(
+            NDArray::arange(1.0_f64, 2.0, f64::MIN_POSITIVE / 2.0).unwrap_err(),
+            AtlasNdError::InvalidArgument { op: "arange", reason: "step must advance values" }
         );
     }
 

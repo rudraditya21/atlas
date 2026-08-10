@@ -37,11 +37,17 @@ fn eye_is_ready_for_linalg_bootstrap() {
 fn arange_creates_predictable_1d_workloads() {
     let values = NDArray::arange(0_i32, 6, 2).unwrap();
     let empty = NDArray::arange(4_i32, 4, 1).unwrap();
+    let descending_with_positive_step = NDArray::arange(6_i32, 0, 2).unwrap();
+    let ascending_with_negative_step = NDArray::arange(0_i32, 6, -2).unwrap();
 
     assert_eq!(values.shape(), &[3]);
     assert_eq!(values.data(), &[0, 2, 4]);
     assert_eq!(empty.shape(), &[0]);
     assert!(empty.data().is_empty());
+    assert_eq!(descending_with_positive_step.shape(), &[0]);
+    assert!(descending_with_positive_step.data().is_empty());
+    assert_eq!(ascending_with_negative_step.shape(), &[0]);
+    assert!(ascending_with_negative_step.data().is_empty());
 }
 
 #[test]
@@ -65,6 +71,11 @@ fn constructor_validation_is_consistent() {
     assert_eq!(
         NDArray::arange(0_i32, 5, 0).unwrap_err(),
         AtlasNdError::InvalidArgument { op: "arange", reason: "step must be non-zero" }
+    );
+
+    assert_eq!(
+        NDArray::arange(f32::NEG_INFINITY, 1.0, 1.0).unwrap_err(),
+        AtlasNdError::InvalidArgument { op: "arange", reason: "start end and step must be finite" }
     );
 
     assert_eq!(
