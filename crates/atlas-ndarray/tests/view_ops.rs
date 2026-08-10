@@ -87,3 +87,20 @@ fn ravel_preserves_views_when_possible_and_materializes_when_needed() {
     assert_eq!(transposed.view().strides(), &[1]);
     assert_eq!(transposed.into_owned().data(), &[0, 3, 1, 4, 2, 5]);
 }
+
+#[test]
+fn flatten_always_returns_owned_flattened_copies() {
+    let mut array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+    let contiguous = array.flatten();
+    let transposed = array.view().transpose().flatten();
+
+    *array.get_mut(&[0, 0]).unwrap() = 99;
+
+    assert_eq!(contiguous.shape(), &[6]);
+    assert_eq!(contiguous.strides(), &[1]);
+    assert_eq!(contiguous.data(), &[0, 1, 2, 3, 4, 5]);
+
+    assert_eq!(transposed.shape(), &[6]);
+    assert_eq!(transposed.strides(), &[1]);
+    assert_eq!(transposed.data(), &[0, 3, 1, 4, 2, 5]);
+}
