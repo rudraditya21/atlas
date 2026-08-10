@@ -4,10 +4,7 @@ pub trait ArrayElement: Copy + Clone + Send + Sync + std::fmt::Debug + 'static {
 
 impl<T> ArrayElement for T where T: Copy + Clone + Send + Sync + std::fmt::Debug + 'static {}
 
-pub trait Numeric:
-    ArrayElement + Num + NumAssign
-{
-}
+pub trait Numeric: ArrayElement + Num + NumAssign {}
 
 impl<T> Numeric for T where T: ArrayElement + Num + NumAssign {}
 

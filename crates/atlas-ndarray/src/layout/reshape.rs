@@ -1,7 +1,6 @@
 use crate::{
     ArrayElement, AtlasNdError, AtlasNdResult, ShapeArg, checked_compute_strides,
-    checked_element_count,
-    view::ArrayView,
+    checked_element_count, view::ArrayView,
 };
 
 impl<'a, T: ArrayElement> ArrayView<'a, T> {

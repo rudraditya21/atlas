@@ -90,7 +90,8 @@ where
     F: Fn(T, T) -> bool + Copy,
 {
     let metadata = broadcast_pair(lhs.shape(), lhs.strides(), rhs.shape(), rhs.strides())?;
-    let layout_kind = pair_layout_kind(&metadata.shape, &metadata.lhs_strides, &metadata.rhs_strides);
+    let layout_kind =
+        pair_layout_kind(&metadata.shape, &metadata.lhs_strides, &metadata.rhs_strides);
 
     Ok(match layout_kind {
         PairLayoutKind::Contiguous => compare_contiguous(lhs, rhs, op),

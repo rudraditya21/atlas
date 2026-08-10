@@ -25,7 +25,7 @@ fn broadcasted_array_comparisons_materialize_logical_bool_results() {
 
     assert_eq!(lt.dtype(), DType::Bool);
     assert_eq!(lt.shape(), &[2, 3]);
-    assert_eq!(lt.data(), &[true, true, true, false, true, true]);
+    assert_eq!(lt.data(), &[true, true, true, false, false, true]);
 
     assert_eq!(ge.dtype(), DType::Bool);
     assert_eq!(ge.data(), &[false, false, false, true, true, false]);

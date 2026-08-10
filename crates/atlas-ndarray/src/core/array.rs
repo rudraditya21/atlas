@@ -1,4 +1,4 @@
-use super::traits::{ArrayElement, Numeric};
+use super::traits::ArrayElement;
 use crate::{
     AsArray, AtlasNdError, AtlasNdResult, CastMode, DType, RuntimeDType, RuntimeScalar,
     internal::{
