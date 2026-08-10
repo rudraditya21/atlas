@@ -101,6 +101,16 @@ mod tests {
     }
 
     #[test]
+    fn squeeze_axis_supports_negative_axes() {
+        let array = NDArray::from_shape_vec([2, 1, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+        let squeezed = array.squeeze_axis(-2).unwrap();
+
+        assert_eq!(squeezed.shape(), &[2, 3]);
+        assert_eq!(squeezed.strides(), &[3, 1]);
+        assert_eq!(squeezed.data(), array.data());
+    }
+
+    #[test]
     fn squeeze_axis_rejects_non_singleton_and_invalid_axes() {
         let array = NDArray::from_shape_vec([2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
 
@@ -167,5 +177,16 @@ mod tests {
             array.expand_dims(-4).unwrap_err(),
             AtlasNdError::InvalidAxis { axis: -4, ndim: 2 }
         );
+    }
+
+    #[test]
+    fn expand_dims_supports_negative_axes_on_views() {
+        let array = NDArray::from_shape_vec([2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+        let view = array.view().transpose();
+        let expanded = view.expand_dims(-1).unwrap();
+
+        assert_eq!(expanded.shape(), &[3, 2, 1]);
+        assert_eq!(expanded.strides(), &[1, 3, 1]);
+        assert_eq!(*expanded.get(&[-1, -1, 0]).unwrap(), 5);
     }
 }
