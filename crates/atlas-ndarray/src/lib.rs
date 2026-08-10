@@ -25,7 +25,8 @@ pub use core::array::NDArray;
 pub use core::asarray::AsArray;
 pub use core::axis::AxisIndex;
 pub use core::dtype::{
-    CastMode, CastPolicy, DType, RuntimeDType, RuntimeScalar, ScalarValue, infer_scalar_dtype,
+    CastMode, CastPolicy, DType, ReductionOp, RuntimeDType, RuntimeScalar, ScalarValue,
+    infer_scalar_dtype,
 };
 pub use core::error::{AtlasNdError, AtlasNdResult};
 pub use core::operand::OperandMetadata;

@@ -1,5 +1,5 @@
 use crate::{
-    ArrayElement, AtlasNdResult, AxisIndex, DType, NDArray, RuntimeDType,
+    ArrayElement, AtlasNdResult, AxisIndex, DType, NDArray, ReductionOp, RuntimeDType,
     core::axis::normalize_and_offset_indices,
     internal::{
         layout::{dense_storage_slice, is_contiguous_layout},
@@ -93,6 +93,20 @@ impl<'a, T: ArrayElement> ArrayView<'a, T> {
         DType::of::<T>()
     }
 
+    pub fn reduction_result_dtype(&self, op: ReductionOp) -> Option<DType>
+    where
+        T: RuntimeDType,
+    {
+        self.dtype().reduction_result_dtype(op)
+    }
+
+    pub fn reduction_accumulator_dtype(&self, op: ReductionOp) -> Option<DType>
+    where
+        T: RuntimeDType,
+    {
+        self.dtype().reduction_accumulator_dtype(op)
+    }
+
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -116,7 +130,7 @@ impl<'a, T: ArrayElement> ArrayView<'a, T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{AtlasNdError, DType, NDArray};
+    use crate::{AtlasNdError, DType, NDArray, ReductionOp};
 
     #[test]
     fn view_preserves_owned_layout_metadata() {
@@ -134,6 +148,20 @@ mod tests {
         assert!(view.dense_slice().is_some());
         assert_eq!(view.dense_slice().unwrap(), array.data());
         assert_eq!(view.validate_invariants(), Ok(()));
+    }
+
+    #[test]
+    fn views_expose_runtime_reduction_dtype_rules() {
+        let array = NDArray::from_shape_vec([2, 2], vec![1_u8, 2, 3, 4]).unwrap();
+        let bools = NDArray::from_shape_vec([2], vec![true, false]).unwrap();
+        let view = array.view().transpose();
+        let bool_view = bools.view();
+
+        assert_eq!(view.reduction_result_dtype(ReductionOp::Sum), Some(DType::Usize));
+        assert_eq!(view.reduction_result_dtype(ReductionOp::Min), Some(DType::U8));
+        assert_eq!(view.reduction_result_dtype(ReductionOp::Mean), Some(DType::F64));
+        assert_eq!(bool_view.reduction_result_dtype(ReductionOp::Any), Some(DType::Bool));
+        assert_eq!(view.reduction_result_dtype(ReductionOp::All), None);
     }
 
     #[test]

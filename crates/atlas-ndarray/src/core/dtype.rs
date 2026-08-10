@@ -39,6 +39,17 @@ pub enum CastMode {
     Lossy,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum ReductionOp {
+    Sum,
+    Prod,
+    Min,
+    Max,
+    Mean,
+    All,
+    Any,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ScalarValue {
     Bool(bool),
@@ -235,6 +246,24 @@ impl DType {
             (_, DTypeKind::Bool) => CastPolicy::Lossy,
         }
     }
+
+    pub fn reduction_result_dtype(self, op: ReductionOp) -> Option<DType> {
+        match op {
+            ReductionOp::Sum | ReductionOp::Prod => Some(sum_like_reduction_dtype(self)),
+            ReductionOp::Min | ReductionOp::Max => Some(self),
+            ReductionOp::Mean => Some(mean_reduction_dtype(self)),
+            ReductionOp::All | ReductionOp::Any => self.is_bool().then_some(DType::Bool),
+        }
+    }
+
+    pub fn reduction_accumulator_dtype(self, op: ReductionOp) -> Option<DType> {
+        match op {
+            ReductionOp::Sum | ReductionOp::Prod => Some(sum_like_reduction_dtype(self)),
+            ReductionOp::Min | ReductionOp::Max => Some(self),
+            ReductionOp::Mean => Some(mean_accumulator_dtype(self)),
+            ReductionOp::All | ReductionOp::Any => self.is_bool().then_some(DType::Bool),
+        }
+    }
 }
 
 impl fmt::Display for DType {
@@ -403,6 +432,28 @@ fn integer_is_exact_in_float(source: DType, target: DType) -> bool {
 
 fn promote_float_float(lhs: DType, rhs: DType) -> DType {
     if lhs.itemsize() >= rhs.itemsize() { lhs } else { rhs }
+}
+
+fn sum_like_reduction_dtype(dtype: DType) -> DType {
+    if dtype.is_bool() {
+        return DType::Isize;
+    }
+
+    if dtype.is_signed_integer() {
+        if dtype.itemsize() < size_of::<isize>() { DType::Isize } else { dtype }
+    } else if dtype.is_unsigned_integer() {
+        if dtype.itemsize() < size_of::<usize>() { DType::Usize } else { dtype }
+    } else {
+        dtype
+    }
+}
+
+fn mean_reduction_dtype(dtype: DType) -> DType {
+    if dtype.is_float() { dtype } else { DType::F64 }
+}
+
+fn mean_accumulator_dtype(dtype: DType) -> DType {
+    if dtype.is_float() { dtype } else { DType::F64 }
 }
 
 fn promote_float_integer(float: DType, integer: DType) -> DType {
@@ -732,8 +783,8 @@ mod tests {
     use std::mem::size_of;
 
     use super::{
-        CastMode, CastPolicy, DType, DTypeKind, RuntimeDType, RuntimeScalar, ScalarValue,
-        infer_scalar_dtype,
+        CastMode, CastPolicy, DType, DTypeKind, ReductionOp, RuntimeDType, RuntimeScalar,
+        ScalarValue, infer_scalar_dtype,
     };
 
     #[test]
@@ -918,5 +969,47 @@ mod tests {
         assert_eq!(ScalarValue::Bool(true).promote_with(ScalarValue::I16(2)), DType::I16);
         assert_eq!(ScalarValue::I32(7).promote_with(ScalarValue::U32(9)), DType::I64);
         assert_eq!(ScalarValue::F32(1.5).promote_with(ScalarValue::I32(2)), DType::F64);
+    }
+
+    #[test]
+    fn sum_and_prod_reduction_rules_follow_numpy_style_integer_defaults() {
+        let expected_signed = DType::Isize;
+        let expected_unsigned = DType::Usize;
+
+        assert_eq!(DType::Bool.reduction_result_dtype(ReductionOp::Sum), Some(expected_signed));
+        assert_eq!(DType::Bool.reduction_result_dtype(ReductionOp::Prod), Some(expected_signed));
+        assert_eq!(DType::I8.reduction_result_dtype(ReductionOp::Sum), Some(expected_signed));
+        assert_eq!(DType::I32.reduction_result_dtype(ReductionOp::Prod), Some(expected_signed));
+        assert_eq!(DType::U8.reduction_result_dtype(ReductionOp::Sum), Some(expected_unsigned));
+        assert_eq!(DType::U32.reduction_result_dtype(ReductionOp::Prod), Some(expected_unsigned));
+        assert_eq!(DType::I64.reduction_result_dtype(ReductionOp::Sum), Some(DType::I64));
+        assert_eq!(DType::U64.reduction_result_dtype(ReductionOp::Prod), Some(DType::U64));
+        assert_eq!(DType::F32.reduction_result_dtype(ReductionOp::Sum), Some(DType::F32));
+        assert_eq!(DType::F64.reduction_result_dtype(ReductionOp::Prod), Some(DType::F64));
+    }
+
+    #[test]
+    fn mean_reduction_rules_distinguish_integer_boolean_and_float_outputs() {
+        assert_eq!(DType::Bool.reduction_result_dtype(ReductionOp::Mean), Some(DType::F64));
+        assert_eq!(DType::I32.reduction_result_dtype(ReductionOp::Mean), Some(DType::F64));
+        assert_eq!(DType::U64.reduction_result_dtype(ReductionOp::Mean), Some(DType::F64));
+        assert_eq!(DType::F32.reduction_result_dtype(ReductionOp::Mean), Some(DType::F32));
+        assert_eq!(DType::F64.reduction_result_dtype(ReductionOp::Mean), Some(DType::F64));
+
+        assert_eq!(DType::Bool.reduction_accumulator_dtype(ReductionOp::Mean), Some(DType::F64));
+        assert_eq!(DType::I16.reduction_accumulator_dtype(ReductionOp::Mean), Some(DType::F64));
+        assert_eq!(DType::F32.reduction_accumulator_dtype(ReductionOp::Mean), Some(DType::F32));
+        assert_eq!(DType::F64.reduction_accumulator_dtype(ReductionOp::Mean), Some(DType::F64));
+    }
+
+    #[test]
+    fn min_max_and_truth_reduction_rules_preserve_expected_dtypes() {
+        assert_eq!(DType::Bool.reduction_result_dtype(ReductionOp::Min), Some(DType::Bool));
+        assert_eq!(DType::I32.reduction_result_dtype(ReductionOp::Max), Some(DType::I32));
+        assert_eq!(DType::F64.reduction_result_dtype(ReductionOp::Min), Some(DType::F64));
+        assert_eq!(DType::Bool.reduction_result_dtype(ReductionOp::All), Some(DType::Bool));
+        assert_eq!(DType::Bool.reduction_result_dtype(ReductionOp::Any), Some(DType::Bool));
+        assert_eq!(DType::I32.reduction_result_dtype(ReductionOp::All), None);
+        assert_eq!(DType::F32.reduction_accumulator_dtype(ReductionOp::Any), None);
     }
 }

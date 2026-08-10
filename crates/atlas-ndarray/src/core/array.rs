@@ -1,6 +1,7 @@
 use super::traits::ArrayElement;
 use crate::{
-    AsArray, AtlasNdError, AtlasNdResult, CastMode, DType, RuntimeDType, RuntimeScalar,
+    AsArray, AtlasNdError, AtlasNdResult, CastMode, DType, ReductionOp, RuntimeDType,
+    RuntimeScalar,
     internal::{
         layout::{dense_storage_slice, is_contiguous_layout},
         shape::checked_row_major_metadata,
@@ -63,6 +64,20 @@ impl<T: ArrayElement> NDArray<T> {
         DType::of::<T>()
     }
 
+    pub fn reduction_result_dtype(&self, op: ReductionOp) -> Option<DType>
+    where
+        T: RuntimeDType,
+    {
+        self.dtype().reduction_result_dtype(op)
+    }
+
+    pub fn reduction_accumulator_dtype(&self, op: ReductionOp) -> Option<DType>
+    where
+        T: RuntimeDType,
+    {
+        self.dtype().reduction_accumulator_dtype(op)
+    }
+
     pub fn is_empty(&self) -> bool {
         self.data.is_empty()
     }
@@ -112,7 +127,7 @@ impl<T: ArrayElement> NDArray<T> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{AtlasNdError, CastMode, DType, NDArray};
+    use crate::{AtlasNdError, CastMode, DType, NDArray, ReductionOp};
 
     #[test]
     fn scalar_arrays_are_contiguous() {
@@ -164,6 +179,19 @@ mod tests {
 
         assert_eq!(ints.dtype(), DType::I32);
         assert_eq!(floats.dtype(), DType::F64);
+    }
+
+    #[test]
+    fn arrays_expose_runtime_reduction_dtype_rules() {
+        let ints = NDArray::from_shape_vec([2], vec![1_i32, 2]).unwrap();
+        let floats = NDArray::from_shape_vec([2], vec![1.0_f32, 2.0]).unwrap();
+        let bools = NDArray::from_shape_vec([2], vec![true, false]).unwrap();
+
+        assert_eq!(ints.reduction_result_dtype(ReductionOp::Sum), Some(DType::Isize));
+        assert_eq!(ints.reduction_accumulator_dtype(ReductionOp::Mean), Some(DType::F64));
+        assert_eq!(floats.reduction_result_dtype(ReductionOp::Mean), Some(DType::F32));
+        assert_eq!(bools.reduction_result_dtype(ReductionOp::All), Some(DType::Bool));
+        assert_eq!(bools.reduction_result_dtype(ReductionOp::Sum), Some(DType::Isize));
     }
 
     #[test]
