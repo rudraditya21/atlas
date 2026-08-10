@@ -112,7 +112,7 @@ fn empty_boundary_slices_expose_stable_public_view_metadata() {
     assert_eq!(slice.len(), 0);
     assert!(slice.is_empty());
     assert_eq!(slice.ndim(), 2);
-    assert!(!slice.is_contiguous());
+    assert!(slice.is_contiguous());
 }
 
 #[test]

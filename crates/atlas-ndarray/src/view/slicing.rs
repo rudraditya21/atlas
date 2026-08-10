@@ -222,6 +222,7 @@ mod tests {
         assert_eq!(slice.offset(), 0);
         assert_eq!(slice.len(), 0);
         assert!(slice.is_empty());
+        assert!(slice.is_contiguous());
     }
 
     #[test]
@@ -233,6 +234,18 @@ mod tests {
         assert_eq!(slice.shape(), &[1, 0]);
         assert_eq!(slice.offset(), 3);
         assert!(slice.is_empty());
+    }
+
+    #[test]
+    fn slice_preserves_contiguity_for_dense_singleton_axis_views() {
+        let array = NDArray::from_vec([2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+        let slice = array.view().slice([1, 0], [1, 3]).unwrap();
+
+        assert_eq!(slice.shape(), &[1, 3]);
+        assert_eq!(slice.strides(), &[3, 1]);
+        assert_eq!(slice.offset(), 3);
+        assert!(slice.is_contiguous());
+        assert_eq!(slice.dense_slice(), Some(&array.data()[3..6]));
     }
 
     #[test]
