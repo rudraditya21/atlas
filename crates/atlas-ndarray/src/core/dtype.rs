@@ -155,6 +155,41 @@ impl DType {
         self == T::DTYPE
     }
 
+    pub fn promote_with(self, other: DType) -> DType {
+        if self == other {
+            return self;
+        }
+
+        if self.is_bool() {
+            return other;
+        }
+
+        if other.is_bool() {
+            return self;
+        }
+
+        match (self.kind(), other.kind()) {
+            (DTypeKind::Float, DTypeKind::Float) => promote_float_float(self, other),
+            (DTypeKind::Float, _) => promote_float_integer(self, other),
+            (_, DTypeKind::Float) => promote_float_integer(other, self),
+            (DTypeKind::SignedInteger, DTypeKind::SignedInteger) => {
+                promote_signed_signed(self, other)
+            }
+            (DTypeKind::UnsignedInteger, DTypeKind::UnsignedInteger) => {
+                promote_unsigned_unsigned(self, other)
+            }
+            (DTypeKind::SignedInteger, DTypeKind::UnsignedInteger) => {
+                promote_signed_unsigned(self, other)
+            }
+            (DTypeKind::UnsignedInteger, DTypeKind::SignedInteger) => {
+                promote_signed_unsigned(other, self)
+            }
+            (DTypeKind::Bool, _) | (_, DTypeKind::Bool) => {
+                unreachable!("bool promotion handled above")
+            }
+        }
+    }
+
     pub fn cast_policy_to(self, target: DType) -> CastPolicy {
         if self == target {
             return CastPolicy::Exact;
@@ -229,6 +264,10 @@ impl ScalarValue {
 
     pub fn cast_policy_to(self, target: DType) -> CastPolicy {
         self.dtype().cast_policy_to(target)
+    }
+
+    pub fn promote_with(self, other: ScalarValue) -> DType {
+        self.dtype().promote_with(other.dtype())
     }
 
     pub fn cast(self, target: DType, mode: CastMode) -> Option<Self> {
@@ -362,6 +401,61 @@ fn integer_is_exact_in_float(source: DType, target: DType) -> bool {
     }
 }
 
+fn promote_float_float(lhs: DType, rhs: DType) -> DType {
+    if lhs.itemsize() >= rhs.itemsize() { lhs } else { rhs }
+}
+
+fn promote_float_integer(float: DType, integer: DType) -> DType {
+    match float {
+        DType::F64 => DType::F64,
+        DType::F32 => {
+            if integer_is_exact_in_float(integer, DType::F32) {
+                DType::F32
+            } else {
+                DType::F64
+            }
+        }
+        _ => unreachable!("float promotion requires a floating dtype"),
+    }
+}
+
+fn promote_signed_signed(lhs: DType, rhs: DType) -> DType {
+    let bits = lhs.integer_bits().unwrap().max(rhs.integer_bits().unwrap());
+    let prefer_pointer = lhs == DType::Isize || rhs == DType::Isize;
+    canonical_signed_dtype(bits, prefer_pointer)
+}
+
+fn promote_unsigned_unsigned(lhs: DType, rhs: DType) -> DType {
+    let bits = lhs.integer_bits().unwrap().max(rhs.integer_bits().unwrap());
+    let prefer_pointer = lhs == DType::Usize || rhs == DType::Usize;
+    canonical_unsigned_dtype(bits, prefer_pointer)
+}
+
+fn promote_signed_unsigned(signed: DType, unsigned: DType) -> DType {
+    debug_assert!(signed.is_signed_integer());
+    debug_assert!(unsigned.is_unsigned_integer());
+
+    if integer_range_contains(signed, unsigned) {
+        return signed;
+    }
+
+    let prefer_pointer = signed == DType::Isize;
+    let signed_candidates = ordered_signed_dtypes(prefer_pointer);
+    let signed_bounds = signed.integer_bounds().expect("signed integer dtypes have bounds");
+    let unsigned_bounds = unsigned.integer_bounds().expect("unsigned integer dtypes have bounds");
+
+    for candidate in signed_candidates {
+        let candidate_bounds =
+            candidate.integer_bounds().expect("signed integer dtypes have bounds");
+        if candidate_bounds.min <= signed_bounds.min && candidate_bounds.max >= unsigned_bounds.max
+        {
+            return candidate;
+        }
+    }
+
+    DType::F64
+}
+
 #[derive(Debug, Clone, Copy)]
 struct IntegerBounds {
     min: i128,
@@ -393,6 +487,58 @@ impl DType {
             Self::F32 | Self::F64 => None,
         }
     }
+}
+
+fn canonical_signed_dtype(bits: usize, prefer_pointer: bool) -> DType {
+    if prefer_pointer && bits == isize::BITS as usize {
+        return DType::Isize;
+    }
+
+    match bits {
+        8 => DType::I8,
+        16 => DType::I16,
+        32 => DType::I32,
+        64 => DType::I64,
+        _ => unreachable!("unsupported signed integer width"),
+    }
+}
+
+fn canonical_unsigned_dtype(bits: usize, prefer_pointer: bool) -> DType {
+    if prefer_pointer && bits == usize::BITS as usize {
+        return DType::Usize;
+    }
+
+    match bits {
+        8 => DType::U8,
+        16 => DType::U16,
+        32 => DType::U32,
+        64 => DType::U64,
+        _ => unreachable!("unsupported unsigned integer width"),
+    }
+}
+
+fn ordered_signed_dtypes(prefer_pointer: bool) -> Vec<DType> {
+    let mut dtypes = vec![DType::I8, DType::I16, DType::I32, DType::I64];
+
+    match isize::BITS {
+        32 => {
+            if prefer_pointer {
+                dtypes.insert(2, DType::Isize);
+            } else {
+                dtypes.insert(3, DType::Isize);
+            }
+        }
+        64 => {
+            if prefer_pointer {
+                dtypes.insert(3, DType::Isize);
+            } else {
+                dtypes.push(DType::Isize);
+            }
+        }
+        _ => unreachable!("unsupported pointer width"),
+    }
+
+    dtypes
 }
 
 fn cast_to_signed(
@@ -688,6 +834,45 @@ mod tests {
     }
 
     #[test]
+    fn dtype_promotion_handles_bool_integer_and_float_families() {
+        assert_eq!(DType::Bool.promote_with(DType::Bool), DType::Bool);
+        assert_eq!(DType::Bool.promote_with(DType::I32), DType::I32);
+        assert_eq!(DType::U16.promote_with(DType::Bool), DType::U16);
+        assert_eq!(DType::Bool.promote_with(DType::F32), DType::F32);
+        assert_eq!(DType::F32.promote_with(DType::F64), DType::F64);
+    }
+
+    #[test]
+    fn dtype_promotion_widens_integer_mixes_or_escalates_to_float64() {
+        assert_eq!(DType::I8.promote_with(DType::I16), DType::I16);
+        assert_eq!(DType::U8.promote_with(DType::U32), DType::U32);
+        assert_eq!(DType::I16.promote_with(DType::U8), DType::I16);
+        assert_eq!(DType::I16.promote_with(DType::U16), DType::I32);
+        assert_eq!(DType::I32.promote_with(DType::U32), DType::I64);
+        assert_eq!(DType::I64.promote_with(DType::U64), DType::F64);
+    }
+
+    #[test]
+    fn dtype_promotion_handles_pointer_sized_integer_variants_explicitly() {
+        let expected_signed = if isize::BITS == 64 { DType::Isize } else { DType::I64 };
+        let expected_unsigned = if usize::BITS == 64 { DType::Usize } else { DType::U64 };
+
+        assert_eq!(DType::Isize.promote_with(DType::I32), DType::Isize);
+        assert_eq!(DType::Usize.promote_with(DType::U16), DType::Usize);
+        assert_eq!(DType::Isize.promote_with(DType::I64), expected_signed);
+        assert_eq!(DType::Usize.promote_with(DType::U64), expected_unsigned);
+    }
+
+    #[test]
+    fn dtype_promotion_uses_float64_when_float32_cannot_exactly_cover_integers() {
+        assert_eq!(DType::F32.promote_with(DType::I8), DType::F32);
+        assert_eq!(DType::F32.promote_with(DType::U16), DType::F32);
+        assert_eq!(DType::F32.promote_with(DType::I32), DType::F64);
+        assert_eq!(DType::U32.promote_with(DType::F32), DType::F64);
+        assert_eq!(DType::F64.promote_with(DType::I64), DType::F64);
+    }
+
+    #[test]
     fn cast_mode_only_permits_lossy_conversions_when_requested() {
         assert!(CastMode::Checked.permits(CastPolicy::Exact));
         assert!(CastMode::Checked.permits(CastPolicy::Checked));
@@ -726,5 +911,12 @@ mod tests {
             ScalarValue::F64(f64::INFINITY).cast(DType::F32, CastMode::Lossy),
             Some(ScalarValue::F32(f32::INFINITY))
         );
+    }
+
+    #[test]
+    fn scalar_values_reuse_runtime_dtype_promotion_rules() {
+        assert_eq!(ScalarValue::Bool(true).promote_with(ScalarValue::I16(2)), DType::I16);
+        assert_eq!(ScalarValue::I32(7).promote_with(ScalarValue::U32(9)), DType::I64);
+        assert_eq!(ScalarValue::F32(1.5).promote_with(ScalarValue::I32(2)), DType::F64);
     }
 }
