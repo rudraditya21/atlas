@@ -115,13 +115,29 @@ where
         }
 
         let step = (end - start) / T::from(num - 1).expect("usize to float conversion");
+        if !step.is_finite() {
+            return Err(AtlasNdError::InvalidArgument {
+                op: "linspace",
+                reason: "generated step must be finite",
+            });
+        }
+
         let mut data = Vec::with_capacity(num);
 
         for index in 0..num {
-            if index == num - 1 {
+            if index == 0 {
+                data.push(start);
+            } else if index == num - 1 {
                 data.push(end);
             } else {
-                data.push(start + step * T::from(index).expect("usize to float conversion"));
+                let value = start + step * T::from(index).expect("usize to float conversion");
+                if !value.is_finite() {
+                    return Err(AtlasNdError::InvalidArgument {
+                        op: "linspace",
+                        reason: "generated values must be finite",
+                    });
+                }
+                data.push(value);
             }
         }
 
@@ -233,5 +249,20 @@ mod tests {
                 reason: "start and end must be finite",
             }
         );
+    }
+
+    #[test]
+    fn linspace_rejects_non_finite_generated_step_and_preserves_finite_degenerate_ranges() {
+        assert_eq!(
+            NDArray::linspace(-f32::MAX, f32::MAX, 2).unwrap_err(),
+            AtlasNdError::InvalidArgument {
+                op: "linspace",
+                reason: "generated step must be finite",
+            }
+        );
+
+        let degenerate = NDArray::linspace(f32::MAX, f32::MAX, 3).unwrap();
+        assert_eq!(degenerate.shape(), &[3]);
+        assert_eq!(degenerate.data(), &[f32::MAX, f32::MAX, f32::MAX]);
     }
 }
