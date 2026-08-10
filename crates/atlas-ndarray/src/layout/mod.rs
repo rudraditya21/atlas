@@ -1,4 +1,5 @@
 pub(crate) mod broadcast;
+pub(crate) mod concat;
 pub(crate) mod flatten;
 pub(crate) mod ravel;
 pub(crate) mod reshape;
