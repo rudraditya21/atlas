@@ -56,11 +56,23 @@ pub(crate) fn normalize_axis<A: AxisIndex>(axis: A, ndim: usize) -> AtlasNdResul
     Ok(normalized as usize)
 }
 
+pub(crate) fn normalize_insertion_axis<A: AxisIndex>(axis: A, ndim: usize) -> AtlasNdResult<usize> {
+    let axis = axis.try_into_i64().ok_or(AtlasNdError::InvalidAxis { axis: i64::MAX, ndim })?;
+    let upper_bound = ndim as i64;
+    let normalized = if axis < 0 { upper_bound + 1 + axis } else { axis };
+
+    if normalized < 0 || normalized > upper_bound {
+        return Err(AtlasNdError::InvalidAxis { axis, ndim });
+    }
+
+    Ok(normalized as usize)
+}
+
 #[cfg(test)]
 mod tests {
     use crate::AtlasNdError;
 
-    use super::normalize_axis;
+    use super::{normalize_axis, normalize_insertion_axis};
 
     #[test]
     fn normalize_axis_supports_positive_and_negative_indices() {
@@ -91,6 +103,28 @@ mod tests {
         assert_eq!(
             normalize_axis(u64::MAX, 3).unwrap_err(),
             AtlasNdError::InvalidAxis { axis: i64::MAX, ndim: 3 }
+        );
+    }
+
+    #[test]
+    fn normalize_insertion_axis_supports_positive_and_negative_indices() {
+        assert_eq!(normalize_insertion_axis(0_i32, 2).unwrap(), 0);
+        assert_eq!(normalize_insertion_axis(1_i32, 2).unwrap(), 1);
+        assert_eq!(normalize_insertion_axis(2_i32, 2).unwrap(), 2);
+        assert_eq!(normalize_insertion_axis(-1_i32, 2).unwrap(), 2);
+        assert_eq!(normalize_insertion_axis(-2_i32, 2).unwrap(), 1);
+        assert_eq!(normalize_insertion_axis(-3_i32, 2).unwrap(), 0);
+    }
+
+    #[test]
+    fn normalize_insertion_axis_rejects_out_of_bounds_indices() {
+        assert_eq!(
+            normalize_insertion_axis(3_i32, 2).unwrap_err(),
+            AtlasNdError::InvalidAxis { axis: 3, ndim: 2 }
+        );
+        assert_eq!(
+            normalize_insertion_axis(-4_i32, 2).unwrap_err(),
+            AtlasNdError::InvalidAxis { axis: -4, ndim: 2 }
         );
     }
 }

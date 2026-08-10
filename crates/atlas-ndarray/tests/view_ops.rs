@@ -104,3 +104,18 @@ fn flatten_always_returns_owned_flattened_copies() {
     assert_eq!(transposed.strides(), &[1]);
     assert_eq!(transposed.data(), &[0, 3, 1, 4, 2, 5]);
 }
+
+#[test]
+fn squeeze_and_expand_dims_preserve_shape_mapping_through_singleton_axes() {
+    let array = NDArray::from_vec(vec![2, 1, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+    let squeezed = array.squeeze();
+    let expanded = squeezed.clone().expand_dims(1).unwrap();
+
+    assert_eq!(squeezed.shape(), &[2, 3]);
+    assert_eq!(squeezed.strides(), &[3, 1]);
+    assert_eq!(*squeezed.get(&[1, 2]).unwrap(), 5);
+
+    assert_eq!(expanded.shape(), &[2, 1, 3]);
+    assert_eq!(expanded.strides(), &[3, 3, 1]);
+    assert_eq!(*expanded.get(&[1, 0, 2]).unwrap(), 5);
+}
