@@ -1,4 +1,4 @@
-use atlas_ndarray::{AtlasNdError, NDArray};
+use atlas_ndarray::{AsArray, AtlasNdError, NDArray};
 
 #[test]
 fn slicing_and_indexing_preserve_underlying_mapping() {
@@ -69,4 +69,21 @@ fn empty_boundary_slices_expose_stable_public_view_metadata() {
     assert!(slice.is_empty());
     assert_eq!(slice.ndim(), 2);
     assert!(!slice.is_contiguous());
+}
+
+#[test]
+fn ravel_preserves_views_when_possible_and_materializes_when_needed() {
+    let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+    let contiguous = array.ravel();
+    let transposed = array.view().transpose().ravel();
+
+    assert!(matches!(&contiguous, AsArray::Borrowed(_)));
+    assert_eq!(contiguous.view().shape(), &[6]);
+    assert_eq!(contiguous.view().strides(), &[1]);
+    assert_eq!(contiguous.view().data(), array.data());
+
+    assert!(matches!(&transposed, AsArray::Owned(_)));
+    assert_eq!(transposed.view().shape(), &[6]);
+    assert_eq!(transposed.view().strides(), &[1]);
+    assert_eq!(transposed.into_owned().data(), &[0, 3, 1, 4, 2, 5]);
 }
