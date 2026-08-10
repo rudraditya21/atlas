@@ -44,9 +44,21 @@ fn reshape_rejects_non_contiguous_views() {
         AtlasNdError::InvalidReshape {
             from: vec![2, 2],
             to: vec![4],
-            reason: "only contiguous views can be reshaped",
+            reason: "only contiguous or empty views can be reshaped",
         }
     );
+}
+
+#[test]
+fn reshape_allows_zero_length_non_contiguous_views() {
+    let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+    let empty = array.view().slice([2, 3], [0, 0]).unwrap();
+    let reshaped = empty.reshape([0]).unwrap();
+
+    assert_eq!(reshaped.shape(), &[0]);
+    assert_eq!(reshaped.strides(), &[1]);
+    assert_eq!(reshaped.offset(), 0);
+    assert!(reshaped.is_empty());
 }
 
 #[test]

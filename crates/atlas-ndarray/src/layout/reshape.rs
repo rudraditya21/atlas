@@ -20,11 +20,11 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
             });
         }
 
-        if !self.is_contiguous() {
+        if !can_reshape_view(&self.shape, &self.strides) {
             return Err(AtlasNdError::InvalidReshape {
                 from: self.shape.clone(),
                 to: new_shape,
-                reason: "only contiguous views can be reshaped",
+                reason: "only contiguous or empty views can be reshaped",
             });
         }
 
@@ -34,6 +34,11 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
 
         Ok(self)
     }
+}
+
+fn can_reshape_view(shape: &[usize], strides: &[usize]) -> bool {
+    crate::element_count(shape) == 0
+        || crate::internal::layout::is_contiguous_layout(shape, strides)
 }
 
 #[cfg(test)]
@@ -61,7 +66,7 @@ mod tests {
             AtlasNdError::InvalidReshape {
                 from: vec![2, 2],
                 to: vec![4],
-                reason: "only contiguous views can be reshaped",
+                reason: "only contiguous or empty views can be reshaped",
             }
         );
     }
@@ -96,6 +101,18 @@ mod tests {
         assert_eq!(reshaped_zero_length.shape(), &[0]);
         assert_eq!(reshaped_zero_length.strides(), &[1]);
         assert!(reshaped_zero_length.is_empty());
+    }
+
+    #[test]
+    fn reshape_supports_zero_length_non_contiguous_views() {
+        let array = NDArray::from_vec([2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+        let empty = array.view().slice([2, 3], [0, 0]).unwrap();
+        let reshaped = empty.reshape([0]).unwrap();
+
+        assert_eq!(reshaped.shape(), &[0]);
+        assert_eq!(reshaped.strides(), &[1]);
+        assert_eq!(reshaped.offset(), 0);
+        assert!(reshaped.is_empty());
     }
 
     #[test]
