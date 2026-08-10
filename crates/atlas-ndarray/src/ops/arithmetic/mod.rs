@@ -10,8 +10,8 @@ use crate::{AtlasNdResult, NDArray, Numeric};
 
 use self::{
     contiguous::{elementwise_add_contiguous, elementwise_mul_contiguous},
-    dispatch::{dispatch_elementwise_binary, dispatch_elementwise_binary_with_contiguous},
-    scalar::{add_scalar, elementwise_scalar, mul_scalar},
+    dispatch::{BinaryOperand, dispatch_elementwise_binary, dispatch_elementwise_binary_with},
+    scalar::{add_scalar_lhs, add_scalar_rhs, mul_scalar_lhs, mul_scalar_rhs},
 };
 
 pub trait AddOperand<T: Numeric> {
@@ -68,34 +68,56 @@ impl<T: Numeric> NDArray<T> {
     }
 
     pub fn add_scalar(&self, scalar: T) -> Self {
-        add_scalar(self, scalar)
+        dispatch_elementwise_binary_with(
+            self,
+            BinaryOperand::Scalar(scalar),
+            add_scalar_rhs,
+            add_scalar_lhs,
+            elementwise_add_contiguous,
+            |lhs, rhs| lhs + rhs,
+        )
+        .expect("scalar rhs dispatch must not fail")
     }
 
     pub fn sub_scalar(&self, scalar: T) -> Self {
-        elementwise_scalar(self, scalar, |value, scalar| value - scalar)
+        dispatch_elementwise_binary(self, BinaryOperand::Scalar(scalar), |lhs, rhs| lhs - rhs)
+            .expect("scalar rhs dispatch must not fail")
     }
 
     pub fn mul_scalar(&self, scalar: T) -> Self {
-        mul_scalar(self, scalar)
+        dispatch_elementwise_binary_with(
+            self,
+            BinaryOperand::Scalar(scalar),
+            mul_scalar_rhs,
+            mul_scalar_lhs,
+            elementwise_mul_contiguous,
+            |lhs, rhs| lhs * rhs,
+        )
+        .expect("scalar rhs dispatch must not fail")
     }
 
     pub fn div_scalar(&self, scalar: T) -> Self {
-        elementwise_scalar(self, scalar, |value, scalar| value / scalar)
+        dispatch_elementwise_binary(self, BinaryOperand::Scalar(scalar), |lhs, rhs| lhs / rhs)
+            .expect("scalar rhs dispatch must not fail")
     }
 
     fn add_array(&self, rhs: &Self) -> AtlasNdResult<Self> {
-        dispatch_elementwise_binary_with_contiguous(
+        dispatch_elementwise_binary_with(
             self,
-            rhs,
+            BinaryOperand::Array(rhs),
+            add_scalar_rhs,
+            add_scalar_lhs,
             elementwise_add_contiguous,
             |lhs, rhs| lhs + rhs,
         )
     }
 
     fn mul_array(&self, rhs: &Self) -> AtlasNdResult<Self> {
-        dispatch_elementwise_binary_with_contiguous(
+        dispatch_elementwise_binary_with(
             self,
-            rhs,
+            BinaryOperand::Array(rhs),
+            mul_scalar_rhs,
+            mul_scalar_lhs,
             elementwise_mul_contiguous,
             |lhs, rhs| lhs * rhs,
         )
@@ -127,7 +149,7 @@ impl<T: Numeric> SubOperand<T> for &NDArray<T> {
     type Output = AtlasNdResult<NDArray<T>>;
 
     fn sub_from(self, lhs: &NDArray<T>) -> Self::Output {
-        dispatch_elementwise_binary(lhs, self, |lhs, rhs| lhs - rhs)
+        dispatch_elementwise_binary(lhs, BinaryOperand::Array(self), |lhs, rhs| lhs - rhs)
     }
 }
 
@@ -159,7 +181,7 @@ impl<T: Numeric> DivOperand<T> for &NDArray<T> {
     type Output = AtlasNdResult<NDArray<T>>;
 
     fn div_into(self, lhs: &NDArray<T>) -> Self::Output {
-        dispatch_elementwise_binary(lhs, self, |lhs, rhs| lhs / rhs)
+        dispatch_elementwise_binary(lhs, BinaryOperand::Array(self), |lhs, rhs| lhs / rhs)
     }
 }
 
