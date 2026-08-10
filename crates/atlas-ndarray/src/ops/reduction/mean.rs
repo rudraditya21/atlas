@@ -7,10 +7,11 @@ use crate::{
 };
 
 use super::{
-    axis::{AxisReductionMetadata, contiguous_lane, linear_offset},
+    axis::{contiguous_lane, linear_offset},
     dispatch::{
         ensure_non_empty_reduction, parallel_reduction_chunk_len, should_parallelize_reduction,
     },
+    metadata::{AxisReductionMetadata, WholeReductionMetadata},
 };
 
 pub(super) fn mean_contiguous<T>(values: &[T], op: &'static str) -> AtlasNdResult<f64>
@@ -99,8 +100,8 @@ pub(super) fn mean_all<T>(
 where
     T: Numeric + ToPrimitive,
 {
-    let len = crate::layout::element_count(shape);
-    ensure_non_empty_reduction(len, "mean")?;
+    let metadata = WholeReductionMetadata::from_shape(shape);
+    ensure_non_empty_reduction(metadata.len, "mean")?;
 
     if let Some(values) = crate::internal::layout::dense_storage_slice(data, offset, shape, strides)
     {
@@ -108,11 +109,11 @@ where
     }
 
     if simd::is_f32::<T>() {
-        return mean_all_f32(simd::cast_slice(data), offset, shape, strides, len);
+        return mean_all_f32(simd::cast_slice(data), offset, shape, strides, metadata.len);
     }
 
     if simd::is_f64::<T>() {
-        return mean_all_f64(simd::cast_slice(data), offset, shape, strides, len);
+        return mean_all_f64(simd::cast_slice(data), offset, shape, strides, metadata.len);
     }
 
     let mut total = 0.0_f64;
@@ -121,7 +122,7 @@ where
         Ok(())
     })?;
 
-    Ok(total / len as f64)
+    Ok(total / metadata.len as f64)
 }
 
 pub(super) fn mean_axis_dense_contiguous<T>(
@@ -135,7 +136,7 @@ where
     let values = super::axis::contiguous_region(
         data,
         base_offset,
-        metadata.output_len.saturating_mul(metadata.axis_len),
+        metadata.output.len.saturating_mul(metadata.axis_len),
     );
 
     if simd::is_f32::<T>() {
@@ -146,9 +147,9 @@ where
         return mean_axis_dense_contiguous_f64(simd::cast_slice(values), metadata);
     }
 
-    let mut reduced = vec![0.0_f64; metadata.output_len];
+    let mut reduced = vec![0.0_f64; metadata.output.len];
 
-    if should_parallelize_reduction(metadata.output_len.saturating_mul(metadata.axis_len))
+    if should_parallelize_reduction(metadata.output.len.saturating_mul(metadata.axis_len))
         && !reduced.is_empty()
     {
         reduced.par_chunks_mut(metadata.contiguous_inner_len).enumerate().try_for_each(
@@ -193,7 +194,7 @@ where
         }
     }
 
-    NDArray::from_shape_vec(metadata.output_shape, reduced)
+    NDArray::from_shape_vec(metadata.output.shape, reduced)
 }
 
 pub(super) fn mean_axis_contiguous<T>(
@@ -212,28 +213,32 @@ where
         return mean_axis_contiguous_f64(simd::cast_slice(data), base_offset, metadata);
     }
 
-    let mut reduced = vec![0.0_f64; metadata.output_len];
+    let mut reduced = vec![0.0_f64; metadata.output.len];
 
-    if should_parallelize_reduction(metadata.output_len.saturating_mul(metadata.axis_len))
+    if should_parallelize_reduction(metadata.output.len.saturating_mul(metadata.axis_len))
         && !reduced.is_empty()
     {
         reduced.par_iter_mut().enumerate().try_for_each(|(index, slot)| -> AtlasNdResult<()> {
-            let lane_offset =
-                linear_offset(base_offset, &metadata.output_shape, &metadata.outer_strides, index);
+            let lane_offset = linear_offset(
+                base_offset,
+                &metadata.output.shape,
+                &metadata.output.outer_strides,
+                index,
+            );
             *slot = mean_contiguous(contiguous_lane(data, lane_offset, metadata.axis_len), "mean")?;
             Ok(())
         })?;
     } else {
         for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
             base_offset,
-            &metadata.output_shape,
-            &metadata.outer_strides,
+            &metadata.output.shape,
+            &metadata.output.outer_strides,
         )) {
             *slot = mean_contiguous(contiguous_lane(data, lane_offset, metadata.axis_len), "mean")?;
         }
     }
 
-    NDArray::from_shape_vec(metadata.output_shape, reduced)
+    NDArray::from_shape_vec(metadata.output.shape, reduced)
 }
 
 pub(super) fn mean_axis_strided<T>(
@@ -252,14 +257,18 @@ where
         return mean_axis_strided_f64(simd::cast_slice(data), base_offset, metadata);
     }
 
-    let mut reduced = vec![0.0_f64; metadata.output_len];
+    let mut reduced = vec![0.0_f64; metadata.output.len];
 
-    if should_parallelize_reduction(metadata.output_len.saturating_mul(metadata.axis_len))
+    if should_parallelize_reduction(metadata.output.len.saturating_mul(metadata.axis_len))
         && !reduced.is_empty()
     {
         reduced.par_iter_mut().enumerate().try_for_each(|(index, slot)| -> AtlasNdResult<()> {
-            let lane_offset =
-                linear_offset(base_offset, &metadata.output_shape, &metadata.outer_strides, index);
+            let lane_offset = linear_offset(
+                base_offset,
+                &metadata.output.shape,
+                &metadata.output.outer_strides,
+                index,
+            );
             *slot = mean_strided_lane(
                 data,
                 lane_offset,
@@ -272,8 +281,8 @@ where
     } else {
         for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
             base_offset,
-            &metadata.output_shape,
-            &metadata.outer_strides,
+            &metadata.output.shape,
+            &metadata.output.outer_strides,
         )) {
             *slot = mean_strided_lane(
                 data,
@@ -285,7 +294,7 @@ where
         }
     }
 
-    NDArray::from_shape_vec(metadata.output_shape, reduced)
+    NDArray::from_shape_vec(metadata.output.shape, reduced)
 }
 
 fn sum_chunk_as_f64<T>(values: &[T], op: &'static str) -> AtlasNdResult<f64>
@@ -339,9 +348,9 @@ fn mean_axis_dense_contiguous_f32(
     values: &[f32],
     metadata: AxisReductionMetadata,
 ) -> AtlasNdResult<NDArray<f64>> {
-    let mut reduced = vec![0.0_f64; metadata.output_len];
+    let mut reduced = vec![0.0_f64; metadata.output.len];
 
-    if should_parallelize_reduction(metadata.output_len.saturating_mul(metadata.axis_len))
+    if should_parallelize_reduction(metadata.output.len.saturating_mul(metadata.axis_len))
         && !reduced.is_empty()
     {
         reduced.par_chunks_mut(metadata.contiguous_inner_len).enumerate().for_each(
@@ -380,16 +389,16 @@ fn mean_axis_dense_contiguous_f32(
         }
     }
 
-    NDArray::from_shape_vec(metadata.output_shape, reduced)
+    NDArray::from_shape_vec(metadata.output.shape, reduced)
 }
 
 fn mean_axis_dense_contiguous_f64(
     values: &[f64],
     metadata: AxisReductionMetadata,
 ) -> AtlasNdResult<NDArray<f64>> {
-    let mut reduced = vec![0.0_f64; metadata.output_len];
+    let mut reduced = vec![0.0_f64; metadata.output.len];
 
-    if should_parallelize_reduction(metadata.output_len.saturating_mul(metadata.axis_len))
+    if should_parallelize_reduction(metadata.output.len.saturating_mul(metadata.axis_len))
         && !reduced.is_empty()
     {
         reduced.par_chunks_mut(metadata.contiguous_inner_len).enumerate().for_each(
@@ -428,7 +437,7 @@ fn mean_axis_dense_contiguous_f64(
         }
     }
 
-    NDArray::from_shape_vec(metadata.output_shape, reduced)
+    NDArray::from_shape_vec(metadata.output.shape, reduced)
 }
 
 fn mean_axis_contiguous_f32(
@@ -436,29 +445,33 @@ fn mean_axis_contiguous_f32(
     base_offset: usize,
     metadata: AxisReductionMetadata,
 ) -> AtlasNdResult<NDArray<f64>> {
-    let mut reduced = vec![0.0_f64; metadata.output_len];
+    let mut reduced = vec![0.0_f64; metadata.output.len];
 
-    if should_parallelize_reduction(metadata.output_len.saturating_mul(metadata.axis_len))
+    if should_parallelize_reduction(metadata.output.len.saturating_mul(metadata.axis_len))
         && !reduced.is_empty()
     {
         reduced.par_iter_mut().enumerate().for_each(|(index, slot)| {
-            let lane_offset =
-                linear_offset(base_offset, &metadata.output_shape, &metadata.outer_strides, index);
+            let lane_offset = linear_offset(
+                base_offset,
+                &metadata.output.shape,
+                &metadata.output.outer_strides,
+                index,
+            );
             let lane = contiguous_lane(data, lane_offset, metadata.axis_len);
             *slot = lane.iter().copied().map(f64::from).sum::<f64>() / metadata.axis_len as f64;
         });
     } else {
         for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
             base_offset,
-            &metadata.output_shape,
-            &metadata.outer_strides,
+            &metadata.output.shape,
+            &metadata.output.outer_strides,
         )) {
             let lane = contiguous_lane(data, lane_offset, metadata.axis_len);
             *slot = lane.iter().copied().map(f64::from).sum::<f64>() / metadata.axis_len as f64;
         }
     }
 
-    NDArray::from_shape_vec(metadata.output_shape, reduced)
+    NDArray::from_shape_vec(metadata.output.shape, reduced)
 }
 
 fn mean_axis_contiguous_f64(
@@ -466,29 +479,33 @@ fn mean_axis_contiguous_f64(
     base_offset: usize,
     metadata: AxisReductionMetadata,
 ) -> AtlasNdResult<NDArray<f64>> {
-    let mut reduced = vec![0.0_f64; metadata.output_len];
+    let mut reduced = vec![0.0_f64; metadata.output.len];
 
-    if should_parallelize_reduction(metadata.output_len.saturating_mul(metadata.axis_len))
+    if should_parallelize_reduction(metadata.output.len.saturating_mul(metadata.axis_len))
         && !reduced.is_empty()
     {
         reduced.par_iter_mut().enumerate().for_each(|(index, slot)| {
-            let lane_offset =
-                linear_offset(base_offset, &metadata.output_shape, &metadata.outer_strides, index);
+            let lane_offset = linear_offset(
+                base_offset,
+                &metadata.output.shape,
+                &metadata.output.outer_strides,
+                index,
+            );
             let lane = contiguous_lane(data, lane_offset, metadata.axis_len);
             *slot = lane.iter().copied().sum::<f64>() / metadata.axis_len as f64;
         });
     } else {
         for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
             base_offset,
-            &metadata.output_shape,
-            &metadata.outer_strides,
+            &metadata.output.shape,
+            &metadata.output.outer_strides,
         )) {
             let lane = contiguous_lane(data, lane_offset, metadata.axis_len);
             *slot = lane.iter().copied().sum::<f64>() / metadata.axis_len as f64;
         }
     }
 
-    NDArray::from_shape_vec(metadata.output_shape, reduced)
+    NDArray::from_shape_vec(metadata.output.shape, reduced)
 }
 
 fn mean_axis_strided_f32(
@@ -496,29 +513,33 @@ fn mean_axis_strided_f32(
     base_offset: usize,
     metadata: AxisReductionMetadata,
 ) -> AtlasNdResult<NDArray<f64>> {
-    let mut reduced = vec![0.0_f64; metadata.output_len];
+    let mut reduced = vec![0.0_f64; metadata.output.len];
 
-    if should_parallelize_reduction(metadata.output_len.saturating_mul(metadata.axis_len))
+    if should_parallelize_reduction(metadata.output.len.saturating_mul(metadata.axis_len))
         && !reduced.is_empty()
     {
         reduced.par_iter_mut().enumerate().for_each(|(index, slot)| {
-            let lane_offset =
-                linear_offset(base_offset, &metadata.output_shape, &metadata.outer_strides, index);
+            let lane_offset = linear_offset(
+                base_offset,
+                &metadata.output.shape,
+                &metadata.output.outer_strides,
+                index,
+            );
             *slot =
                 mean_strided_lane_f32(data, lane_offset, metadata.axis_len, metadata.axis_stride);
         });
     } else {
         for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
             base_offset,
-            &metadata.output_shape,
-            &metadata.outer_strides,
+            &metadata.output.shape,
+            &metadata.output.outer_strides,
         )) {
             *slot =
                 mean_strided_lane_f32(data, lane_offset, metadata.axis_len, metadata.axis_stride);
         }
     }
 
-    NDArray::from_shape_vec(metadata.output_shape, reduced)
+    NDArray::from_shape_vec(metadata.output.shape, reduced)
 }
 
 fn mean_axis_strided_f64(
@@ -526,27 +547,31 @@ fn mean_axis_strided_f64(
     base_offset: usize,
     metadata: AxisReductionMetadata,
 ) -> AtlasNdResult<NDArray<f64>> {
-    let mut reduced = vec![0.0_f64; metadata.output_len];
+    let mut reduced = vec![0.0_f64; metadata.output.len];
 
-    if should_parallelize_reduction(metadata.output_len.saturating_mul(metadata.axis_len))
+    if should_parallelize_reduction(metadata.output.len.saturating_mul(metadata.axis_len))
         && !reduced.is_empty()
     {
         reduced.par_iter_mut().enumerate().for_each(|(index, slot)| {
-            let lane_offset =
-                linear_offset(base_offset, &metadata.output_shape, &metadata.outer_strides, index);
+            let lane_offset = linear_offset(
+                base_offset,
+                &metadata.output.shape,
+                &metadata.output.outer_strides,
+                index,
+            );
             *slot =
                 mean_strided_lane_f64(data, lane_offset, metadata.axis_len, metadata.axis_stride);
         });
     } else {
         for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
             base_offset,
-            &metadata.output_shape,
-            &metadata.outer_strides,
+            &metadata.output.shape,
+            &metadata.output.outer_strides,
         )) {
             *slot =
                 mean_strided_lane_f64(data, lane_offset, metadata.axis_len, metadata.axis_stride);
         }
     }
 
-    NDArray::from_shape_vec(metadata.output_shape, reduced)
+    NDArray::from_shape_vec(metadata.output.shape, reduced)
 }

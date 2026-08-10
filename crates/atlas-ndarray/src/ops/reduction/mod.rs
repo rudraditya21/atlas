@@ -1,6 +1,7 @@
 mod axis;
 mod dispatch;
 mod mean;
+mod metadata;
 mod truth;
 mod whole;
 

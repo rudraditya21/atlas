@@ -7,19 +7,17 @@ use crate::{
         layout::{LayoutKind, dense_storage_slice},
         offset_iter,
     },
-    layout::element_count,
 };
 
 use super::{
-    axis::{
-        AxisReductionMetadata, axis_reduction_metadata, contiguous_lane, contiguous_region,
-        linear_offset,
-    },
+    axis::{contiguous_lane, contiguous_region, linear_offset},
     dispatch::should_parallelize_reduction,
+    metadata::{AxisReductionMetadata, WholeReductionMetadata, axis_reduction_metadata},
 };
 
 pub(super) fn all_all(data: &[bool], offset: usize, shape: &[usize], strides: &[usize]) -> bool {
-    if element_count(shape) == 0 {
+    let metadata = WholeReductionMetadata::from_shape(shape);
+    if metadata.is_empty() {
         return true;
     }
 
@@ -35,7 +33,8 @@ pub(super) fn all_all(data: &[bool], offset: usize, shape: &[usize], strides: &[
 }
 
 pub(super) fn any_all(data: &[bool], offset: usize, shape: &[usize], strides: &[usize]) -> bool {
-    if element_count(shape) == 0 {
+    let metadata = WholeReductionMetadata::from_shape(shape);
+    if metadata.is_empty() {
         return false;
     }
 
@@ -112,10 +111,10 @@ fn all_axis_dense_contiguous(
     metadata: AxisReductionMetadata,
 ) -> AtlasNdResult<NDArray<bool>> {
     let values =
-        contiguous_region(data, base_offset, metadata.output_len.saturating_mul(metadata.axis_len));
-    let mut reduced = vec![true; metadata.output_len];
+        contiguous_region(data, base_offset, metadata.output.len.saturating_mul(metadata.axis_len));
+    let mut reduced = vec![true; metadata.output.len];
 
-    if should_parallelize_reduction(metadata.output_len.saturating_mul(metadata.axis_len))
+    if should_parallelize_reduction(metadata.output.len.saturating_mul(metadata.axis_len))
         && !reduced.is_empty()
     {
         reduced.par_chunks_mut(metadata.contiguous_inner_len).enumerate().for_each(
@@ -154,7 +153,7 @@ fn all_axis_dense_contiguous(
         }
     }
 
-    NDArray::from_shape_vec(metadata.output_shape, reduced)
+    NDArray::from_shape_vec(metadata.output.shape, reduced)
 }
 
 fn any_axis_dense_contiguous(
@@ -163,10 +162,10 @@ fn any_axis_dense_contiguous(
     metadata: AxisReductionMetadata,
 ) -> AtlasNdResult<NDArray<bool>> {
     let values =
-        contiguous_region(data, base_offset, metadata.output_len.saturating_mul(metadata.axis_len));
-    let mut reduced = vec![false; metadata.output_len];
+        contiguous_region(data, base_offset, metadata.output.len.saturating_mul(metadata.axis_len));
+    let mut reduced = vec![false; metadata.output.len];
 
-    if should_parallelize_reduction(metadata.output_len.saturating_mul(metadata.axis_len))
+    if should_parallelize_reduction(metadata.output.len.saturating_mul(metadata.axis_len))
         && !reduced.is_empty()
     {
         reduced.par_chunks_mut(metadata.contiguous_inner_len).enumerate().for_each(
@@ -205,7 +204,7 @@ fn any_axis_dense_contiguous(
         }
     }
 
-    NDArray::from_shape_vec(metadata.output_shape, reduced)
+    NDArray::from_shape_vec(metadata.output.shape, reduced)
 }
 
 fn all_axis_contiguous(
@@ -213,27 +212,31 @@ fn all_axis_contiguous(
     base_offset: usize,
     metadata: AxisReductionMetadata,
 ) -> AtlasNdResult<NDArray<bool>> {
-    let mut reduced = vec![true; metadata.output_len];
+    let mut reduced = vec![true; metadata.output.len];
 
-    if should_parallelize_reduction(metadata.output_len.saturating_mul(metadata.axis_len))
+    if should_parallelize_reduction(metadata.output.len.saturating_mul(metadata.axis_len))
         && !reduced.is_empty()
     {
         reduced.par_iter_mut().enumerate().for_each(|(index, slot)| {
-            let lane_offset =
-                linear_offset(base_offset, &metadata.output_shape, &metadata.outer_strides, index);
+            let lane_offset = linear_offset(
+                base_offset,
+                &metadata.output.shape,
+                &metadata.output.outer_strides,
+                index,
+            );
             *slot = all_contiguous(contiguous_lane(data, lane_offset, metadata.axis_len));
         });
     } else {
         for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
             base_offset,
-            &metadata.output_shape,
-            &metadata.outer_strides,
+            &metadata.output.shape,
+            &metadata.output.outer_strides,
         )) {
             *slot = all_contiguous(contiguous_lane(data, lane_offset, metadata.axis_len));
         }
     }
 
-    NDArray::from_shape_vec(metadata.output_shape, reduced)
+    NDArray::from_shape_vec(metadata.output.shape, reduced)
 }
 
 fn any_axis_contiguous(
@@ -241,27 +244,31 @@ fn any_axis_contiguous(
     base_offset: usize,
     metadata: AxisReductionMetadata,
 ) -> AtlasNdResult<NDArray<bool>> {
-    let mut reduced = vec![false; metadata.output_len];
+    let mut reduced = vec![false; metadata.output.len];
 
-    if should_parallelize_reduction(metadata.output_len.saturating_mul(metadata.axis_len))
+    if should_parallelize_reduction(metadata.output.len.saturating_mul(metadata.axis_len))
         && !reduced.is_empty()
     {
         reduced.par_iter_mut().enumerate().for_each(|(index, slot)| {
-            let lane_offset =
-                linear_offset(base_offset, &metadata.output_shape, &metadata.outer_strides, index);
+            let lane_offset = linear_offset(
+                base_offset,
+                &metadata.output.shape,
+                &metadata.output.outer_strides,
+                index,
+            );
             *slot = any_contiguous(contiguous_lane(data, lane_offset, metadata.axis_len));
         });
     } else {
         for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
             base_offset,
-            &metadata.output_shape,
-            &metadata.outer_strides,
+            &metadata.output.shape,
+            &metadata.output.outer_strides,
         )) {
             *slot = any_contiguous(contiguous_lane(data, lane_offset, metadata.axis_len));
         }
     }
 
-    NDArray::from_shape_vec(metadata.output_shape, reduced)
+    NDArray::from_shape_vec(metadata.output.shape, reduced)
 }
 
 fn all_axis_strided(
@@ -269,27 +276,31 @@ fn all_axis_strided(
     base_offset: usize,
     metadata: AxisReductionMetadata,
 ) -> AtlasNdResult<NDArray<bool>> {
-    let mut reduced = vec![true; metadata.output_len];
+    let mut reduced = vec![true; metadata.output.len];
 
-    if should_parallelize_reduction(metadata.output_len.saturating_mul(metadata.axis_len))
+    if should_parallelize_reduction(metadata.output.len.saturating_mul(metadata.axis_len))
         && !reduced.is_empty()
     {
         reduced.par_iter_mut().enumerate().for_each(|(index, slot)| {
-            let lane_offset =
-                linear_offset(base_offset, &metadata.output_shape, &metadata.outer_strides, index);
+            let lane_offset = linear_offset(
+                base_offset,
+                &metadata.output.shape,
+                &metadata.output.outer_strides,
+                index,
+            );
             *slot = all_strided_lane(data, lane_offset, metadata.axis_len, metadata.axis_stride);
         });
     } else {
         for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
             base_offset,
-            &metadata.output_shape,
-            &metadata.outer_strides,
+            &metadata.output.shape,
+            &metadata.output.outer_strides,
         )) {
             *slot = all_strided_lane(data, lane_offset, metadata.axis_len, metadata.axis_stride);
         }
     }
 
-    NDArray::from_shape_vec(metadata.output_shape, reduced)
+    NDArray::from_shape_vec(metadata.output.shape, reduced)
 }
 
 fn any_axis_strided(
@@ -297,27 +308,31 @@ fn any_axis_strided(
     base_offset: usize,
     metadata: AxisReductionMetadata,
 ) -> AtlasNdResult<NDArray<bool>> {
-    let mut reduced = vec![false; metadata.output_len];
+    let mut reduced = vec![false; metadata.output.len];
 
-    if should_parallelize_reduction(metadata.output_len.saturating_mul(metadata.axis_len))
+    if should_parallelize_reduction(metadata.output.len.saturating_mul(metadata.axis_len))
         && !reduced.is_empty()
     {
         reduced.par_iter_mut().enumerate().for_each(|(index, slot)| {
-            let lane_offset =
-                linear_offset(base_offset, &metadata.output_shape, &metadata.outer_strides, index);
+            let lane_offset = linear_offset(
+                base_offset,
+                &metadata.output.shape,
+                &metadata.output.outer_strides,
+                index,
+            );
             *slot = any_strided_lane(data, lane_offset, metadata.axis_len, metadata.axis_stride);
         });
     } else {
         for (slot, lane_offset) in reduced.iter_mut().zip(offset_iter(
             base_offset,
-            &metadata.output_shape,
-            &metadata.outer_strides,
+            &metadata.output.shape,
+            &metadata.output.outer_strides,
         )) {
             *slot = any_strided_lane(data, lane_offset, metadata.axis_len, metadata.axis_stride);
         }
     }
 
-    NDArray::from_shape_vec(metadata.output_shape, reduced)
+    NDArray::from_shape_vec(metadata.output.shape, reduced)
 }
 
 fn all_strided_lane(
