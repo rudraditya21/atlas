@@ -166,6 +166,36 @@ mod tests {
     }
 
     #[test]
+    fn constructors_handle_empty_one_dimensional_shapes_consistently() {
+        let empty = NDArray::<i32>::empty([0]).unwrap();
+        let full = NDArray::full([0], 7_i32).unwrap();
+        let zeros = NDArray::<i32>::zeros([0]).unwrap();
+        let ones = NDArray::<i32>::ones([0]).unwrap();
+        let from_shape_vec = NDArray::<i32>::from_shape_vec([0], Vec::new()).unwrap();
+
+        assert_eq!(empty.shape(), &[0]);
+        assert_eq!(full.shape(), &[0]);
+        assert_eq!(zeros.shape(), &[0]);
+        assert_eq!(ones.shape(), &[0]);
+        assert_eq!(from_shape_vec.shape(), &[0]);
+        assert_eq!(empty.strides(), &[1]);
+        assert_eq!(full.strides(), &[1]);
+        assert_eq!(zeros.strides(), &[1]);
+        assert_eq!(ones.strides(), &[1]);
+        assert_eq!(from_shape_vec.strides(), &[1]);
+        assert!(empty.data().is_empty());
+        assert!(full.data().is_empty());
+        assert!(zeros.data().is_empty());
+        assert!(ones.data().is_empty());
+        assert!(from_shape_vec.data().is_empty());
+        assert!(empty.is_contiguous());
+        assert!(full.is_contiguous());
+        assert!(zeros.is_contiguous());
+        assert!(ones.is_contiguous());
+        assert!(from_shape_vec.is_contiguous());
+    }
+
+    #[test]
     fn constructors_handle_zero_sized_dimensions() {
         let empty = NDArray::<i32>::empty([2, 0, 3]).unwrap();
         let full = NDArray::full([2, 0, 3], 9_i32).unwrap();
@@ -295,11 +325,14 @@ mod tests {
     #[test]
     fn like_constructors_preserve_scalar_and_zero_sized_shapes() {
         let scalar = NDArray::from_shape_vec([], vec![5_i32]).unwrap();
+        let empty_1d = NDArray::<i32>::from_shape_vec([0], Vec::new()).unwrap();
         let zero_sized = NDArray::<i32>::from_shape_vec([2, 0, 3], Vec::new()).unwrap();
 
         let scalar_zeros = NDArray::zeros_like(&scalar).unwrap();
         let scalar_ones = NDArray::ones_like(&scalar).unwrap();
         let scalar_full = NDArray::full_like(&scalar, 8_i32).unwrap();
+        let empty_1d_zeros = NDArray::zeros_like(&empty_1d).unwrap();
+        let empty_1d_full = NDArray::full_like(&empty_1d, 8_i32).unwrap();
         let zero_sized_zeros = NDArray::zeros_like(&zero_sized).unwrap();
         let zero_sized_full = NDArray::full_like(&zero_sized, 8_i32).unwrap();
 
@@ -309,6 +342,13 @@ mod tests {
         assert_eq!(scalar_zeros.data(), &[0]);
         assert_eq!(scalar_ones.data(), &[1]);
         assert_eq!(scalar_full.data(), &[8]);
+
+        assert_eq!(empty_1d_zeros.shape(), &[0]);
+        assert_eq!(empty_1d_full.shape(), &[0]);
+        assert_eq!(empty_1d_zeros.strides(), &[1]);
+        assert_eq!(empty_1d_full.strides(), &[1]);
+        assert!(empty_1d_zeros.data().is_empty());
+        assert!(empty_1d_full.data().is_empty());
 
         assert_eq!(zero_sized_zeros.shape(), &[2, 0, 3]);
         assert_eq!(zero_sized_full.shape(), &[2, 0, 3]);

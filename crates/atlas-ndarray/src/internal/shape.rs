@@ -200,6 +200,8 @@ mod tests {
     fn checked_row_major_metadata_reuses_checked_shape_and_stride_computation() {
         assert_eq!(checked_row_major_metadata(&[2, 3]).unwrap(), (6, vec![3, 1]));
         assert_eq!(checked_row_major_metadata(&[]).unwrap(), (1, Vec::<usize>::new()));
+        assert_eq!(checked_row_major_metadata(&[0]).unwrap(), (0, vec![1]));
+        assert_eq!(checked_row_major_metadata(&[2, 0, 3]).unwrap(), (0, vec![0, 3, 1]));
     }
 
     #[test]

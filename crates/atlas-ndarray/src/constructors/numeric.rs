@@ -45,7 +45,7 @@ where
             }
         }
 
-        Self::from_shape_vec(vec![data.len()], data)
+        Self::from_vector_data(data)
     }
 }
 
@@ -63,11 +63,11 @@ where
         }
 
         if num == 0 {
-            return Self::from_shape_vec(vec![0], Vec::new());
+            return Self::from_vector_data(Vec::new());
         }
 
         if num == 1 {
-            return Self::from_shape_vec(vec![1], vec![start]);
+            return Self::from_vector_data(vec![start]);
         }
 
         let step = (end - start) / T::from(num - 1).expect("usize to float conversion");
@@ -81,7 +81,7 @@ where
             }
         }
 
-        Self::from_shape_vec(vec![num], data)
+        Self::from_vector_data(data)
     }
 }
 

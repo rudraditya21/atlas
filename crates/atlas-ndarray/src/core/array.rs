@@ -28,6 +28,10 @@ impl<T: Numeric> NDArray<T> {
         Ok(array)
     }
 
+    pub(crate) fn from_vector_data(data: Vec<T>) -> AtlasNdResult<Self> {
+        Self::from_row_major_parts(vec![data.len()], data)
+    }
+
     pub fn data(&self) -> &[T] {
         &self.data
     }
@@ -133,6 +137,20 @@ mod tests {
             NDArray::<i32>::from_row_major_parts(vec![2, 2], vec![1, 2, 3]).unwrap_err(),
             AtlasNdError::ShapeMismatch { expected: 4, actual: 3 }
         );
+    }
+
+    #[test]
+    fn from_vector_data_normalizes_empty_and_non_empty_1d_shapes() {
+        let empty = NDArray::<i32>::from_vector_data(Vec::new()).unwrap();
+        let values = NDArray::from_vector_data(vec![1_i32, 2, 3]).unwrap();
+
+        assert_eq!(empty.shape(), &[0]);
+        assert_eq!(empty.strides(), &[1]);
+        assert!(empty.data().is_empty());
+
+        assert_eq!(values.shape(), &[3]);
+        assert_eq!(values.strides(), &[1]);
+        assert_eq!(values.data(), &[1, 2, 3]);
     }
 
     #[test]

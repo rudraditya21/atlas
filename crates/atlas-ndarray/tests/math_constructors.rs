@@ -3,12 +3,17 @@ use atlas_ndarray::{AtlasNdError, NDArray};
 #[test]
 fn scalar_and_zero_sized_constructors_preserve_layout_invariants() {
     let scalar = NDArray::full([], 3.5_f64).unwrap();
+    let empty_1d = NDArray::<i32>::empty([0]).unwrap();
     let zero_dim = NDArray::<i32>::zeros([2, 0, 3]).unwrap();
     let identity = NDArray::<f64>::eye(0).unwrap();
 
     assert_eq!(scalar.shape(), &[] as &[usize]);
     assert_eq!(scalar.strides(), &[] as &[usize]);
     assert_eq!(scalar.data(), &[3.5]);
+
+    assert_eq!(empty_1d.shape(), &[0]);
+    assert_eq!(empty_1d.strides(), &[1]);
+    assert!(empty_1d.data().is_empty());
 
     assert_eq!(zero_dim.shape(), &[2, 0, 3]);
     assert_eq!(zero_dim.len(), 0);
@@ -44,11 +49,15 @@ fn linspace_creates_evenly_spaced_floating_point_inputs() {
     let values = NDArray::linspace(-1.0_f32, 1.0, 5).unwrap();
     let descending = NDArray::linspace(2.0_f32, -2.0, 3).unwrap();
     let repeated = NDArray::linspace(1.25_f32, 1.25, 4).unwrap();
+    let empty = NDArray::linspace(1.25_f32, 1.25, 0).unwrap();
 
     assert_eq!(values.shape(), &[5]);
     assert_eq!(values.data(), &[-1.0, -0.5, 0.0, 0.5, 1.0]);
     assert_eq!(descending.data(), &[2.0, 0.0, -2.0]);
     assert_eq!(repeated.data(), &[1.25, 1.25, 1.25, 1.25]);
+    assert_eq!(empty.shape(), &[0]);
+    assert_eq!(empty.strides(), &[1]);
+    assert!(empty.data().is_empty());
 }
 
 #[test]
