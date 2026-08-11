@@ -178,9 +178,10 @@ fn empty_view_operands_remain_well_defined_for_linalg_dispatch() {
 
     assert_eq!(dot(empty_vector.clone(), empty_vector.clone()).unwrap(), 0.0);
 
-    let vector_product = matmul(empty_vector.clone(), empty_vector.clone()).unwrap();
-    assert_eq!(vector_product.shape(), &[] as &[usize]);
-    assert_eq!(vector_product.data(), &[0.0]);
+    assert_eq!(
+        matmul(empty_vector.clone(), empty_vector.clone()).unwrap_err(),
+        AtlasLinalgError::InvalidOperandRank { op: "matmul", left: 1, right: 1 }
+    );
 
     let matrix_base =
         NDArray::from_shape_vec([2, 3], vec![1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();

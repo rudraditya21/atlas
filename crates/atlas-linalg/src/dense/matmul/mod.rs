@@ -88,8 +88,6 @@ mod tests {
         let left_matrix = NDArray::from_shape_vec([2, 3], vec![1_i32, 2, 3, 4, 5, 6]).unwrap();
         let right_matrix = NDArray::from_shape_vec([3, 2], vec![7_i32, 8, 9, 10, 11, 12]).unwrap();
 
-        assert_eq!(matmul(&lhs_vec, &rhs_vec).unwrap().shape(), &[] as &[usize]);
-        assert_eq!(matmul(&lhs_vec, &rhs_vec).unwrap().data(), &[32]);
         assert_eq!(matmul(&lhs_vec, &matrix).unwrap().data(), &[22, 28]);
         assert_eq!(matmul(&left_matrix, &rhs_vec).unwrap().data(), &[32, 77]);
         assert_eq!(matmul(&left_matrix, &right_matrix).unwrap().shape(), &[2, 2]);
@@ -97,18 +95,13 @@ mod tests {
     }
 
     #[test]
-    fn matmul_vector_vector_reports_matmul_shape_mismatch() {
+    fn matmul_rejects_vector_vector_operands_in_v0_scope() {
         let lhs = NDArray::from_shape_vec([3], vec![1_i32, 2, 3]).unwrap();
-        let rhs = NDArray::from_shape_vec([2], vec![4_i32, 5]).unwrap();
+        let rhs = NDArray::from_shape_vec([3], vec![4_i32, 5, 6]).unwrap();
 
         assert_eq!(
             matmul(&lhs, &rhs).unwrap_err(),
-            AtlasLinalgError::ShapeMismatch {
-                op: "matmul",
-                left: vec![3],
-                right: vec![2],
-                reason: "vector lengths must match",
-            }
+            AtlasLinalgError::InvalidOperandRank { op: "matmul", left: 1, right: 1 }
         );
     }
 

@@ -74,12 +74,7 @@ fn dense_validation_errors_match_for_owned_and_view_vectors() {
     assert_eq!(dot(&lhs, &rhs).unwrap_err(), dot(lhs_view.clone(), rhs_view.clone()).unwrap_err());
     assert_eq!(
         matmul(&lhs, &rhs).unwrap_err(),
-        AtlasLinalgError::ShapeMismatch {
-            op: "matmul",
-            left: vec![4],
-            right: vec![3],
-            reason: "vector lengths must match",
-        }
+        AtlasLinalgError::InvalidOperandRank { op: "matmul", left: 1, right: 1 }
     );
     assert_eq!(matmul(&lhs, &rhs).unwrap_err(), matmul(lhs_view, rhs_view).unwrap_err());
 }

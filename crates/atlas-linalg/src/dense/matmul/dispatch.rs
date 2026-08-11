@@ -4,7 +4,7 @@ use crate::core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand};
 
 use super::{
     matrix_matrix::matmul_matrix_matrix, matrix_vector::matmul_matrix_vector,
-    vector_matrix::matmul_vector_matrix, vector_vector::matmul_vector_vector,
+    vector_matrix::matmul_vector_matrix,
 };
 
 // Keep medium square matmuls on the serial path unless each worker receives a
@@ -19,7 +19,6 @@ pub(super) fn dispatch_matmul<T: Numeric>(
     rhs: &LinalgOperand<'_, T>,
 ) -> AtlasLinalgResult<NDArray<T>> {
     match (lhs.ndim(), rhs.ndim()) {
-        (1, 1) => matmul_vector_vector(lhs, rhs),
         (1, 2) => matmul_vector_matrix(lhs, rhs),
         (2, 1) => matmul_matrix_vector(lhs, rhs),
         (2, 2) => matmul_matrix_matrix(lhs, rhs),

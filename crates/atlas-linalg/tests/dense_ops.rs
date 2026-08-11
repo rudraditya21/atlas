@@ -62,14 +62,14 @@ fn matmul_supports_vector_matrix_matrix_vector_and_matrix_matrix() {
 }
 
 #[test]
-fn matmul_vector_vector_returns_scalar_shaped_array() {
+fn matmul_rejects_vector_vector_operands_in_v0_scope() {
     let lhs = NDArray::from_shape_vec([3], vec![1_i32, 2, 3]).unwrap();
     let rhs = NDArray::from_shape_vec([3], vec![4_i32, 5, 6]).unwrap();
 
-    let result = matmul(&lhs, &rhs).unwrap();
-
-    assert_eq!(result.shape(), &[] as &[usize]);
-    assert_eq!(result.data(), &[32]);
+    assert_eq!(
+        matmul(&lhs, &rhs).unwrap_err(),
+        AtlasLinalgError::InvalidOperandRank { op: "matmul", left: 1, right: 1 }
+    );
 }
 
 #[test]
@@ -115,11 +115,6 @@ fn dot_and_matmul_vector_vector_report_exact_mismatch_errors() {
     );
     assert_eq!(
         matmul(&lhs, &rhs).unwrap_err(),
-        AtlasLinalgError::ShapeMismatch {
-            op: "matmul",
-            left: vec![3],
-            right: vec![2],
-            reason: "vector lengths must match",
-        }
+        AtlasLinalgError::InvalidOperandRank { op: "matmul", left: 1, right: 1 }
     );
 }
