@@ -1,4 +1,4 @@
-use atlas_linalg::{AtlasLinalgError, dot, matmul};
+use atlas_linalg::{AtlasLinalgError, DotOutput, dot, matmul};
 use atlas_ndarray::NDArray;
 
 #[test]
@@ -6,7 +6,42 @@ fn dot_supports_vector_inputs() {
     let lhs = NDArray::from_shape_vec([4], vec![1.0_f64, 2.0, 3.0, 4.0]).unwrap();
     let rhs = NDArray::from_shape_vec([4], vec![0.5_f64, 1.0, 1.5, 2.0]).unwrap();
 
-    assert_eq!(dot(&lhs, &rhs).unwrap(), 15.0);
+    match dot(&lhs, &rhs).unwrap() {
+        DotOutput::Scalar(value) => assert_eq!(value, 15.0),
+        other => panic!("expected scalar dot output, got {other:?}"),
+    }
+}
+
+#[test]
+fn dot_supports_vector_matrix_matrix_vector_and_matrix_matrix() {
+    let vector = NDArray::from_shape_vec([3], vec![1_i32, 2, 3]).unwrap();
+    let matrix = NDArray::from_shape_vec([3, 2], vec![1_i32, 2, 3, 4, 5, 6]).unwrap();
+    let left = NDArray::from_shape_vec([2, 3], vec![1_i32, 2, 3, 4, 5, 6]).unwrap();
+    let right = NDArray::from_shape_vec([3, 2], vec![7_i32, 8, 9, 10, 11, 12]).unwrap();
+
+    match dot(&vector, &matrix).unwrap() {
+        DotOutput::Array(result) => {
+            assert_eq!(result.shape(), &[2]);
+            assert_eq!(result.data(), &[22, 28]);
+        }
+        other => panic!("expected array dot output, got {other:?}"),
+    }
+
+    match dot(&left, &vector).unwrap() {
+        DotOutput::Array(result) => {
+            assert_eq!(result.shape(), &[2]);
+            assert_eq!(result.data(), &[14, 32]);
+        }
+        other => panic!("expected array dot output, got {other:?}"),
+    }
+
+    match dot(&left, &right).unwrap() {
+        DotOutput::Array(result) => {
+            assert_eq!(result.shape(), &[2, 2]);
+            assert_eq!(result.data(), &[58, 64, 139, 154]);
+        }
+        other => panic!("expected array dot output, got {other:?}"),
+    }
 }
 
 #[test]

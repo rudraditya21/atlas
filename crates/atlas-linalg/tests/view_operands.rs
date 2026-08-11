@@ -1,4 +1,4 @@
-use atlas_linalg::{AtlasLinalgError, dot, matmul};
+use atlas_linalg::{AtlasLinalgError, DotOutput, dot, matmul};
 use atlas_ndarray::NDArray;
 
 #[test]
@@ -9,7 +9,33 @@ fn dot_accepts_sliced_vector_views() {
     let lhs = lhs_base.view().slice([1], [3]).unwrap();
     let rhs = rhs_base.view().slice([1], [3]).unwrap();
 
-    assert_eq!(dot(lhs, rhs).unwrap(), 25);
+    match dot(lhs, rhs).unwrap() {
+        DotOutput::Scalar(value) => assert_eq!(value, 25),
+        other => panic!("expected scalar dot output, got {other:?}"),
+    }
+}
+
+#[test]
+fn dot_accepts_matrix_vector_and_vector_matrix_views() {
+    let vector = NDArray::from_shape_vec([3], vec![1_i32, 2, 3]).unwrap();
+    let lhs_base = NDArray::from_shape_vec([2, 3], vec![1_i32, 2, 3, 4, 5, 6]).unwrap();
+    let rhs_base = NDArray::from_shape_vec([2, 3], vec![1_i32, 3, 5, 2, 4, 6]).unwrap();
+
+    match dot(lhs_base.view(), &vector).unwrap() {
+        DotOutput::Array(result) => {
+            assert_eq!(result.shape(), &[2]);
+            assert_eq!(result.data(), &[14, 32]);
+        }
+        other => panic!("expected array dot output, got {other:?}"),
+    }
+
+    match dot(&vector, rhs_base.view().transpose()).unwrap() {
+        DotOutput::Array(result) => {
+            assert_eq!(result.shape(), &[2]);
+            assert_eq!(result.data(), &[22, 28]);
+        }
+        other => panic!("expected array dot output, got {other:?}"),
+    }
 }
 
 #[test]
