@@ -2,7 +2,7 @@ use atlas_ndarray::{NDArray, Numeric};
 use rand::distributions::uniform::SampleUniform;
 
 use crate::{
-    core::{AtlasRandomResult, element_count},
+    core::{AtlasRandomResult, sample_ndarray},
     rng::random_source::RandomSource,
 };
 
@@ -12,12 +12,7 @@ where
     S: AsRef<[usize]>,
     R: RandomSource,
 {
-    let shape = shape.as_ref().to_vec();
-    let len = element_count(&shape)?;
-    let mut data = vec![T::zero(); len];
-    rng.fill_uniform(low, high, &mut data)?;
-
-    Ok(NDArray::from_shape_vec(shape, data)?)
+    sample_ndarray(shape, |data| rng.fill_uniform(low, high, data))
 }
 
 #[cfg(test)]
