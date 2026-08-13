@@ -1,5 +1,5 @@
 use atlas_ndarray::{AtlasNdError, NDArray, compute_strides, element_count};
-use atlas_random::{AtlasRandomError, AtlasRng, normal, uniform};
+use atlas_random::{AtlasRandomError, AtlasRng, normal, rand, randn, uniform};
 
 fn assert_layout_invariants<T>(array: &NDArray<T>, expected_shape: &[usize])
 where
@@ -109,6 +109,24 @@ fn sampling_preserves_requested_shapes() {
     assert_layout_invariants(&normal_tensor, &[2, 1, 2]);
     assert_layout_invariants(&uniform_scalar, &[] as &[usize]);
     assert_layout_invariants(&normal_empty, &[0, 2]);
+}
+
+#[test]
+fn rand_and_randn_cover_numpy_style_default_float_sampling() {
+    let mut left = AtlasRng::seed_from_u64(7070);
+    let mut right = AtlasRng::seed_from_u64(7070);
+
+    let left_rand = rand([2, 3], &mut left).unwrap();
+    let right_rand = rand([2, 3], &mut right).unwrap();
+    let left_randn = randn([], &mut left).unwrap();
+    let right_randn = randn([], &mut right).unwrap();
+
+    assert_layout_invariants(&left_rand, &[2, 3]);
+    assert!(left_rand.data().iter().all(|value| *value >= 0.0 && *value < 1.0));
+    assert_eq!(left_rand.data(), right_rand.data());
+    assert_layout_invariants(&left_randn, &[] as &[usize]);
+    assert!(left_randn.data()[0].is_finite());
+    assert_eq!(left_randn.data(), right_randn.data());
 }
 
 #[test]
