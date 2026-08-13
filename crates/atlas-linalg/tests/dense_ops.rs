@@ -1,4 +1,4 @@
-use atlas_linalg::{AtlasLinalgError, DotOutput, dot, matmul};
+use atlas_linalg::{AtlasLinalgError, DotOutput, dot, matmul, norm};
 use atlas_ndarray::NDArray;
 
 #[test]
@@ -116,5 +116,29 @@ fn dot_and_matmul_vector_vector_report_exact_mismatch_errors() {
     assert_eq!(
         matmul(&lhs, &rhs).unwrap_err(),
         AtlasLinalgError::InvalidOperandRank { op: "matmul", left: 1, right: 1 }
+    );
+}
+
+#[test]
+fn norm_supports_default_vector_and_matrix_cases() {
+    let vector = NDArray::from_shape_vec([2], vec![3.0_f64, 4.0]).unwrap();
+    let matrix = NDArray::from_shape_vec([2, 2], vec![1.0_f64, 2.0, 3.0, 4.0]).unwrap();
+
+    assert!((norm(&vector).unwrap() - 5.0).abs() <= 1.0e-10);
+    assert!((norm(&matrix).unwrap() - 30.0_f64.sqrt()).abs() <= 1.0e-10);
+}
+
+#[test]
+fn norm_reports_exact_rank_validation_errors() {
+    let scalar = NDArray::from_shape_vec([], vec![7.0_f64]).unwrap();
+    let tensor = NDArray::<f64>::zeros([1, 1, 1]).unwrap();
+
+    assert_eq!(
+        norm(&scalar).unwrap_err(),
+        AtlasLinalgError::InvalidInputRank { op: "norm", expected: "a 1-D or 2-D array", rank: 0 }
+    );
+    assert_eq!(
+        norm(&tensor).unwrap_err(),
+        AtlasLinalgError::InvalidInputRank { op: "norm", expected: "a 1-D or 2-D array", rank: 3 }
     );
 }

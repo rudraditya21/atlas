@@ -1,4 +1,4 @@
-use atlas_linalg::{AtlasLinalgError, cholesky, dot, matmul, qr};
+use atlas_linalg::{AtlasLinalgError, cholesky, dot, matmul, norm, qr};
 use atlas_ndarray::{AtlasNdError, NDArray, checked_compute_strides, checked_element_count};
 use atlas_random::{AtlasRandomError, AtlasRng, normal, uniform};
 use atlas_stats::{AtlasStatsError, correlation, covariance, stddev, variance};
@@ -177,6 +177,7 @@ fn empty_view_operands_remain_well_defined_for_linalg_dispatch() {
     let empty_vector = vector_base.view().slice([3], [0]).unwrap();
 
     assert_eq!(dot(empty_vector.clone(), empty_vector.clone()).unwrap(), 0.0);
+    assert_eq!(norm(empty_vector.clone()).unwrap(), 0.0);
 
     assert_eq!(
         matmul(empty_vector.clone(), empty_vector.clone()).unwrap_err(),
@@ -187,9 +188,10 @@ fn empty_view_operands_remain_well_defined_for_linalg_dispatch() {
         NDArray::from_shape_vec([2, 3], vec![1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
     let empty_matrix = matrix_base.view().slice([2, 3], [0, 0]).unwrap();
 
-    let matrix_product = matmul(empty_matrix.clone(), empty_matrix.transpose()).unwrap();
+    let matrix_product = matmul(empty_matrix.clone(), empty_matrix.clone().transpose()).unwrap();
     assert_eq!(matrix_product.shape(), &[0, 0]);
     assert!(matrix_product.data().is_empty());
+    assert_eq!(norm(empty_matrix).unwrap(), 0.0);
 }
 
 #[test]

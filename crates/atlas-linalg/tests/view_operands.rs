@@ -1,4 +1,4 @@
-use atlas_linalg::{AtlasLinalgError, DotOutput, dot, matmul};
+use atlas_linalg::{AtlasLinalgError, DotOutput, dot, matmul, norm};
 use atlas_ndarray::NDArray;
 
 #[test]
@@ -77,4 +77,17 @@ fn dense_validation_errors_match_for_owned_and_view_vectors() {
         AtlasLinalgError::InvalidOperandRank { op: "matmul", left: 1, right: 1 }
     );
     assert_eq!(matmul(&lhs, &rhs).unwrap_err(), matmul(lhs_view, rhs_view).unwrap_err());
+}
+
+#[test]
+fn norm_accepts_view_operands_without_materializing() {
+    let vector_base = NDArray::from_shape_vec([4], vec![3.0_f64, 0.0, 4.0, 9.0]).unwrap();
+    let matrix_base =
+        NDArray::from_shape_vec([2, 3], vec![1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+
+    let vector = vector_base.view().slice([0], [3]).unwrap();
+    let matrix = matrix_base.view().transpose();
+
+    assert!((norm(vector).unwrap() - 5.0).abs() <= 1.0e-10);
+    assert!((norm(matrix).unwrap() - 91.0_f64.sqrt()).abs() <= 1.0e-10);
 }
