@@ -1,3 +1,4 @@
+use core::any::Any;
 use core::cmp::Ordering;
 
 use atlas_ndarray::{NDArray, Numeric, checked_element_count};
@@ -25,8 +26,10 @@ where
 
 pub(crate) fn validate_uniform_bounds<T>(low: T, high: T) -> AtlasRandomResult<()>
 where
-    T: PartialOrd,
+    T: PartialOrd + Copy + 'static,
 {
+    validate_uniform_finite_bounds(low, high)?;
+
     if low.partial_cmp(&high) != Some(Ordering::Less) {
         return Err(AtlasRandomError::InvalidArgument {
             op: "uniform",
@@ -41,17 +44,56 @@ pub(crate) fn validate_normal_parameters<T>(mean: T, stddev: T) -> AtlasRandomRe
 where
     T: Float,
 {
-    if !mean.is_finite() || !stddev.is_finite() {
-        return Err(AtlasRandomError::InvalidArgument {
-            op: "normal",
-            reason: "mean and stddev must be finite",
-        });
-    }
+    validate_normal_finite_parameters(mean, stddev)?;
 
     if stddev <= T::zero() {
         return Err(AtlasRandomError::InvalidArgument {
             op: "normal",
             reason: "stddev must be strictly positive",
+        });
+    }
+
+    Ok(())
+}
+
+fn validate_uniform_finite_bounds<T>(low: T, high: T) -> AtlasRandomResult<()>
+where
+    T: Copy + 'static,
+{
+    let low_any = &low as &dyn Any;
+    let high_any = &high as &dyn Any;
+
+    if let (Some(&low), Some(&high)) =
+        (low_any.downcast_ref::<f32>(), high_any.downcast_ref::<f32>())
+    {
+        return validate_uniform_float_bounds(low, high);
+    }
+
+    if let (Some(&low), Some(&high)) =
+        (low_any.downcast_ref::<f64>(), high_any.downcast_ref::<f64>())
+    {
+        return validate_uniform_float_bounds(low, high);
+    }
+
+    Ok(())
+}
+
+fn validate_uniform_float_bounds<T: Float>(low: T, high: T) -> AtlasRandomResult<()> {
+    if !low.is_finite() || !high.is_finite() {
+        return Err(AtlasRandomError::InvalidArgument {
+            op: "uniform",
+            reason: "low and high must be finite",
+        });
+    }
+
+    Ok(())
+}
+
+fn validate_normal_finite_parameters<T: Float>(mean: T, stddev: T) -> AtlasRandomResult<()> {
+    if !mean.is_finite() || !stddev.is_finite() {
+        return Err(AtlasRandomError::InvalidArgument {
+            op: "normal",
+            reason: "mean and stddev must be finite",
         });
     }
 
@@ -125,6 +167,20 @@ mod tests {
             AtlasRandomError::InvalidArgument {
                 op: "uniform",
                 reason: "low must be strictly less than high",
+            }
+        );
+        assert_eq!(
+            validate_uniform_bounds(f64::NAN, 1.0).unwrap_err(),
+            AtlasRandomError::InvalidArgument {
+                op: "uniform",
+                reason: "low and high must be finite",
+            }
+        );
+        assert_eq!(
+            validate_uniform_bounds(0.0_f64, f64::INFINITY).unwrap_err(),
+            AtlasRandomError::InvalidArgument {
+                op: "uniform",
+                reason: "low and high must be finite",
             }
         );
     }

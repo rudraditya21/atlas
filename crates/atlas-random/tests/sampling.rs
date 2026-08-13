@@ -168,17 +168,19 @@ fn uniform_rejects_invalid_bounds_with_exact_errors() {
     );
     assert_eq!(
         uniform([1], f64::NAN, 1.0_f64, &mut rng).unwrap_err(),
-        AtlasRandomError::InvalidArgument {
-            op: "uniform",
-            reason: "low must be strictly less than high",
-        }
+        AtlasRandomError::InvalidArgument { op: "uniform", reason: "low and high must be finite" }
     );
     assert_eq!(
         uniform([1], 0.0_f64, f64::NAN, &mut rng).unwrap_err(),
-        AtlasRandomError::InvalidArgument {
-            op: "uniform",
-            reason: "low must be strictly less than high",
-        }
+        AtlasRandomError::InvalidArgument { op: "uniform", reason: "low and high must be finite" }
+    );
+    assert_eq!(
+        uniform([1], f64::NEG_INFINITY, 1.0_f64, &mut rng).unwrap_err(),
+        AtlasRandomError::InvalidArgument { op: "uniform", reason: "low and high must be finite" }
+    );
+    assert_eq!(
+        uniform([1], 0.0_f64, f64::INFINITY, &mut rng).unwrap_err(),
+        AtlasRandomError::InvalidArgument { op: "uniform", reason: "low and high must be finite" }
     );
 }
 
