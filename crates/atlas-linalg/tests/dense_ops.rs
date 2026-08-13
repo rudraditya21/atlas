@@ -1,4 +1,4 @@
-use atlas_linalg::{AtlasLinalgError, DotOutput, dot, matmul, norm};
+use atlas_linalg::{AtlasLinalgError, DotOutput, dot, matmul, norm, trace};
 use atlas_ndarray::NDArray;
 
 #[test]
@@ -140,5 +140,29 @@ fn norm_reports_exact_rank_validation_errors() {
     assert_eq!(
         norm(&tensor).unwrap_err(),
         AtlasLinalgError::InvalidInputRank { op: "norm", expected: "a 1-D or 2-D array", rank: 3 }
+    );
+}
+
+#[test]
+fn trace_supports_rank_two_owned_arrays() {
+    let square = NDArray::from_shape_vec([2, 2], vec![1_i32, 2, 3, 4]).unwrap();
+    let rectangular = NDArray::from_shape_vec([2, 3], vec![1_i32, 2, 3, 4, 5, 6]).unwrap();
+
+    assert_eq!(trace(&square).unwrap(), 5);
+    assert_eq!(trace(&rectangular).unwrap(), 6);
+}
+
+#[test]
+fn trace_reports_exact_rank_validation_errors() {
+    let vector = NDArray::from_shape_vec([3], vec![1_i32, 2, 3]).unwrap();
+    let scalar = NDArray::from_shape_vec([], vec![7_i32]).unwrap();
+
+    assert_eq!(
+        trace(&vector).unwrap_err(),
+        AtlasLinalgError::InvalidInputRank { op: "trace", expected: "a 2-D array", rank: 1 }
+    );
+    assert_eq!(
+        trace(&scalar).unwrap_err(),
+        AtlasLinalgError::InvalidInputRank { op: "trace", expected: "a 2-D array", rank: 0 }
     );
 }

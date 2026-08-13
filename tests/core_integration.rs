@@ -1,4 +1,4 @@
-use atlas_linalg::{AtlasLinalgError, cholesky, dot, matmul, norm, qr};
+use atlas_linalg::{AtlasLinalgError, cholesky, dot, matmul, norm, qr, trace};
 use atlas_ndarray::{AtlasNdError, NDArray, checked_compute_strides, checked_element_count};
 use atlas_random::{AtlasRandomError, AtlasRng, normal, uniform};
 use atlas_stats::{AtlasStatsError, correlation, covariance, stddev, variance};
@@ -192,6 +192,7 @@ fn empty_view_operands_remain_well_defined_for_linalg_dispatch() {
     assert_eq!(matrix_product.shape(), &[0, 0]);
     assert!(matrix_product.data().is_empty());
     assert_eq!(norm(empty_matrix).unwrap(), 0.0);
+    assert_eq!(trace(matrix_product.view()).unwrap(), 0.0);
 }
 
 #[test]

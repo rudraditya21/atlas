@@ -1,4 +1,4 @@
-use atlas_linalg::{AtlasLinalgError, DotOutput, dot, matmul, norm};
+use atlas_linalg::{AtlasLinalgError, DotOutput, dot, matmul, norm, trace};
 use atlas_ndarray::NDArray;
 
 #[test]
@@ -90,4 +90,16 @@ fn norm_accepts_view_operands_without_materializing() {
 
     assert!((norm(vector).unwrap() - 5.0).abs() <= 1.0e-10);
     assert!((norm(matrix).unwrap() - 91.0_f64.sqrt()).abs() <= 1.0e-10);
+}
+
+#[test]
+fn trace_accepts_transposed_and_sliced_views() {
+    let base =
+        NDArray::from_shape_vec([3, 4], vec![0_i32, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]).unwrap();
+
+    let transposed = base.view().transpose();
+    let sliced = base.view().slice([0, 1], [3, 3]).unwrap();
+
+    assert_eq!(trace(transposed).unwrap(), 15);
+    assert_eq!(trace(sliced).unwrap(), 18);
 }
