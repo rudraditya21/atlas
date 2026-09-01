@@ -46,19 +46,12 @@ impl<T: ArrayElement> NDArray<T> {
 }
 
 impl<T: Numeric> NDArray<T> {
-    /// Creates a dense row-major array through the dedicated empty-construction path.
+    /// Creates a dense row-major array initialized to zero.
     pub fn empty<S>(shape: S) -> AtlasNdResult<Self>
     where
         S: ShapeArg,
     {
-        let shape = shape.into_shape_vec();
-        let size = crate::checked_element_count(&shape)?;
-        let mut data = Vec::with_capacity(size);
-
-        // Safe NDArray<T> access cannot expose truly uninitialized elements.
-        data.resize_with(size, T::zero);
-
-        Self::from_row_major_parts(shape, data)
+        Self::zeros(shape)
     }
 
     /// Creates a dense row-major array filled with zeros.
