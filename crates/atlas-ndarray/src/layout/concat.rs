@@ -1,6 +1,9 @@
 use crate::{
-    ArrayElement, AtlasNdError, AtlasNdResult, AxisIndex, NDArray, core::axis::normalize_axis,
-    internal::value_iter, view::ArrayView,
+    ArrayElement, AtlasNdError, AtlasNdResult, AxisIndex, NDArray,
+    core::axis::normalize_axis,
+    internal::value_iter,
+    layout::validation::{require_first_array, validate_matching_ndim},
+    view::ArrayView,
 };
 
 impl<T: ArrayElement> NDArray<T> {
@@ -13,22 +16,14 @@ fn concatenate_impl<T: ArrayElement, A: AxisIndex>(
     arrays: &[ArrayView<'_, T>],
     axis: A,
 ) -> AtlasNdResult<NDArray<T>> {
-    let Some(first) = arrays.first() else {
-        return Err(AtlasNdError::InvalidArgument {
-            op: "concatenate",
-            reason: "at least one array is required",
-        });
-    };
+    let first = require_first_array(arrays, "concatenate")?;
 
     let ndim = first.ndim();
     let axis = normalize_axis(axis, ndim)?;
     let mut output_shape = first.shape().to_vec();
+    validate_matching_ndim(arrays, ndim)?;
 
     for array in &arrays[1..] {
-        if array.ndim() != ndim {
-            return Err(AtlasNdError::DimensionMismatch { expected: ndim, actual: array.ndim() });
-        }
-
         for (current_axis, (&expected, &actual)) in
             first.shape().iter().zip(array.shape().iter()).enumerate()
         {

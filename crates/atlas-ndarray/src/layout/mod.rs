@@ -11,5 +11,6 @@ pub(crate) mod split;
 pub(crate) mod stack;
 pub(crate) mod stride;
 pub(crate) mod transpose;
+pub(crate) mod validation;
 
 pub(crate) use crate::internal::shape::element_count;

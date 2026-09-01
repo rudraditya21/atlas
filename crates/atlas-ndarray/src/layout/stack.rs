@@ -1,28 +1,19 @@
 use crate::{
     ArrayElement, AtlasNdError, AtlasNdResult, AxisIndex, NDArray,
-    core::axis::normalize_insertion_axis, view::ArrayView,
+    core::axis::normalize_insertion_axis,
+    layout::validation::{require_first_array, validate_matching_ndim},
+    view::ArrayView,
 };
 
 impl<T: ArrayElement> NDArray<T> {
     pub fn stack<A: AxisIndex>(arrays: &[ArrayView<'_, T>], axis: A) -> AtlasNdResult<Self> {
-        let Some(first) = arrays.first() else {
-            return Err(AtlasNdError::InvalidArgument {
-                op: "stack",
-                reason: "at least one array is required",
-            });
-        };
+        let first = require_first_array(arrays, "stack")?;
 
         let ndim = first.ndim();
         let axis = normalize_insertion_axis(axis, ndim)?;
+        validate_matching_ndim(arrays, ndim)?;
 
         for array in &arrays[1..] {
-            if array.ndim() != ndim {
-                return Err(AtlasNdError::DimensionMismatch {
-                    expected: ndim,
-                    actual: array.ndim(),
-                });
-            }
-
             if array.shape() != first.shape() {
                 return Err(AtlasNdError::InvalidArgument {
                     op: "stack",
