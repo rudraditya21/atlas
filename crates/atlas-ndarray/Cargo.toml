@@ -9,6 +9,9 @@ num-traits.workspace = true
 rayon.workspace = true
 thiserror.workspace = true
 
+[dev-dependencies]
+proptest = "=1.6.0"
+
 [lints.rust]
 rust_2018_idioms = { level = "warn", priority = -1 }
 unsafe_op_in_unsafe_fn = "allow"
