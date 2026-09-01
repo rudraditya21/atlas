@@ -1,6 +1,6 @@
 mod support;
 
-use atlas_ndarray::{AtlasNdError, NDArray};
+use atlas_ndarray::{AtlasNdError, DType, NDArray, compute_strides};
 use proptest::prelude::*;
 use support::{
     array_strategy, assert_owned_invariants, assert_view_invariants, shape_strategy,
@@ -19,6 +19,58 @@ proptest! {
     ) {
         let view = fixture.view();
         assert_view_invariants(&view);
+        prop_assert!(!view.is_owned());
+        prop_assert_eq!(view.size(), view.len());
+    }
+
+    #[test]
+    fn metadata_and_ownership_survive_views_and_conversions(array in array_strategy()) {
+        let shape = array.shape().to_vec();
+        let strides = array.strides().to_vec();
+        let size = array.size();
+
+        prop_assert_eq!(size, array.len());
+        prop_assert!(array.is_owned());
+        prop_assert!(array.is_contiguous());
+        prop_assert_eq!(array.dtype(), DType::I32);
+
+        let view = array.view();
+        prop_assert_eq!(view.shape(), shape.as_slice());
+        prop_assert_eq!(view.strides(), strides.as_slice());
+        prop_assert_eq!(view.size(), size);
+        prop_assert!(!view.is_owned());
+        prop_assert_eq!(view.dtype(), DType::I32);
+
+        let transposed = view.transpose();
+        let expected_shape: Vec<_> = shape.iter().rev().copied().collect();
+        let expected_strides: Vec<_> = strides.iter().rev().copied().collect();
+        prop_assert_eq!(transposed.shape(), expected_shape.as_slice());
+        prop_assert_eq!(transposed.strides(), expected_strides.as_slice());
+        prop_assert_eq!(transposed.size(), size);
+        prop_assert!(!transposed.is_owned());
+
+        let materialized = transposed.to_owned();
+        prop_assert_eq!(materialized.shape(), expected_shape.as_slice());
+        prop_assert_eq!(materialized.strides(), compute_strides(&expected_shape));
+        prop_assert_eq!(materialized.size(), size);
+        prop_assert!(materialized.is_owned());
+        prop_assert!(materialized.is_contiguous());
+
+        let asarray = array.asarray();
+        prop_assert!(asarray.is_borrowed());
+        prop_assert!(!asarray.is_owned());
+        let asarray_view = asarray.view();
+        prop_assert_eq!(asarray_view.shape(), shape.as_slice());
+        prop_assert_eq!(asarray_view.strides(), strides.as_slice());
+        prop_assert_eq!(asarray_view.size(), size);
+        prop_assert!(!asarray_view.is_owned());
+
+        let casted = array.astype::<f64>().unwrap();
+        prop_assert_eq!(casted.shape(), shape.as_slice());
+        prop_assert_eq!(casted.strides(), strides.as_slice());
+        prop_assert_eq!(casted.size(), size);
+        prop_assert!(casted.is_owned());
+        prop_assert_eq!(casted.dtype(), DType::F64);
     }
 
     #[test]
