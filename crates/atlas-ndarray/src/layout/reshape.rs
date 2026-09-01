@@ -1,7 +1,17 @@
 use crate::{
-    ArrayElement, AtlasNdError, AtlasNdResult, ShapeArg, checked_compute_strides,
+    ArrayElement, AtlasNdError, AtlasNdResult, NDArray, ShapeArg, checked_compute_strides,
     checked_element_count, view::ArrayView,
 };
+
+impl<T: ArrayElement> NDArray<T> {
+    /// Returns a reshaped metadata-only view of this contiguous array.
+    pub fn reshape<S>(&self, new_shape: S) -> AtlasNdResult<ArrayView<'_, T>>
+    where
+        S: ShapeArg,
+    {
+        self.view().reshape(new_shape)
+    }
+}
 
 impl<'a, T: ArrayElement> ArrayView<'a, T> {
     pub fn reshape<S>(self, new_shape: S) -> AtlasNdResult<Self>

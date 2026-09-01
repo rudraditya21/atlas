@@ -133,6 +133,11 @@ impl<'a, T: ArrayElement> ArrayView<'a, T> {
         materialize_contiguous_array(self)
     }
 
+    /// Materializes this view into an owned contiguous array.
+    pub fn copy(&self) -> NDArray<T> {
+        self.to_owned()
+    }
+
     pub(crate) fn validate_invariants(&self) -> AtlasNdResult<()> {
         validate_view_invariants(self.data.len(), self.offset, &self.shape, &self.strides)
     }

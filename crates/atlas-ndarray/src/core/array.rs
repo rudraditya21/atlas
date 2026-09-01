@@ -41,6 +41,16 @@ impl<T: ArrayElement> NDArray<T> {
         AsArray::Borrowed(self.view())
     }
 
+    /// Returns an owned contiguous copy of this array.
+    pub fn copy(&self) -> Self {
+        self.clone()
+    }
+
+    /// Returns an owned contiguous copy of this array.
+    pub fn to_owned(&self) -> Self {
+        self.copy()
+    }
+
     pub fn shape(&self) -> &[usize] {
         &self.shape
     }
