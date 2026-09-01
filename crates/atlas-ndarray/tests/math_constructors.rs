@@ -55,15 +55,25 @@ fn linspace_creates_evenly_spaced_floating_point_inputs() {
     let values = NDArray::linspace(-1.0_f32, 1.0, 5).unwrap();
     let descending = NDArray::linspace(2.0_f32, -2.0, 3).unwrap();
     let repeated = NDArray::linspace(1.25_f32, 1.25, 4).unwrap();
+    let singleton = NDArray::linspace(3.5_f32, 9.0, 1).unwrap();
     let empty = NDArray::linspace(1.25_f32, 1.25, 0).unwrap();
 
     assert_eq!(values.shape(), &[5]);
     assert_eq!(values.data(), &[-1.0, -0.5, 0.0, 0.5, 1.0]);
     assert_eq!(descending.data(), &[2.0, 0.0, -2.0]);
     assert_eq!(repeated.data(), &[1.25, 1.25, 1.25, 1.25]);
+    assert_eq!(singleton.data(), &[3.5]);
     assert_eq!(empty.shape(), &[0]);
     assert_eq!(empty.strides(), &[1]);
     assert!(empty.data().is_empty());
+}
+
+#[test]
+fn arange_reports_dtype_overflow_before_integer_wrapping() {
+    let expected = AtlasNdError::InvalidArgument { op: "arange", reason: "range overflows dtype" };
+
+    assert_eq!(NDArray::arange(126_i8, 127, 2).unwrap_err(), expected);
+    assert_eq!(NDArray::arange(-127_i8, -128, -2).unwrap_err(), expected);
 }
 
 #[test]
