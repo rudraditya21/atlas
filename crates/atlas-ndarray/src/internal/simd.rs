@@ -970,7 +970,7 @@ mod tests {
         assert!(add_out.iter().all(|&value| value == 3.0));
         assert!(mul_out.iter().all(|&value| value == 2.0));
         assert_eq!(sum_contiguous(&rhs), 38.0);
-        assert_eq!(prod_contiguous(&vec![2.0_f32; 4]), 16.0);
+        assert_eq!(prod_contiguous(&[2.0_f32; 4]), 16.0);
         assert_eq!(min_contiguous(&rhs, "min").unwrap(), 2.0);
         assert_eq!(max_contiguous(&rhs, "max").unwrap(), 2.0);
         assert_eq!(mean_contiguous(&rhs, "mean").unwrap(), 2.0);

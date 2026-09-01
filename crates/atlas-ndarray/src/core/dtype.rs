@@ -361,11 +361,7 @@ impl ScalarValue {
 
 impl CastMode {
     pub fn permits(self, policy: CastPolicy) -> bool {
-        match (self, policy) {
-            (_, CastPolicy::Forbidden) => false,
-            (Self::Checked, CastPolicy::Lossy) => false,
-            _ => true,
-        }
+        !matches!((self, policy), (_, CastPolicy::Forbidden) | (Self::Checked, CastPolicy::Lossy))
     }
 }
 
@@ -628,13 +624,11 @@ fn cast_to_f32(value: ScalarValue) -> Option<ScalarValue> {
         ScalarValue::Usize(value) => value as f32,
         ScalarValue::F32(value) => value,
         ScalarValue::F64(value) => {
-            if value.is_nan() || value.is_infinite() {
-                value as f32
-            } else if (f32::MIN as f64..=f32::MAX as f64).contains(&value) {
-                value as f32
-            } else {
+            if value.is_finite() && !(f32::MIN as f64..=f32::MAX as f64).contains(&value) {
                 return None;
             }
+
+            value as f32
         }
     };
 

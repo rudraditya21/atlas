@@ -46,7 +46,7 @@ where
             })
             .collect();
 
-        return fold_min(partials.into_iter(), op);
+        return fold_min(partials, op);
     }
 
     simd::min_contiguous(values, op)
@@ -64,7 +64,7 @@ where
             })
             .collect();
 
-        return fold_max(partials.into_iter(), op);
+        return fold_max(partials, op);
     }
 
     simd::max_contiguous(values, op)
