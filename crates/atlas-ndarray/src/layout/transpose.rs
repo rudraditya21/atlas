@@ -1,12 +1,9 @@
 use crate::{ArrayElement, view::ArrayView};
 
 impl<'a, T: ArrayElement> ArrayView<'a, T> {
-    pub fn transpose(mut self) -> Self {
-        self.shape.reverse();
-        self.strides.reverse();
-
-        ArrayView::from_parts(self.data, self.offset, self.shape, self.strides)
-            .expect("transposing a valid view must preserve valid metadata")
+    pub fn transpose(self) -> Self {
+        let axes: Vec<_> = (0..self.ndim()).rev().collect();
+        self.permute_axes(axes).expect("reversing valid axes must preserve valid metadata")
     }
 }
 
