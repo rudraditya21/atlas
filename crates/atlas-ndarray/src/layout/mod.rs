@@ -3,6 +3,7 @@ pub(crate) mod concat;
 pub(crate) mod flatten;
 pub(crate) mod permutation;
 pub(crate) mod ravel;
+pub(crate) mod repeat;
 pub(crate) mod reshape;
 pub(crate) mod shape_ops;
 pub(crate) mod split;
