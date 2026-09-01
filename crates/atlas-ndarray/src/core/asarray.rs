@@ -1,4 +1,7 @@
-use crate::{ArrayElement, NDArray, internal::materialize_contiguous_array, view::ArrayView};
+use crate::{
+    ArrayElement, AtlasNdError, AtlasNdResult, CastMode, NDArray, RuntimeScalar,
+    internal::materialize_contiguous_array, view::ArrayView,
+};
 
 #[derive(Clone, Debug)]
 pub enum AsArray<'a, T: ArrayElement> {
@@ -28,6 +31,32 @@ impl<'a, T: ArrayElement> AsArray<'a, T> {
             Self::Owned(array) => array,
         }
     }
+}
+
+pub(crate) fn cast_array<T, U>(
+    shape: Vec<usize>,
+    values: impl IntoIterator<Item = T>,
+    mode: CastMode,
+) -> AtlasNdResult<NDArray<U>>
+where
+    T: RuntimeScalar,
+    U: ArrayElement + RuntimeScalar,
+{
+    let from = T::dtype();
+    let to = U::dtype();
+    let values = values.into_iter();
+    let mut casted = Vec::with_capacity(values.size_hint().0);
+
+    for value in values {
+        let value = value
+            .into_scalar_value()
+            .cast(to, mode)
+            .and_then(U::from_scalar_value)
+            .ok_or(AtlasNdError::InvalidCast { from, to, mode })?;
+        casted.push(value);
+    }
+
+    NDArray::from_row_major_parts(shape, casted)
 }
 
 #[cfg(test)]

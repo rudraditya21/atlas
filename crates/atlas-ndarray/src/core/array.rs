@@ -2,6 +2,7 @@ use super::traits::ArrayElement;
 use crate::{
     AsArray, AtlasNdError, AtlasNdResult, CastMode, DType, ReductionOp, RuntimeDType,
     RuntimeScalar,
+    core::asarray::cast_array,
     internal::{
         layout::{dense_storage_slice, is_contiguous_layout},
         shape::checked_row_major_metadata,
@@ -37,6 +38,7 @@ impl<T: ArrayElement> NDArray<T> {
         &self.data
     }
 
+    /// Borrows this array without copying its storage.
     pub fn asarray(&self) -> AsArray<'_, T> {
         AsArray::Borrowed(self.view())
     }
@@ -111,6 +113,7 @@ impl<T: ArrayElement> NDArray<T> {
             .expect("owned arrays always expose a dense storage region")
     }
 
+    /// Casts into a new owned array, rejecting lossy conversions.
     pub fn astype<U>(&self) -> AtlasNdResult<NDArray<U>>
     where
         T: RuntimeScalar,
@@ -119,25 +122,13 @@ impl<T: ArrayElement> NDArray<T> {
         self.astype_with_mode(CastMode::Checked)
     }
 
+    /// Casts into a new owned array using the explicitly selected conversion mode.
     pub fn astype_with_mode<U>(&self, mode: CastMode) -> AtlasNdResult<NDArray<U>>
     where
         T: RuntimeScalar,
         U: ArrayElement + RuntimeScalar,
     {
-        let from = self.dtype();
-        let to = U::dtype();
-        let mut casted = Vec::with_capacity(self.data.len());
-
-        for &value in &self.data {
-            let casted_value = value
-                .into_scalar_value()
-                .cast(to, mode)
-                .and_then(U::from_scalar_value)
-                .ok_or(AtlasNdError::InvalidCast { from, to, mode })?;
-            casted.push(casted_value);
-        }
-
-        NDArray::from_row_major_parts(self.shape.clone(), casted)
+        cast_array(self.shape.clone(), self.data.iter().copied(), mode)
     }
 
     pub(crate) fn validate_invariants(&self) -> AtlasNdResult<()> {

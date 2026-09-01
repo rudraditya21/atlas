@@ -1,5 +1,7 @@
 use crate::{
-    ArrayElement, AtlasNdResult, AxisIndex, DType, NDArray, ReductionOp, RuntimeDType,
+    ArrayElement, AsArray, AtlasNdResult, AxisIndex, CastMode, DType, NDArray, ReductionOp,
+    RuntimeDType, RuntimeScalar,
+    core::asarray::cast_array,
     core::axis::normalize_and_offset_indices,
     internal::{
         layout::{dense_storage_slice, is_contiguous_layout},
@@ -18,6 +20,7 @@ pub struct ArrayView<'a, T: ArrayElement> {
 }
 
 impl<T: ArrayElement> NDArray<T> {
+    /// Returns a metadata-only borrow of this array.
     pub fn view(&self) -> ArrayView<'_, T> {
         ArrayView::from_parts(&self.data, 0, self.shape.clone(), self.strides.clone())
             .expect("owned arrays always expose valid view metadata")
@@ -129,6 +132,12 @@ impl<'a, T: ArrayElement> ArrayView<'a, T> {
         dense_storage_slice(self.data, self.offset, &self.shape, &self.strides)
     }
 
+    /// Borrows this view without materializing it.
+    pub fn asarray(&self) -> AsArray<'a, T> {
+        AsArray::Borrowed(self.clone())
+    }
+
+    /// Materializes this view into an owned contiguous array.
     pub fn to_owned(&self) -> NDArray<T> {
         materialize_contiguous_array(self)
     }
@@ -136,6 +145,24 @@ impl<'a, T: ArrayElement> ArrayView<'a, T> {
     /// Materializes this view into an owned contiguous array.
     pub fn copy(&self) -> NDArray<T> {
         self.to_owned()
+    }
+
+    /// Casts logical view values into a new owned array, rejecting lossy conversions.
+    pub fn astype<U>(&self) -> AtlasNdResult<NDArray<U>>
+    where
+        T: RuntimeScalar,
+        U: ArrayElement + RuntimeScalar,
+    {
+        self.astype_with_mode(CastMode::Checked)
+    }
+
+    /// Casts logical view values into a new owned array using the selected conversion mode.
+    pub fn astype_with_mode<U>(&self, mode: CastMode) -> AtlasNdResult<NDArray<U>>
+    where
+        T: RuntimeScalar,
+        U: ArrayElement + RuntimeScalar,
+    {
+        cast_array(self.shape.clone(), self.iter().copied(), mode)
     }
 
     pub(crate) fn validate_invariants(&self) -> AtlasNdResult<()> {
