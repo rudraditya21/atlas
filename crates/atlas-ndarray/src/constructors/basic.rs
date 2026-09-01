@@ -86,7 +86,9 @@ impl<T: Numeric> NDArray<T> {
         Self::ones(other.shape())
     }
 
-    /// Creates a square identity matrix with ones on the main diagonal.
+    /// Creates a contiguous square identity matrix with ones on the main diagonal.
+    ///
+    /// Returns [`AtlasNdError::ShapeOverflow`] when `size * size` cannot fit in memory metadata.
     pub fn eye(size: usize) -> AtlasNdResult<Self> {
         let shape = vec![size, size];
         let element_count = crate::checked_element_count(&shape)?;

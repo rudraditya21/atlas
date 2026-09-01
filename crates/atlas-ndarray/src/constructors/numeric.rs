@@ -4,6 +4,7 @@ use num_traits::Float;
 #[doc(hidden)]
 pub trait ArangeElement: Numeric + PartialOrd {
     fn validate_arange_inputs(start: Self, end: Self, step: Self) -> AtlasNdResult<()>;
+    fn advance(current: Self, step: Self) -> Option<Self>;
 }
 
 macro_rules! impl_integer_arange_element {
@@ -12,6 +13,10 @@ macro_rules! impl_integer_arange_element {
             impl ArangeElement for $ty {
                 fn validate_arange_inputs(_start: Self, _end: Self, _step: Self) -> AtlasNdResult<()> {
                     Ok(())
+                }
+
+                fn advance(current: Self, step: Self) -> Option<Self> {
+                    current.checked_add(step)
                 }
             }
         )+
@@ -32,6 +37,10 @@ macro_rules! impl_float_arange_element {
 
                     Ok(())
                 }
+
+                fn advance(current: Self, step: Self) -> Option<Self> {
+                    Some(current + step)
+                }
             }
         )+
     };
@@ -44,7 +53,11 @@ impl<T> NDArray<T>
 where
     T: ArangeElement,
 {
-    /// Creates a 1D array from a half-open interval `[start, end)` with `step`.
+    /// Creates a contiguous 1D array from the half-open interval `[start, end)` with `step`.
+    ///
+    /// Positive steps require `start < end`; negative steps require `start > end`; otherwise the
+    /// result is empty. Integer ranges return an error when a step would overflow the dtype.
+    /// Floating-point inputs must be finite and return an error when a step cannot advance.
     pub fn arange(start: T, end: T, step: T) -> AtlasNdResult<Self> {
         T::validate_arange_inputs(start, end, step)?;
         let zero = T::zero();
@@ -66,7 +79,10 @@ where
         if step > zero {
             while current < end {
                 data.push(current);
-                let next = current + step;
+                let next = T::advance(current, step).ok_or(AtlasNdError::InvalidArgument {
+                    op: "arange",
+                    reason: "range overflows dtype",
+                })?;
                 if next <= current {
                     return Err(AtlasNdError::InvalidArgument {
                         op: "arange",
@@ -78,7 +94,10 @@ where
         } else {
             while current > end {
                 data.push(current);
-                let next = current + step;
+                let next = T::advance(current, step).ok_or(AtlasNdError::InvalidArgument {
+                    op: "arange",
+                    reason: "range overflows dtype",
+                })?;
                 if next >= current {
                     return Err(AtlasNdError::InvalidArgument {
                         op: "arange",
@@ -97,7 +116,10 @@ impl<T> NDArray<T>
 where
     T: Numeric + Float,
 {
-    /// Creates a 1D array with `num` evenly spaced points from `start` to `end`, inclusive.
+    /// Creates a contiguous 1D float array with `num` evenly spaced points from `start` to `end`.
+    ///
+    /// Both endpoints are included when `num >= 2`; zero points produce an empty array and one
+    /// point produces `[start]`. Endpoints and all generated values must remain finite.
     pub fn linspace(start: T, end: T, num: usize) -> AtlasNdResult<Self> {
         if !start.is_finite() || !end.is_finite() {
             return Err(AtlasNdError::InvalidArgument {
