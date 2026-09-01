@@ -82,6 +82,11 @@ impl<'a, T: ArrayElement> ArrayView<'a, T> {
         element_count(&self.shape)
     }
 
+    /// Returns the total number of logical elements in the view.
+    pub fn size(&self) -> usize {
+        self.len()
+    }
+
     pub fn ndim(&self) -> usize {
         self.shape.len()
     }
@@ -109,6 +114,11 @@ impl<'a, T: ArrayElement> ArrayView<'a, T> {
 
     pub fn is_empty(&self) -> bool {
         self.len() == 0
+    }
+
+    /// Returns `false` because an `ArrayView` borrows its backing storage.
+    pub const fn is_owned(&self) -> bool {
+        false
     }
 
     pub fn is_contiguous(&self) -> bool {

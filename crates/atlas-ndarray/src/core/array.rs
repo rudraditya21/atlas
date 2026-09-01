@@ -53,6 +53,11 @@ impl<T: ArrayElement> NDArray<T> {
         self.data.len()
     }
 
+    /// Returns the total number of logical elements.
+    pub fn size(&self) -> usize {
+        self.len()
+    }
+
     pub fn ndim(&self) -> usize {
         self.shape.len()
     }
@@ -80,6 +85,11 @@ impl<T: ArrayElement> NDArray<T> {
 
     pub fn is_empty(&self) -> bool {
         self.data.is_empty()
+    }
+
+    /// Returns `true` because an `NDArray` owns its backing storage.
+    pub const fn is_owned(&self) -> bool {
+        true
     }
 
     pub fn is_contiguous(&self) -> bool {
