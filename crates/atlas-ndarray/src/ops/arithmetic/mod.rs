@@ -1,22 +1,19 @@
 mod broadcast;
 mod contiguous;
 mod dispatch;
-mod promotion;
 mod scalar;
 mod strided;
 
 use std::ops::{Add, Div, Mul, Sub};
 
-use crate::{AtlasNdResult, NDArray, Numeric, RuntimeScalar};
+use crate::core::dtype::ArithmeticPromote;
+use crate::{AtlasNdResult, NDArray, Numeric, RuntimeScalar, core::dtype};
 
 use self::{
     contiguous::{elementwise_add_contiguous, elementwise_mul_contiguous},
     dispatch::{BinaryOperand, dispatch_elementwise_binary, dispatch_elementwise_binary_with},
-    promotion::{ArithmeticScalar, cast_array_for_promotion, cast_scalar_for_promotion},
     scalar::{add_scalar_lhs, add_scalar_rhs, mul_scalar_lhs, mul_scalar_rhs},
 };
-
-pub use self::promotion::ArithmeticPromote;
 
 pub trait AddOperand<T: Numeric> {
     type Output;
@@ -144,20 +141,20 @@ where
     P: Numeric + RuntimeScalar,
     F: Fn(&NDArray<P>, &NDArray<P>) -> AtlasNdResult<NDArray<P>>,
 {
-    let lhs = cast_array_for_promotion::<T, P>(lhs);
-    let rhs = cast_array_for_promotion::<U, P>(rhs);
+    let lhs = dtype::cast_array_for_promotion::<T, P>(lhs);
+    let rhs = dtype::cast_array_for_promotion::<U, P>(rhs);
     op(&lhs, &rhs)
 }
 
 fn promoted_array_scalar<T, U, P, F>(lhs: &NDArray<T>, rhs: U, op: F) -> NDArray<P>
 where
     T: Numeric + RuntimeScalar,
-    U: ArithmeticScalar,
+    U: dtype::ArithmeticScalar,
     P: Numeric + RuntimeScalar,
     F: Fn(&NDArray<P>, P) -> NDArray<P>,
 {
-    let lhs = cast_array_for_promotion::<T, P>(lhs);
-    let rhs = cast_scalar_for_promotion::<U, P>(rhs);
+    let lhs = dtype::cast_array_for_promotion::<T, P>(lhs);
+    let rhs = dtype::cast_scalar_for_promotion::<U, P>(rhs);
     op(&lhs, rhs)
 }
 
@@ -180,7 +177,7 @@ where
 impl<T, U> AddOperand<T> for U
 where
     T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
-    U: ArithmeticScalar,
+    U: dtype::ArithmeticScalar,
 {
     type Output = NDArray<<T as ArithmeticPromote<U>>::Output>;
 
@@ -214,7 +211,7 @@ where
 impl<T, U> SubOperand<T> for U
 where
     T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
-    U: ArithmeticScalar,
+    U: dtype::ArithmeticScalar,
 {
     type Output = NDArray<<T as ArithmeticPromote<U>>::Output>;
 
@@ -246,7 +243,7 @@ where
 impl<T, U> MulOperand<T> for U
 where
     T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
-    U: ArithmeticScalar,
+    U: dtype::ArithmeticScalar,
 {
     type Output = NDArray<<T as ArithmeticPromote<U>>::Output>;
 
@@ -280,7 +277,7 @@ where
 impl<T, U> DivOperand<T> for U
 where
     T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
-    U: ArithmeticScalar,
+    U: dtype::ArithmeticScalar,
 {
     type Output = NDArray<<T as ArithmeticPromote<U>>::Output>;
 
@@ -344,7 +341,7 @@ where
 impl<T, U> Add<U> for &NDArray<T>
 where
     T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
-    U: ArithmeticScalar,
+    U: dtype::ArithmeticScalar,
 {
     type Output = <U as AddOperand<T>>::Output;
 
@@ -356,7 +353,7 @@ where
 impl<T, U> Sub<U> for &NDArray<T>
 where
     T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
-    U: ArithmeticScalar,
+    U: dtype::ArithmeticScalar,
 {
     type Output = <U as SubOperand<T>>::Output;
 
@@ -368,7 +365,7 @@ where
 impl<T, U> Mul<U> for &NDArray<T>
 where
     T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
-    U: ArithmeticScalar,
+    U: dtype::ArithmeticScalar,
 {
     type Output = <U as MulOperand<T>>::Output;
 
@@ -380,7 +377,7 @@ where
 impl<T, U> Div<U> for &NDArray<T>
 where
     T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
-    U: ArithmeticScalar,
+    U: dtype::ArithmeticScalar,
 {
     type Output = <U as DivOperand<T>>::Output;
 

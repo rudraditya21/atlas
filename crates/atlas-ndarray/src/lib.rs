@@ -25,8 +25,8 @@ pub use core::array::NDArray;
 pub use core::asarray::AsArray;
 pub use core::axis::AxisIndex;
 pub use core::dtype::{
-    CastMode, CastPolicy, DType, ReductionOp, RuntimeDType, RuntimeScalar, ScalarValue,
-    infer_scalar_dtype,
+    ArithmeticPromote, CastMode, CastPolicy, DType, ReductionOp, RuntimeDType, RuntimeScalar,
+    ScalarValue, infer_scalar_dtype,
 };
 pub use core::error::{AtlasNdError, AtlasNdResult};
 pub use core::operand::OperandMetadata;
@@ -38,7 +38,7 @@ pub use layout::broadcast::{
     BroadcastMetadata, broadcast_pair, broadcast_shape, broadcast_strides,
     contiguous_broadcast_metadata,
 };
-pub use ops::arithmetic::{AddOperand, ArithmeticPromote, DivOperand, MulOperand, SubOperand};
+pub use ops::arithmetic::{AddOperand, DivOperand, MulOperand, SubOperand};
 pub use ops::comparison::{EqOperand, GeOperand, GtOperand, LeOperand, LtOperand, NeOperand};
 pub use ops::where_::{IntoWhereOperand, WhereOperand};
 pub use view::iter::ArrayViewIter;
