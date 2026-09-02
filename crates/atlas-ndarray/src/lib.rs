@@ -38,7 +38,10 @@ pub use layout::broadcast::{
     BroadcastMetadata, broadcast_pair, broadcast_shape, broadcast_strides,
     contiguous_broadcast_metadata,
 };
-pub use ops::arithmetic::{AddOperand, DivOperand, MulOperand, SubOperand};
+pub use ops::arithmetic::{
+    AddOperand, DivOperand, ElementwiseMinMax, MaxOperand, MinOperand, MulOperand, RemOperand,
+    SubOperand,
+};
 pub use ops::comparison::{EqOperand, GeOperand, GtOperand, LeOperand, LtOperand, NeOperand};
 pub use ops::unary::{FloatClassify, UnaryAbs, UnaryNeg, UnaryRound, UnarySign};
 pub use ops::where_::{IntoWhereOperand, WhereOperand};

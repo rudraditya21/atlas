@@ -1,10 +1,11 @@
 mod broadcast;
 mod contiguous;
 mod dispatch;
+mod minmax;
 mod scalar;
 mod strided;
 
-use std::ops::{Add, Div, Mul, Sub};
+use std::ops::{Add, Div, Mul, Rem, Sub};
 
 use crate::core::dtype::ArithmeticPromote;
 use crate::{AtlasNdResult, NDArray, Numeric, RuntimeScalar, core::dtype};
@@ -14,6 +15,8 @@ use self::{
     dispatch::{BinaryOperand, dispatch_elementwise_binary, dispatch_elementwise_binary_with},
     scalar::{add_scalar_lhs, add_scalar_rhs, mul_scalar_lhs, mul_scalar_rhs},
 };
+
+pub use self::minmax::ElementwiseMinMax;
 
 pub trait AddOperand<T: Numeric> {
     type Output;
@@ -37,6 +40,24 @@ pub trait DivOperand<T: Numeric> {
     type Output;
 
     fn div_into(self, lhs: &NDArray<T>) -> Self::Output;
+}
+
+pub trait RemOperand<T: Numeric> {
+    type Output;
+
+    fn rem_into(self, lhs: &NDArray<T>) -> Self::Output;
+}
+
+pub trait MinOperand<T: Numeric> {
+    type Output;
+
+    fn minimum_with(self, lhs: &NDArray<T>) -> Self::Output;
+}
+
+pub trait MaxOperand<T: Numeric> {
+    type Output;
+
+    fn maximum_with(self, lhs: &NDArray<T>) -> Self::Output;
 }
 
 impl<T: Numeric> NDArray<T> {
@@ -66,6 +87,29 @@ impl<T: Numeric> NDArray<T> {
         Rhs: DivOperand<T>,
     {
         rhs.div_into(self)
+    }
+
+    pub fn rem<Rhs>(&self, rhs: Rhs) -> Rhs::Output
+    where
+        Rhs: RemOperand<T>,
+    {
+        rhs.rem_into(self)
+    }
+
+    /// Returns the elementwise minimum; a single floating NaN selects the numeric operand.
+    pub fn minimum<Rhs>(&self, rhs: Rhs) -> Rhs::Output
+    where
+        Rhs: MinOperand<T>,
+    {
+        rhs.minimum_with(self)
+    }
+
+    /// Returns the elementwise maximum; a single floating NaN selects the numeric operand.
+    pub fn maximum<Rhs>(&self, rhs: Rhs) -> Rhs::Output
+    where
+        Rhs: MaxOperand<T>,
+    {
+        rhs.maximum_with(self)
     }
 
     pub fn add_scalar(&self, scalar: T) -> Self {
@@ -102,6 +146,31 @@ impl<T: Numeric> NDArray<T> {
             .expect("scalar rhs dispatch must not fail")
     }
 
+    pub fn rem_scalar(&self, scalar: T) -> Self {
+        dispatch_elementwise_binary(self, BinaryOperand::Scalar(scalar), |lhs, rhs| lhs % rhs)
+            .expect("scalar rhs dispatch must not fail")
+    }
+
+    fn minimum_scalar(&self, scalar: T) -> Self
+    where
+        T: ElementwiseMinMax,
+    {
+        dispatch_elementwise_binary(self, BinaryOperand::Scalar(scalar), |lhs, rhs| {
+            lhs.elementwise_min(rhs)
+        })
+        .expect("scalar rhs dispatch must not fail")
+    }
+
+    fn maximum_scalar(&self, scalar: T) -> Self
+    where
+        T: ElementwiseMinMax,
+    {
+        dispatch_elementwise_binary(self, BinaryOperand::Scalar(scalar), |lhs, rhs| {
+            lhs.elementwise_max(rhs)
+        })
+        .expect("scalar rhs dispatch must not fail")
+    }
+
     fn add_array(&self, rhs: &Self) -> AtlasNdResult<Self> {
         dispatch_elementwise_binary_with(
             self,
@@ -122,6 +191,28 @@ impl<T: Numeric> NDArray<T> {
             elementwise_mul_contiguous,
             |lhs, rhs| lhs * rhs,
         )
+    }
+
+    fn rem_array(&self, rhs: &Self) -> AtlasNdResult<Self> {
+        dispatch_elementwise_binary(self, BinaryOperand::Array(rhs), |lhs, rhs| lhs % rhs)
+    }
+
+    fn minimum_array(&self, rhs: &Self) -> AtlasNdResult<Self>
+    where
+        T: ElementwiseMinMax,
+    {
+        dispatch_elementwise_binary(self, BinaryOperand::Array(rhs), |lhs, rhs| {
+            lhs.elementwise_min(rhs)
+        })
+    }
+
+    fn maximum_array(&self, rhs: &Self) -> AtlasNdResult<Self>
+    where
+        T: ElementwiseMinMax,
+    {
+        dispatch_elementwise_binary(self, BinaryOperand::Array(rhs), |lhs, rhs| {
+            lhs.elementwise_max(rhs)
+        })
     }
 }
 
@@ -290,6 +381,106 @@ where
     }
 }
 
+impl<T, U> RemOperand<T> for &NDArray<U>
+where
+    T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
+    U: Numeric + RuntimeScalar,
+{
+    type Output = AtlasNdResult<NDArray<<T as ArithmeticPromote<U>>::Output>>;
+
+    fn rem_into(self, lhs: &NDArray<T>) -> Self::Output {
+        promoted_array_array::<T, U, <T as ArithmeticPromote<U>>::Output, _>(
+            lhs,
+            self,
+            |lhs, rhs| lhs.rem_array(rhs),
+        )
+    }
+}
+
+impl<T, U> RemOperand<T> for U
+where
+    T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
+    U: dtype::ArithmeticScalar,
+{
+    type Output = NDArray<<T as ArithmeticPromote<U>>::Output>;
+
+    fn rem_into(self, lhs: &NDArray<T>) -> Self::Output {
+        promoted_array_scalar::<T, U, <T as ArithmeticPromote<U>>::Output, _>(
+            lhs,
+            self,
+            |lhs, rhs| lhs.rem_scalar(rhs),
+        )
+    }
+}
+
+impl<T, U> MinOperand<T> for &NDArray<U>
+where
+    T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
+    U: Numeric + RuntimeScalar,
+    <T as ArithmeticPromote<U>>::Output: ElementwiseMinMax,
+{
+    type Output = AtlasNdResult<NDArray<<T as ArithmeticPromote<U>>::Output>>;
+
+    fn minimum_with(self, lhs: &NDArray<T>) -> Self::Output {
+        promoted_array_array::<T, U, <T as ArithmeticPromote<U>>::Output, _>(
+            lhs,
+            self,
+            |lhs, rhs| lhs.minimum_array(rhs),
+        )
+    }
+}
+
+impl<T, U> MinOperand<T> for U
+where
+    T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
+    U: dtype::ArithmeticScalar,
+    <T as ArithmeticPromote<U>>::Output: ElementwiseMinMax,
+{
+    type Output = NDArray<<T as ArithmeticPromote<U>>::Output>;
+
+    fn minimum_with(self, lhs: &NDArray<T>) -> Self::Output {
+        promoted_array_scalar::<T, U, <T as ArithmeticPromote<U>>::Output, _>(
+            lhs,
+            self,
+            |lhs, rhs| lhs.minimum_scalar(rhs),
+        )
+    }
+}
+
+impl<T, U> MaxOperand<T> for &NDArray<U>
+where
+    T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
+    U: Numeric + RuntimeScalar,
+    <T as ArithmeticPromote<U>>::Output: ElementwiseMinMax,
+{
+    type Output = AtlasNdResult<NDArray<<T as ArithmeticPromote<U>>::Output>>;
+
+    fn maximum_with(self, lhs: &NDArray<T>) -> Self::Output {
+        promoted_array_array::<T, U, <T as ArithmeticPromote<U>>::Output, _>(
+            lhs,
+            self,
+            |lhs, rhs| lhs.maximum_array(rhs),
+        )
+    }
+}
+
+impl<T, U> MaxOperand<T> for U
+where
+    T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
+    U: dtype::ArithmeticScalar,
+    <T as ArithmeticPromote<U>>::Output: ElementwiseMinMax,
+{
+    type Output = NDArray<<T as ArithmeticPromote<U>>::Output>;
+
+    fn maximum_with(self, lhs: &NDArray<T>) -> Self::Output {
+        promoted_array_scalar::<T, U, <T as ArithmeticPromote<U>>::Output, _>(
+            lhs,
+            self,
+            |lhs, rhs| lhs.maximum_scalar(rhs),
+        )
+    }
+}
+
 impl<T, U> Add<&NDArray<U>> for &NDArray<T>
 where
     T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
@@ -338,6 +529,18 @@ where
     }
 }
 
+impl<T, U> Rem<&NDArray<U>> for &NDArray<T>
+where
+    T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
+    U: Numeric + RuntimeScalar,
+{
+    type Output = AtlasNdResult<NDArray<<T as ArithmeticPromote<U>>::Output>>;
+
+    fn rem(self, rhs: &NDArray<U>) -> Self::Output {
+        NDArray::rem(self, rhs)
+    }
+}
+
 impl<T, U> Add<U> for &NDArray<T>
 where
     T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
@@ -383,6 +586,18 @@ where
 
     fn div(self, rhs: U) -> Self::Output {
         NDArray::div(self, rhs)
+    }
+}
+
+impl<T, U> Rem<U> for &NDArray<T>
+where
+    T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
+    U: dtype::ArithmeticScalar,
+{
+    type Output = <U as RemOperand<T>>::Output;
+
+    fn rem(self, rhs: U) -> Self::Output {
+        NDArray::rem(self, rhs)
     }
 }
 
