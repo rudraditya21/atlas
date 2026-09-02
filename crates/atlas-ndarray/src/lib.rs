@@ -42,7 +42,9 @@ pub use ops::arithmetic::{
     AddOperand, DivOperand, ElementwiseMinMax, MaxOperand, MinOperand, MulOperand, RemOperand,
     SubOperand,
 };
+pub use ops::bitwise::{BitwiseElement, BitwiseOperand};
 pub use ops::comparison::{EqOperand, GeOperand, GtOperand, LeOperand, LtOperand, NeOperand};
+pub use ops::logical::LogicalOperand;
 pub use ops::unary::{FloatClassify, UnaryAbs, UnaryNeg, UnaryRound, UnarySign};
 pub use ops::where_::{IntoWhereOperand, WhereOperand};
 pub use view::iter::ArrayViewIter;
