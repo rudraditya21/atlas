@@ -16,16 +16,17 @@ pub(super) enum BinaryOperand<'a, T: Numeric> {
     Scalar(T),
 }
 
-struct BinaryArrayDispatch<'a, T: Numeric> {
-    rhs: &'a NDArray<T>,
+struct BinaryArrayDispatch<'lhs, 'rhs, T: Numeric> {
+    lhs: &'lhs NDArray<T>,
+    rhs: &'rhs NDArray<T>,
     layout_kind: PairLayoutKind,
     metadata: BroadcastMetadata,
 }
 
-enum BinaryDispatch<'a, T: Numeric> {
+enum NormalizedBinaryOperands<'lhs, 'rhs, T: Numeric> {
     ScalarRhs(T),
-    ScalarLhs { scalar: T, array: &'a NDArray<T> },
-    Arrays(BinaryArrayDispatch<'a, T>),
+    ScalarLhs { scalar: T, array: &'rhs NDArray<T> },
+    Arrays(BinaryArrayDispatch<'lhs, 'rhs, T>),
 }
 
 pub(super) fn dispatch_elementwise_binary<T, F>(
@@ -62,50 +63,53 @@ where
     SL: Fn(T, &NDArray<T>) -> NDArray<T>,
     C: Fn(&NDArray<T>, &NDArray<T>) -> NDArray<T>,
 {
-    let dispatch = classify_binary_dispatch(lhs, rhs)?;
+    let operands = normalize_binary_operands(lhs, rhs)?;
 
-    match dispatch {
-        BinaryDispatch::ScalarRhs(scalar) => Ok(scalar_rhs_op(lhs, scalar)),
-        BinaryDispatch::ScalarLhs { scalar, array } => Ok(scalar_lhs_op(scalar, array)),
-        BinaryDispatch::Arrays(dispatch) => match dispatch.layout_kind {
-            PairLayoutKind::Contiguous => Ok(contiguous_op(lhs, dispatch.rhs)),
+    match operands {
+        NormalizedBinaryOperands::ScalarRhs(scalar) => Ok(scalar_rhs_op(lhs, scalar)),
+        NormalizedBinaryOperands::ScalarLhs { scalar, array } => Ok(scalar_lhs_op(scalar, array)),
+        NormalizedBinaryOperands::Arrays(dispatch) => match dispatch.layout_kind {
+            PairLayoutKind::Contiguous => Ok(contiguous_op(dispatch.lhs, dispatch.rhs)),
             PairLayoutKind::Broadcast => {
-                Ok(elementwise_binary_broadcast(lhs, dispatch.rhs, dispatch.metadata, op))
+                Ok(elementwise_binary_broadcast(dispatch.lhs, dispatch.rhs, dispatch.metadata, op))
             }
             PairLayoutKind::Strided => {
-                Ok(elementwise_binary_strided(lhs, dispatch.rhs, dispatch.metadata, op))
+                Ok(elementwise_binary_strided(dispatch.lhs, dispatch.rhs, dispatch.metadata, op))
             }
         },
     }
 }
 
-fn classify_binary_dispatch<'a, T: Numeric>(
-    lhs: &NDArray<T>,
-    rhs: BinaryOperand<'a, T>,
-) -> AtlasNdResult<BinaryDispatch<'a, T>> {
+fn normalize_binary_operands<'lhs, 'rhs, T: Numeric>(
+    lhs: &'lhs NDArray<T>,
+    rhs: BinaryOperand<'rhs, T>,
+) -> AtlasNdResult<NormalizedBinaryOperands<'lhs, 'rhs, T>> {
     match rhs {
-        BinaryOperand::Scalar(scalar) => Ok(BinaryDispatch::ScalarRhs(scalar)),
+        BinaryOperand::Scalar(scalar) => Ok(NormalizedBinaryOperands::ScalarRhs(scalar)),
         BinaryOperand::Array(rhs_array) => {
             if rhs_array.shape().is_empty() {
-                return Ok(BinaryDispatch::ScalarRhs(rhs_array.data()[0]));
+                return Ok(NormalizedBinaryOperands::ScalarRhs(rhs_array.data()[0]));
             }
 
             if lhs.shape().is_empty() {
-                return Ok(BinaryDispatch::ScalarLhs { scalar: lhs.data()[0], array: rhs_array });
+                return Ok(NormalizedBinaryOperands::ScalarLhs {
+                    scalar: lhs.data()[0],
+                    array: rhs_array,
+                });
             }
 
-            classify_binary_arrays(lhs, rhs_array)
+            normalize_binary_arrays(lhs, rhs_array)
         }
     }
 }
 
-fn classify_binary_arrays<'a, T: Numeric>(
-    lhs: &NDArray<T>,
-    rhs: &'a NDArray<T>,
-) -> AtlasNdResult<BinaryDispatch<'a, T>> {
+fn normalize_binary_arrays<'lhs, 'rhs, T: Numeric>(
+    lhs: &'lhs NDArray<T>,
+    rhs: &'rhs NDArray<T>,
+) -> AtlasNdResult<NormalizedBinaryOperands<'lhs, 'rhs, T>> {
     let metadata = broadcast_pair(lhs.shape(), lhs.strides(), rhs.shape(), rhs.strides())?;
     let layout_kind =
         pair_layout_kind(&metadata.shape, &metadata.lhs_strides, &metadata.rhs_strides);
 
-    Ok(BinaryDispatch::Arrays(BinaryArrayDispatch { rhs, layout_kind, metadata }))
+    Ok(NormalizedBinaryOperands::Arrays(BinaryArrayDispatch { lhs, rhs, layout_kind, metadata }))
 }
