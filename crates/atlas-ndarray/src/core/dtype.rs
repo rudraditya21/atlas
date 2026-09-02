@@ -462,6 +462,18 @@ where
         .expect("promotion target must accept arithmetic scalar values")
 }
 
+pub(crate) fn cast_scalar_to_dtype<T, U>(scalar: T) -> U
+where
+    T: RuntimeScalar,
+    U: crate::ArrayElement + RuntimeScalar,
+{
+    scalar
+        .into_scalar_value()
+        .cast(U::dtype(), CastMode::Lossy)
+        .and_then(U::from_scalar_value)
+        .expect("promotion target must accept scalar values")
+}
+
 macro_rules! impl_arithmetic_promotion {
     ($lhs:ty => { $($rhs:ty => $out:ty),+ $(,)? }) => {
         $(
