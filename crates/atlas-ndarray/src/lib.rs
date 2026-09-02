@@ -40,6 +40,7 @@ pub use layout::broadcast::{
 };
 pub use ops::arithmetic::{AddOperand, DivOperand, MulOperand, SubOperand};
 pub use ops::comparison::{EqOperand, GeOperand, GtOperand, LeOperand, LtOperand, NeOperand};
+pub use ops::unary::{UnaryAbs, UnaryNeg, UnaryRound, UnarySign};
 pub use ops::where_::{IntoWhereOperand, WhereOperand};
 pub use view::iter::ArrayViewIter;
 pub use view::slicing::SliceRange;
