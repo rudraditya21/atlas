@@ -1,5 +1,5 @@
 use crate::{
-    ArrayElement, ArithmeticPromote, AtlasNdResult, CastMode, NDArray, Numeric, OperandMetadata,
+    ArithmeticPromote, ArrayElement, AtlasNdResult, CastMode, NDArray, Numeric, OperandMetadata,
     RuntimeScalar,
     core::asarray::cast_array,
     layout::{broadcast::broadcast_shape, element_count},
@@ -16,15 +16,21 @@ pub trait IntoWhereOperand<'a, T: ArrayElement> {
 }
 
 impl<'a, T: ArrayElement> IntoWhereOperand<'a, T> for &'a NDArray<T> {
-    fn into_where_operand(self) -> WhereOperand<'a, T> { WhereOperand::Array(self.view()) }
+    fn into_where_operand(self) -> WhereOperand<'a, T> {
+        WhereOperand::Array(self.view())
+    }
 }
 
 impl<'a, T: ArrayElement> IntoWhereOperand<'a, T> for ArrayView<'a, T> {
-    fn into_where_operand(self) -> WhereOperand<'a, T> { WhereOperand::Array(self) }
+    fn into_where_operand(self) -> WhereOperand<'a, T> {
+        WhereOperand::Array(self)
+    }
 }
 
 impl<'a, T: ArrayElement> IntoWhereOperand<'a, T> for &'a ArrayView<'a, T> {
-    fn into_where_operand(self) -> WhereOperand<'a, T> { WhereOperand::Array(self.clone()) }
+    fn into_where_operand(self) -> WhereOperand<'a, T> {
+        WhereOperand::Array(self.clone())
+    }
 }
 
 macro_rules! impl_scalar_where_operand {
@@ -113,16 +119,22 @@ where
     let y = cast_where_operand::<U, <T as ArithmeticPromote<U>>::Output>(y)?;
     let shape = broadcast_shape(condition.shape(), x.shape())?;
     let shape = broadcast_shape(&shape, y.shape())?;
-    let condition_strides = crate::broadcast_strides(condition.shape(), condition.strides(), &shape)?;
+    let condition_strides =
+        crate::broadcast_strides(condition.shape(), condition.strides(), &shape)?;
     let x_strides = crate::broadcast_strides(x.shape(), x.strides(), &shape)?;
     let y_strides = crate::broadcast_strides(y.shape(), y.strides(), &shape)?;
     let mut data = Vec::with_capacity(element_count(&shape));
 
     for index in 0..element_count(&shape) {
-        let condition_offset = offset_from_linear_index(index, condition.offset(), &shape, &condition_strides);
+        let condition_offset =
+            offset_from_linear_index(index, condition.offset(), &shape, &condition_strides);
         let x_offset = offset_from_linear_index(index, 0, &shape, &x_strides);
         let y_offset = offset_from_linear_index(index, 0, &shape, &y_strides);
-        data.push(if condition.data()[condition_offset] { x.data()[x_offset] } else { y.data()[y_offset] });
+        data.push(if condition.data()[condition_offset] {
+            x.data()[x_offset]
+        } else {
+            y.data()[y_offset]
+        });
     }
 
     NDArray::from_row_major_parts(shape, data)
@@ -134,7 +146,9 @@ where
     P: Numeric + RuntimeScalar,
 {
     match operand {
-        WhereOperand::Array(array) => cast_array(array.shape().to_vec(), array.iter().copied(), CastMode::Lossy),
+        WhereOperand::Array(array) => {
+            cast_array(array.shape().to_vec(), array.iter().copied(), CastMode::Lossy)
+        }
         WhereOperand::Scalar(value) => cast_array(Vec::new(), [value], CastMode::Lossy),
     }
 }

@@ -75,7 +75,10 @@ where
     T: ArrayElement + RuntimeScalar + PartialOrd,
 {
     if is_nan(min) || is_nan(max) {
-        return Err(AtlasNdError::InvalidArgument { op: CLIP_OP, reason: "bounds must not be NaN" });
+        return Err(AtlasNdError::InvalidArgument {
+            op: CLIP_OP,
+            reason: "bounds must not be NaN",
+        });
     }
 
     if min > max {
@@ -94,5 +97,11 @@ fn is_nan<T: RuntimeScalar>(value: T) -> bool {
 }
 
 fn clip_value<T: PartialOrd>(value: T, min: T, max: T) -> T {
-    if value < min { min } else if value > max { max } else { value }
+    if value < min {
+        min
+    } else if value > max {
+        max
+    } else {
+        value
+    }
 }
