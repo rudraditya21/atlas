@@ -911,9 +911,34 @@ mod tests {
     use std::mem::size_of;
 
     use super::{
-        CastMode, CastPolicy, DType, DTypeKind, ReductionOp, RuntimeDType, RuntimeScalar,
-        ScalarValue, infer_scalar_dtype,
+        ArithmeticPromote, CastMode, CastPolicy, DType, DTypeKind, ReductionOp, RuntimeDType,
+        RuntimeScalar, ScalarValue, infer_scalar_dtype,
     };
+
+    const ALL_DTYPES: [DType; 13] = [
+        DType::Bool,
+        DType::I8,
+        DType::I16,
+        DType::I32,
+        DType::I64,
+        DType::Isize,
+        DType::U8,
+        DType::U16,
+        DType::U32,
+        DType::U64,
+        DType::Usize,
+        DType::F32,
+        DType::F64,
+    ];
+
+    fn arithmetic_output_dtype<L, R>() -> DType
+    where
+        L: ArithmeticPromote<R>,
+        R: RuntimeScalar,
+        <L as ArithmeticPromote<R>>::Output: RuntimeDType,
+    {
+        <<L as ArithmeticPromote<R>>::Output as RuntimeDType>::DTYPE
+    }
 
     #[test]
     fn dtype_of_maps_primitive_scalars_to_runtime_variants() {
@@ -1090,6 +1115,109 @@ mod tests {
             ScalarValue::F64(f64::INFINITY).cast(DType::F32, CastMode::Lossy),
             Some(ScalarValue::F32(f32::INFINITY))
         );
+    }
+
+    #[test]
+    fn scalar_casts_cover_every_source_target_dtype_pair() {
+        let values = [
+            ScalarValue::Bool(true),
+            ScalarValue::I8(1),
+            ScalarValue::I16(1),
+            ScalarValue::I32(1),
+            ScalarValue::I64(1),
+            ScalarValue::Isize(1),
+            ScalarValue::U8(1),
+            ScalarValue::U16(1),
+            ScalarValue::U32(1),
+            ScalarValue::U64(1),
+            ScalarValue::Usize(1),
+            ScalarValue::F32(1.0),
+            ScalarValue::F64(1.0),
+        ];
+
+        for source in values {
+            for target in ALL_DTYPES {
+                let policy = source.dtype().cast_policy_to(target);
+                assert_eq!(source.cast_policy_to(target), policy);
+
+                let checked = source.cast(target, CastMode::Checked);
+                assert_eq!(
+                    checked.is_some(),
+                    !matches!(policy, CastPolicy::Lossy | CastPolicy::Forbidden)
+                );
+
+                let lossy = source.cast(target, CastMode::Lossy);
+                assert_eq!(lossy.map(ScalarValue::dtype), Some(target));
+            }
+        }
+    }
+
+    #[test]
+    fn scalar_casts_cover_boundaries_and_float_special_values() {
+        let cases = [
+            (ScalarValue::I8(-1), DType::U8, false, false),
+            (ScalarValue::I16(i16::MAX), DType::I8, false, false),
+            (ScalarValue::U16(u16::MAX), DType::I16, false, false),
+            (ScalarValue::U64(u64::MAX), DType::I64, false, false),
+            (ScalarValue::I64(i64::MAX), DType::F32, false, true),
+            (ScalarValue::F64(3.75), DType::I32, false, true),
+            (ScalarValue::F64(-1.0), DType::U8, false, false),
+            (ScalarValue::F64(f64::INFINITY), DType::I32, false, false),
+            (ScalarValue::F64(f64::NAN), DType::Bool, false, true),
+            (ScalarValue::F64((f32::MAX as f64) * 2.0), DType::F32, false, false),
+            (ScalarValue::F64(f64::INFINITY), DType::F32, false, true),
+            (ScalarValue::F32(f32::NAN), DType::F64, true, true),
+        ];
+
+        for (source, target, checked_expected, lossy_expected) in cases {
+            assert_eq!(source.cast(target, CastMode::Checked).is_some(), checked_expected);
+            assert_eq!(source.cast(target, CastMode::Lossy).is_some(), lossy_expected);
+        }
+
+        assert!(matches!(
+            ScalarValue::F64(f64::NAN).cast(DType::F32, CastMode::Lossy),
+            Some(ScalarValue::F32(value)) if value.is_nan()
+        ));
+        assert!(matches!(
+            ScalarValue::F32(f32::NAN).cast(DType::F64, CastMode::Checked),
+            Some(ScalarValue::F64(value)) if value.is_nan()
+        ));
+    }
+
+    #[test]
+    fn arithmetic_promotion_pairs_match_runtime_dtype_promotion() {
+        macro_rules! assert_row {
+            ($lhs:ty; $($rhs:ty),+ $(,)?) => {
+                $(
+                    assert_eq!(
+                        arithmetic_output_dtype::<$lhs, $rhs>(),
+                        DType::of::<$lhs>().promote_with(DType::of::<$rhs>()),
+                    );
+                )+
+            };
+        }
+
+        assert_row!(i8; i8, i16, i32, i64, isize, u8, u16, u32, u64, usize, f32, f64);
+        assert_row!(i16; i8, i16, i32, i64, isize, u8, u16, u32, u64, usize, f32, f64);
+        assert_row!(i32; i8, i16, i32, i64, isize, u8, u16, u32, u64, usize, f32, f64);
+        assert_row!(i64; i8, i16, i32, i64, isize, u8, u16, u32, u64, usize, f32, f64);
+        assert_row!(isize; i8, i16, i32, i64, isize, u8, u16, u32, u64, usize, f32, f64);
+        assert_row!(u8; i8, i16, i32, i64, isize, u8, u16, u32, u64, usize, f32, f64);
+        assert_row!(u16; i8, i16, i32, i64, isize, u8, u16, u32, u64, usize, f32, f64);
+        assert_row!(u32; i8, i16, i32, i64, isize, u8, u16, u32, u64, usize, f32, f64);
+        assert_row!(u64; i8, i16, i32, i64, isize, u8, u16, u32, u64, usize, f32, f64);
+        assert_row!(usize; i8, i16, i32, i64, isize, u8, u16, u32, u64, usize, f32, f64);
+        assert_row!(f32; i8, i16, i32, i64, isize, u8, u16, u32, u64, usize, f32, f64);
+        assert_row!(f64; i8, i16, i32, i64, isize, u8, u16, u32, u64, usize, f32, f64);
+    }
+
+    #[test]
+    fn runtime_promotion_is_symmetric_for_every_dtype_pair() {
+        for lhs in ALL_DTYPES {
+            for rhs in ALL_DTYPES {
+                assert_eq!(lhs.promote_with(rhs), rhs.promote_with(lhs));
+            }
+        }
     }
 
     #[test]
