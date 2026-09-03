@@ -4,6 +4,13 @@ use num_traits::ToPrimitive;
 use crate::core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand};
 use crate::internal::dense::{matrix_ref, vector_ref};
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MatrixNorm {
+    Frobenius,
+    L1,
+    Infinity,
+}
+
 pub fn norm<'a, T, O>(operand: O) -> AtlasLinalgResult<f64>
 where
     T: Numeric + ToPrimitive + 'a,
@@ -19,6 +26,30 @@ where
             expected: "a 1-D or 2-D array",
             rank,
         }),
+    }
+}
+
+pub fn matrix_norm<'a, T, O>(matrix: O, order: MatrixNorm) -> AtlasLinalgResult<f64>
+where
+    T: Numeric + ToPrimitive + 'a,
+    O: Into<LinalgOperand<'a, T>>,
+{
+    let matrix = matrix.into();
+
+    if matrix.ndim() != 2 {
+        return Err(AtlasLinalgError::InvalidInputRank {
+            op: "matrix_norm",
+            expected: "a 2-D array",
+            rank: matrix.ndim(),
+        });
+    }
+
+    let matrix = matrix_ref(&matrix);
+
+    match order {
+        MatrixNorm::Frobenius => matrix_frobenius_norm(matrix),
+        MatrixNorm::L1 => matrix_l1_norm(matrix),
+        MatrixNorm::Infinity => matrix_infinity_norm(matrix),
     }
 }
 
@@ -93,6 +124,52 @@ fn matrix_frobenius_norm<T: Numeric + ToPrimitive>(
     };
 
     Ok(total.sqrt())
+}
+
+fn matrix_l1_norm<T: Numeric + ToPrimitive>(
+    matrix: crate::internal::dense::MatrixRef<'_, T>,
+) -> AtlasLinalgResult<f64> {
+    let mut maximum = 0.0;
+
+    for column in 0..matrix.cols {
+        let mut total = 0.0;
+        for row in 0..matrix.rows {
+            total += matrix
+                .value_at(row, column)
+                .to_f64()
+                .ok_or(AtlasNdError::NumericConversionFailed { op: "matrix_norm" })?
+                .abs();
+        }
+        if total.is_nan() {
+            return Ok(f64::NAN);
+        }
+        maximum = maximum.max(total);
+    }
+
+    Ok(maximum)
+}
+
+fn matrix_infinity_norm<T: Numeric + ToPrimitive>(
+    matrix: crate::internal::dense::MatrixRef<'_, T>,
+) -> AtlasLinalgResult<f64> {
+    let mut maximum = 0.0;
+
+    for row in 0..matrix.rows {
+        let mut total = 0.0;
+        for column in 0..matrix.cols {
+            total += matrix
+                .value_at(row, column)
+                .to_f64()
+                .ok_or(AtlasNdError::NumericConversionFailed { op: "matrix_norm" })?
+                .abs();
+        }
+        if total.is_nan() {
+            return Ok(f64::NAN);
+        }
+        maximum = maximum.max(total);
+    }
+
+    Ok(maximum)
 }
 
 #[cfg(test)]

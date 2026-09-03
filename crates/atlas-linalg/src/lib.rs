@@ -8,7 +8,7 @@ pub use core::operand::LinalgOperand;
 pub use dense::diag::{diag, diag_view};
 pub use dense::dot::{DotOutput, dot};
 pub use dense::matmul::matmul;
-pub use dense::norm::norm;
+pub use dense::norm::{MatrixNorm, matrix_norm, norm};
 pub use dense::trace::trace;
 pub use dense::triangular::{solve_lower_triangular, solve_upper_triangular};
 pub use factorization::cholesky::{CholeskyFactorization, cholesky, solve_spd};
