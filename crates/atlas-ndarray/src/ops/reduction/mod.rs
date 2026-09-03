@@ -1,3 +1,4 @@
+mod arg;
 mod axis;
 mod dispatch;
 mod mean;
@@ -10,6 +11,7 @@ use num_traits::ToPrimitive;
 use crate::{AtlasNdResult, AxisIndex, NDArray, Numeric, OperandMetadata, view::ArrayView};
 
 use self::{
+    arg::{argmax_all, argmax_axis, argmin_all, argmin_axis},
     axis::{
         max_axis_impl, max_axis_keepdims_impl, mean_axis_impl, mean_axis_keepdims_impl,
         min_axis_impl, min_axis_keepdims_impl, prod_axis_impl, prod_axis_keepdims_impl,
@@ -109,6 +111,48 @@ impl<T: Numeric> NDArray<T> {
     {
         mean_axis_keepdims_operand(self, axis)
     }
+
+    pub fn argmin(&self) -> AtlasNdResult<usize>
+    where
+        T: PartialOrd,
+    {
+        argmin_operand(self)
+    }
+
+    pub fn argmax(&self) -> AtlasNdResult<usize>
+    where
+        T: PartialOrd,
+    {
+        argmax_operand(self)
+    }
+
+    pub fn argmin_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<usize>>
+    where
+        T: PartialOrd,
+    {
+        argmin_axis_operand(self, axis, false)
+    }
+
+    pub fn argmin_axis_keepdims<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<usize>>
+    where
+        T: PartialOrd,
+    {
+        argmin_axis_operand(self, axis, true)
+    }
+
+    pub fn argmax_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<usize>>
+    where
+        T: PartialOrd,
+    {
+        argmax_axis_operand(self, axis, false)
+    }
+
+    pub fn argmax_axis_keepdims<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<usize>>
+    where
+        T: PartialOrd,
+    {
+        argmax_axis_operand(self, axis, true)
+    }
 }
 
 impl NDArray<bool> {
@@ -165,6 +209,48 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
         T: ToPrimitive,
     {
         mean_operand(self)
+    }
+
+    pub fn argmin(&self) -> AtlasNdResult<usize>
+    where
+        T: PartialOrd,
+    {
+        argmin_operand(self)
+    }
+
+    pub fn argmax(&self) -> AtlasNdResult<usize>
+    where
+        T: PartialOrd,
+    {
+        argmax_operand(self)
+    }
+
+    pub fn argmin_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<usize>>
+    where
+        T: PartialOrd,
+    {
+        argmin_axis_operand(self, axis, false)
+    }
+
+    pub fn argmin_axis_keepdims<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<usize>>
+    where
+        T: PartialOrd,
+    {
+        argmin_axis_operand(self, axis, true)
+    }
+
+    pub fn argmax_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<usize>>
+    where
+        T: PartialOrd,
+    {
+        argmax_axis_operand(self, axis, false)
+    }
+
+    pub fn argmax_axis_keepdims<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<usize>>
+    where
+        T: PartialOrd,
+    {
+        argmax_axis_operand(self, axis, true)
     }
 
     pub fn sum_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>> {
@@ -290,6 +376,62 @@ where
     O: OperandMetadata<T> + ?Sized,
 {
     mean_all(operand.data(), operand.offset(), operand.shape(), operand.strides())
+}
+
+fn argmin_operand<T, O>(operand: &O) -> AtlasNdResult<usize>
+where
+    T: Numeric + PartialOrd,
+    O: OperandMetadata<T> + ?Sized,
+{
+    argmin_all(operand.data(), operand.offset(), operand.shape(), operand.strides())
+}
+
+fn argmax_operand<T, O>(operand: &O) -> AtlasNdResult<usize>
+where
+    T: Numeric + PartialOrd,
+    O: OperandMetadata<T> + ?Sized,
+{
+    argmax_all(operand.data(), operand.offset(), operand.shape(), operand.strides())
+}
+
+fn argmin_axis_operand<T, O, A>(
+    operand: &O,
+    axis: A,
+    keepdims: bool,
+) -> AtlasNdResult<NDArray<usize>>
+where
+    T: Numeric + PartialOrd,
+    O: OperandMetadata<T> + ?Sized,
+    A: AxisIndex,
+{
+    argmin_axis(
+        operand.data(),
+        operand.offset(),
+        operand.shape(),
+        operand.strides(),
+        axis,
+        keepdims,
+    )
+}
+
+fn argmax_axis_operand<T, O, A>(
+    operand: &O,
+    axis: A,
+    keepdims: bool,
+) -> AtlasNdResult<NDArray<usize>>
+where
+    T: Numeric + PartialOrd,
+    O: OperandMetadata<T> + ?Sized,
+    A: AxisIndex,
+{
+    argmax_axis(
+        operand.data(),
+        operand.offset(),
+        operand.shape(),
+        operand.strides(),
+        axis,
+        keepdims,
+    )
 }
 
 fn all_operand<O>(operand: &O) -> bool

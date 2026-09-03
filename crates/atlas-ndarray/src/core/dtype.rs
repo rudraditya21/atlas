@@ -47,6 +47,8 @@ pub enum ReductionOp {
     Prod,
     Min,
     Max,
+    ArgMin,
+    ArgMax,
     Mean,
     All,
     Any,
@@ -253,6 +255,7 @@ impl DType {
         match op {
             ReductionOp::Sum | ReductionOp::Prod => Some(sum_like_reduction_dtype(self)),
             ReductionOp::Min | ReductionOp::Max => Some(self),
+            ReductionOp::ArgMin | ReductionOp::ArgMax => (!self.is_bool()).then_some(DType::Usize),
             ReductionOp::Mean => Some(mean_reduction_dtype(self)),
             ReductionOp::All | ReductionOp::Any => self.is_bool().then_some(DType::Bool),
         }
@@ -262,6 +265,7 @@ impl DType {
         match op {
             ReductionOp::Sum | ReductionOp::Prod => Some(sum_like_reduction_dtype(self)),
             ReductionOp::Min | ReductionOp::Max => Some(self),
+            ReductionOp::ArgMin | ReductionOp::ArgMax => (!self.is_bool()).then_some(DType::Usize),
             ReductionOp::Mean => Some(mean_accumulator_dtype(self)),
             ReductionOp::All | ReductionOp::Any => self.is_bool().then_some(DType::Bool),
         }
