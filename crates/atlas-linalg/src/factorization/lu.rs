@@ -65,6 +65,57 @@ impl<T: Numeric + Float> LuFactorization<T> {
         solve_upper_triangular_with_op(&self.u, &intermediate, "solve")
     }
 
+    pub fn solve_transpose<'a, R>(&self, rhs: R) -> AtlasLinalgResult<NDArray<T>>
+    where
+        T: 'a,
+        R: Into<LinalgOperand<'a, T>>,
+    {
+        let order = self.order("solve_transpose")?;
+        let rhs = rhs.into();
+        let (rhs_columns, vector_rhs) = match rhs.shape() {
+            [rows] if *rows == order => (1, true),
+            [rows, columns] if *rows == order => (*columns, false),
+            [..] if rhs.ndim() == 1 || rhs.ndim() == 2 => {
+                return Err(AtlasLinalgError::ShapeMismatch {
+                    op: "solve_transpose",
+                    left: vec![order, order],
+                    right: rhs.shape().to_vec(),
+                    reason: "right-hand side row count must match coefficient matrix row count",
+                });
+            }
+            _ => {
+                return Err(AtlasLinalgError::InvalidInputRank {
+                    op: "solve_transpose",
+                    expected: "a vector or matrix",
+                    rank: rhs.ndim(),
+                });
+            }
+        };
+        let intermediate =
+            solve_lower_triangular_with_op(self.u.view().transpose(), rhs, "solve_transpose")?;
+        let permuted_solution = solve_upper_triangular_with_op(
+            self.l.view().transpose(),
+            &intermediate,
+            "solve_transpose",
+        )?;
+        let mut values = vec![T::zero(); order * rhs_columns];
+
+        for row in 0..order {
+            for column in 0..rhs_columns {
+                for source_row in 0..order {
+                    values[row * rhs_columns + column] += self.p.data()[source_row * order + row]
+                        * permuted_solution.data()[source_row * rhs_columns + column];
+                }
+            }
+        }
+
+        if vector_rhs {
+            NDArray::from_shape_vec([order], values).map_err(Into::into)
+        } else {
+            NDArray::from_shape_vec([order, rhs_columns], values).map_err(Into::into)
+        }
+    }
+
     pub fn det(&self) -> AtlasLinalgResult<T> {
         let order = self.order("det")?;
         let mut determinant = T::one();
@@ -242,6 +293,15 @@ where
     R: Into<LinalgOperand<'b, T>>,
 {
     lu(matrix)?.solve(rhs)
+}
+
+pub fn solve_transpose<'a, 'b, T, M, R>(matrix: M, rhs: R) -> AtlasLinalgResult<NDArray<T>>
+where
+    T: Numeric + Float + 'a + 'b,
+    M: Into<LinalgOperand<'a, T>>,
+    R: Into<LinalgOperand<'b, T>>,
+{
+    lu(matrix)?.solve_transpose(rhs)
 }
 
 pub fn inverse<'a, T, M>(matrix: M) -> AtlasLinalgResult<NDArray<T>>
