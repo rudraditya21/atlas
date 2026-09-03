@@ -56,6 +56,13 @@ impl<'a, T: Numeric> LinalgOperand<'a, T> {
     pub(crate) fn ndim(&self) -> usize {
         self.as_ref().ndim()
     }
+
+    pub(crate) fn into_view(self) -> ArrayView<'a, T> {
+        match self {
+            Self::Array(array) => array.view(),
+            Self::View(view) => view,
+        }
+    }
 }
 
 impl<'operand, 'data, T: Numeric> OperandRef<'operand, 'data, T> {

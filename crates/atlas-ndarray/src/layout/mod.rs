@@ -1,5 +1,6 @@
 pub(crate) mod broadcast;
 pub(crate) mod concat;
+pub(crate) mod diagonal;
 pub(crate) mod flatten;
 pub(crate) mod pad;
 pub(crate) mod permutation;

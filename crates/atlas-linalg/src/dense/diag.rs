@@ -1,4 +1,4 @@
-use atlas_ndarray::{NDArray, Numeric};
+use atlas_ndarray::{ArrayView, NDArray, Numeric};
 
 use crate::core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand};
 
@@ -29,4 +29,22 @@ where
         .collect();
 
     NDArray::from_shape_vec([length], values).map_err(Into::into)
+}
+
+pub fn diag_view<'a, T, O>(matrix: O, offset: isize) -> AtlasLinalgResult<ArrayView<'a, T>>
+where
+    T: Numeric + 'a,
+    O: Into<LinalgOperand<'a, T>>,
+{
+    let matrix = matrix.into();
+
+    if matrix.ndim() != 2 {
+        return Err(AtlasLinalgError::InvalidInputRank {
+            op: "diag_view",
+            expected: "a 2-D array",
+            rank: matrix.ndim(),
+        });
+    }
+
+    matrix.into_view().diagonal(offset).map_err(Into::into)
 }
