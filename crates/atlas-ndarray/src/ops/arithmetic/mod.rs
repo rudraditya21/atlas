@@ -18,6 +18,40 @@ use self::{
 
 pub use self::minmax::ElementwiseMinMax;
 
+/// Defines profile-independent elementwise arithmetic for built-in numeric types.
+pub trait ElementwiseArithmetic: Numeric {
+    fn elementwise_add(self, rhs: Self) -> Self;
+    fn elementwise_sub(self, rhs: Self) -> Self;
+    fn elementwise_mul(self, rhs: Self) -> Self;
+}
+
+macro_rules! impl_wrapping_elementwise_arithmetic {
+    ($($ty:ty),+ $(,)?) => {
+        $(
+            impl ElementwiseArithmetic for $ty {
+                fn elementwise_add(self, rhs: Self) -> Self { self.wrapping_add(rhs) }
+                fn elementwise_sub(self, rhs: Self) -> Self { self.wrapping_sub(rhs) }
+                fn elementwise_mul(self, rhs: Self) -> Self { self.wrapping_mul(rhs) }
+            }
+        )+
+    };
+}
+
+macro_rules! impl_float_elementwise_arithmetic {
+    ($($ty:ty),+ $(,)?) => {
+        $(
+            impl ElementwiseArithmetic for $ty {
+                fn elementwise_add(self, rhs: Self) -> Self { self + rhs }
+                fn elementwise_sub(self, rhs: Self) -> Self { self - rhs }
+                fn elementwise_mul(self, rhs: Self) -> Self { self * rhs }
+            }
+        )+
+    };
+}
+
+impl_wrapping_elementwise_arithmetic!(i8, i16, i32, i64, isize, u8, u16, u32, u64, usize);
+impl_float_elementwise_arithmetic!(f32, f64);
+
 pub trait AddOperand<T: Numeric> {
     type Output;
 
@@ -61,6 +95,7 @@ pub trait MaxOperand<T: Numeric> {
 }
 
 impl<T: Numeric> NDArray<T> {
+    /// Adds elementwise; fixed-width integer results wrap on overflow.
     pub fn add<Rhs>(&self, rhs: Rhs) -> Rhs::Output
     where
         Rhs: AddOperand<T>,
@@ -68,6 +103,7 @@ impl<T: Numeric> NDArray<T> {
         rhs.add_to(self)
     }
 
+    /// Subtracts elementwise; fixed-width integer results wrap on overflow.
     pub fn sub<Rhs>(&self, rhs: Rhs) -> Rhs::Output
     where
         Rhs: SubOperand<T>,
@@ -75,6 +111,7 @@ impl<T: Numeric> NDArray<T> {
         rhs.sub_from(self)
     }
 
+    /// Multiplies elementwise; fixed-width integer results wrap on overflow.
     pub fn mul<Rhs>(&self, rhs: Rhs) -> Rhs::Output
     where
         Rhs: MulOperand<T>,
@@ -112,31 +149,47 @@ impl<T: Numeric> NDArray<T> {
         rhs.maximum_with(self)
     }
 
-    pub fn add_scalar(&self, scalar: T) -> Self {
+    /// Adds a scalar elementwise; fixed-width integer results wrap on overflow.
+    pub fn add_scalar(&self, scalar: T) -> Self
+    where
+        T: ElementwiseArithmetic,
+    {
         dispatch_elementwise_binary_with(
             self,
             BinaryOperand::Scalar(scalar),
             add_scalar_rhs,
             add_scalar_lhs,
             elementwise_add_contiguous,
-            |lhs, rhs| lhs + rhs,
+            ElementwiseArithmetic::elementwise_add,
         )
         .expect("scalar rhs dispatch must not fail")
     }
 
-    pub fn sub_scalar(&self, scalar: T) -> Self {
-        dispatch_elementwise_binary(self, BinaryOperand::Scalar(scalar), |lhs, rhs| lhs - rhs)
-            .expect("scalar rhs dispatch must not fail")
+    /// Subtracts a scalar elementwise; fixed-width integer results wrap on overflow.
+    pub fn sub_scalar(&self, scalar: T) -> Self
+    where
+        T: ElementwiseArithmetic,
+    {
+        dispatch_elementwise_binary(
+            self,
+            BinaryOperand::Scalar(scalar),
+            ElementwiseArithmetic::elementwise_sub,
+        )
+        .expect("scalar rhs dispatch must not fail")
     }
 
-    pub fn mul_scalar(&self, scalar: T) -> Self {
+    /// Multiplies by a scalar elementwise; fixed-width integer results wrap on overflow.
+    pub fn mul_scalar(&self, scalar: T) -> Self
+    where
+        T: ElementwiseArithmetic,
+    {
         dispatch_elementwise_binary_with(
             self,
             BinaryOperand::Scalar(scalar),
             mul_scalar_rhs,
             mul_scalar_lhs,
             elementwise_mul_contiguous,
-            |lhs, rhs| lhs * rhs,
+            ElementwiseArithmetic::elementwise_mul,
         )
         .expect("scalar rhs dispatch must not fail")
     }
@@ -171,25 +224,42 @@ impl<T: Numeric> NDArray<T> {
         .expect("scalar rhs dispatch must not fail")
     }
 
-    fn add_array(&self, rhs: &Self) -> AtlasNdResult<Self> {
+    fn add_array(&self, rhs: &Self) -> AtlasNdResult<Self>
+    where
+        T: ElementwiseArithmetic,
+    {
         dispatch_elementwise_binary_with(
             self,
             BinaryOperand::Array(rhs),
             add_scalar_rhs,
             add_scalar_lhs,
             elementwise_add_contiguous,
-            |lhs, rhs| lhs + rhs,
+            ElementwiseArithmetic::elementwise_add,
         )
     }
 
-    fn mul_array(&self, rhs: &Self) -> AtlasNdResult<Self> {
+    fn sub_array(&self, rhs: &Self) -> AtlasNdResult<Self>
+    where
+        T: ElementwiseArithmetic,
+    {
+        dispatch_elementwise_binary(
+            self,
+            BinaryOperand::Array(rhs),
+            ElementwiseArithmetic::elementwise_sub,
+        )
+    }
+
+    fn mul_array(&self, rhs: &Self) -> AtlasNdResult<Self>
+    where
+        T: ElementwiseArithmetic,
+    {
         dispatch_elementwise_binary_with(
             self,
             BinaryOperand::Array(rhs),
             mul_scalar_rhs,
             mul_scalar_lhs,
             elementwise_mul_contiguous,
-            |lhs, rhs| lhs * rhs,
+            ElementwiseArithmetic::elementwise_mul,
         )
     }
 
@@ -253,6 +323,7 @@ impl<T, U> AddOperand<T> for &NDArray<U>
 where
     T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
     U: Numeric + RuntimeScalar,
+    <T as ArithmeticPromote<U>>::Output: ElementwiseArithmetic,
 {
     type Output = AtlasNdResult<NDArray<<T as ArithmeticPromote<U>>::Output>>;
 
@@ -269,6 +340,7 @@ impl<T, U> AddOperand<T> for U
 where
     T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
     U: dtype::ArithmeticScalar,
+    <T as ArithmeticPromote<U>>::Output: ElementwiseArithmetic,
 {
     type Output = NDArray<<T as ArithmeticPromote<U>>::Output>;
 
@@ -285,6 +357,7 @@ impl<T, U> SubOperand<T> for &NDArray<U>
 where
     T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
     U: Numeric + RuntimeScalar,
+    <T as ArithmeticPromote<U>>::Output: ElementwiseArithmetic,
 {
     type Output = AtlasNdResult<NDArray<<T as ArithmeticPromote<U>>::Output>>;
 
@@ -292,9 +365,7 @@ where
         promoted_array_array::<T, U, <T as ArithmeticPromote<U>>::Output, _>(
             lhs,
             self,
-            |lhs, rhs| {
-                dispatch_elementwise_binary(lhs, BinaryOperand::Array(rhs), |lhs, rhs| lhs - rhs)
-            },
+            |lhs, rhs| lhs.sub_array(rhs),
         )
     }
 }
@@ -303,6 +374,7 @@ impl<T, U> SubOperand<T> for U
 where
     T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
     U: dtype::ArithmeticScalar,
+    <T as ArithmeticPromote<U>>::Output: ElementwiseArithmetic,
 {
     type Output = NDArray<<T as ArithmeticPromote<U>>::Output>;
 
@@ -319,6 +391,7 @@ impl<T, U> MulOperand<T> for &NDArray<U>
 where
     T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
     U: Numeric + RuntimeScalar,
+    <T as ArithmeticPromote<U>>::Output: ElementwiseArithmetic,
 {
     type Output = AtlasNdResult<NDArray<<T as ArithmeticPromote<U>>::Output>>;
 
@@ -335,6 +408,7 @@ impl<T, U> MulOperand<T> for U
 where
     T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
     U: dtype::ArithmeticScalar,
+    <T as ArithmeticPromote<U>>::Output: ElementwiseArithmetic,
 {
     type Output = NDArray<<T as ArithmeticPromote<U>>::Output>;
 
@@ -485,6 +559,7 @@ impl<T, U> Add<&NDArray<U>> for &NDArray<T>
 where
     T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
     U: Numeric + RuntimeScalar,
+    <T as ArithmeticPromote<U>>::Output: ElementwiseArithmetic,
 {
     type Output = AtlasNdResult<NDArray<<T as ArithmeticPromote<U>>::Output>>;
 
@@ -497,6 +572,7 @@ impl<T, U> Sub<&NDArray<U>> for &NDArray<T>
 where
     T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
     U: Numeric + RuntimeScalar,
+    <T as ArithmeticPromote<U>>::Output: ElementwiseArithmetic,
 {
     type Output = AtlasNdResult<NDArray<<T as ArithmeticPromote<U>>::Output>>;
 
@@ -509,6 +585,7 @@ impl<T, U> Mul<&NDArray<U>> for &NDArray<T>
 where
     T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
     U: Numeric + RuntimeScalar,
+    <T as ArithmeticPromote<U>>::Output: ElementwiseArithmetic,
 {
     type Output = AtlasNdResult<NDArray<<T as ArithmeticPromote<U>>::Output>>;
 
@@ -545,6 +622,7 @@ impl<T, U> Add<U> for &NDArray<T>
 where
     T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
     U: dtype::ArithmeticScalar,
+    <T as ArithmeticPromote<U>>::Output: ElementwiseArithmetic,
 {
     type Output = <U as AddOperand<T>>::Output;
 
@@ -557,6 +635,7 @@ impl<T, U> Sub<U> for &NDArray<T>
 where
     T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
     U: dtype::ArithmeticScalar,
+    <T as ArithmeticPromote<U>>::Output: ElementwiseArithmetic,
 {
     type Output = <U as SubOperand<T>>::Output;
 
@@ -569,6 +648,7 @@ impl<T, U> Mul<U> for &NDArray<T>
 where
     T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
     U: dtype::ArithmeticScalar,
+    <T as ArithmeticPromote<U>>::Output: ElementwiseArithmetic,
 {
     type Output = <U as MulOperand<T>>::Output;
 
@@ -637,6 +717,26 @@ mod tests {
         assert_eq!(result.shape(), &[2, 3]);
         assert_eq!(result.data(), &[11, 21, 31, 12, 22, 32]);
         assert!(result.is_contiguous());
+    }
+
+    #[test]
+    fn integer_add_subtract_and_multiply_wrap_across_dispatch_paths() {
+        let add_lhs = NDArray::from_vec([1, 2], vec![i8::MAX, i8::MAX]).unwrap();
+        let add_rhs = NDArray::from_vec([1, 2], vec![1_i8, 1]).unwrap();
+        let subtract_lhs = NDArray::from_vec([2], vec![i8::MIN, i8::MIN]).unwrap();
+        let subtract_rhs = NDArray::from_vec([2], vec![1_i8, 1]).unwrap();
+        let multiply_lhs = NDArray::from_vec([2], vec![64_i8, 64]).unwrap();
+        let multiply_rhs = NDArray::from_vec([2], vec![2_i8, 2]).unwrap();
+        let broadcast_lhs = NDArray::from_vec([2, 1], vec![i8::MAX, i8::MAX]).unwrap();
+        let broadcast_rhs = NDArray::from_vec([1, 2], vec![1_i8, 1]).unwrap();
+
+        assert_eq!(add_lhs.add(&add_rhs).unwrap().data(), &[i8::MIN, i8::MIN]);
+        assert_eq!(subtract_lhs.sub(&subtract_rhs).unwrap().data(), &[i8::MAX, i8::MAX]);
+        assert_eq!(multiply_lhs.mul(&multiply_rhs).unwrap().data(), &[i8::MIN, i8::MIN]);
+        assert_eq!(broadcast_lhs.add(&broadcast_rhs).unwrap().data(), &[i8::MIN; 4]);
+        assert_eq!(add_lhs.add(1_i8).data(), &[i8::MIN, i8::MIN]);
+        assert_eq!(subtract_lhs.sub(1_i8).data(), &[i8::MAX, i8::MAX]);
+        assert_eq!(multiply_lhs.mul(2_i8).data(), &[i8::MIN, i8::MIN]);
     }
 
     #[test]

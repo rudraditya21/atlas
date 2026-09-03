@@ -1,6 +1,6 @@
 use crate::{NDArray, Numeric, internal::simd};
 
-use super::from_owned_parts;
+use super::{ElementwiseArithmetic, from_owned_parts};
 
 pub(super) fn elementwise_binary_contiguous<T, F>(
     lhs: &NDArray<T>,
@@ -18,7 +18,7 @@ where
     from_owned_parts(lhs.shape().to_vec(), data)
 }
 
-pub(super) fn elementwise_add_contiguous<T: Numeric>(
+pub(super) fn elementwise_add_contiguous<T: ElementwiseArithmetic>(
     lhs: &NDArray<T>,
     rhs: &NDArray<T>,
 ) -> NDArray<T> {
@@ -29,7 +29,7 @@ pub(super) fn elementwise_add_contiguous<T: Numeric>(
     from_owned_parts(lhs.shape().to_vec(), data)
 }
 
-pub(super) fn elementwise_mul_contiguous<T: Numeric>(
+pub(super) fn elementwise_mul_contiguous<T: ElementwiseArithmetic>(
     lhs: &NDArray<T>,
     rhs: &NDArray<T>,
 ) -> NDArray<T> {

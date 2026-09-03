@@ -1,8 +1,11 @@
 use crate::{NDArray, Numeric, internal::simd};
 
-use super::from_owned_parts;
+use super::{ElementwiseArithmetic, from_owned_parts};
 
-pub(super) fn add_scalar_rhs<T: Numeric>(array: &NDArray<T>, scalar: T) -> NDArray<T> {
+pub(super) fn add_scalar_rhs<T: ElementwiseArithmetic>(
+    array: &NDArray<T>,
+    scalar: T,
+) -> NDArray<T> {
     let len = array.data().len();
     let mut data = vec![T::zero(); len];
     simd::add_scalar_contiguous(array.data(), scalar, &mut data);
@@ -10,11 +13,17 @@ pub(super) fn add_scalar_rhs<T: Numeric>(array: &NDArray<T>, scalar: T) -> NDArr
     from_owned_parts(array.shape().to_vec(), data)
 }
 
-pub(super) fn add_scalar_lhs<T: Numeric>(scalar: T, array: &NDArray<T>) -> NDArray<T> {
+pub(super) fn add_scalar_lhs<T: ElementwiseArithmetic>(
+    scalar: T,
+    array: &NDArray<T>,
+) -> NDArray<T> {
     add_scalar_rhs(array, scalar)
 }
 
-pub(super) fn mul_scalar_rhs<T: Numeric>(array: &NDArray<T>, scalar: T) -> NDArray<T> {
+pub(super) fn mul_scalar_rhs<T: ElementwiseArithmetic>(
+    array: &NDArray<T>,
+    scalar: T,
+) -> NDArray<T> {
     let len = array.data().len();
     let mut data = vec![T::zero(); len];
     simd::mul_scalar_contiguous(array.data(), scalar, &mut data);
@@ -22,7 +31,10 @@ pub(super) fn mul_scalar_rhs<T: Numeric>(array: &NDArray<T>, scalar: T) -> NDArr
     from_owned_parts(array.shape().to_vec(), data)
 }
 
-pub(super) fn mul_scalar_lhs<T: Numeric>(scalar: T, array: &NDArray<T>) -> NDArray<T> {
+pub(super) fn mul_scalar_lhs<T: ElementwiseArithmetic>(
+    scalar: T,
+    array: &NDArray<T>,
+) -> NDArray<T> {
     mul_scalar_rhs(array, scalar)
 }
 

@@ -5,12 +5,12 @@ use std::{
 
 use num_traits::ToPrimitive;
 
-use crate::{AtlasNdError, AtlasNdResult, Numeric};
+use crate::{AtlasNdError, AtlasNdResult, ElementwiseArithmetic, Numeric};
 
 const SIMD_LANES: usize = 8;
 const SIMD_REDUCTION_THRESHOLD: usize = SIMD_LANES * 32;
 
-pub(crate) fn add_contiguous<T: Numeric>(lhs: &[T], rhs: &[T], out: &mut [T]) {
+pub(crate) fn add_contiguous<T: ElementwiseArithmetic>(lhs: &[T], rhs: &[T], out: &mut [T]) {
     debug_assert_eq!(lhs.len(), rhs.len());
     debug_assert_eq!(lhs.len(), out.len());
 
@@ -33,10 +33,10 @@ pub(crate) fn add_contiguous<T: Numeric>(lhs: &[T], rhs: &[T], out: &mut [T]) {
         }
     }
 
-    map_binary_scalar(lhs, rhs, out, |left, right| left + right);
+    map_binary_scalar(lhs, rhs, out, ElementwiseArithmetic::elementwise_add);
 }
 
-pub(crate) fn mul_contiguous<T: Numeric>(lhs: &[T], rhs: &[T], out: &mut [T]) {
+pub(crate) fn mul_contiguous<T: ElementwiseArithmetic>(lhs: &[T], rhs: &[T], out: &mut [T]) {
     debug_assert_eq!(lhs.len(), rhs.len());
     debug_assert_eq!(lhs.len(), out.len());
 
@@ -59,10 +59,14 @@ pub(crate) fn mul_contiguous<T: Numeric>(lhs: &[T], rhs: &[T], out: &mut [T]) {
         }
     }
 
-    map_binary_scalar(lhs, rhs, out, |left, right| left * right);
+    map_binary_scalar(lhs, rhs, out, ElementwiseArithmetic::elementwise_mul);
 }
 
-pub(crate) fn add_scalar_contiguous<T: Numeric>(input: &[T], scalar: T, out: &mut [T]) {
+pub(crate) fn add_scalar_contiguous<T: ElementwiseArithmetic>(
+    input: &[T],
+    scalar: T,
+    out: &mut [T],
+) {
     debug_assert_eq!(input.len(), out.len());
 
     #[cfg(target_arch = "x86_64")]
@@ -84,10 +88,14 @@ pub(crate) fn add_scalar_contiguous<T: Numeric>(input: &[T], scalar: T, out: &mu
         }
     }
 
-    map_scalar_scalar(input, scalar, out, |value, rhs| value + rhs);
+    map_scalar_scalar(input, scalar, out, ElementwiseArithmetic::elementwise_add);
 }
 
-pub(crate) fn mul_scalar_contiguous<T: Numeric>(input: &[T], scalar: T, out: &mut [T]) {
+pub(crate) fn mul_scalar_contiguous<T: ElementwiseArithmetic>(
+    input: &[T],
+    scalar: T,
+    out: &mut [T],
+) {
     debug_assert_eq!(input.len(), out.len());
 
     #[cfg(target_arch = "x86_64")]
@@ -109,7 +117,7 @@ pub(crate) fn mul_scalar_contiguous<T: Numeric>(input: &[T], scalar: T, out: &mu
         }
     }
 
-    map_scalar_scalar(input, scalar, out, |value, rhs| value * rhs);
+    map_scalar_scalar(input, scalar, out, ElementwiseArithmetic::elementwise_mul);
 }
 
 pub(crate) fn map_binary_contiguous<T, F>(lhs: &[T], rhs: &[T], out: &mut [T], op: F)
