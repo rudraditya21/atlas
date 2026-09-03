@@ -1,4 +1,6 @@
-use atlas_linalg::{AtlasLinalgError, DotOutput, dot, least_squares, matmul, norm, solve, trace};
+use atlas_linalg::{
+    AtlasLinalgError, DotOutput, dot, least_squares, matmul, norm, solve, solve_spd, trace,
+};
 use atlas_ndarray::NDArray;
 
 #[test]
@@ -126,6 +128,20 @@ fn least_squares_accepts_transposed_matrix_and_sliced_rhs_views() {
     let rhs = rhs_base.view().slice([0, 1], [3, 1]).unwrap();
 
     let solution = least_squares(matrix, rhs).unwrap();
+
+    assert_eq!(solution.shape(), &[2, 1]);
+    assert!((solution.data()[0] - 1.0).abs() <= 1.0e-10);
+    assert!((solution.data()[1] - 2.0).abs() <= 1.0e-10);
+}
+
+#[test]
+fn solve_spd_accepts_transposed_matrix_and_sliced_rhs_views() {
+    let matrix_base = NDArray::from_shape_vec([2, 2], vec![4.0_f64, 2.0, 2.0, 3.0]).unwrap();
+    let rhs_base = NDArray::from_shape_vec([2, 2], vec![0.0_f64, 8.0, 0.0, 8.0]).unwrap();
+    let matrix = matrix_base.view().transpose();
+    let rhs = rhs_base.view().slice([0, 1], [2, 1]).unwrap();
+
+    let solution = solve_spd(matrix, rhs).unwrap();
 
     assert_eq!(solution.shape(), &[2, 1]);
     assert!((solution.data()[0] - 1.0).abs() <= 1.0e-10);

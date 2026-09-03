@@ -1,6 +1,6 @@
 use atlas_linalg::{
     AtlasLinalgError, AtlasLinalgResult, CholeskyFactorization, LUFactorization, QRFactorization,
-    cholesky, least_squares, lu, matmul, qr, solve,
+    cholesky, least_squares, lu, matmul, qr, solve, solve_spd,
 };
 use atlas_ndarray::NDArray;
 
@@ -278,6 +278,76 @@ fn least_squares_preserves_qr_validation_errors() {
     assert_eq!(
         least_squares(&rank_deficient, &rhs).unwrap_err(),
         AtlasLinalgError::RankDeficientMatrix { op: "qr", column: 1 }
+    );
+}
+
+#[test]
+fn solve_spd_solves_exact_systems_and_multiple_right_hand_sides() {
+    let matrix = NDArray::from_shape_vec([2, 2], vec![4.0_f64, 2.0, 2.0, 3.0]).unwrap();
+    let rhs = NDArray::from_shape_vec([2], vec![8.0_f64, 8.0]).unwrap();
+    let multiple_rhs = NDArray::from_shape_vec([2, 2], vec![8.0_f64, 10.0, 8.0, 7.0]).unwrap();
+
+    let solution = solve_spd(&matrix, &rhs).unwrap();
+    let multiple_solution = cholesky(&matrix).unwrap().solve(&multiple_rhs).unwrap();
+
+    assert_close_slice(solution.data(), &[1.0, 2.0], 1e-10);
+    assert_close_slice(matmul(&matrix, &solution).unwrap().data(), rhs.data(), 1e-10);
+    assert_shape(&multiple_solution, &[2, 2]);
+    assert_close_slice(multiple_solution.data(), &[1.0, 2.0, 2.0, 1.0], 1e-10);
+    assert_close_slice(
+        matmul(&matrix, &multiple_solution).unwrap().data(),
+        multiple_rhs.data(),
+        1e-10,
+    );
+}
+
+#[test]
+fn solve_spd_reports_expected_validation_errors() {
+    let non_square =
+        NDArray::from_shape_vec([2, 3], vec![1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+    let non_symmetric = NDArray::from_shape_vec([2, 2], vec![1.0_f64, 2.0, 0.0, 1.0]).unwrap();
+    let non_spd = NDArray::from_shape_vec([2, 2], vec![1.0_f64, 2.0, 2.0, 1.0]).unwrap();
+    let matrix = NDArray::from_shape_vec([2, 2], vec![4.0_f64, 2.0, 2.0, 3.0]).unwrap();
+    let rhs = NDArray::from_shape_vec([2], vec![1.0_f64, 2.0]).unwrap();
+    let mismatched_rhs = NDArray::from_shape_vec([3], vec![1.0_f64, 2.0, 3.0]).unwrap();
+    let scalar_rhs = NDArray::from_shape_vec([], vec![1.0_f64]).unwrap();
+
+    assert_eq!(
+        solve_spd(&non_square, &rhs).unwrap_err(),
+        AtlasLinalgError::InvalidInputShape {
+            op: "cholesky",
+            shape: vec![2, 3],
+            reason: "Cholesky requires a square matrix",
+        }
+    );
+    assert_eq!(
+        solve_spd(&non_symmetric, &rhs).unwrap_err(),
+        AtlasLinalgError::InvalidInputShape {
+            op: "cholesky",
+            shape: vec![2, 2],
+            reason: "Cholesky requires a symmetric matrix",
+        }
+    );
+    assert_eq!(
+        solve_spd(&non_spd, &rhs).unwrap_err(),
+        AtlasLinalgError::NotPositiveDefinite { op: "cholesky", index: 1 }
+    );
+    assert_eq!(
+        solve_spd(&matrix, &mismatched_rhs).unwrap_err(),
+        AtlasLinalgError::ShapeMismatch {
+            op: "solve_spd",
+            left: vec![2, 2],
+            right: vec![3],
+            reason: "right-hand side row count must match coefficient matrix row count",
+        }
+    );
+    assert_eq!(
+        solve_spd(&matrix, &scalar_rhs).unwrap_err(),
+        AtlasLinalgError::InvalidInputRank {
+            op: "solve_spd",
+            expected: "a vector or matrix",
+            rank: 0,
+        }
     );
 }
 
