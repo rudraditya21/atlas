@@ -57,7 +57,7 @@ fn elementwise_methods_dispatch_to_scalar_paths() {
     assert_eq!(array.add(1).data(), &[2, 3, 4]);
     assert_eq!(array.sub(1).data(), &[0, 1, 2]);
     assert_eq!(array.mul(2).data(), &[2, 4, 6]);
-    assert_eq!(array.div(2).data(), &[0, 1, 1]);
+    assert_eq!(array.div(2).unwrap().data(), &[0, 1, 1]);
 }
 
 #[test]
@@ -68,7 +68,7 @@ fn scalar_values_match_scalar_shaped_array_results() {
     assert_array_eq(&array.add(2), &array.add(&scalar).unwrap());
     assert_array_eq(&array.sub(2), &array.sub(&scalar).unwrap());
     assert_array_eq(&array.mul(2), &array.mul(&scalar).unwrap());
-    assert_array_eq(&array.div(2), &array.div(&scalar).unwrap());
+    assert_array_eq(&array.div(2).unwrap(), &array.div(&scalar).unwrap());
 }
 
 #[test]
@@ -79,7 +79,7 @@ fn scalar_and_scalar_shaped_array_paths_match_for_empty_outputs() {
     assert_array_eq(&empty.add(7), &empty.add(&scalar).unwrap());
     assert_array_eq(&empty.sub(7), &empty.sub(&scalar).unwrap());
     assert_array_eq(&empty.mul(7), &empty.mul(&scalar).unwrap());
-    assert_array_eq(&empty.div(7), &empty.div(&scalar).unwrap());
+    assert_array_eq(&empty.div(7).unwrap(), &empty.div(&scalar).unwrap());
 }
 
 #[test]
@@ -87,7 +87,7 @@ fn mixed_scalar_arithmetic_promotes_results_before_dispatch() {
     let array = NDArray::from_vec([2], vec![2_i32, 4]).unwrap();
 
     let added = array.add(3_u32);
-    let divided = array.div(2_f32);
+    let divided = array.div(2_f32).unwrap();
 
     assert_eq!(added.dtype(), DType::I64);
     assert_eq!(added.data(), &[5_i64, 7]);

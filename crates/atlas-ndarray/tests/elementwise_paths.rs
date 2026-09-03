@@ -71,7 +71,7 @@ fn arithmetic_paths_match_manual_logical_results_and_promoted_dtypes() {
 
     assert_array(&lhs.add(2_i32), &[2, 1], &[7, 11]);
     assert_array(&lhs.add(&scalar).unwrap(), &[2, 1], &[7, 11]);
-    assert_array(&empty.rem(2_i32), &[0, 2], &[]);
+    assert_array(&empty.rem(2_i32).unwrap(), &[0, 2], &[]);
     assert_array(&empty.maximum(&scalar).unwrap(), &[0, 2], &[]);
 
     let simd_lhs = array([8], (0..8).map(|value| value as f64).collect());

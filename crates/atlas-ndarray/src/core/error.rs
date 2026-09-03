@@ -43,6 +43,9 @@ pub enum AtlasNdError {
     #[error("numeric conversion failed for {op}")]
     NumericConversionFailed { op: &'static str },
 
+    #[error("division by zero for {op}")]
+    DivisionByZero { op: &'static str },
+
     #[error("invalid argument for {op}: {reason}")]
     InvalidArgument { op: &'static str, reason: &'static str },
 
@@ -73,6 +76,10 @@ mod tests {
         assert_eq!(
             AtlasNdError::NumericConversionFailed { op: "mean" }.to_string(),
             "numeric conversion failed for mean"
+        );
+        assert_eq!(
+            AtlasNdError::DivisionByZero { op: "division" }.to_string(),
+            "division by zero for division"
         );
         assert_eq!(
             AtlasNdError::InvalidCast { from: DType::I64, to: DType::I32, mode: CastMode::Checked }

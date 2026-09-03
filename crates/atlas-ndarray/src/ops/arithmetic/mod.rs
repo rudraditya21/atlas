@@ -8,7 +8,7 @@ mod strided;
 use std::ops::{Add, Div, Mul, Rem, Sub};
 
 use crate::core::dtype::ArithmeticPromote;
-use crate::{AtlasNdResult, NDArray, Numeric, RuntimeScalar, core::dtype};
+use crate::{AtlasNdError, AtlasNdResult, NDArray, Numeric, RuntimeScalar, core::dtype};
 
 use self::{
     contiguous::{elementwise_add_contiguous, elementwise_mul_contiguous},
@@ -23,6 +23,13 @@ pub trait ElementwiseArithmetic: Numeric {
     fn elementwise_add(self, rhs: Self) -> Self;
     fn elementwise_sub(self, rhs: Self) -> Self;
     fn elementwise_mul(self, rhs: Self) -> Self;
+}
+
+/// Defines deterministic elementwise division and remainder for built-in numeric types.
+pub trait ElementwiseDivision: Numeric {
+    fn validate_divisor(self, op: &'static str) -> AtlasNdResult<()>;
+    fn elementwise_div(self, rhs: Self) -> Self;
+    fn elementwise_rem(self, rhs: Self) -> Self;
 }
 
 macro_rules! impl_wrapping_elementwise_arithmetic {
@@ -51,6 +58,40 @@ macro_rules! impl_float_elementwise_arithmetic {
 
 impl_wrapping_elementwise_arithmetic!(i8, i16, i32, i64, isize, u8, u16, u32, u64, usize);
 impl_float_elementwise_arithmetic!(f32, f64);
+
+macro_rules! impl_integer_elementwise_division {
+    ($($ty:ty),+ $(,)?) => {
+        $(
+            impl ElementwiseDivision for $ty {
+                fn validate_divisor(self, op: &'static str) -> AtlasNdResult<()> {
+                    if self == 0 {
+                        Err(AtlasNdError::DivisionByZero { op })
+                    } else {
+                        Ok(())
+                    }
+                }
+
+                fn elementwise_div(self, rhs: Self) -> Self { self.wrapping_div(rhs) }
+                fn elementwise_rem(self, rhs: Self) -> Self { self.wrapping_rem(rhs) }
+            }
+        )+
+    };
+}
+
+macro_rules! impl_float_elementwise_division {
+    ($($ty:ty),+ $(,)?) => {
+        $(
+            impl ElementwiseDivision for $ty {
+                fn validate_divisor(self, _: &'static str) -> AtlasNdResult<()> { Ok(()) }
+                fn elementwise_div(self, rhs: Self) -> Self { self / rhs }
+                fn elementwise_rem(self, rhs: Self) -> Self { self % rhs }
+            }
+        )+
+    };
+}
+
+impl_integer_elementwise_division!(i8, i16, i32, i64, isize, u8, u16, u32, u64, usize);
+impl_float_elementwise_division!(f32, f64);
 
 pub trait AddOperand<T: Numeric> {
     type Output;
@@ -119,6 +160,7 @@ impl<T: Numeric> NDArray<T> {
         rhs.mul_with(self)
     }
 
+    /// Divides elementwise. Integer zero divisors return an error; floating-point values follow IEEE-754.
     pub fn div<Rhs>(&self, rhs: Rhs) -> Rhs::Output
     where
         Rhs: DivOperand<T>,
@@ -126,6 +168,7 @@ impl<T: Numeric> NDArray<T> {
         rhs.div_into(self)
     }
 
+    /// Computes the elementwise remainder. Integer zero divisors return an error; floating-point values follow IEEE-754.
     pub fn rem<Rhs>(&self, rhs: Rhs) -> Rhs::Output
     where
         Rhs: RemOperand<T>,
@@ -194,14 +237,30 @@ impl<T: Numeric> NDArray<T> {
         .expect("scalar rhs dispatch must not fail")
     }
 
-    pub fn div_scalar(&self, scalar: T) -> Self {
-        dispatch_elementwise_binary(self, BinaryOperand::Scalar(scalar), |lhs, rhs| lhs / rhs)
-            .expect("scalar rhs dispatch must not fail")
+    /// Divides by a scalar. Integer zero divisors return an error; floating-point values follow IEEE-754.
+    pub fn div_scalar(&self, scalar: T) -> AtlasNdResult<Self>
+    where
+        T: ElementwiseDivision,
+    {
+        scalar.validate_divisor("division")?;
+        dispatch_elementwise_binary(
+            self,
+            BinaryOperand::Scalar(scalar),
+            ElementwiseDivision::elementwise_div,
+        )
     }
 
-    pub fn rem_scalar(&self, scalar: T) -> Self {
-        dispatch_elementwise_binary(self, BinaryOperand::Scalar(scalar), |lhs, rhs| lhs % rhs)
-            .expect("scalar rhs dispatch must not fail")
+    /// Computes the remainder with a scalar. Integer zero divisors return an error; floating-point values follow IEEE-754.
+    pub fn rem_scalar(&self, scalar: T) -> AtlasNdResult<Self>
+    where
+        T: ElementwiseDivision,
+    {
+        scalar.validate_divisor("remainder")?;
+        dispatch_elementwise_binary(
+            self,
+            BinaryOperand::Scalar(scalar),
+            ElementwiseDivision::elementwise_rem,
+        )
     }
 
     fn minimum_scalar(&self, scalar: T) -> Self
@@ -263,8 +322,28 @@ impl<T: Numeric> NDArray<T> {
         )
     }
 
-    fn rem_array(&self, rhs: &Self) -> AtlasNdResult<Self> {
-        dispatch_elementwise_binary(self, BinaryOperand::Array(rhs), |lhs, rhs| lhs % rhs)
+    fn div_array(&self, rhs: &Self) -> AtlasNdResult<Self>
+    where
+        T: ElementwiseDivision,
+    {
+        validate_divisors(rhs.data(), "division")?;
+        dispatch_elementwise_binary(
+            self,
+            BinaryOperand::Array(rhs),
+            ElementwiseDivision::elementwise_div,
+        )
+    }
+
+    fn rem_array(&self, rhs: &Self) -> AtlasNdResult<Self>
+    where
+        T: ElementwiseDivision,
+    {
+        validate_divisors(rhs.data(), "remainder")?;
+        dispatch_elementwise_binary(
+            self,
+            BinaryOperand::Array(rhs),
+            ElementwiseDivision::elementwise_rem,
+        )
     }
 
     fn minimum_array(&self, rhs: &Self) -> AtlasNdResult<Self>
@@ -317,6 +396,26 @@ where
     let lhs = dtype::cast_array_for_promotion::<T, P>(lhs);
     let rhs = dtype::cast_scalar_for_promotion::<U, P>(rhs);
     op(&lhs, rhs)
+}
+
+fn promoted_array_scalar_result<T, U, P, F>(
+    lhs: &NDArray<T>,
+    rhs: U,
+    op: F,
+) -> AtlasNdResult<NDArray<P>>
+where
+    T: Numeric + RuntimeScalar,
+    U: dtype::ArithmeticScalar,
+    P: Numeric + RuntimeScalar,
+    F: Fn(&NDArray<P>, P) -> AtlasNdResult<NDArray<P>>,
+{
+    let lhs = dtype::cast_array_for_promotion::<T, P>(lhs);
+    let rhs = dtype::cast_scalar_for_promotion::<U, P>(rhs);
+    op(&lhs, rhs)
+}
+
+fn validate_divisors<T: ElementwiseDivision>(values: &[T], op: &'static str) -> AtlasNdResult<()> {
+    values.iter().copied().try_for_each(|value| value.validate_divisor(op))
 }
 
 impl<T, U> AddOperand<T> for &NDArray<U>
@@ -425,6 +524,7 @@ impl<T, U> DivOperand<T> for &NDArray<U>
 where
     T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
     U: Numeric + RuntimeScalar,
+    <T as ArithmeticPromote<U>>::Output: ElementwiseDivision,
 {
     type Output = AtlasNdResult<NDArray<<T as ArithmeticPromote<U>>::Output>>;
 
@@ -432,9 +532,7 @@ where
         promoted_array_array::<T, U, <T as ArithmeticPromote<U>>::Output, _>(
             lhs,
             self,
-            |lhs, rhs| {
-                dispatch_elementwise_binary(lhs, BinaryOperand::Array(rhs), |lhs, rhs| lhs / rhs)
-            },
+            |lhs, rhs| lhs.div_array(rhs),
         )
     }
 }
@@ -443,11 +541,12 @@ impl<T, U> DivOperand<T> for U
 where
     T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
     U: dtype::ArithmeticScalar,
+    <T as ArithmeticPromote<U>>::Output: ElementwiseDivision,
 {
-    type Output = NDArray<<T as ArithmeticPromote<U>>::Output>;
+    type Output = AtlasNdResult<NDArray<<T as ArithmeticPromote<U>>::Output>>;
 
     fn div_into(self, lhs: &NDArray<T>) -> Self::Output {
-        promoted_array_scalar::<T, U, <T as ArithmeticPromote<U>>::Output, _>(
+        promoted_array_scalar_result::<T, U, <T as ArithmeticPromote<U>>::Output, _>(
             lhs,
             self,
             |lhs, rhs| lhs.div_scalar(rhs),
@@ -459,6 +558,7 @@ impl<T, U> RemOperand<T> for &NDArray<U>
 where
     T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
     U: Numeric + RuntimeScalar,
+    <T as ArithmeticPromote<U>>::Output: ElementwiseDivision,
 {
     type Output = AtlasNdResult<NDArray<<T as ArithmeticPromote<U>>::Output>>;
 
@@ -475,11 +575,12 @@ impl<T, U> RemOperand<T> for U
 where
     T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
     U: dtype::ArithmeticScalar,
+    <T as ArithmeticPromote<U>>::Output: ElementwiseDivision,
 {
-    type Output = NDArray<<T as ArithmeticPromote<U>>::Output>;
+    type Output = AtlasNdResult<NDArray<<T as ArithmeticPromote<U>>::Output>>;
 
     fn rem_into(self, lhs: &NDArray<T>) -> Self::Output {
-        promoted_array_scalar::<T, U, <T as ArithmeticPromote<U>>::Output, _>(
+        promoted_array_scalar_result::<T, U, <T as ArithmeticPromote<U>>::Output, _>(
             lhs,
             self,
             |lhs, rhs| lhs.rem_scalar(rhs),
@@ -598,6 +699,7 @@ impl<T, U> Div<&NDArray<U>> for &NDArray<T>
 where
     T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
     U: Numeric + RuntimeScalar,
+    <T as ArithmeticPromote<U>>::Output: ElementwiseDivision,
 {
     type Output = AtlasNdResult<NDArray<<T as ArithmeticPromote<U>>::Output>>;
 
@@ -610,6 +712,7 @@ impl<T, U> Rem<&NDArray<U>> for &NDArray<T>
 where
     T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
     U: Numeric + RuntimeScalar,
+    <T as ArithmeticPromote<U>>::Output: ElementwiseDivision,
 {
     type Output = AtlasNdResult<NDArray<<T as ArithmeticPromote<U>>::Output>>;
 
@@ -661,6 +764,7 @@ impl<T, U> Div<U> for &NDArray<T>
 where
     T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
     U: dtype::ArithmeticScalar,
+    <T as ArithmeticPromote<U>>::Output: ElementwiseDivision,
 {
     type Output = <U as DivOperand<T>>::Output;
 
@@ -673,6 +777,7 @@ impl<T, U> Rem<U> for &NDArray<T>
 where
     T: Numeric + RuntimeScalar + ArithmeticPromote<U>,
     U: dtype::ArithmeticScalar,
+    <T as ArithmeticPromote<U>>::Output: ElementwiseDivision,
 {
     type Output = <U as RemOperand<T>>::Output;
 
@@ -765,7 +870,7 @@ mod tests {
         assert_eq!(array.add(1).data(), &[3, 5, 7, 9]);
         assert_eq!(array.sub(1).data(), &[1, 3, 5, 7]);
         assert_eq!(array.mul(2).data(), &[4, 8, 12, 16]);
-        assert_eq!(array.div(2).data(), &[1, 2, 3, 4]);
+        assert_eq!(array.div(2).unwrap().data(), &[1, 2, 3, 4]);
     }
 
     #[test]
@@ -799,11 +904,11 @@ mod tests {
         assert_eq!(array.add(1).data(), &[2, 3, 4]);
         assert_eq!(array.sub(1).data(), &[0, 1, 2]);
         assert_eq!(array.mul(2).data(), &[2, 4, 6]);
-        assert_eq!(array.div(2).data(), &[0, 1, 1]);
+        assert_eq!(array.div(2).unwrap().data(), &[0, 1, 1]);
         assert_eq!((&array + 1).data(), &[2, 3, 4]);
         assert_eq!((&array - 1).data(), &[0, 1, 2]);
         assert_eq!((&array * 2).data(), &[2, 4, 6]);
-        assert_eq!((&array / 2).data(), &[0, 1, 1]);
+        assert_eq!((&array / 2).unwrap().data(), &[0, 1, 1]);
     }
 
     #[test]
@@ -814,7 +919,7 @@ mod tests {
         assert_array_eq(&array.add(2), &array.add(&scalar).unwrap());
         assert_array_eq(&array.sub(2), &array.sub(&scalar).unwrap());
         assert_array_eq(&array.mul(2), &array.mul(&scalar).unwrap());
-        assert_array_eq(&array.div(2), &array.div(&scalar).unwrap());
+        assert_array_eq(&array.div(2).unwrap(), &array.div(&scalar).unwrap());
     }
 
     #[test]
@@ -827,7 +932,7 @@ mod tests {
         assert_array_eq(&scalar_array.add(3), &scalar_array.add(&scalar_rhs).unwrap());
         assert_array_eq(&scalar_array.sub(3), &scalar_array.sub(&scalar_rhs).unwrap());
         assert_array_eq(&empty_array.mul(5), &empty_array.mul(&empty_rhs).unwrap());
-        assert_array_eq(&empty_array.div(5), &empty_array.div(&empty_rhs).unwrap());
+        assert_array_eq(&empty_array.div(5).unwrap(), &empty_array.div(&empty_rhs).unwrap());
     }
 
     #[test]
@@ -858,5 +963,34 @@ mod tests {
         assert_eq!(matrix.sub(&column).unwrap().data(), &[9, 19, 29, 38, 48, 58]);
         assert_eq!(column.sub(&matrix).unwrap().data(), &[-9, -19, -29, -38, -48, -58]);
         assert_eq!(matrix.add(&column).unwrap().data(), &[11, 21, 31, 42, 52, 62]);
+    }
+
+    #[test]
+    fn integer_zero_divisors_return_errors_across_scalar_and_array_paths() {
+        let values = NDArray::from_vec([2], vec![4_i32, 8]).unwrap();
+        let divisors = NDArray::from_vec([2], vec![2_i32, 0]).unwrap();
+
+        assert_eq!(values.div(0).unwrap_err(), AtlasNdError::DivisionByZero { op: "division" });
+        assert_eq!(values.rem(0).unwrap_err(), AtlasNdError::DivisionByZero { op: "remainder" });
+        assert_eq!(
+            values.div(&divisors).unwrap_err(),
+            AtlasNdError::DivisionByZero { op: "division" }
+        );
+        assert_eq!(
+            values.rem(&divisors).unwrap_err(),
+            AtlasNdError::DivisionByZero { op: "remainder" }
+        );
+    }
+
+    #[test]
+    fn floating_zero_divisors_follow_ieee_754() {
+        let values = NDArray::from_vec([2], vec![1.0_f64, 0.0]).unwrap();
+
+        let quotient = values.div(0.0_f64).unwrap();
+        let remainder = values.rem(0.0_f64).unwrap();
+
+        assert!(quotient.data()[0].is_infinite());
+        assert!(quotient.data()[1].is_nan());
+        assert!(remainder.data().iter().all(|value| value.is_nan()));
     }
 }

@@ -39,8 +39,8 @@ pub use layout::broadcast::{
     contiguous_broadcast_metadata,
 };
 pub use ops::arithmetic::{
-    AddOperand, DivOperand, ElementwiseArithmetic, ElementwiseMinMax, MaxOperand, MinOperand,
-    MulOperand, RemOperand, SubOperand,
+    AddOperand, DivOperand, ElementwiseArithmetic, ElementwiseDivision, ElementwiseMinMax,
+    MaxOperand, MinOperand, MulOperand, RemOperand, SubOperand,
 };
 pub use ops::bitwise::{BitwiseElement, BitwiseOperand};
 pub use ops::comparison::{EqOperand, GeOperand, GtOperand, LeOperand, LtOperand, NeOperand};
