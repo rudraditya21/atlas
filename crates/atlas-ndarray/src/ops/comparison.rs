@@ -233,6 +233,7 @@ impl<T: ArrayElement + PartialOrd> GeOperand<T> for T {
 }
 
 impl<T: ArrayElement + PartialEq> NDArray<T> {
+    /// Compares elementwise for equality; floating-point NaN compares unequal to every value, including NaN.
     pub fn eq<Rhs>(&self, rhs: Rhs) -> Rhs::Output
     where
         Rhs: EqOperand<T>,
@@ -240,6 +241,7 @@ impl<T: ArrayElement + PartialEq> NDArray<T> {
         rhs.eq_to(self)
     }
 
+    /// Compares elementwise for inequality; floating-point NaN compares unequal to every value, including NaN.
     pub fn ne<Rhs>(&self, rhs: Rhs) -> Rhs::Output
     where
         Rhs: NeOperand<T>,
@@ -249,6 +251,7 @@ impl<T: ArrayElement + PartialEq> NDArray<T> {
 }
 
 impl<T: ArrayElement + PartialOrd> NDArray<T> {
+    /// Compares elementwise; ordered floating-point comparisons involving NaN return `false`.
     pub fn lt<Rhs>(&self, rhs: Rhs) -> Rhs::Output
     where
         Rhs: LtOperand<T>,
@@ -256,6 +259,7 @@ impl<T: ArrayElement + PartialOrd> NDArray<T> {
         rhs.lt_to(self)
     }
 
+    /// Compares elementwise; ordered floating-point comparisons involving NaN return `false`.
     pub fn le<Rhs>(&self, rhs: Rhs) -> Rhs::Output
     where
         Rhs: LeOperand<T>,
@@ -263,6 +267,7 @@ impl<T: ArrayElement + PartialOrd> NDArray<T> {
         rhs.le_to(self)
     }
 
+    /// Compares elementwise; ordered floating-point comparisons involving NaN return `false`.
     pub fn gt<Rhs>(&self, rhs: Rhs) -> Rhs::Output
     where
         Rhs: GtOperand<T>,
@@ -270,6 +275,7 @@ impl<T: ArrayElement + PartialOrd> NDArray<T> {
         rhs.gt_to(self)
     }
 
+    /// Compares elementwise; ordered floating-point comparisons involving NaN return `false`.
     pub fn ge<Rhs>(&self, rhs: Rhs) -> Rhs::Output
     where
         Rhs: GeOperand<T>,

@@ -71,6 +71,7 @@ impl<T: Numeric> NDArray<T> {
         prod_operand(self)
     }
 
+    /// Returns the minimum, or NaN when any floating-point element is NaN.
     pub fn min(&self) -> AtlasNdResult<T>
     where
         T: PartialOrd,
@@ -78,6 +79,7 @@ impl<T: Numeric> NDArray<T> {
         min_operand(self)
     }
 
+    /// Returns the maximum, or NaN when any floating-point element is NaN.
     pub fn max(&self) -> AtlasNdResult<T>
     where
         T: PartialOrd,
@@ -120,6 +122,7 @@ impl<T: Numeric> NDArray<T> {
         prod_axis_keepdims_operand(self, axis)
     }
 
+    /// Reduces each lane to its minimum; a lane containing NaN produces NaN.
     pub fn min_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self>
     where
         T: PartialOrd,
@@ -134,6 +137,7 @@ impl<T: Numeric> NDArray<T> {
         min_axis_keepdims_operand(self, axis)
     }
 
+    /// Reduces each lane to its maximum; a lane containing NaN produces NaN.
     pub fn max_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self>
     where
         T: PartialOrd,
@@ -199,6 +203,7 @@ impl<T: Numeric> NDArray<T> {
         variance_axis_operand(self, axis, true, true, "stddev")
     }
 
+    /// Returns the first NaN index when present; otherwise, the first minimum index.
     pub fn argmin(&self) -> AtlasNdResult<usize>
     where
         T: PartialOrd,
@@ -206,6 +211,7 @@ impl<T: Numeric> NDArray<T> {
         argmin_operand(self)
     }
 
+    /// Returns the first NaN index when present; otherwise, the first maximum index.
     pub fn argmax(&self) -> AtlasNdResult<usize>
     where
         T: PartialOrd,
@@ -213,6 +219,7 @@ impl<T: Numeric> NDArray<T> {
         argmax_operand(self)
     }
 
+    /// Returns each lane's first NaN index when present; otherwise, its first minimum index.
     pub fn argmin_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<usize>>
     where
         T: PartialOrd,
@@ -227,6 +234,7 @@ impl<T: Numeric> NDArray<T> {
         argmin_axis_operand(self, axis, true)
     }
 
+    /// Returns each lane's first NaN index when present; otherwise, its first maximum index.
     pub fn argmax_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<usize>>
     where
         T: PartialOrd,
@@ -308,6 +316,7 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
         prod_operand(self)
     }
 
+    /// Returns the minimum, or NaN when any floating-point element is NaN.
     pub fn min(&self) -> AtlasNdResult<T>
     where
         T: PartialOrd,
@@ -315,6 +324,7 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
         min_operand(self)
     }
 
+    /// Returns the maximum, or NaN when any floating-point element is NaN.
     pub fn max(&self) -> AtlasNdResult<T>
     where
         T: PartialOrd,
@@ -329,6 +339,7 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
         mean_operand(self)
     }
 
+    /// Returns the first NaN index when present; otherwise, the first minimum index.
     pub fn argmin(&self) -> AtlasNdResult<usize>
     where
         T: PartialOrd,
@@ -336,6 +347,7 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
         argmin_operand(self)
     }
 
+    /// Returns the first NaN index when present; otherwise, the first maximum index.
     pub fn argmax(&self) -> AtlasNdResult<usize>
     where
         T: PartialOrd,
@@ -343,6 +355,7 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
         argmax_operand(self)
     }
 
+    /// Returns each lane's first NaN index when present; otherwise, its first minimum index.
     pub fn argmin_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<usize>>
     where
         T: PartialOrd,
@@ -357,6 +370,7 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
         argmin_axis_operand(self, axis, true)
     }
 
+    /// Returns each lane's first NaN index when present; otherwise, its first maximum index.
     pub fn argmax_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<usize>>
     where
         T: PartialOrd,

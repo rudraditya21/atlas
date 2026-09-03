@@ -176,7 +176,7 @@ impl<T: Numeric> NDArray<T> {
         rhs.rem_into(self)
     }
 
-    /// Returns the elementwise minimum; a single floating NaN selects the numeric operand.
+    /// Returns the elementwise minimum; a single floating NaN selects the numeric operand, while two NaNs return NaN.
     pub fn minimum<Rhs>(&self, rhs: Rhs) -> Rhs::Output
     where
         Rhs: MinOperand<T>,
@@ -184,7 +184,7 @@ impl<T: Numeric> NDArray<T> {
         rhs.minimum_with(self)
     }
 
-    /// Returns the elementwise maximum; a single floating NaN selects the numeric operand.
+    /// Returns the elementwise maximum; a single floating NaN selects the numeric operand, while two NaNs return NaN.
     pub fn maximum<Rhs>(&self, rhs: Rhs) -> Rhs::Output
     where
         Rhs: MaxOperand<T>,

@@ -57,3 +57,15 @@ fn bool_arrays_are_valid_comparison_outputs_and_support_indexing() {
     assert!(*eq.get(&[0]).unwrap());
     assert!(*ne.get(&[1]).unwrap());
 }
+
+#[test]
+fn float_nan_comparisons_follow_ieee_predicates() {
+    let values = NDArray::from_shape_vec([3], vec![f64::NAN, 1.0, f64::NAN]).unwrap();
+
+    assert_eq!(values.eq(f64::NAN).data(), &[false; 3]);
+    assert_eq!(values.ne(f64::NAN).data(), &[true; 3]);
+    assert_eq!(values.lt(f64::NAN).data(), &[false; 3]);
+    assert_eq!(values.le(f64::NAN).data(), &[false; 3]);
+    assert_eq!(values.gt(f64::NAN).data(), &[false; 3]);
+    assert_eq!(values.ge(f64::NAN).data(), &[false; 3]);
+}

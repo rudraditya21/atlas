@@ -48,6 +48,31 @@ fn float_nan_and_stability_contracts_are_layout_independent() {
 }
 
 #[test]
+fn nan_extrema_and_arg_reductions_match_for_contiguous_and_strided_layouts() {
+    let contiguous =
+        NDArray::from_shape_vec([3, 2], vec![1.0_f64, 4.0, f64::NAN, 5.0, 3.0, f64::NAN]).unwrap();
+    let source =
+        NDArray::from_shape_vec([2, 3], vec![1.0_f64, f64::NAN, 3.0, 4.0, 5.0, f64::NAN]).unwrap();
+    let strided = source.view().transpose();
+
+    assert!(contiguous.min().unwrap().is_nan());
+    assert!(contiguous.max().unwrap().is_nan());
+    assert!(strided.min().unwrap().is_nan());
+    assert!(strided.max().unwrap().is_nan());
+    assert_eq!(contiguous.argmin().unwrap(), 2);
+    assert_eq!(contiguous.argmax().unwrap(), 2);
+    assert_eq!(strided.argmin().unwrap(), 2);
+    assert_eq!(strided.argmax().unwrap(), 2);
+
+    assert_eq!(contiguous.argmin_axis(1).unwrap().data(), &[0, 0, 1]);
+    assert_eq!(contiguous.argmax_axis(1).unwrap().data(), &[1, 0, 1]);
+    assert_eq!(strided.argmin_axis(1).unwrap().data(), &[0, 0, 1]);
+    assert_eq!(strided.argmax_axis(1).unwrap().data(), &[1, 0, 1]);
+    assert!(strided.min_axis(1).unwrap().data()[1].is_nan());
+    assert!(strided.max_axis(1).unwrap().data()[2].is_nan());
+}
+
+#[test]
 fn zero_sized_reduction_outputs_and_empty_lanes_are_distinct() {
     let output_empty = NDArray::<i32>::new([2, 0, 3], 1).unwrap();
     let empty_lane = NDArray::<i32>::new([0, 3], 1).unwrap();
