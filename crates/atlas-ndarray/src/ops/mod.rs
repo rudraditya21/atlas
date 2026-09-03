@@ -1,6 +1,7 @@
 pub(crate) mod arithmetic;
 pub(crate) mod bitwise;
 pub(crate) mod clip;
+pub(crate) mod close;
 pub(crate) mod comparison;
 pub(crate) mod logical;
 pub(crate) mod reduction;

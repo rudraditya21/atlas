@@ -43,6 +43,7 @@ pub use ops::arithmetic::{
     MaxOperand, MinOperand, MulOperand, RemOperand, SubOperand,
 };
 pub use ops::bitwise::{BitwiseElement, BitwiseOperand};
+pub use ops::close::allclose;
 pub use ops::comparison::{EqOperand, GeOperand, GtOperand, LeOperand, LtOperand, NeOperand};
 pub use ops::logical::LogicalOperand;
 pub use ops::unary::{FloatClassify, UnaryAbs, UnaryNeg, UnaryRound, UnarySign};
