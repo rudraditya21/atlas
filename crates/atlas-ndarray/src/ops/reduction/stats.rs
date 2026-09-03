@@ -5,7 +5,7 @@ use crate::{
     internal::{for_each_value, offset_iter},
 };
 
-use super::metadata::{AxisReductionMetadata, WholeReductionMetadata};
+use super::metadata::{AxisReductionMetadata, ReductionOperand, WholeReductionMetadata};
 
 #[derive(Default)]
 pub(super) struct RunningVariance {
@@ -47,17 +47,27 @@ pub(super) fn variance_axis<T: Numeric + ToPrimitive, O: OperandMetadata<T> + ?S
     stddev: bool,
     op: &'static str,
 ) -> AtlasNdResult<NDArray<f64>> {
-    let metadata = AxisReductionMetadata::new(operand.shape(), operand.strides(), axis, keepdims)?;
+    variance_axis_impl(ReductionOperand::new(operand), axis, keepdims, stddev, op)
+}
+
+fn variance_axis_impl<T: Numeric + ToPrimitive>(
+    operand: ReductionOperand<'_, T>,
+    axis: impl AxisIndex,
+    keepdims: bool,
+    stddev: bool,
+    op: &'static str,
+) -> AtlasNdResult<NDArray<f64>> {
+    let metadata = AxisReductionMetadata::new(operand.shape, operand.strides, axis, keepdims)?;
     metadata.require_non_empty(op)?;
     let mut values = Vec::with_capacity(metadata.output.len);
 
     for lane_offset in
-        offset_iter(operand.offset(), &metadata.output.shape, &metadata.output.outer_strides)
+        offset_iter(operand.offset, &metadata.output.shape, &metadata.output.outer_strides)
     {
         let mut variance = RunningVariance::default();
         for index in 0..metadata.axis_len {
             variance.add(
-                operand.data()[lane_offset + index * metadata.axis_stride]
+                operand.data[lane_offset + index * metadata.axis_stride]
                     .to_f64()
                     .ok_or(AtlasNdError::NumericConversionFailed { op })?,
             );

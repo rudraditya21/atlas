@@ -1,9 +1,28 @@
 use crate::{
-    AtlasNdError, AtlasNdResult, AxisIndex,
+    ArrayElement, AtlasNdError, AtlasNdResult, AxisIndex, OperandMetadata,
     core::axis::normalize_axis,
     internal::layout::{LayoutKind, is_contiguous_layout},
     layout::element_count,
 };
+
+#[derive(Clone, Copy)]
+pub(super) struct ReductionOperand<'a, T: ArrayElement> {
+    pub(super) data: &'a [T],
+    pub(super) offset: usize,
+    pub(super) shape: &'a [usize],
+    pub(super) strides: &'a [usize],
+}
+
+impl<'a, T: ArrayElement> ReductionOperand<'a, T> {
+    pub(super) fn new<O: OperandMetadata<T> + ?Sized>(operand: &'a O) -> Self {
+        Self {
+            data: operand.data(),
+            offset: operand.offset(),
+            shape: operand.shape(),
+            strides: operand.strides(),
+        }
+    }
+}
 
 pub(super) struct WholeReductionMetadata {
     pub(super) len: usize,

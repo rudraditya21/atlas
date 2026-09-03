@@ -5,7 +5,7 @@ fn reductions_match_reference_values_across_axes_and_keepdims() {
     let array = NDArray::from_shape_vec([2, 3, 2], (0_i32..12).collect()).unwrap();
 
     for axis in 0..3 {
-        let negative = axis as i32 - 3;
+        let negative = axis - 3;
         assert_eq!(array.sum_axis(axis).unwrap().data(), array.sum_axis(negative).unwrap().data());
         assert_eq!(
             array.prod_axis(axis).unwrap().data(),

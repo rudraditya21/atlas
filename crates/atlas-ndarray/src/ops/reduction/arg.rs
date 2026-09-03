@@ -3,7 +3,7 @@ use crate::{
     internal::{for_each_value, offset_iter},
 };
 
-use super::metadata::{AxisReductionMetadata, WholeReductionMetadata};
+use super::metadata::{AxisReductionMetadata, ReductionOperand, WholeReductionMetadata};
 
 pub(super) fn argmin_all<T: Numeric + PartialOrd>(
     data: &[T],
@@ -28,7 +28,7 @@ pub(super) fn argmin_axis<T: Numeric + PartialOrd, O: OperandMetadata<T> + ?Size
     axis: impl AxisIndex,
     keepdims: bool,
 ) -> AtlasNdResult<NDArray<usize>> {
-    arg_axis(operand, axis, keepdims, "argmin", replaces_min)
+    arg_axis(ReductionOperand::new(operand), axis, keepdims, "argmin", replaces_min)
 }
 
 pub(super) fn argmax_axis<T: Numeric + PartialOrd, O: OperandMetadata<T> + ?Sized>(
@@ -36,7 +36,7 @@ pub(super) fn argmax_axis<T: Numeric + PartialOrd, O: OperandMetadata<T> + ?Size
     axis: impl AxisIndex,
     keepdims: bool,
 ) -> AtlasNdResult<NDArray<usize>> {
-    arg_axis(operand, axis, keepdims, "argmax", replaces_max)
+    arg_axis(ReductionOperand::new(operand), axis, keepdims, "argmax", replaces_max)
 }
 
 fn arg_all<T: Numeric + PartialOrd>(
@@ -62,25 +62,25 @@ fn arg_all<T: Numeric + PartialOrd>(
     best.map(|(index, _)| index).ok_or(AtlasNdError::EmptyReduction { op })
 }
 
-fn arg_axis<T: Numeric + PartialOrd, O: OperandMetadata<T> + ?Sized>(
-    operand: &O,
+fn arg_axis<T: Numeric + PartialOrd>(
+    operand: ReductionOperand<'_, T>,
     axis: impl AxisIndex,
     keepdims: bool,
     op: &'static str,
     replaces: fn(T, T) -> bool,
 ) -> AtlasNdResult<NDArray<usize>> {
-    let metadata = AxisReductionMetadata::new(operand.shape(), operand.strides(), axis, keepdims)?;
+    let metadata = AxisReductionMetadata::new(operand.shape, operand.strides, axis, keepdims)?;
     metadata.require_non_empty(op)?;
     let mut indices = Vec::with_capacity(metadata.output.len);
 
     for lane_offset in
-        offset_iter(operand.offset(), &metadata.output.shape, &metadata.output.outer_strides)
+        offset_iter(operand.offset, &metadata.output.shape, &metadata.output.outer_strides)
     {
         let mut best_index = 0;
-        let mut best = operand.data()[lane_offset];
+        let mut best = operand.data[lane_offset];
 
         for index in 1..metadata.axis_len {
-            let value = operand.data()[lane_offset + index * metadata.axis_stride];
+            let value = operand.data[lane_offset + index * metadata.axis_stride];
             if replaces(best, value) {
                 best = value;
                 best_index = index;

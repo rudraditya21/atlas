@@ -54,6 +54,6 @@ fn bool_arrays_are_valid_comparison_outputs_and_support_indexing() {
     assert_eq!(eq.dtype(), DType::Bool);
     assert_eq!(eq.data(), &[true, false]);
     assert_eq!(ne.data(), &[false, true]);
-    assert_eq!(*eq.get(&[0]).unwrap(), true);
-    assert_eq!(*ne.get(&[1]).unwrap(), true);
+    assert!(*eq.get(&[0]).unwrap());
+    assert!(*ne.get(&[1]).unwrap());
 }
