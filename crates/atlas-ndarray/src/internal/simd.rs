@@ -8,6 +8,7 @@ use num_traits::ToPrimitive;
 use crate::{AtlasNdError, AtlasNdResult, Numeric};
 
 const SIMD_LANES: usize = 8;
+const SIMD_REDUCTION_THRESHOLD: usize = SIMD_LANES * 32;
 
 pub(crate) fn add_contiguous<T: Numeric>(lhs: &[T], rhs: &[T], out: &mut [T]) {
     debug_assert_eq!(lhs.len(), rhs.len());
@@ -128,6 +129,25 @@ where
 }
 
 pub(crate) fn sum_contiguous<T: Numeric>(values: &[T]) -> T {
+    #[cfg(target_arch = "x86_64")]
+    {
+        if values.len() >= SIMD_REDUCTION_THRESHOLD
+            && is_f32::<T>()
+            && std::is_x86_feature_detected!("avx")
+        {
+            // SAFETY: The type check guarantees exact element layout.
+            return cast_value_exact(unsafe { x86_64::sum_f32(cast_slice(values)) });
+        }
+
+        if values.len() >= SIMD_REDUCTION_THRESHOLD
+            && is_f64::<T>()
+            && std::is_x86_feature_detected!("avx")
+        {
+            // SAFETY: The type check guarantees exact element layout.
+            return cast_value_exact(unsafe { x86_64::sum_f64(cast_slice(values)) });
+        }
+    }
+
     if is_f32::<T>() {
         return cast_value_exact(compensated_sum_f32(cast_slice(values)));
     }
@@ -235,10 +255,20 @@ where
     }
 
     if is_f32::<T>() {
+        #[cfg(target_arch = "x86_64")]
+        if values.len() >= SIMD_REDUCTION_THRESHOLD && std::is_x86_feature_detected!("avx") {
+            // SAFETY: The type check guarantees exact element layout.
+            return Ok(unsafe { x86_64::sum_f32(cast_slice(values)) } as f64 / values.len() as f64);
+        }
         return Ok(compensated_sum_f32_as_f64(cast_slice(values)) / values.len() as f64);
     }
 
     if is_f64::<T>() {
+        #[cfg(target_arch = "x86_64")]
+        if values.len() >= SIMD_REDUCTION_THRESHOLD && std::is_x86_feature_detected!("avx") {
+            // SAFETY: The type check guarantees exact element layout.
+            return Ok(unsafe { x86_64::sum_f64(cast_slice(values)) } / values.len() as f64);
+        }
         return Ok(compensated_sum_f64(cast_slice(values)) / values.len() as f64);
     }
 
@@ -634,6 +664,52 @@ mod x86_64 {
     #[target_feature(enable = "avx")]
     pub(super) unsafe fn mul_scalar_f64(input: &[f64], scalar: f64, out: &mut [f64]) {
         map_scalar_f64(input, scalar, out, _mm256_mul_pd);
+    }
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn sum_f32(values: &[f32]) -> f32 {
+        let mut index = 0;
+        let mut accumulator = _mm256_setzero_ps();
+
+        while index + 8 <= values.len() {
+            accumulator = _mm256_add_ps(accumulator, _mm256_loadu_ps(values.as_ptr().add(index)));
+            index += 8;
+        }
+
+        let mut lanes = [0.0_f32; 8];
+        _mm256_storeu_ps(lanes.as_mut_ptr(), accumulator);
+        let mut total = super::CompensatedSum::new();
+        for value in lanes {
+            total.add(f64::from(value));
+        }
+        while index < values.len() {
+            total.add(f64::from(values[index]));
+            index += 1;
+        }
+        total.finish() as f32
+    }
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn sum_f64(values: &[f64]) -> f64 {
+        let mut index = 0;
+        let mut accumulator = _mm256_setzero_pd();
+
+        while index + 4 <= values.len() {
+            accumulator = _mm256_add_pd(accumulator, _mm256_loadu_pd(values.as_ptr().add(index)));
+            index += 4;
+        }
+
+        let mut lanes = [0.0_f64; 4];
+        _mm256_storeu_pd(lanes.as_mut_ptr(), accumulator);
+        let mut total = super::CompensatedSum::new();
+        for value in lanes {
+            total.add(value);
+        }
+        while index < values.len() {
+            total.add(values[index]);
+            index += 1;
+        }
+        total.finish()
     }
 
     #[target_feature(enable = "avx")]
