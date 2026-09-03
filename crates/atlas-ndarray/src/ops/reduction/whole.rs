@@ -15,6 +15,22 @@ pub(super) fn sum_contiguous<T: Numeric>(values: &[T]) -> T {
         let partials: Vec<T> =
             values.par_chunks(parallel_reduction_chunk_len()).map(simd::sum_contiguous).collect();
 
+        if simd::is_f32::<T>() {
+            let mut total = simd::CompensatedSum::new();
+            for value in simd::cast_slice::<T, f32>(&partials) {
+                total.add(f64::from(*value));
+            }
+            return simd::cast_value_exact(total.finish() as f32);
+        }
+
+        if simd::is_f64::<T>() {
+            let mut total = simd::CompensatedSum::new();
+            for value in simd::cast_slice::<T, f64>(&partials) {
+                total.add(*value);
+            }
+            return simd::cast_value_exact(total.finish());
+        }
+
         return partials.into_iter().fold(T::zero(), |total, partial| total + partial);
     }
 
