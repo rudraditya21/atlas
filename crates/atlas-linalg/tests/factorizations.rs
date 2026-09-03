@@ -1,6 +1,6 @@
 use atlas_linalg::{
     AtlasLinalgError, AtlasLinalgResult, CholeskyFactorization, LUFactorization, QRFactorization,
-    cholesky, least_squares, lu, matmul, qr, solve, solve_spd,
+    cholesky, det, least_squares, lu, matmul, qr, slogdet, solve, solve_spd,
 };
 use atlas_ndarray::NDArray;
 
@@ -41,6 +41,43 @@ fn lu_reconstructs_permuted_input() {
     assert_shape(&permuted, &[3, 3]);
     assert_shape(&reconstructed, &[3, 3]);
     assert_close_slice(permuted.data(), reconstructed.data(), 1e-10);
+}
+
+#[test]
+fn lu_determinants_preserve_sign_and_permutation_parity() {
+    let positive = NDArray::from_shape_vec([2, 2], vec![2.0_f64, 0.0, 0.0, 3.0]).unwrap();
+    let negative = NDArray::from_shape_vec([2, 2], vec![2.0_f64, 0.0, 0.0, -3.0]).unwrap();
+    let pivoted = NDArray::from_shape_vec([2, 2], vec![0.0_f64, 2.0, 1.0, 3.0]).unwrap();
+
+    assert_eq!(det(&positive).unwrap(), 6.0);
+    assert_eq!(lu(&negative).unwrap().det().unwrap(), -6.0);
+    assert_eq!(lu(&pivoted).unwrap().det().unwrap(), -2.0);
+}
+
+#[test]
+fn slogdet_reconstructs_determinants_and_accepts_views() {
+    let negative = NDArray::from_shape_vec([2, 2], vec![2.0_f64, 0.0, 0.0, -3.0]).unwrap();
+    let (sign, log_abs_det) = slogdet(&negative).unwrap();
+    let base = NDArray::from_shape_vec(
+        [3, 4],
+        vec![9.0_f64, 2.0, 0.0, 0.0, 8.0, 0.0, 3.0, 0.0, 7.0, 0.0, 0.0, 4.0],
+    )
+    .unwrap();
+    let view = base.view().slice([0, 1], [3, 3]).unwrap();
+    let (view_sign, view_log_abs_det) = slogdet(view).unwrap();
+
+    assert_eq!(sign, -1.0);
+    assert!((sign * log_abs_det.exp() + 6.0).abs() <= 1e-10);
+    assert_eq!(view_sign, 1.0);
+    assert!((view_sign * view_log_abs_det.exp() - 24.0).abs() <= 1e-10);
+}
+
+#[test]
+fn determinant_apis_reject_singular_input() {
+    let singular = NDArray::from_shape_vec([2, 2], vec![1.0_f64, 2.0, 2.0, 4.0]).unwrap();
+
+    assert!(matches!(det(&singular), Err(AtlasLinalgError::SingularMatrix { op: "lu", .. })));
+    assert!(matches!(slogdet(&singular), Err(AtlasLinalgError::SingularMatrix { op: "lu", .. })));
 }
 
 #[test]
