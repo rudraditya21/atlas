@@ -1,7 +1,7 @@
 use num_traits::ToPrimitive;
 
 use crate::{
-    AtlasNdError, AtlasNdResult, AxisIndex, NDArray, Numeric,
+    AtlasNdError, AtlasNdResult, AxisIndex, NDArray, Numeric, OperandMetadata,
     internal::{for_each_value, offset_iter},
 };
 
@@ -40,25 +40,24 @@ pub(super) fn variance_all<T: Numeric + ToPrimitive>(
     Ok(variance.population())
 }
 
-pub(super) fn variance_axis<T: Numeric + ToPrimitive>(
-    data: &[T],
-    offset: usize,
-    shape: &[usize],
-    strides: &[usize],
+pub(super) fn variance_axis<T: Numeric + ToPrimitive, O: OperandMetadata<T> + ?Sized>(
+    operand: &O,
     axis: impl AxisIndex,
     keepdims: bool,
     stddev: bool,
     op: &'static str,
 ) -> AtlasNdResult<NDArray<f64>> {
-    let metadata = AxisReductionMetadata::new(shape, strides, axis, keepdims)?;
+    let metadata = AxisReductionMetadata::new(operand.shape(), operand.strides(), axis, keepdims)?;
     metadata.require_non_empty(op)?;
     let mut values = Vec::with_capacity(metadata.output.len);
 
-    for lane_offset in offset_iter(offset, &metadata.output.shape, &metadata.output.outer_strides) {
+    for lane_offset in
+        offset_iter(operand.offset(), &metadata.output.shape, &metadata.output.outer_strides)
+    {
         let mut variance = RunningVariance::default();
         for index in 0..metadata.axis_len {
             variance.add(
-                data[lane_offset + index * metadata.axis_stride]
+                operand.data()[lane_offset + index * metadata.axis_stride]
                     .to_f64()
                     .ok_or(AtlasNdError::NumericConversionFailed { op })?,
             );

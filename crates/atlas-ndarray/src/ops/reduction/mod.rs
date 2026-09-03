@@ -538,16 +538,7 @@ where
     O: OperandMetadata<T> + ?Sized,
     A: AxisIndex,
 {
-    variance_axis(
-        operand.data(),
-        operand.offset(),
-        operand.shape(),
-        operand.strides(),
-        axis,
-        keepdims,
-        stddev,
-        op,
-    )
+    variance_axis(operand, axis, keepdims, stddev, op)
 }
 
 fn argmin_operand<T, O>(operand: &O) -> AtlasNdResult<usize>
@@ -576,14 +567,7 @@ where
     O: OperandMetadata<T> + ?Sized,
     A: AxisIndex,
 {
-    argmin_axis(
-        operand.data(),
-        operand.offset(),
-        operand.shape(),
-        operand.strides(),
-        axis,
-        keepdims,
-    )
+    argmin_axis(operand, axis, keepdims)
 }
 
 fn argmax_axis_operand<T, O, A>(
@@ -596,14 +580,7 @@ where
     O: OperandMetadata<T> + ?Sized,
     A: AxisIndex,
 {
-    argmax_axis(
-        operand.data(),
-        operand.offset(),
-        operand.shape(),
-        operand.strides(),
-        axis,
-        keepdims,
-    )
+    argmax_axis(operand, axis, keepdims)
 }
 
 fn all_operand<O>(operand: &O) -> bool
