@@ -161,6 +161,15 @@ where
     Ok(CholeskyFactorization { l: NDArray::from_shape_vec([n, n], l)? })
 }
 
+pub fn solve_spd<'a, 'b, T, M, R>(matrix: M, rhs: R) -> AtlasLinalgResult<NDArray<T>>
+where
+    T: Numeric + Float + 'a + 'b,
+    M: Into<LinalgOperand<'a, T>>,
+    R: Into<LinalgOperand<'b, T>>,
+{
+    cholesky(matrix)?.solve(rhs)
+}
+
 #[cfg(test)]
 mod tests {
     use atlas_ndarray::NDArray;
