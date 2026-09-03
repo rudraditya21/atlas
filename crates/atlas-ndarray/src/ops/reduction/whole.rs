@@ -145,10 +145,7 @@ where
     let mut minimum = None;
 
     for_each_value(data, offset, shape, strides, |value| {
-        minimum = Some(match minimum {
-            Some(current) if current < *value => current,
-            Some(_) | None => *value,
-        });
+        minimum = Some(minimum.map_or(*value, |current| simd::min_propagating(current, *value)));
     });
 
     minimum.ok_or(AtlasNdError::EmptyReduction { op: "min" })
@@ -173,10 +170,7 @@ where
     let mut maximum = None;
 
     for_each_value(data, offset, shape, strides, |value| {
-        maximum = Some(match maximum {
-            Some(current) if current > *value => current,
-            Some(_) | None => *value,
-        });
+        maximum = Some(maximum.map_or(*value, |current| simd::max_propagating(current, *value)));
     });
 
     maximum.ok_or(AtlasNdError::EmptyReduction { op: "max" })
@@ -202,9 +196,7 @@ where
     let mut current = iter.next().ok_or(AtlasNdError::EmptyReduction { op })?;
 
     for value in iter {
-        if value < current {
-            current = value;
-        }
+        current = simd::min_propagating(current, value);
     }
 
     Ok(current)
@@ -218,9 +210,7 @@ where
     let mut current = iter.next().ok_or(AtlasNdError::EmptyReduction { op })?;
 
     for value in iter {
-        if value > current {
-            current = value;
-        }
+        current = simd::max_propagating(current, value);
     }
 
     Ok(current)

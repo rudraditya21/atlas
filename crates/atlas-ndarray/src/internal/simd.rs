@@ -177,6 +177,10 @@ pub(crate) fn min_contiguous<T>(values: &[T], op: &'static str) -> AtlasNdResult
 where
     T: Numeric + PartialOrd,
 {
+    if let Some(value) = first_unordered(values) {
+        return Ok(value);
+    }
+
     #[cfg(target_arch = "x86_64")]
     {
         if is_f32::<T>() && std::is_x86_feature_detected!("avx") {
@@ -207,6 +211,10 @@ pub(crate) fn max_contiguous<T>(values: &[T], op: &'static str) -> AtlasNdResult
 where
     T: Numeric + PartialOrd,
 {
+    if let Some(value) = first_unordered(values) {
+        return Ok(value);
+    }
+
     #[cfg(target_arch = "x86_64")]
     {
         if is_f32::<T>() && std::is_x86_feature_detected!("avx") {
@@ -433,9 +441,7 @@ where
     let mut minimum = iter.next().ok_or(AtlasNdError::EmptyReduction { op })?;
 
     for value in iter {
-        if value < minimum {
-            minimum = value;
-        }
+        minimum = min_propagating(minimum, value);
     }
 
     Ok(minimum)
@@ -449,12 +455,34 @@ where
     let mut maximum = iter.next().ok_or(AtlasNdError::EmptyReduction { op })?;
 
     for value in iter {
-        if value > maximum {
-            maximum = value;
-        }
+        maximum = max_propagating(maximum, value);
     }
 
     Ok(maximum)
+}
+
+pub(crate) fn min_propagating<T: Numeric + PartialOrd>(current: T, value: T) -> T {
+    if current.partial_cmp(&current).is_none() {
+        current
+    } else if value.partial_cmp(&value).is_none() || value < current {
+        value
+    } else {
+        current
+    }
+}
+
+pub(crate) fn max_propagating<T: Numeric + PartialOrd>(current: T, value: T) -> T {
+    if current.partial_cmp(&current).is_none() {
+        current
+    } else if value.partial_cmp(&value).is_none() || value > current {
+        value
+    } else {
+        current
+    }
+}
+
+fn first_unordered<T: Copy + PartialOrd>(values: &[T]) -> Option<T> {
+    values.iter().copied().find(|value| value.partial_cmp(value).is_none())
 }
 
 fn mean_scalar<T>(values: &[T], op: &'static str) -> AtlasNdResult<f64>

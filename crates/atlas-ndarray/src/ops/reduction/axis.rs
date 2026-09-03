@@ -372,9 +372,7 @@ where
 
                     for _ in 1..metadata.axis_len {
                         let value = values[offset];
-                        if value < current {
-                            current = value;
-                        }
+                        current = simd::min_propagating(current, value);
                         offset += metadata.contiguous_inner_len;
                     }
 
@@ -394,9 +392,7 @@ where
 
                 for _ in 1..metadata.axis_len {
                     let value = values[offset];
-                    if value < current {
-                        current = value;
-                    }
+                    current = simd::min_propagating(current, value);
                     offset += metadata.contiguous_inner_len;
                 }
 
@@ -434,9 +430,7 @@ where
 
                     for _ in 1..metadata.axis_len {
                         let value = values[offset];
-                        if value > current {
-                            current = value;
-                        }
+                        current = simd::max_propagating(current, value);
                         offset += metadata.contiguous_inner_len;
                     }
 
@@ -456,9 +450,7 @@ where
 
                 for _ in 1..metadata.axis_len {
                     let value = values[offset];
-                    if value > current {
-                        current = value;
-                    }
+                    current = simd::max_propagating(current, value);
                     offset += metadata.contiguous_inner_len;
                 }
 
@@ -1031,9 +1023,7 @@ where
 
     for _ in 1..axis_len {
         let value = data[offset];
-        if value < current {
-            current = value;
-        }
+        current = simd::min_propagating(current, value);
         offset += axis_stride;
     }
 
@@ -1050,9 +1040,7 @@ where
 
     for _ in 1..axis_len {
         let value = data[offset];
-        if value > current {
-            current = value;
-        }
+        current = simd::max_propagating(current, value);
         offset += axis_stride;
     }
 
