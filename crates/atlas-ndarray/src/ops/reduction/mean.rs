@@ -8,9 +8,7 @@ use crate::{
 
 use super::{
     axis::{contiguous_lane, linear_offset},
-    dispatch::{
-        ensure_non_empty_reduction, parallel_reduction_chunk_len, should_parallelize_reduction,
-    },
+    dispatch::{parallel_reduction_chunk_len, should_parallelize_reduction},
     metadata::{AxisReductionMetadata, WholeReductionMetadata},
 };
 
@@ -104,7 +102,7 @@ where
     T: Numeric + ToPrimitive,
 {
     let metadata = WholeReductionMetadata::from_shape(shape);
-    ensure_non_empty_reduction(metadata.len, "mean")?;
+    metadata.require_non_empty("mean")?;
 
     if let Some(values) = crate::internal::layout::dense_storage_slice(data, offset, shape, strides)
     {

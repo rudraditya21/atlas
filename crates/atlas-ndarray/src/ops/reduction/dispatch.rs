@@ -1,5 +1,3 @@
-use crate::{AtlasNdError, AtlasNdResult};
-
 pub(super) const PARALLEL_REDUCTION_THRESHOLD: usize = 1 << 20;
 const PARALLEL_REDUCTION_CHUNK_LEN: usize = 1 << 14;
 const PARALLEL_REDUCTION_MIN_CHUNKS_PER_THREAD: usize = 2;
@@ -23,12 +21,4 @@ pub(super) fn should_parallelize_reduction_for_threads(
     let chunk_count = work_items.div_ceil(PARALLEL_REDUCTION_CHUNK_LEN);
 
     chunk_count >= thread_count.saturating_mul(PARALLEL_REDUCTION_MIN_CHUNKS_PER_THREAD)
-}
-
-pub(super) fn ensure_non_empty_reduction(len: usize, op: &'static str) -> AtlasNdResult<()> {
-    if len == 0 {
-        return Err(AtlasNdError::EmptyReduction { op });
-    }
-
-    Ok(())
 }

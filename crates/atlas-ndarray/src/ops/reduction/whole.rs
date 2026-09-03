@@ -7,9 +7,7 @@ use crate::{
     internal::{for_each_value, layout::dense_storage_slice},
 };
 
-use super::dispatch::{
-    ensure_non_empty_reduction, parallel_reduction_chunk_len, should_parallelize_reduction,
-};
+use super::dispatch::{parallel_reduction_chunk_len, should_parallelize_reduction};
 use super::metadata::WholeReductionMetadata;
 
 pub(super) fn sum_contiguous<T: Numeric>(values: &[T]) -> T {
@@ -77,7 +75,7 @@ pub(super) fn sum_all<T: Numeric>(
     strides: &[usize],
 ) -> AtlasNdResult<T> {
     let metadata = WholeReductionMetadata::from_shape(shape);
-    ensure_non_empty_reduction(metadata.len, "sum")?;
+    metadata.require_non_empty("sum")?;
 
     if let Some(values) = dense_storage_slice(data, offset, shape, strides) {
         return Ok(sum_contiguous(values));
@@ -115,7 +113,7 @@ pub(super) fn prod_all<T: Numeric>(
     strides: &[usize],
 ) -> AtlasNdResult<T> {
     let metadata = WholeReductionMetadata::from_shape(shape);
-    ensure_non_empty_reduction(metadata.len, "prod")?;
+    metadata.require_non_empty("prod")?;
 
     if let Some(values) = dense_storage_slice(data, offset, shape, strides) {
         return Ok(prod_contiguous(values));
@@ -138,7 +136,7 @@ where
     T: Numeric + PartialOrd,
 {
     let metadata = WholeReductionMetadata::from_shape(shape);
-    ensure_non_empty_reduction(metadata.len, "min")?;
+    metadata.require_non_empty("min")?;
 
     if let Some(values) = dense_storage_slice(data, offset, shape, strides) {
         return min_contiguous(values, "min");
@@ -166,7 +164,7 @@ where
     T: Numeric + PartialOrd,
 {
     let metadata = WholeReductionMetadata::from_shape(shape);
-    ensure_non_empty_reduction(metadata.len, "max")?;
+    metadata.require_non_empty("max")?;
 
     if let Some(values) = dense_storage_slice(data, offset, shape, strides) {
         return max_contiguous(values, "max");

@@ -17,6 +17,14 @@ impl WholeReductionMetadata {
     pub(super) fn is_empty(&self) -> bool {
         self.len == 0
     }
+
+    pub(super) fn require_non_empty(&self, op: &'static str) -> AtlasNdResult<()> {
+        if self.is_empty() {
+            return Err(AtlasNdError::EmptyReduction { op });
+        }
+
+        Ok(())
+    }
 }
 
 pub(super) struct ReductionOutputMetadata {
