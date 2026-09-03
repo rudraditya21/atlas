@@ -1,6 +1,6 @@
 use atlas_linalg::{
     AtlasLinalgError, AtlasLinalgResult, CholeskyFactorization, LUFactorization, QRFactorization,
-    cholesky, lu, matmul, qr,
+    cholesky, lu, matmul, qr, solve,
 };
 use atlas_ndarray::NDArray;
 
@@ -149,6 +149,78 @@ fn lu_reports_exact_error_for_singular_input() {
     let matrix = NDArray::from_shape_vec([2, 2], vec![1.0_f64, 2.0, 2.0, 4.0]).unwrap();
 
     assert_eq!(lu(&matrix).unwrap_err(), AtlasLinalgError::SingularMatrix { op: "lu", pivot: 1 });
+}
+
+#[test]
+fn solve_returns_vector_solution_and_preserves_the_residual() {
+    let matrix = NDArray::from_shape_vec([2, 2], vec![3.0_f64, 1.0, 1.0, 2.0]).unwrap();
+    let rhs = NDArray::from_shape_vec([2], vec![9.0_f64, 8.0]).unwrap();
+
+    let solution = solve(&matrix, &rhs).unwrap();
+
+    assert_shape(&solution, &[2]);
+    assert_close_slice(solution.data(), &[2.0, 3.0], 1e-10);
+    assert_close_slice(matmul(&matrix, &solution).unwrap().data(), rhs.data(), 1e-10);
+}
+
+#[test]
+fn lu_factorization_solves_multiple_right_hand_sides() {
+    let matrix = NDArray::from_shape_vec([2, 2], vec![3.0_f64, 1.0, 1.0, 2.0]).unwrap();
+    let rhs = NDArray::from_shape_vec([2, 2], vec![9.0_f64, 5.0, 8.0, 5.0]).unwrap();
+
+    let solution = lu(&matrix).unwrap().solve(&rhs).unwrap();
+
+    assert_shape(&solution, &[2, 2]);
+    assert_close_slice(solution.data(), &[2.0, 1.0, 3.0, 2.0], 1e-10);
+    assert_close_slice(matmul(&matrix, &solution).unwrap().data(), rhs.data(), 1e-10);
+}
+
+#[test]
+fn solve_applies_lu_pivoting_to_the_right_hand_side() {
+    let matrix = NDArray::from_shape_vec([2, 2], vec![0.0_f64, 2.0, 1.0, 3.0]).unwrap();
+    let rhs = NDArray::from_shape_vec([2], vec![4.0_f64, 7.0]).unwrap();
+
+    let solution = solve(&matrix, &rhs).unwrap();
+
+    assert_close_slice(solution.data(), &[1.0, 2.0], 1e-10);
+    assert_close_slice(matmul(&matrix, &solution).unwrap().data(), rhs.data(), 1e-10);
+}
+
+#[test]
+fn solve_reports_expected_validation_errors() {
+    let non_square =
+        NDArray::from_shape_vec([2, 3], vec![1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+    let square = NDArray::from_shape_vec([2, 2], vec![3.0_f64, 1.0, 1.0, 2.0]).unwrap();
+    let singular = NDArray::from_shape_vec([2, 2], vec![1.0_f64, 2.0, 2.0, 4.0]).unwrap();
+    let valid_rhs = NDArray::from_shape_vec([2], vec![1.0_f64, 2.0]).unwrap();
+    let mismatched_rhs = NDArray::from_shape_vec([3], vec![1.0_f64, 2.0, 3.0]).unwrap();
+    let scalar_rhs = NDArray::from_shape_vec([], vec![1.0_f64]).unwrap();
+
+    assert_eq!(
+        solve(&non_square, &valid_rhs).unwrap_err(),
+        AtlasLinalgError::InvalidInputShape {
+            op: "lu",
+            shape: vec![2, 3],
+            reason: "LU requires a square matrix",
+        }
+    );
+    assert_eq!(
+        solve(&singular, &valid_rhs).unwrap_err(),
+        AtlasLinalgError::SingularMatrix { op: "lu", pivot: 1 }
+    );
+    assert_eq!(
+        solve(&square, &mismatched_rhs).unwrap_err(),
+        AtlasLinalgError::ShapeMismatch {
+            op: "solve",
+            left: vec![2, 2],
+            right: vec![3],
+            reason: "right-hand side row count must match coefficient matrix row count",
+        }
+    );
+    assert_eq!(
+        solve(&square, &scalar_rhs).unwrap_err(),
+        AtlasLinalgError::InvalidInputRank { op: "solve", expected: "a vector or matrix", rank: 0 }
+    );
 }
 
 #[test]
