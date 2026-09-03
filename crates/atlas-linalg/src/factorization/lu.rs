@@ -97,6 +97,22 @@ impl<T: Numeric + Float> LuFactorization<T> {
         if self.permutation_is_odd(order)? { Ok(-determinant) } else { Ok(determinant) }
     }
 
+    pub fn slogdet(&self) -> AtlasLinalgResult<(T, T)> {
+        let order = self.order("slogdet")?;
+        let mut sign = if self.permutation_is_odd(order)? { -T::one() } else { T::one() };
+        let mut log_abs_det = T::zero();
+
+        for index in 0..order {
+            let diagonal = self.u.data()[index * order + index];
+            if diagonal < T::zero() {
+                sign = -sign;
+            }
+            log_abs_det += diagonal.abs().ln();
+        }
+
+        Ok((sign, log_abs_det))
+    }
+
     fn order(&self, op: &'static str) -> AtlasLinalgResult<usize> {
         let [rows, columns] = self.u.shape() else {
             return Err(AtlasLinalgError::InvalidInputShape {
