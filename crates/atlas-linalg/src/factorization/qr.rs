@@ -59,6 +59,57 @@ impl<T: Numeric + Float> QrFactorization<T> {
         }
     }
 
+    pub fn solve_r<'a, R>(&self, rhs: R) -> AtlasLinalgResult<NDArray<T>>
+    where
+        T: 'a,
+        R: Into<LinalgOperand<'a, T>>,
+    {
+        let (_, order) = self.q_shape()?;
+        let rhs = rhs.into();
+        let (rhs_columns, vector_rhs) = match rhs.shape() {
+            [rhs_rows] if *rhs_rows == order => (1, true),
+            [rhs_rows, rhs_columns] if *rhs_rows == order => (*rhs_columns, false),
+            [..] if rhs.ndim() == 1 || rhs.ndim() == 2 => {
+                return Err(AtlasLinalgError::ShapeMismatch {
+                    op: "solve_r",
+                    left: vec![order, order],
+                    right: rhs.shape().to_vec(),
+                    reason: "right-hand side row count must match R row count",
+                });
+            }
+            _ => {
+                return Err(AtlasLinalgError::InvalidInputRank {
+                    op: "solve_r",
+                    expected: "a vector or matrix",
+                    rank: rhs.ndim(),
+                });
+            }
+        };
+        let mut values = vec![T::zero(); order * rhs_columns];
+
+        for row in (0..order).rev() {
+            let diagonal = self.r.data()[row * order + row];
+            if diagonal.is_zero() {
+                return Err(AtlasLinalgError::SingularMatrix { op: "solve_r", pivot: row });
+            }
+
+            for column in 0..rhs_columns {
+                let mut value = rhs_value(&rhs, row, column);
+                for next_row in (row + 1)..order {
+                    value -= self.r.data()[row * order + next_row]
+                        * values[next_row * rhs_columns + column];
+                }
+                values[row * rhs_columns + column] = value / diagonal;
+            }
+        }
+
+        if vector_rhs {
+            NDArray::from_shape_vec([order], values).map_err(Into::into)
+        } else {
+            NDArray::from_shape_vec([order, rhs_columns], values).map_err(Into::into)
+        }
+    }
+
     fn q_shape(&self) -> AtlasLinalgResult<(usize, usize)> {
         let [rows, columns] = self.q.shape() else {
             return Err(AtlasLinalgError::InvalidInputShape {
