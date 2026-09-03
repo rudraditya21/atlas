@@ -224,6 +224,21 @@ fn bench_mean_axis_layouts(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_parallel_reduction_thresholds(c: &mut Criterion) {
+    let mut group = c.benchmark_group("ndarray/reduction/sum/parallel_threshold");
+
+    for size in [1 << 19, 1 << 20, 1 << 21] {
+        common::configure_group(&mut group, size);
+        let array = filled_vector(size, 1.0_f64);
+
+        group.bench_with_input(BenchmarkId::from_parameter(size), &array, |b, input| {
+            b.iter(|| black_box(input.sum().unwrap()))
+        });
+    }
+
+    group.finish();
+}
+
 criterion_group!(
     ndarray_contiguous_kernels,
     bench_contiguous_add,
@@ -235,6 +250,7 @@ criterion_group!(
     bench_sum_layouts,
     bench_sum_axis_layouts,
     bench_mean_layouts,
-    bench_mean_axis_layouts
+    bench_mean_axis_layouts,
+    bench_parallel_reduction_thresholds
 );
 criterion_main!(ndarray_contiguous_kernels);
