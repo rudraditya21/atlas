@@ -1,6 +1,6 @@
 use atlas_linalg::{
     AtlasLinalgError, AtlasLinalgResult, CholeskyFactorization, LUFactorization, QRFactorization,
-    cholesky, lu, matmul, qr, solve,
+    cholesky, least_squares, lu, matmul, qr, solve,
 };
 use atlas_ndarray::NDArray;
 
@@ -220,6 +220,64 @@ fn solve_reports_expected_validation_errors() {
     assert_eq!(
         solve(&square, &scalar_rhs).unwrap_err(),
         AtlasLinalgError::InvalidInputRank { op: "solve", expected: "a vector or matrix", rank: 0 }
+    );
+}
+
+#[test]
+fn least_squares_solves_exact_and_overdetermined_systems() {
+    let exact_matrix = NDArray::from_shape_vec([2, 2], vec![3.0_f64, 1.0, 1.0, 2.0]).unwrap();
+    let exact_rhs = NDArray::from_shape_vec([2], vec![9.0_f64, 8.0]).unwrap();
+    let overdetermined_matrix =
+        NDArray::from_shape_vec([3, 2], vec![1.0_f64, 0.0, 0.0, 1.0, 1.0, 1.0]).unwrap();
+    let overdetermined_rhs = NDArray::from_shape_vec([3], vec![1.0_f64, 2.0, 4.0]).unwrap();
+
+    let exact_solution = least_squares(&exact_matrix, &exact_rhs).unwrap();
+    let overdetermined_solution =
+        least_squares(&overdetermined_matrix, &overdetermined_rhs).unwrap();
+    let prediction = matmul(&overdetermined_matrix, &overdetermined_solution).unwrap();
+    let residual = prediction
+        .data()
+        .iter()
+        .zip(overdetermined_rhs.data())
+        .map(|(predicted, observed)| predicted - observed)
+        .collect::<Vec<_>>();
+
+    assert_close_slice(exact_solution.data(), &[2.0, 3.0], 1e-10);
+    assert_close_slice(overdetermined_solution.data(), &[4.0 / 3.0, 7.0 / 3.0], 1e-10);
+    assert_close_slice(prediction.data(), &[4.0 / 3.0, 7.0 / 3.0, 11.0 / 3.0], 1e-10);
+    assert_close_slice(&[residual[0] + residual[2], residual[1] + residual[2]], &[0.0, 0.0], 1e-10);
+}
+
+#[test]
+fn qr_factorization_least_squares_supports_multiple_right_hand_sides() {
+    let matrix = NDArray::from_shape_vec([3, 2], vec![1.0_f64, 0.0, 0.0, 1.0, 1.0, 1.0]).unwrap();
+    let rhs = NDArray::from_shape_vec([3, 2], vec![1.0_f64, 2.0, 2.0, 1.0, 3.0, 3.0]).unwrap();
+
+    let solution = qr(&matrix).unwrap().least_squares(&rhs).unwrap();
+
+    assert_shape(&solution, &[2, 2]);
+    assert_close_slice(solution.data(), &[1.0, 2.0, 2.0, 1.0], 1e-10);
+    assert_close_slice(matmul(&matrix, &solution).unwrap().data(), rhs.data(), 1e-10);
+}
+
+#[test]
+fn least_squares_preserves_qr_validation_errors() {
+    let wide = NDArray::from_shape_vec([2, 3], vec![1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+    let rank_deficient =
+        NDArray::from_shape_vec([3, 2], vec![1.0_f64, 2.0, 2.0, 4.0, 3.0, 6.0]).unwrap();
+    let rhs = NDArray::from_shape_vec([3], vec![1.0_f64, 2.0, 3.0]).unwrap();
+
+    assert_eq!(
+        least_squares(&wide, &rhs).unwrap_err(),
+        AtlasLinalgError::InvalidInputShape {
+            op: "qr",
+            shape: vec![2, 3],
+            reason: "QR currently requires rows >= columns",
+        }
+    );
+    assert_eq!(
+        least_squares(&rank_deficient, &rhs).unwrap_err(),
+        AtlasLinalgError::RankDeficientMatrix { op: "qr", column: 1 }
     );
 }
 

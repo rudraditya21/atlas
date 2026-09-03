@@ -11,7 +11,7 @@ pub use dense::norm::norm;
 pub use dense::trace::trace;
 pub use factorization::cholesky::{CholeskyFactorization, cholesky};
 pub use factorization::lu::{LuFactorization, lu, solve};
-pub use factorization::qr::{QrFactorization, qr};
+pub use factorization::qr::{QrFactorization, least_squares, qr};
 
 pub type LUFactorization<T> = LuFactorization<T>;
 pub type QRFactorization<T> = QrFactorization<T>;

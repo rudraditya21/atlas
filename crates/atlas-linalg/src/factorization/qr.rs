@@ -13,6 +13,14 @@ pub struct QrFactorization<T: Numeric> {
 }
 
 impl<T: Numeric + Float> QrFactorization<T> {
+    pub fn least_squares<'a, R>(&self, rhs: R) -> AtlasLinalgResult<NDArray<T>>
+    where
+        T: 'a,
+        R: Into<LinalgOperand<'a, T>>,
+    {
+        self.solve_r(&self.apply_q_transpose(rhs)?)
+    }
+
     pub fn apply_q_transpose<'a, R>(&self, rhs: R) -> AtlasLinalgResult<NDArray<T>>
     where
         T: 'a,
@@ -202,6 +210,15 @@ where
         q: NDArray::from_shape_vec([rows, cols], q)?,
         r: NDArray::from_shape_vec([cols, cols], r)?,
     })
+}
+
+pub fn least_squares<'a, 'b, T, M, R>(matrix: M, rhs: R) -> AtlasLinalgResult<NDArray<T>>
+where
+    T: Numeric + Float + 'a + 'b,
+    M: Into<LinalgOperand<'a, T>>,
+    R: Into<LinalgOperand<'b, T>>,
+{
+    qr(matrix)?.least_squares(rhs)
 }
 
 fn column_major_to_row_major<T: Numeric>(data: &[T], rows: usize, cols: usize) -> Vec<T> {
