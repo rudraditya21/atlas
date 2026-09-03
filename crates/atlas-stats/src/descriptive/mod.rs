@@ -5,3 +5,4 @@ pub(crate) mod covariance;
 pub(crate) mod covariance_matrix;
 pub(crate) mod stddev;
 pub(crate) mod variance;
+pub(crate) mod weighted;

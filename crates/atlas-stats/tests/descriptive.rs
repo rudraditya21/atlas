@@ -1,7 +1,7 @@
 use atlas_ndarray::NDArray;
 use atlas_stats::{
     AtlasStatsError, correlation, correlation_matrix, covariance, covariance_matrix, stddev,
-    stddev_axis, variance, variance_axis,
+    stddev_axis, variance, variance_axis, weighted_covariance, weighted_mean, weighted_variance,
 };
 
 fn assert_close(actual: f64, expected: f64) {
@@ -146,6 +146,43 @@ fn correlation_matrix_supports_views_and_rejects_zero_variance_variables() {
     assert_eq!(
         correlation_matrix(&constant).unwrap_err(),
         AtlasStatsError::ZeroVariance { op: "correlation_matrix" }
+    );
+}
+
+#[test]
+fn weighted_statistics_use_population_weight_normalization() {
+    let values = NDArray::from_shape_vec([3], vec![1.0_f64, 2.0, 5.0]).unwrap();
+    let rhs = NDArray::from_shape_vec([3], vec![2.0_f64, 4.0, 10.0]).unwrap();
+    let weights = NDArray::from_shape_vec([3], vec![1.0_f64, 2.0, 1.0]).unwrap();
+
+    assert_close(weighted_mean(&values, &weights).unwrap(), 2.5);
+    assert_close(weighted_variance(&values, &weights).unwrap(), 2.25);
+    assert_close(weighted_covariance(&values, &rhs, &weights).unwrap(), 4.5);
+}
+
+#[test]
+fn weighted_statistics_support_views_and_validate_weights() {
+    let values_source = NDArray::from_shape_vec([4], vec![0.0_f64, 1.0, 2.0, 5.0]).unwrap();
+    let weights_source = NDArray::from_shape_vec([4], vec![0.0_f64, 1.0, 2.0, 1.0]).unwrap();
+    let values = values_source.view().slice([1], [3]).unwrap();
+    let weights = weights_source.view().slice([1], [3]).unwrap();
+    let invalid = NDArray::from_shape_vec([3], vec![1.0_f64, -1.0, 1.0]).unwrap();
+    let zero = NDArray::<f64>::zeros([3]).unwrap();
+
+    assert_close(weighted_mean(values, weights).unwrap(), 2.5);
+    assert_eq!(
+        weighted_mean(&invalid, &invalid).unwrap_err(),
+        AtlasStatsError::InvalidWeights {
+            op: "weighted_mean",
+            reason: "weights must be finite and non-negative",
+        }
+    );
+    assert_eq!(
+        weighted_variance(&invalid, &zero).unwrap_err(),
+        AtlasStatsError::InvalidWeights {
+            op: "weighted_variance",
+            reason: "weights must have a positive finite sum",
+        }
     );
 }
 

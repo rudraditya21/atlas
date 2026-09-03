@@ -10,3 +10,4 @@ pub use descriptive::covariance::covariance;
 pub use descriptive::covariance_matrix::covariance_matrix;
 pub use descriptive::stddev::stddev;
 pub use descriptive::variance::variance;
+pub use descriptive::weighted::{weighted_covariance, weighted_mean, weighted_variance};

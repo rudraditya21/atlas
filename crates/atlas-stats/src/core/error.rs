@@ -17,6 +17,9 @@ pub enum AtlasStatsError {
     #[error("numeric conversion failed for {op}")]
     NumericConversionFailed { op: &'static str },
 
+    #[error("invalid weights for {op}: {reason}")]
+    InvalidWeights { op: &'static str, reason: &'static str },
+
     #[error("zero variance for {op}")]
     ZeroVariance { op: &'static str },
 
