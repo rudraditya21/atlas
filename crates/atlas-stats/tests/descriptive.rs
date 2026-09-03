@@ -1,5 +1,7 @@
 use atlas_ndarray::NDArray;
-use atlas_stats::{AtlasStatsError, correlation, covariance, stddev, variance};
+use atlas_stats::{
+    AtlasStatsError, correlation, covariance, stddev, stddev_axis, variance, variance_axis,
+};
 
 fn assert_close(actual: f64, expected: f64) {
     assert!((actual - expected).abs() <= 1e-10);
@@ -31,6 +33,45 @@ fn variance_and_stddev_support_strided_views() {
 
     assert_close(variance(view.clone()).unwrap(), 35.0 / 12.0);
     assert_close(stddev(view).unwrap(), (35.0_f64 / 12.0).sqrt());
+}
+
+#[test]
+fn axiswise_variance_and_stddev_reduce_the_selected_axis() {
+    let values = NDArray::from_shape_vec([2, 3], vec![1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+
+    assert_eq!(variance_axis(&values, 0).unwrap().data(), &[2.25, 2.25, 2.25]);
+    assert_eq!(variance_axis(&values, 1).unwrap().data(), &[2.0 / 3.0, 2.0 / 3.0]);
+    assert_eq!(stddev_axis(&values, -1).unwrap().data(), &[(2.0_f64 / 3.0).sqrt(); 2]);
+}
+
+#[test]
+fn axiswise_variance_and_stddev_support_transposed_and_sliced_views() {
+    let source = NDArray::from_shape_vec([3, 3], (0_i32..9).collect()).unwrap();
+    let view = source.view().transpose().slice([1, 0], [2, 3]).unwrap();
+
+    assert_eq!(variance_axis(view.clone(), 1).unwrap().data(), &[6.0, 6.0]);
+    assert_eq!(stddev_axis(view, 1).unwrap().data(), &[6.0_f64.sqrt(); 2]);
+}
+
+#[test]
+fn axiswise_variance_validates_axes_and_empty_reduction_lanes() {
+    let scalar = NDArray::from_shape_vec([], vec![1.0_f64]).unwrap();
+    let empty_lane = NDArray::<f64>::zeros([2, 0]).unwrap();
+    let empty_output = NDArray::<f64>::zeros([0, 2]).unwrap();
+
+    assert_eq!(
+        variance_axis(&scalar, 0).unwrap_err(),
+        AtlasStatsError::NdArray(atlas_ndarray::AtlasNdError::InvalidAxis { axis: 0, ndim: 0 })
+    );
+    assert_eq!(
+        variance_axis(&empty_lane, 1).unwrap_err(),
+        AtlasStatsError::EmptyInput { op: "variance_axis" }
+    );
+    assert_eq!(
+        stddev_axis(&empty_lane, 1).unwrap_err(),
+        AtlasStatsError::EmptyInput { op: "stddev_axis" }
+    );
+    assert_eq!(variance_axis(&empty_output, 1).unwrap().shape(), &[0]);
 }
 
 #[test]
