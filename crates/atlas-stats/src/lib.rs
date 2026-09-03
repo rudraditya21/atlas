@@ -6,5 +6,6 @@ pub use core::operand::StatsOperand;
 pub use descriptive::axis::{stddev_axis, variance_axis};
 pub use descriptive::correlation::correlation;
 pub use descriptive::covariance::covariance;
+pub use descriptive::covariance_matrix::covariance_matrix;
 pub use descriptive::stddev::stddev;
 pub use descriptive::variance::variance;

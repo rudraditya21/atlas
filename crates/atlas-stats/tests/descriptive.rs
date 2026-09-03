@@ -1,6 +1,7 @@
 use atlas_ndarray::NDArray;
 use atlas_stats::{
-    AtlasStatsError, correlation, covariance, stddev, stddev_axis, variance, variance_axis,
+    AtlasStatsError, correlation, covariance, covariance_matrix, stddev, stddev_axis, variance,
+    variance_axis,
 };
 
 fn assert_close(actual: f64, expected: f64) {
@@ -80,6 +81,50 @@ fn covariance_uses_population_definition() {
     let rhs = NDArray::from_shape_vec([4], vec![2.0_f64, 4.0, 6.0, 8.0]).unwrap();
 
     assert_close(covariance(&lhs, &rhs).unwrap(), 2.5);
+}
+
+#[test]
+fn covariance_matrix_uses_observations_as_rows_and_variables_as_columns() {
+    let observations =
+        NDArray::from_shape_vec([3, 2], vec![1.0_f64, 2.0, 2.0, 4.0, 3.0, 6.0]).unwrap();
+
+    let covariance = covariance_matrix(&observations).unwrap();
+
+    assert_eq!(covariance.shape(), &[2, 2]);
+    assert_eq!(covariance.data(), &[2.0 / 3.0, 4.0 / 3.0, 4.0 / 3.0, 8.0 / 3.0]);
+}
+
+#[test]
+fn covariance_matrix_supports_transposed_and_sliced_views() {
+    let source =
+        NDArray::from_shape_vec([2, 4], vec![0.0_f64, 1.0, 2.0, 3.0, 0.0, 2.0, 4.0, 6.0]).unwrap();
+    let view = source.view().transpose().slice([1, 0], [3, 2]).unwrap();
+
+    assert_eq!(
+        covariance_matrix(view).unwrap().data(),
+        &[2.0 / 3.0, 4.0 / 3.0, 4.0 / 3.0, 8.0 / 3.0]
+    );
+}
+
+#[test]
+fn covariance_matrix_validates_rank_and_empty_observations() {
+    let vector = NDArray::from_shape_vec([2], vec![1.0_f64, 2.0]).unwrap();
+    let empty = NDArray::<f64>::zeros([0, 2]).unwrap();
+    let no_variables = NDArray::<f64>::zeros([2, 0]).unwrap();
+
+    assert_eq!(
+        covariance_matrix(&vector).unwrap_err(),
+        AtlasStatsError::InvalidInputRank {
+            op: "covariance_matrix",
+            expected: "rank-2 [observations, variables] matrix",
+            rank: 1,
+        }
+    );
+    assert_eq!(
+        covariance_matrix(&empty).unwrap_err(),
+        AtlasStatsError::EmptyInput { op: "covariance_matrix" }
+    );
+    assert_eq!(covariance_matrix(&no_variables).unwrap().shape(), &[0, 0]);
 }
 
 #[test]
