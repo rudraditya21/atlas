@@ -214,6 +214,19 @@ fn quantile_supports_views_and_has_explicit_nan_and_validation_behavior() {
 }
 
 #[test]
+fn axiswise_quantile_and_median_support_keepdims_and_views() {
+    use atlas_stats::{median_axis, median_axis_keepdims, quantile_axis, quantile_axis_keepdims};
+
+    let values = NDArray::from_shape_vec([2, 3], vec![1.0_f64, 3.0, 5.0, 2.0, 4.0, 6.0]).unwrap();
+    let view = values.view().transpose();
+
+    assert_eq!(quantile_axis(&values, 0.5, 1).unwrap().data(), &[3.0, 4.0]);
+    assert_eq!(median_axis(view, 1).unwrap().data(), &[1.5, 3.5, 5.5]);
+    assert_eq!(quantile_axis_keepdims(&values, 0.5, 1).unwrap().shape(), &[2, 1]);
+    assert_eq!(median_axis_keepdims(&values, 0).unwrap().shape(), &[1, 3]);
+}
+
+#[test]
 fn correlation_uses_pearson_centered_definition() {
     let lhs = NDArray::from_shape_vec([3], vec![1.0_f64, 2.0, 3.0]).unwrap();
     let rhs = NDArray::from_shape_vec([3], vec![1.0_f64, 2.0, 4.0]).unwrap();
