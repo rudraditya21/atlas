@@ -105,7 +105,7 @@ impl AxisReductionMetadata {
     }
 
     pub(super) fn require_non_empty(&self, op: &'static str) -> AtlasNdResult<()> {
-        if self.axis_len == 0 {
+        if self.axis_len == 0 && self.output.len != 0 {
             return Err(AtlasNdError::EmptyReduction { op });
         }
 

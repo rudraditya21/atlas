@@ -103,7 +103,6 @@ where
     T: Numeric + PartialOrd,
 {
     let metadata = AxisReductionMetadata::new(shape, strides, axis, false)?;
-    metadata.require_non_empty("min")?;
     dispatch_min_axis(data, base_offset, metadata)
 }
 
@@ -118,7 +117,6 @@ where
     T: Numeric + PartialOrd,
 {
     let metadata = AxisReductionMetadata::new(shape, strides, axis, true)?;
-    metadata.require_non_empty("min")?;
     dispatch_min_axis(data, base_offset, metadata)
 }
 
@@ -130,6 +128,8 @@ fn dispatch_min_axis<T>(
 where
     T: Numeric + PartialOrd,
 {
+    metadata.require_non_empty("min")?;
+
     match (metadata.source_layout, metadata.axis_layout) {
         (LayoutKind::Contiguous, _) => min_axis_dense_contiguous(data, base_offset, metadata),
         (LayoutKind::Strided, LayoutKind::Contiguous) => {
@@ -150,7 +150,6 @@ where
     T: Numeric + PartialOrd,
 {
     let metadata = AxisReductionMetadata::new(shape, strides, axis, false)?;
-    metadata.require_non_empty("max")?;
     dispatch_max_axis(data, base_offset, metadata)
 }
 
@@ -165,7 +164,6 @@ where
     T: Numeric + PartialOrd,
 {
     let metadata = AxisReductionMetadata::new(shape, strides, axis, true)?;
-    metadata.require_non_empty("max")?;
     dispatch_max_axis(data, base_offset, metadata)
 }
 
@@ -177,6 +175,8 @@ fn dispatch_max_axis<T>(
 where
     T: Numeric + PartialOrd,
 {
+    metadata.require_non_empty("max")?;
+
     match (metadata.source_layout, metadata.axis_layout) {
         (LayoutKind::Contiguous, _) => max_axis_dense_contiguous(data, base_offset, metadata),
         (LayoutKind::Strided, LayoutKind::Contiguous) => {
@@ -197,7 +197,6 @@ where
     T: Numeric + ToPrimitive,
 {
     let metadata = AxisReductionMetadata::new(shape, strides, axis, false)?;
-    metadata.require_non_empty("mean")?;
     dispatch_mean_axis(data, base_offset, metadata)
 }
 
@@ -212,7 +211,6 @@ where
     T: Numeric + ToPrimitive,
 {
     let metadata = AxisReductionMetadata::new(shape, strides, axis, true)?;
-    metadata.require_non_empty("mean")?;
     dispatch_mean_axis(data, base_offset, metadata)
 }
 
@@ -224,6 +222,8 @@ fn dispatch_mean_axis<T>(
 where
     T: Numeric + ToPrimitive,
 {
+    metadata.require_non_empty("mean")?;
+
     match (metadata.source_layout, metadata.axis_layout) {
         (LayoutKind::Contiguous, _) => mean_axis_dense_contiguous(data, base_offset, metadata),
         (LayoutKind::Strided, LayoutKind::Contiguous) => {
