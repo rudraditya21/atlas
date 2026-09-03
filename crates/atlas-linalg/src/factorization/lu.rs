@@ -184,6 +184,15 @@ where
     })
 }
 
+pub fn solve<'a, 'b, T, M, R>(matrix: M, rhs: R) -> AtlasLinalgResult<NDArray<T>>
+where
+    T: Numeric + Float + 'a + 'b,
+    M: Into<LinalgOperand<'a, T>>,
+    R: Into<LinalgOperand<'b, T>>,
+{
+    lu(matrix)?.solve(rhs)
+}
+
 #[cfg(test)]
 mod tests {
     use atlas_ndarray::NDArray;
