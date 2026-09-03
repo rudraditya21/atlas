@@ -13,7 +13,7 @@ pub use dense::trace::trace;
 pub use dense::triangular::{solve_lower_triangular, solve_upper_triangular};
 pub use factorization::cholesky::{CholeskyFactorization, cholesky, solve_spd};
 pub use factorization::lu::{LuFactorization, det, inverse, lu, slogdet, solve};
-pub use factorization::qr::{QrFactorization, least_squares, qr};
+pub use factorization::qr::{QrFactorization, least_squares, matrix_rank, qr};
 
 pub type LUFactorization<T> = LuFactorization<T>;
 pub type QRFactorization<T> = QrFactorization<T>;

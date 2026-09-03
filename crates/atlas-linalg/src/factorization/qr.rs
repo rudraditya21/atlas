@@ -221,6 +221,49 @@ where
     qr(matrix)?.least_squares(rhs)
 }
 
+/// Returns the numerical rank using the QR tolerance `||a_j|| * ε * max(m, n)`.
+pub fn matrix_rank<'a, T, M>(matrix: M) -> AtlasLinalgResult<usize>
+where
+    T: Numeric + Float + 'a,
+    M: Into<LinalgOperand<'a, T>>,
+{
+    let matrix = matrix.into();
+    let (rows, columns) = validate_rank_two(&matrix, "matrix_rank")?;
+    let matrix = copy_matrix_row_major(&matrix);
+    let mut basis = vec![T::zero(); rows * rows.min(columns)];
+    let mut work = vec![T::zero(); rows];
+    let mut rank = 0;
+
+    for column in 0..columns {
+        copy_column_from_row_major(&matrix, rows, columns, column, &mut work);
+        let column_norm = vector_norm(&work);
+
+        for prior in 0..rank {
+            let basis_column = &basis[prior * rows..(prior + 1) * rows];
+            let projection = dot_slice(basis_column, &work);
+            subtract_projection(&mut work, basis_column, projection);
+        }
+        for prior in 0..rank {
+            let basis_column = &basis[prior * rows..(prior + 1) * rows];
+            let correction = dot_slice(basis_column, &work);
+            subtract_projection(&mut work, basis_column, correction);
+        }
+
+        let residual_norm = vector_norm(&work);
+        if residual_norm <= qr_rank_tolerance(column_norm, rows, columns) {
+            continue;
+        }
+
+        let basis_column = &mut basis[rank * rows..(rank + 1) * rows];
+        for (slot, &value) in basis_column.iter_mut().zip(work.iter()) {
+            *slot = value / residual_norm;
+        }
+        rank += 1;
+    }
+
+    Ok(rank)
+}
+
 fn column_major_to_row_major<T: Numeric>(data: &[T], rows: usize, cols: usize) -> Vec<T> {
     let mut reordered = vec![T::zero(); rows * cols];
 
