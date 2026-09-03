@@ -11,6 +11,102 @@ pub struct CholeskyFactorization<T: Numeric> {
     pub l: NDArray<T>,
 }
 
+impl<T: Numeric + Float> CholeskyFactorization<T> {
+    pub fn solve<'a, R>(&self, rhs: R) -> AtlasLinalgResult<NDArray<T>>
+    where
+        T: 'a,
+        R: Into<LinalgOperand<'a, T>>,
+    {
+        let order = self.order()?;
+        let rhs = rhs.into();
+        let (rhs_columns, vector_rhs) = match rhs.shape() {
+            [rows] if *rows == order => (1, true),
+            [rows, columns] if *rows == order => (*columns, false),
+            [..] if rhs.ndim() == 1 || rhs.ndim() == 2 => {
+                return Err(AtlasLinalgError::ShapeMismatch {
+                    op: "solve_spd",
+                    left: vec![order, order],
+                    right: rhs.shape().to_vec(),
+                    reason: "right-hand side row count must match coefficient matrix row count",
+                });
+            }
+            _ => {
+                return Err(AtlasLinalgError::InvalidInputRank {
+                    op: "solve_spd",
+                    expected: "a vector or matrix",
+                    rank: rhs.ndim(),
+                });
+            }
+        };
+        let mut values = vec![T::zero(); order * rhs_columns];
+
+        for row in 0..order {
+            let diagonal = self.l.data()[row * order + row];
+            if diagonal <= tolerance::<T>() {
+                return Err(AtlasLinalgError::NotPositiveDefinite { op: "solve_spd", index: row });
+            }
+
+            for column in 0..rhs_columns {
+                let mut value = rhs_value(&rhs, row, column);
+                for previous_row in 0..row {
+                    value -= self.l.data()[row * order + previous_row]
+                        * values[previous_row * rhs_columns + column];
+                }
+                values[row * rhs_columns + column] = value / diagonal;
+            }
+        }
+
+        for row in (0..order).rev() {
+            let diagonal = self.l.data()[row * order + row];
+
+            for column in 0..rhs_columns {
+                let mut value = values[row * rhs_columns + column];
+                for next_row in (row + 1)..order {
+                    value -= self.l.data()[next_row * order + row]
+                        * values[next_row * rhs_columns + column];
+                }
+                values[row * rhs_columns + column] = value / diagonal;
+            }
+        }
+
+        if vector_rhs {
+            NDArray::from_shape_vec([order], values).map_err(Into::into)
+        } else {
+            NDArray::from_shape_vec([order, rhs_columns], values).map_err(Into::into)
+        }
+    }
+
+    fn order(&self) -> AtlasLinalgResult<usize> {
+        let [rows, columns] = self.l.shape() else {
+            return Err(AtlasLinalgError::InvalidInputShape {
+                op: "solve_spd",
+                shape: self.l.shape().to_vec(),
+                reason: "Cholesky lower factor must be a square matrix",
+            });
+        };
+
+        if rows != columns {
+            return Err(AtlasLinalgError::InvalidInputShape {
+                op: "solve_spd",
+                shape: self.l.shape().to_vec(),
+                reason: "Cholesky lower factor must be square",
+            });
+        }
+
+        Ok(*rows)
+    }
+}
+
+fn rhs_value<T: Numeric>(rhs: &LinalgOperand<'_, T>, row: usize, column: usize) -> T {
+    let offset = rhs.offset() + row * rhs.strides()[0];
+
+    if rhs.ndim() == 1 {
+        rhs.data()[offset]
+    } else {
+        rhs.data()[offset + column * rhs.strides()[1]]
+    }
+}
+
 pub fn cholesky<'a, T, M>(matrix: M) -> AtlasLinalgResult<CholeskyFactorization<T>>
 where
     T: Numeric + Float + 'a,
