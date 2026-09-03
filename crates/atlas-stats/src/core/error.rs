@@ -20,6 +20,9 @@ pub enum AtlasStatsError {
     #[error("invalid weights for {op}: {reason}")]
     InvalidWeights { op: &'static str, reason: &'static str },
 
+    #[error("invalid quantile: {reason}")]
+    InvalidQuantile { reason: &'static str },
+
     #[error("zero variance for {op}")]
     ZeroVariance { op: &'static str },
 

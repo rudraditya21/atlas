@@ -1,7 +1,8 @@
 use atlas_ndarray::NDArray;
 use atlas_stats::{
-    AtlasStatsError, correlation, correlation_matrix, covariance, covariance_matrix, stddev,
-    stddev_axis, variance, variance_axis, weighted_covariance, weighted_mean, weighted_variance,
+    AtlasStatsError, correlation, correlation_matrix, covariance, covariance_matrix, median,
+    quantile, stddev, stddev_axis, variance, variance_axis, weighted_covariance, weighted_mean,
+    weighted_variance,
 };
 
 fn assert_close(actual: f64, expected: f64) {
@@ -183,6 +184,32 @@ fn weighted_statistics_support_views_and_validate_weights() {
             op: "weighted_variance",
             reason: "weights must have a positive finite sum",
         }
+    );
+}
+
+#[test]
+fn quantile_uses_linear_interpolation_and_median_reuses_it() {
+    let values = NDArray::from_shape_vec([4], vec![4.0_f64, 1.0, 3.0, 2.0]).unwrap();
+
+    assert_close(quantile(&values, 0.25).unwrap(), 1.75);
+    assert_close(quantile(&values, 0.5).unwrap(), 2.5);
+    assert_close(median(&values).unwrap(), 2.5);
+}
+
+#[test]
+fn quantile_supports_views_and_has_explicit_nan_and_validation_behavior() {
+    let source = NDArray::from_shape_vec([4], vec![0.0_f64, 1.0, 3.0, 5.0]).unwrap();
+    let view = source.view().slice([1], [3]).unwrap();
+    let nan = NDArray::from_shape_vec([2], vec![1.0_f64, f64::NAN]).unwrap();
+    let empty = NDArray::<f64>::zeros([0]).unwrap();
+
+    assert_close(quantile(view, 0.5).unwrap(), 3.0);
+    assert!(median(&nan).unwrap().is_nan());
+    assert_eq!(quantile(&empty, 0.5).unwrap_err(), AtlasStatsError::EmptyInput { op: "quantile" });
+    assert_eq!(median(&empty).unwrap_err(), AtlasStatsError::EmptyInput { op: "median" });
+    assert_eq!(
+        quantile(&source, 1.1).unwrap_err(),
+        AtlasStatsError::InvalidQuantile { reason: "must be finite and within [0, 1]" }
     );
 }
 
