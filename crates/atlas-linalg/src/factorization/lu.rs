@@ -20,7 +20,7 @@ impl<T: Numeric + Float> LuFactorization<T> {
         T: 'a,
         R: Into<LinalgOperand<'a, T>>,
     {
-        let order = self.order()?;
+        let order = self.order("solve")?;
         let rhs = rhs.into();
         let (rhs_columns, vector_rhs) = match rhs.shape() {
             [rows] if *rows == order => (1, true),
@@ -86,10 +86,21 @@ impl<T: Numeric + Float> LuFactorization<T> {
         }
     }
 
-    fn order(&self) -> AtlasLinalgResult<usize> {
+    pub fn det(&self) -> AtlasLinalgResult<T> {
+        let order = self.order("det")?;
+        let mut determinant = T::one();
+
+        for index in 0..order {
+            determinant = determinant * self.u.data()[index * order + index];
+        }
+
+        if self.permutation_is_odd(order)? { Ok(-determinant) } else { Ok(determinant) }
+    }
+
+    fn order(&self, op: &'static str) -> AtlasLinalgResult<usize> {
         let [rows, columns] = self.u.shape() else {
             return Err(AtlasLinalgError::InvalidInputShape {
-                op: "solve",
+                op,
                 shape: self.u.shape().to_vec(),
                 reason: "LU upper factor must be a square matrix",
             });
@@ -97,13 +108,58 @@ impl<T: Numeric + Float> LuFactorization<T> {
 
         if rows != columns || self.p.shape() != [*rows, *rows] || self.l.shape() != [*rows, *rows] {
             return Err(AtlasLinalgError::InvalidInputShape {
-                op: "solve",
+                op,
                 shape: self.u.shape().to_vec(),
                 reason: "LU factors must be square matrices of the same order",
             });
         }
 
         Ok(*rows)
+    }
+
+    fn permutation_is_odd(&self, order: usize) -> AtlasLinalgResult<bool> {
+        let mut permutation = Vec::with_capacity(order);
+        let mut used_columns = vec![false; order];
+
+        for row in 0..order {
+            let mut selected_column = None;
+
+            for column in 0..order {
+                let value = self.p.data()[row * order + column];
+                if value == T::one() {
+                    if selected_column.replace(column).is_some() {
+                        return Err(invalid_permutation_error(self.p.shape()));
+                    }
+                } else if !value.is_zero() {
+                    return Err(invalid_permutation_error(self.p.shape()));
+                }
+            }
+
+            let Some(column) = selected_column else {
+                return Err(invalid_permutation_error(self.p.shape()));
+            };
+            if used_columns[column] {
+                return Err(invalid_permutation_error(self.p.shape()));
+            }
+
+            used_columns[column] = true;
+            permutation.push(column);
+        }
+
+        let inversions = (0..order)
+            .flat_map(|row| ((row + 1)..order).map(move |next_row| (row, next_row)))
+            .filter(|&(row, next_row)| permutation[row] > permutation[next_row])
+            .count();
+
+        Ok(inversions % 2 == 1)
+    }
+}
+
+fn invalid_permutation_error(shape: &[usize]) -> AtlasLinalgError {
+    AtlasLinalgError::InvalidInputShape {
+        op: "det",
+        shape: shape.to_vec(),
+        reason: "LU permutation factor must be a permutation matrix",
     }
 }
 
