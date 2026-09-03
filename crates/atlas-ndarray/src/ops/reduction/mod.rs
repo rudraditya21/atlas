@@ -3,6 +3,7 @@ mod axis;
 mod dispatch;
 mod mean;
 mod metadata;
+mod stats;
 mod truth;
 mod whole;
 
@@ -17,6 +18,7 @@ use self::{
         min_axis_impl, min_axis_keepdims_impl, prod_axis_impl, prod_axis_keepdims_impl,
         sum_axis_impl, sum_axis_keepdims_impl,
     },
+    stats::{variance_all, variance_axis},
     truth::{
         all_all, all_axis_impl, all_axis_keepdims_impl, any_all, any_axis_impl,
         any_axis_keepdims_impl,
@@ -110,6 +112,43 @@ impl<T: Numeric> NDArray<T> {
         T: ToPrimitive,
     {
         mean_axis_keepdims_operand(self, axis)
+    }
+
+    pub fn variance(&self) -> AtlasNdResult<f64>
+    where
+        T: ToPrimitive,
+    {
+        variance_operand(self, "variance")
+    }
+    pub fn stddev(&self) -> AtlasNdResult<f64>
+    where
+        T: ToPrimitive,
+    {
+        variance_operand(self, "stddev").map(f64::sqrt)
+    }
+    pub fn variance_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<f64>>
+    where
+        T: ToPrimitive,
+    {
+        variance_axis_operand(self, axis, false, false, "variance")
+    }
+    pub fn variance_axis_keepdims<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<f64>>
+    where
+        T: ToPrimitive,
+    {
+        variance_axis_operand(self, axis, true, false, "variance")
+    }
+    pub fn stddev_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<f64>>
+    where
+        T: ToPrimitive,
+    {
+        variance_axis_operand(self, axis, false, true, "stddev")
+    }
+    pub fn stddev_axis_keepdims<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<f64>>
+    where
+        T: ToPrimitive,
+    {
+        variance_axis_operand(self, axis, true, true, "stddev")
     }
 
     pub fn argmin(&self) -> AtlasNdResult<usize>
@@ -312,6 +351,45 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
     }
 }
 
+impl<'a, T: Numeric> ArrayView<'a, T> {
+    pub fn variance(&self) -> AtlasNdResult<f64>
+    where
+        T: ToPrimitive,
+    {
+        variance_operand(self, "variance")
+    }
+    pub fn stddev(&self) -> AtlasNdResult<f64>
+    where
+        T: ToPrimitive,
+    {
+        variance_operand(self, "stddev").map(f64::sqrt)
+    }
+    pub fn variance_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<f64>>
+    where
+        T: ToPrimitive,
+    {
+        variance_axis_operand(self, axis, false, false, "variance")
+    }
+    pub fn variance_axis_keepdims<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<f64>>
+    where
+        T: ToPrimitive,
+    {
+        variance_axis_operand(self, axis, true, false, "variance")
+    }
+    pub fn stddev_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<f64>>
+    where
+        T: ToPrimitive,
+    {
+        variance_axis_operand(self, axis, false, true, "stddev")
+    }
+    pub fn stddev_axis_keepdims<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<f64>>
+    where
+        T: ToPrimitive,
+    {
+        variance_axis_operand(self, axis, true, true, "stddev")
+    }
+}
+
 impl<'a> ArrayView<'a, bool> {
     pub fn all(&self) -> bool {
         all_operand(self)
@@ -376,6 +454,38 @@ where
     O: OperandMetadata<T> + ?Sized,
 {
     mean_all(operand.data(), operand.offset(), operand.shape(), operand.strides())
+}
+
+fn variance_operand<T, O>(operand: &O, op: &'static str) -> AtlasNdResult<f64>
+where
+    T: Numeric + ToPrimitive,
+    O: OperandMetadata<T> + ?Sized,
+{
+    variance_all(operand.data(), operand.offset(), operand.shape(), operand.strides(), op)
+}
+
+fn variance_axis_operand<T, O, A>(
+    operand: &O,
+    axis: A,
+    keepdims: bool,
+    stddev: bool,
+    op: &'static str,
+) -> AtlasNdResult<NDArray<f64>>
+where
+    T: Numeric + ToPrimitive,
+    O: OperandMetadata<T> + ?Sized,
+    A: AxisIndex,
+{
+    variance_axis(
+        operand.data(),
+        operand.offset(),
+        operand.shape(),
+        operand.strides(),
+        axis,
+        keepdims,
+        stddev,
+        op,
+    )
 }
 
 fn argmin_operand<T, O>(operand: &O) -> AtlasNdResult<usize>
