@@ -12,6 +12,84 @@ pub struct QrFactorization<T: Numeric> {
     pub r: NDArray<T>,
 }
 
+impl<T: Numeric + Float> QrFactorization<T> {
+    pub fn apply_q_transpose<'a, R>(&self, rhs: R) -> AtlasLinalgResult<NDArray<T>>
+    where
+        T: 'a,
+        R: Into<LinalgOperand<'a, T>>,
+    {
+        let (rows, columns) = self.q_shape()?;
+        let rhs = rhs.into();
+        let (rhs_columns, vector_rhs) = match rhs.shape() {
+            [rhs_rows] if *rhs_rows == rows => (1, true),
+            [rhs_rows, rhs_columns] if *rhs_rows == rows => (*rhs_columns, false),
+            [..] if rhs.ndim() == 1 || rhs.ndim() == 2 => {
+                return Err(AtlasLinalgError::ShapeMismatch {
+                    op: "apply_q_transpose",
+                    left: vec![rows, columns],
+                    right: rhs.shape().to_vec(),
+                    reason: "right-hand side row count must match Q row count",
+                });
+            }
+            _ => {
+                return Err(AtlasLinalgError::InvalidInputRank {
+                    op: "apply_q_transpose",
+                    expected: "a vector or matrix",
+                    rank: rhs.ndim(),
+                });
+            }
+        };
+        let mut values = vec![T::zero(); columns * rhs_columns];
+
+        for column in 0..columns {
+            for rhs_column in 0..rhs_columns {
+                let mut value = T::zero();
+                for row in 0..rows {
+                    value +=
+                        self.q.data()[row * columns + column] * rhs_value(&rhs, row, rhs_column);
+                }
+                values[column * rhs_columns + rhs_column] = value;
+            }
+        }
+
+        if vector_rhs {
+            NDArray::from_shape_vec([columns], values).map_err(Into::into)
+        } else {
+            NDArray::from_shape_vec([columns, rhs_columns], values).map_err(Into::into)
+        }
+    }
+
+    fn q_shape(&self) -> AtlasLinalgResult<(usize, usize)> {
+        let [rows, columns] = self.q.shape() else {
+            return Err(AtlasLinalgError::InvalidInputShape {
+                op: "apply_q_transpose",
+                shape: self.q.shape().to_vec(),
+                reason: "QR Q factor must be a matrix",
+            });
+        };
+
+        if self.r.shape() != [*columns, *columns] {
+            return Err(AtlasLinalgError::InvalidInputShape {
+                op: "apply_q_transpose",
+                shape: self.r.shape().to_vec(),
+                reason: "QR R factor must be square with Q column count",
+            });
+        }
+
+        Ok((*rows, *columns))
+    }
+}
+
+fn rhs_value<T: Numeric>(rhs: &LinalgOperand<'_, T>, row: usize, column: usize) -> T {
+    let offset = rhs.offset() + row * rhs.strides()[0];
+
+    if rhs.ndim() == 1 {
+        rhs.data()[offset]
+    } else {
+        rhs.data()[offset + column * rhs.strides()[1]]
+    }
+}
+
 pub fn qr<'a, T, M>(matrix: M) -> AtlasLinalgResult<QrFactorization<T>>
 where
     T: Numeric + Float + 'a,
