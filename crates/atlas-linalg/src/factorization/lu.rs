@@ -244,6 +244,17 @@ where
     lu(matrix)?.solve(rhs)
 }
 
+pub fn inverse<'a, T, M>(matrix: M) -> AtlasLinalgResult<NDArray<T>>
+where
+    T: Numeric + Float + 'a,
+    M: Into<LinalgOperand<'a, T>>,
+{
+    let factorization = lu(matrix)?;
+    let identity = NDArray::eye(factorization.u.shape()[0])?;
+
+    factorization.solve(&identity)
+}
+
 pub fn det<'a, T, M>(matrix: M) -> AtlasLinalgResult<T>
 where
     T: Numeric + Float + 'a,
