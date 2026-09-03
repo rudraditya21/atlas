@@ -273,6 +273,14 @@ where
     lu(matrix)?.det()
 }
 
+pub fn slogdet<'a, T, M>(matrix: M) -> AtlasLinalgResult<(T, T)>
+where
+    T: Numeric + Float + 'a,
+    M: Into<LinalgOperand<'a, T>>,
+{
+    lu(matrix)?.slogdet()
+}
+
 #[cfg(test)]
 mod tests {
     use atlas_ndarray::NDArray;
