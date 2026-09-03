@@ -8,9 +8,9 @@ use crate::{
 };
 
 use super::{
-    dispatch::{ensure_non_empty_axis_reduction, should_parallelize_reduction},
+    dispatch::should_parallelize_reduction,
     mean::{mean_axis_contiguous, mean_axis_dense_contiguous, mean_axis_strided},
-    metadata::{AxisReductionMetadata, axis_reduction_metadata, axis_reduction_metadata_keepdims},
+    metadata::AxisReductionMetadata,
     whole::{max_contiguous, min_contiguous, prod_contiguous, sum_contiguous},
 };
 
@@ -21,7 +21,7 @@ pub(super) fn sum_axis_impl<T: Numeric>(
     strides: &[usize],
     axis: impl AxisIndex,
 ) -> AtlasNdResult<NDArray<T>> {
-    let metadata = axis_reduction_metadata(shape, strides, axis)?;
+    let metadata = AxisReductionMetadata::new(shape, strides, axis, false)?;
     dispatch_sum_axis(data, base_offset, metadata)
 }
 
@@ -32,7 +32,7 @@ pub(super) fn sum_axis_keepdims_impl<T: Numeric>(
     strides: &[usize],
     axis: impl AxisIndex,
 ) -> AtlasNdResult<NDArray<T>> {
-    let metadata = axis_reduction_metadata_keepdims(shape, strides, axis)?;
+    let metadata = AxisReductionMetadata::new(shape, strides, axis, true)?;
     dispatch_sum_axis(data, base_offset, metadata)
 }
 
@@ -41,7 +41,7 @@ fn dispatch_sum_axis<T: Numeric>(
     base_offset: usize,
     metadata: AxisReductionMetadata,
 ) -> AtlasNdResult<NDArray<T>> {
-    ensure_non_empty_axis_reduction(metadata.axis_len, "sum")?;
+    metadata.require_non_empty("sum")?;
 
     match (metadata.source_layout, metadata.axis_layout) {
         (LayoutKind::Contiguous, _) => sum_axis_dense_contiguous(data, base_offset, metadata),
@@ -59,7 +59,7 @@ pub(super) fn prod_axis_impl<T: Numeric>(
     strides: &[usize],
     axis: impl AxisIndex,
 ) -> AtlasNdResult<NDArray<T>> {
-    let metadata = axis_reduction_metadata(shape, strides, axis)?;
+    let metadata = AxisReductionMetadata::new(shape, strides, axis, false)?;
     dispatch_prod_axis(data, base_offset, metadata)
 }
 
@@ -70,7 +70,7 @@ pub(super) fn prod_axis_keepdims_impl<T: Numeric>(
     strides: &[usize],
     axis: impl AxisIndex,
 ) -> AtlasNdResult<NDArray<T>> {
-    let metadata = axis_reduction_metadata_keepdims(shape, strides, axis)?;
+    let metadata = AxisReductionMetadata::new(shape, strides, axis, true)?;
     dispatch_prod_axis(data, base_offset, metadata)
 }
 
@@ -79,7 +79,7 @@ fn dispatch_prod_axis<T: Numeric>(
     base_offset: usize,
     metadata: AxisReductionMetadata,
 ) -> AtlasNdResult<NDArray<T>> {
-    ensure_non_empty_axis_reduction(metadata.axis_len, "prod")?;
+    metadata.require_non_empty("prod")?;
 
     match (metadata.source_layout, metadata.axis_layout) {
         (LayoutKind::Contiguous, _) => prod_axis_dense_contiguous(data, base_offset, metadata),
@@ -102,8 +102,8 @@ pub(super) fn min_axis_impl<T>(
 where
     T: Numeric + PartialOrd,
 {
-    let metadata = axis_reduction_metadata(shape, strides, axis)?;
-    ensure_non_empty_axis_reduction(metadata.axis_len, "min")?;
+    let metadata = AxisReductionMetadata::new(shape, strides, axis, false)?;
+    metadata.require_non_empty("min")?;
     dispatch_min_axis(data, base_offset, metadata)
 }
 
@@ -117,8 +117,8 @@ pub(super) fn min_axis_keepdims_impl<T>(
 where
     T: Numeric + PartialOrd,
 {
-    let metadata = axis_reduction_metadata_keepdims(shape, strides, axis)?;
-    ensure_non_empty_axis_reduction(metadata.axis_len, "min")?;
+    let metadata = AxisReductionMetadata::new(shape, strides, axis, true)?;
+    metadata.require_non_empty("min")?;
     dispatch_min_axis(data, base_offset, metadata)
 }
 
@@ -149,8 +149,8 @@ pub(super) fn max_axis_impl<T>(
 where
     T: Numeric + PartialOrd,
 {
-    let metadata = axis_reduction_metadata(shape, strides, axis)?;
-    ensure_non_empty_axis_reduction(metadata.axis_len, "max")?;
+    let metadata = AxisReductionMetadata::new(shape, strides, axis, false)?;
+    metadata.require_non_empty("max")?;
     dispatch_max_axis(data, base_offset, metadata)
 }
 
@@ -164,8 +164,8 @@ pub(super) fn max_axis_keepdims_impl<T>(
 where
     T: Numeric + PartialOrd,
 {
-    let metadata = axis_reduction_metadata_keepdims(shape, strides, axis)?;
-    ensure_non_empty_axis_reduction(metadata.axis_len, "max")?;
+    let metadata = AxisReductionMetadata::new(shape, strides, axis, true)?;
+    metadata.require_non_empty("max")?;
     dispatch_max_axis(data, base_offset, metadata)
 }
 
@@ -196,8 +196,8 @@ pub(super) fn mean_axis_impl<T>(
 where
     T: Numeric + ToPrimitive,
 {
-    let metadata = axis_reduction_metadata(shape, strides, axis)?;
-    ensure_non_empty_axis_reduction(metadata.axis_len, "mean")?;
+    let metadata = AxisReductionMetadata::new(shape, strides, axis, false)?;
+    metadata.require_non_empty("mean")?;
     dispatch_mean_axis(data, base_offset, metadata)
 }
 
@@ -211,8 +211,8 @@ pub(super) fn mean_axis_keepdims_impl<T>(
 where
     T: Numeric + ToPrimitive,
 {
-    let metadata = axis_reduction_metadata_keepdims(shape, strides, axis)?;
-    ensure_non_empty_axis_reduction(metadata.axis_len, "mean")?;
+    let metadata = AxisReductionMetadata::new(shape, strides, axis, true)?;
+    metadata.require_non_empty("mean")?;
     dispatch_mean_axis(data, base_offset, metadata)
 }
 

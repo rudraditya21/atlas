@@ -12,10 +12,7 @@ use crate::{
 use super::{
     axis::{contiguous_lane, contiguous_region, linear_offset},
     dispatch::should_parallelize_reduction,
-    metadata::{
-        AxisReductionMetadata, WholeReductionMetadata, axis_reduction_metadata,
-        axis_reduction_metadata_keepdims,
-    },
+    metadata::{AxisReductionMetadata, WholeReductionMetadata},
 };
 
 pub(super) fn all_all(data: &[bool], offset: usize, shape: &[usize], strides: &[usize]) -> bool {
@@ -59,7 +56,7 @@ pub(super) fn all_axis_impl(
     strides: &[usize],
     axis: impl AxisIndex,
 ) -> AtlasNdResult<NDArray<bool>> {
-    let metadata = axis_reduction_metadata(shape, strides, axis)?;
+    let metadata = AxisReductionMetadata::new(shape, strides, axis, false)?;
     dispatch_all_axis(data, base_offset, metadata)
 }
 
@@ -70,7 +67,7 @@ pub(super) fn all_axis_keepdims_impl(
     strides: &[usize],
     axis: impl AxisIndex,
 ) -> AtlasNdResult<NDArray<bool>> {
-    let metadata = axis_reduction_metadata_keepdims(shape, strides, axis)?;
+    let metadata = AxisReductionMetadata::new(shape, strides, axis, true)?;
     dispatch_all_axis(data, base_offset, metadata)
 }
 
@@ -95,7 +92,7 @@ pub(super) fn any_axis_impl(
     strides: &[usize],
     axis: impl AxisIndex,
 ) -> AtlasNdResult<NDArray<bool>> {
-    let metadata = axis_reduction_metadata(shape, strides, axis)?;
+    let metadata = AxisReductionMetadata::new(shape, strides, axis, false)?;
     dispatch_any_axis(data, base_offset, metadata)
 }
 
@@ -106,7 +103,7 @@ pub(super) fn any_axis_keepdims_impl(
     strides: &[usize],
     axis: impl AxisIndex,
 ) -> AtlasNdResult<NDArray<bool>> {
-    let metadata = axis_reduction_metadata_keepdims(shape, strides, axis)?;
+    let metadata = AxisReductionMetadata::new(shape, strides, axis, true)?;
     dispatch_any_axis(data, base_offset, metadata)
 }
 

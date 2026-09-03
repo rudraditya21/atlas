@@ -1,5 +1,5 @@
 use crate::{
-    AtlasNdResult, AxisIndex,
+    AtlasNdError, AtlasNdResult, AxisIndex,
     core::axis::normalize_axis,
     internal::layout::{LayoutKind, is_contiguous_layout},
     layout::element_count,
@@ -42,61 +42,65 @@ pub(super) struct AxisReductionMetadata {
     pub(super) axis_layout: LayoutKind,
 }
 
-pub(super) fn axis_reduction_metadata(
-    shape: &[usize],
-    strides: &[usize],
-    axis: impl AxisIndex,
-) -> AtlasNdResult<AxisReductionMetadata> {
-    axis_reduction_metadata_with(shape, strides, axis, false)
-}
+impl AxisReductionMetadata {
+    pub(super) fn new(
+        shape: &[usize],
+        strides: &[usize],
+        axis: impl AxisIndex,
+        keepdims: bool,
+    ) -> AtlasNdResult<Self> {
+        let axis = normalize_axis(axis, shape.len())?;
 
-pub(super) fn axis_reduction_metadata_keepdims(
-    shape: &[usize],
-    strides: &[usize],
-    axis: impl AxisIndex,
-) -> AtlasNdResult<AxisReductionMetadata> {
-    axis_reduction_metadata_with(shape, strides, axis, true)
-}
+        let mut output_shape = Vec::with_capacity(if keepdims {
+            shape.len()
+        } else {
+            shape.len().saturating_sub(1)
+        });
+        let mut outer_strides = Vec::with_capacity(if keepdims {
+            strides.len()
+        } else {
+            strides.len().saturating_sub(1)
+        });
 
-fn axis_reduction_metadata_with(
-    shape: &[usize],
-    strides: &[usize],
-    axis: impl AxisIndex,
-    keepdims: bool,
-) -> AtlasNdResult<AxisReductionMetadata> {
-    let axis = normalize_axis(axis, shape.len())?;
-
-    let mut output_shape =
-        Vec::with_capacity(if keepdims { shape.len() } else { shape.len().saturating_sub(1) });
-    let mut outer_strides =
-        Vec::with_capacity(if keepdims { strides.len() } else { strides.len().saturating_sub(1) });
-
-    for (current_axis, (&dim, &stride)) in shape.iter().zip(strides.iter()).enumerate() {
-        if current_axis == axis {
-            if keepdims {
-                output_shape.push(1);
-                outer_strides.push(stride);
+        for (current_axis, (&dim, &stride)) in shape.iter().zip(strides.iter()).enumerate() {
+            if current_axis == axis {
+                if keepdims {
+                    output_shape.push(1);
+                    outer_strides.push(stride);
+                }
+                continue;
             }
-            continue;
+
+            output_shape.push(dim);
+            outer_strides.push(stride);
         }
 
-        output_shape.push(dim);
-        outer_strides.push(stride);
+        let output = ReductionOutputMetadata::new(output_shape, outer_strides);
+
+        Ok(Self {
+            output,
+            axis_stride: strides[axis],
+            axis_len: shape[axis],
+            contiguous_outer_len: element_count(&shape[..axis]),
+            contiguous_inner_len: element_count(&shape[axis + 1..]),
+            source_layout: if is_contiguous_layout(shape, strides) {
+                LayoutKind::Contiguous
+            } else {
+                LayoutKind::Strided
+            },
+            axis_layout: if strides[axis] == 1 {
+                LayoutKind::Contiguous
+            } else {
+                LayoutKind::Strided
+            },
+        })
     }
 
-    let output = ReductionOutputMetadata::new(output_shape, outer_strides);
+    pub(super) fn require_non_empty(&self, op: &'static str) -> AtlasNdResult<()> {
+        if self.axis_len == 0 {
+            return Err(AtlasNdError::EmptyReduction { op });
+        }
 
-    Ok(AxisReductionMetadata {
-        output,
-        axis_stride: strides[axis],
-        axis_len: shape[axis],
-        contiguous_outer_len: element_count(&shape[..axis]),
-        contiguous_inner_len: element_count(&shape[axis + 1..]),
-        source_layout: if is_contiguous_layout(shape, strides) {
-            LayoutKind::Contiguous
-        } else {
-            LayoutKind::Strided
-        },
-        axis_layout: if strides[axis] == 1 { LayoutKind::Contiguous } else { LayoutKind::Strided },
-    })
+        Ok(())
+    }
 }

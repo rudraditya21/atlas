@@ -32,10 +32,3 @@ pub(super) fn ensure_non_empty_reduction(len: usize, op: &'static str) -> AtlasN
 
     Ok(())
 }
-
-pub(super) fn ensure_non_empty_axis_reduction(
-    axis_len: usize,
-    op: &'static str,
-) -> AtlasNdResult<()> {
-    ensure_non_empty_reduction(axis_len, op)
-}
