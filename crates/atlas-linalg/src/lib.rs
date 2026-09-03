@@ -5,6 +5,7 @@ pub(crate) mod internal;
 
 pub use core::error::{AtlasLinalgError, AtlasLinalgResult};
 pub use core::operand::LinalgOperand;
+pub use dense::condition::condition_number;
 pub use dense::diag::{diag, diag_view};
 pub use dense::dot::{DotOutput, dot};
 pub use dense::matmul::matmul;

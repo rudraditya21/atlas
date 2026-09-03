@@ -1,3 +1,4 @@
+pub(crate) mod condition;
 pub(crate) mod diag;
 pub(crate) mod dot;
 pub(crate) mod matmul;

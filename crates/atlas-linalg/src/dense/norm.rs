@@ -82,7 +82,7 @@ fn vector_norm<T: Numeric + ToPrimitive>(
     }
 }
 
-fn matrix_frobenius_norm<T: Numeric + ToPrimitive>(
+pub(crate) fn matrix_frobenius_norm<T: Numeric + ToPrimitive>(
     matrix: crate::internal::dense::MatrixRef<'_, T>,
 ) -> AtlasLinalgResult<f64> {
     let total = if matrix.is_row_major_contiguous() {
@@ -129,7 +129,7 @@ fn matrix_frobenius_norm<T: Numeric + ToPrimitive>(
 fn matrix_l1_norm<T: Numeric + ToPrimitive>(
     matrix: crate::internal::dense::MatrixRef<'_, T>,
 ) -> AtlasLinalgResult<f64> {
-    let mut maximum = 0.0;
+    let mut maximum = 0.0_f64;
 
     for column in 0..matrix.cols {
         let mut total = 0.0;
@@ -152,7 +152,7 @@ fn matrix_l1_norm<T: Numeric + ToPrimitive>(
 fn matrix_infinity_norm<T: Numeric + ToPrimitive>(
     matrix: crate::internal::dense::MatrixRef<'_, T>,
 ) -> AtlasLinalgResult<f64> {
-    let mut maximum = 0.0;
+    let mut maximum = 0.0_f64;
 
     for row in 0..matrix.rows {
         let mut total = 0.0;
