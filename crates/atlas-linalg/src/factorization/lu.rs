@@ -14,6 +14,109 @@ pub struct LuFactorization<T: Numeric> {
     pub u: NDArray<T>,
 }
 
+impl<T: Numeric + Float> LuFactorization<T> {
+    pub fn solve<'a, R>(&self, rhs: R) -> AtlasLinalgResult<NDArray<T>>
+    where
+        T: 'a,
+        R: Into<LinalgOperand<'a, T>>,
+    {
+        let order = self.order()?;
+        let rhs = rhs.into();
+        let (rhs_columns, vector_rhs) = match rhs.shape() {
+            [rows] if *rows == order => (1, true),
+            [rows, columns] if *rows == order => (*columns, false),
+            [..] if rhs.ndim() == 1 || rhs.ndim() == 2 => {
+                return Err(AtlasLinalgError::ShapeMismatch {
+                    op: "solve",
+                    left: vec![order, order],
+                    right: rhs.shape().to_vec(),
+                    reason: "right-hand side row count must match coefficient matrix row count",
+                });
+            }
+            _ => {
+                return Err(AtlasLinalgError::InvalidInputRank {
+                    op: "solve",
+                    expected: "a vector or matrix",
+                    rank: rhs.ndim(),
+                });
+            }
+        };
+        let mut values = vec![T::zero(); order * rhs_columns];
+
+        for row in 0..order {
+            let diagonal = self.l.data()[row * order + row];
+            if diagonal.abs() <= tolerance::<T>() {
+                return Err(AtlasLinalgError::SingularMatrix { op: "solve", pivot: row });
+            }
+
+            for column in 0..rhs_columns {
+                let mut value = T::zero();
+                for source_row in 0..order {
+                    value += self.p.data()[row * order + source_row]
+                        * rhs_value(&rhs, source_row, column);
+                }
+                for previous_row in 0..row {
+                    value -= self.l.data()[row * order + previous_row]
+                        * values[previous_row * rhs_columns + column];
+                }
+                values[row * rhs_columns + column] = value / diagonal;
+            }
+        }
+
+        for row in (0..order).rev() {
+            let diagonal = self.u.data()[row * order + row];
+            if diagonal.abs() <= tolerance::<T>() {
+                return Err(AtlasLinalgError::SingularMatrix { op: "solve", pivot: row });
+            }
+
+            for column in 0..rhs_columns {
+                let mut value = values[row * rhs_columns + column];
+                for next_row in (row + 1)..order {
+                    value -= self.u.data()[row * order + next_row]
+                        * values[next_row * rhs_columns + column];
+                }
+                values[row * rhs_columns + column] = value / diagonal;
+            }
+        }
+
+        if vector_rhs {
+            NDArray::from_shape_vec([order], values).map_err(Into::into)
+        } else {
+            NDArray::from_shape_vec([order, rhs_columns], values).map_err(Into::into)
+        }
+    }
+
+    fn order(&self) -> AtlasLinalgResult<usize> {
+        let [rows, columns] = self.u.shape() else {
+            return Err(AtlasLinalgError::InvalidInputShape {
+                op: "solve",
+                shape: self.u.shape().to_vec(),
+                reason: "LU upper factor must be a square matrix",
+            });
+        };
+
+        if rows != columns || self.p.shape() != [*rows, *rows] || self.l.shape() != [*rows, *rows] {
+            return Err(AtlasLinalgError::InvalidInputShape {
+                op: "solve",
+                shape: self.u.shape().to_vec(),
+                reason: "LU factors must be square matrices of the same order",
+            });
+        }
+
+        Ok(*rows)
+    }
+}
+
+fn rhs_value<T: Numeric>(rhs: &LinalgOperand<'_, T>, row: usize, column: usize) -> T {
+    let offset = rhs.offset() + row * rhs.strides()[0];
+
+    if rhs.ndim() == 1 {
+        rhs.data()[offset]
+    } else {
+        rhs.data()[offset + column * rhs.strides()[1]]
+    }
+}
+
 pub fn lu<'a, T, M>(matrix: M) -> AtlasLinalgResult<LuFactorization<T>>
 where
     T: Numeric + Float + 'a,
