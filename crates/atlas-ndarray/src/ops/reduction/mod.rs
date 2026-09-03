@@ -1,5 +1,6 @@
 mod arg;
 mod axis;
+mod cumulative;
 mod dispatch;
 mod mean;
 mod metadata;
@@ -18,6 +19,7 @@ use self::{
         min_axis_impl, min_axis_keepdims_impl, prod_axis_impl, prod_axis_keepdims_impl,
         sum_axis_impl, sum_axis_keepdims_impl,
     },
+    cumulative::{cumprod, cumprod_axis, cumsum, cumsum_axis},
     stats::{variance_all, variance_axis},
     truth::{
         all_all, all_axis_impl, all_axis_keepdims_impl, any_all, any_axis_impl,
@@ -27,6 +29,19 @@ use self::{
 };
 
 impl<T: Numeric> NDArray<T> {
+    pub fn cumsum(&self) -> AtlasNdResult<Self> {
+        cumsum_operand(self)
+    }
+    pub fn cumprod(&self) -> AtlasNdResult<Self> {
+        cumprod_operand(self)
+    }
+    pub fn cumsum_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self> {
+        cumsum_axis_operand(self, axis)
+    }
+    pub fn cumprod_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self> {
+        cumprod_axis_operand(self, axis)
+    }
+
     pub fn sum(&self) -> AtlasNdResult<T> {
         sum_operand(self)
     }
@@ -221,6 +236,19 @@ impl NDArray<bool> {
 }
 
 impl<'a, T: Numeric> ArrayView<'a, T> {
+    pub fn cumsum(&self) -> AtlasNdResult<NDArray<T>> {
+        cumsum_operand(self)
+    }
+    pub fn cumprod(&self) -> AtlasNdResult<NDArray<T>> {
+        cumprod_operand(self)
+    }
+    pub fn cumsum_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>> {
+        cumsum_axis_operand(self, axis)
+    }
+    pub fn cumprod_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>> {
+        cumprod_axis_operand(self, axis)
+    }
+
     pub fn sum(&self) -> AtlasNdResult<T> {
         sum_operand(self)
     }
@@ -422,6 +450,40 @@ where
     O: OperandMetadata<T> + ?Sized,
 {
     sum_all(operand.data(), operand.offset(), operand.shape(), operand.strides())
+}
+
+fn cumsum_operand<T, O>(operand: &O) -> AtlasNdResult<NDArray<T>>
+where
+    T: Numeric,
+    O: OperandMetadata<T> + ?Sized,
+{
+    cumsum(operand.data(), operand.offset(), operand.shape(), operand.strides())
+}
+
+fn cumprod_operand<T, O>(operand: &O) -> AtlasNdResult<NDArray<T>>
+where
+    T: Numeric,
+    O: OperandMetadata<T> + ?Sized,
+{
+    cumprod(operand.data(), operand.offset(), operand.shape(), operand.strides())
+}
+
+fn cumsum_axis_operand<T, O, A>(operand: &O, axis: A) -> AtlasNdResult<NDArray<T>>
+where
+    T: Numeric,
+    O: OperandMetadata<T> + ?Sized,
+    A: AxisIndex,
+{
+    cumsum_axis(operand.data(), operand.offset(), operand.shape(), operand.strides(), axis)
+}
+
+fn cumprod_axis_operand<T, O, A>(operand: &O, axis: A) -> AtlasNdResult<NDArray<T>>
+where
+    T: Numeric,
+    O: OperandMetadata<T> + ?Sized,
+    A: AxisIndex,
+{
+    cumprod_axis(operand.data(), operand.offset(), operand.shape(), operand.strides(), axis)
 }
 
 fn prod_operand<T, O>(operand: &O) -> AtlasNdResult<T>
