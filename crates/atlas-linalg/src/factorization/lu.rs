@@ -249,6 +249,14 @@ where
     lu(matrix)?.solve(rhs)
 }
 
+pub fn det<'a, T, M>(matrix: M) -> AtlasLinalgResult<T>
+where
+    T: Numeric + Float + 'a,
+    M: Into<LinalgOperand<'a, T>>,
+{
+    lu(matrix)?.det()
+}
+
 #[cfg(test)]
 mod tests {
     use atlas_ndarray::NDArray;

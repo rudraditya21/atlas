@@ -10,7 +10,7 @@ pub use dense::matmul::matmul;
 pub use dense::norm::norm;
 pub use dense::trace::trace;
 pub use factorization::cholesky::{CholeskyFactorization, cholesky, solve_spd};
-pub use factorization::lu::{LuFactorization, lu, solve};
+pub use factorization::lu::{LuFactorization, det, lu, solve};
 pub use factorization::qr::{QrFactorization, least_squares, qr};
 
 pub type LUFactorization<T> = LuFactorization<T>;
