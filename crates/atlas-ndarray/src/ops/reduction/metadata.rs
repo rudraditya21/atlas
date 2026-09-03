@@ -59,11 +59,8 @@ impl AxisReductionMetadata {
     ) -> AtlasNdResult<Self> {
         let axis = normalize_axis(axis, shape.len())?;
 
-        let mut output_shape = Vec::with_capacity(if keepdims {
-            shape.len()
-        } else {
-            shape.len().saturating_sub(1)
-        });
+        let mut output_shape =
+            Vec::with_capacity(if keepdims { shape.len() } else { shape.len().saturating_sub(1) });
         let mut outer_strides = Vec::with_capacity(if keepdims {
             strides.len()
         } else {
@@ -105,7 +102,7 @@ impl AxisReductionMetadata {
     }
 
     pub(super) fn require_non_empty(&self, op: &'static str) -> AtlasNdResult<()> {
-        if self.axis_len == 0 && self.output.len != 0 {
+        if self.axis_len == 0 {
             return Err(AtlasNdError::EmptyReduction { op });
         }
 
