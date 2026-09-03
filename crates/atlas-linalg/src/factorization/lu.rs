@@ -2,6 +2,7 @@ use atlas_ndarray::{NDArray, Numeric};
 use num_traits::Float;
 
 use crate::core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand};
+use crate::dense::triangular::{solve_lower_triangular_with_op, solve_upper_triangular_with_op};
 use crate::internal::factorization::{
     copy_matrix_row_major, find_pivot_row, identity_matrix_data, swap_l_prefix_rows, swap_rows,
     tolerance, validate_rank_two, zero_matrix_data,
@@ -44,46 +45,24 @@ impl<T: Numeric + Float> LuFactorization<T> {
         let mut values = vec![T::zero(); order * rhs_columns];
 
         for row in 0..order {
-            let diagonal = self.l.data()[row * order + row];
-            if diagonal.abs() <= tolerance::<T>() {
-                return Err(AtlasLinalgError::SingularMatrix { op: "solve", pivot: row });
-            }
-
             for column in 0..rhs_columns {
                 let mut value = T::zero();
                 for source_row in 0..order {
                     value += self.p.data()[row * order + source_row]
                         * rhs_value(&rhs, source_row, column);
                 }
-                for previous_row in 0..row {
-                    value -= self.l.data()[row * order + previous_row]
-                        * values[previous_row * rhs_columns + column];
-                }
-                values[row * rhs_columns + column] = value / diagonal;
+                values[row * rhs_columns + column] = value;
             }
         }
 
-        for row in (0..order).rev() {
-            let diagonal = self.u.data()[row * order + row];
-            if diagonal.abs() <= tolerance::<T>() {
-                return Err(AtlasLinalgError::SingularMatrix { op: "solve", pivot: row });
-            }
-
-            for column in 0..rhs_columns {
-                let mut value = values[row * rhs_columns + column];
-                for next_row in (row + 1)..order {
-                    value -= self.u.data()[row * order + next_row]
-                        * values[next_row * rhs_columns + column];
-                }
-                values[row * rhs_columns + column] = value / diagonal;
-            }
-        }
-
-        if vector_rhs {
-            NDArray::from_shape_vec([order], values).map_err(Into::into)
+        let permuted_rhs = if vector_rhs {
+            NDArray::from_shape_vec([order], values)?
         } else {
-            NDArray::from_shape_vec([order, rhs_columns], values).map_err(Into::into)
-        }
+            NDArray::from_shape_vec([order, rhs_columns], values)?
+        };
+        let intermediate = solve_lower_triangular_with_op(&self.l, &permuted_rhs, "solve")?;
+
+        solve_upper_triangular_with_op(&self.u, &intermediate, "solve")
     }
 
     pub fn det(&self) -> AtlasLinalgResult<T> {

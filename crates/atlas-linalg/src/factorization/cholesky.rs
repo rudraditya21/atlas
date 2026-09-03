@@ -2,6 +2,7 @@ use atlas_ndarray::{NDArray, Numeric};
 use num_traits::Float;
 
 use crate::core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand};
+use crate::dense::triangular::{solve_lower_triangular_with_op, solve_upper_triangular_with_op};
 use crate::internal::factorization::{
     copy_matrix_row_major, dot_slice, is_symmetric, tolerance, validate_rank_two, zero_matrix_data,
 };
@@ -19,9 +20,9 @@ impl<T: Numeric + Float> CholeskyFactorization<T> {
     {
         let order = self.order()?;
         let rhs = rhs.into();
-        let (rhs_columns, vector_rhs) = match rhs.shape() {
-            [rows] if *rows == order => (1, true),
-            [rows, columns] if *rows == order => (*columns, false),
+        match rhs.shape() {
+            [rows] if *rows == order => {}
+            [rows, _] if *rows == order => {}
             [..] if rhs.ndim() == 1 || rhs.ndim() == 2 => {
                 return Err(AtlasLinalgError::ShapeMismatch {
                     op: "solve_spd",
@@ -37,43 +38,17 @@ impl<T: Numeric + Float> CholeskyFactorization<T> {
                     rank: rhs.ndim(),
                 });
             }
-        };
-        let mut values = vec![T::zero(); order * rhs_columns];
-
+        }
         for row in 0..order {
             let diagonal = self.l.data()[row * order + row];
             if diagonal <= tolerance::<T>() {
                 return Err(AtlasLinalgError::NotPositiveDefinite { op: "solve_spd", index: row });
             }
-
-            for column in 0..rhs_columns {
-                let mut value = rhs_value(&rhs, row, column);
-                for previous_row in 0..row {
-                    value -= self.l.data()[row * order + previous_row]
-                        * values[previous_row * rhs_columns + column];
-                }
-                values[row * rhs_columns + column] = value / diagonal;
-            }
         }
 
-        for row in (0..order).rev() {
-            let diagonal = self.l.data()[row * order + row];
+        let intermediate = solve_lower_triangular_with_op(&self.l, rhs, "solve_spd")?;
 
-            for column in 0..rhs_columns {
-                let mut value = values[row * rhs_columns + column];
-                for next_row in (row + 1)..order {
-                    value -= self.l.data()[next_row * order + row]
-                        * values[next_row * rhs_columns + column];
-                }
-                values[row * rhs_columns + column] = value / diagonal;
-            }
-        }
-
-        if vector_rhs {
-            NDArray::from_shape_vec([order], values).map_err(Into::into)
-        } else {
-            NDArray::from_shape_vec([order, rhs_columns], values).map_err(Into::into)
-        }
+        solve_upper_triangular_with_op(self.l.view().transpose(), &intermediate, "solve_spd")
     }
 
     fn order(&self) -> AtlasLinalgResult<usize> {
@@ -94,16 +69,6 @@ impl<T: Numeric + Float> CholeskyFactorization<T> {
         }
 
         Ok(*rows)
-    }
-}
-
-fn rhs_value<T: Numeric>(rhs: &LinalgOperand<'_, T>, row: usize, column: usize) -> T {
-    let offset = rhs.offset() + row * rhs.strides()[0];
-
-    if rhs.ndim() == 1 {
-        rhs.data()[offset]
-    } else {
-        rhs.data()[offset + column * rhs.strides()[1]]
     }
 }
 
