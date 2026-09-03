@@ -64,15 +64,8 @@ pub(super) fn mean_strided_lane_f32(
     axis_len: usize,
     axis_stride: usize,
 ) -> f64 {
-    let mut total = simd::CompensatedSum::new();
-    let mut offset = lane_offset;
-
-    for _ in 0..axis_len {
-        total.add(f64::from(data[offset]));
-        offset += axis_stride;
-    }
-
-    total.finish() / axis_len as f64
+    simd::compensated_sum_strided_f32_as_f64(data, lane_offset, axis_len, axis_stride)
+        / axis_len as f64
 }
 
 pub(super) fn mean_strided_lane_f64(
@@ -81,15 +74,7 @@ pub(super) fn mean_strided_lane_f64(
     axis_len: usize,
     axis_stride: usize,
 ) -> f64 {
-    let mut total = simd::CompensatedSum::new();
-    let mut offset = lane_offset;
-
-    for _ in 0..axis_len {
-        total.add(data[offset]);
-        offset += axis_stride;
-    }
-
-    total.finish() / axis_len as f64
+    simd::compensated_sum_strided_f64(data, lane_offset, axis_len, axis_stride) / axis_len as f64
 }
 
 pub(super) fn mean_all<T>(
@@ -367,15 +352,12 @@ fn mean_axis_dense_contiguous_f32(
                 let block_start = outer * metadata.axis_len * metadata.contiguous_inner_len;
 
                 for (inner, slot) in output_row.iter_mut().enumerate() {
-                    let mut total = simd::CompensatedSum::new();
-                    let mut offset = block_start + inner;
-
-                    for _ in 0..metadata.axis_len {
-                        total.add(f64::from(values[offset]));
-                        offset += metadata.contiguous_inner_len;
-                    }
-
-                    *slot = total.finish() / metadata.axis_len as f64;
+                    *slot = simd::compensated_sum_strided_f32_as_f64(
+                        values,
+                        block_start + inner,
+                        metadata.axis_len,
+                        metadata.contiguous_inner_len,
+                    ) / metadata.axis_len as f64;
                 }
             },
         );
@@ -385,15 +367,12 @@ fn mean_axis_dense_contiguous_f32(
             let output_start = outer * metadata.contiguous_inner_len;
 
             for inner in 0..metadata.contiguous_inner_len {
-                let mut total = simd::CompensatedSum::new();
-                let mut offset = block_start + inner;
-
-                for _ in 0..metadata.axis_len {
-                    total.add(f64::from(values[offset]));
-                    offset += metadata.contiguous_inner_len;
-                }
-
-                reduced[output_start + inner] = total.finish() / metadata.axis_len as f64;
+                reduced[output_start + inner] = simd::compensated_sum_strided_f32_as_f64(
+                    values,
+                    block_start + inner,
+                    metadata.axis_len,
+                    metadata.contiguous_inner_len,
+                ) / metadata.axis_len as f64;
             }
         }
     }
@@ -415,15 +394,12 @@ fn mean_axis_dense_contiguous_f64(
                 let block_start = outer * metadata.axis_len * metadata.contiguous_inner_len;
 
                 for (inner, slot) in output_row.iter_mut().enumerate() {
-                    let mut total = simd::CompensatedSum::new();
-                    let mut offset = block_start + inner;
-
-                    for _ in 0..metadata.axis_len {
-                        total.add(values[offset]);
-                        offset += metadata.contiguous_inner_len;
-                    }
-
-                    *slot = total.finish() / metadata.axis_len as f64;
+                    *slot = simd::compensated_sum_strided_f64(
+                        values,
+                        block_start + inner,
+                        metadata.axis_len,
+                        metadata.contiguous_inner_len,
+                    ) / metadata.axis_len as f64;
                 }
             },
         );
@@ -433,15 +409,12 @@ fn mean_axis_dense_contiguous_f64(
             let output_start = outer * metadata.contiguous_inner_len;
 
             for inner in 0..metadata.contiguous_inner_len {
-                let mut total = simd::CompensatedSum::new();
-                let mut offset = block_start + inner;
-
-                for _ in 0..metadata.axis_len {
-                    total.add(values[offset]);
-                    offset += metadata.contiguous_inner_len;
-                }
-
-                reduced[output_start + inner] = total.finish() / metadata.axis_len as f64;
+                reduced[output_start + inner] = simd::compensated_sum_strided_f64(
+                    values,
+                    block_start + inner,
+                    metadata.axis_len,
+                    metadata.contiguous_inner_len,
+                ) / metadata.axis_len as f64;
             }
         }
     }

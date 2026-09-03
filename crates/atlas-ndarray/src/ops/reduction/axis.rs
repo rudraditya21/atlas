@@ -796,15 +796,12 @@ fn sum_axis_dense_contiguous_f32<T: Numeric>(
                 let block_start = outer * metadata.axis_len * metadata.contiguous_inner_len;
 
                 for (inner, slot) in output_row.iter_mut().enumerate() {
-                    let mut total = simd::CompensatedSum::new();
-                    let mut offset = block_start + inner;
-
-                    for _ in 0..metadata.axis_len {
-                        total.add(f64::from(values[offset]));
-                        offset += metadata.contiguous_inner_len;
-                    }
-
-                    *slot = simd::cast_value_exact(total.finish() as f32);
+                    *slot = simd::cast_value_exact(simd::compensated_sum_strided_f32(
+                        values,
+                        block_start + inner,
+                        metadata.axis_len,
+                        metadata.contiguous_inner_len,
+                    ));
                 }
             },
         );
@@ -814,15 +811,13 @@ fn sum_axis_dense_contiguous_f32<T: Numeric>(
             let output_start = outer * metadata.contiguous_inner_len;
 
             for inner in 0..metadata.contiguous_inner_len {
-                let mut total = simd::CompensatedSum::new();
-                let mut offset = block_start + inner;
-
-                for _ in 0..metadata.axis_len {
-                    total.add(f64::from(values[offset]));
-                    offset += metadata.contiguous_inner_len;
-                }
-
-                reduced[output_start + inner] = simd::cast_value_exact(total.finish() as f32);
+                reduced[output_start + inner] =
+                    simd::cast_value_exact(simd::compensated_sum_strided_f32(
+                        values,
+                        block_start + inner,
+                        metadata.axis_len,
+                        metadata.contiguous_inner_len,
+                    ));
             }
         }
     }
@@ -844,15 +839,12 @@ fn sum_axis_dense_contiguous_f64<T: Numeric>(
                 let block_start = outer * metadata.axis_len * metadata.contiguous_inner_len;
 
                 for (inner, slot) in output_row.iter_mut().enumerate() {
-                    let mut total = simd::CompensatedSum::new();
-                    let mut offset = block_start + inner;
-
-                    for _ in 0..metadata.axis_len {
-                        total.add(values[offset]);
-                        offset += metadata.contiguous_inner_len;
-                    }
-
-                    *slot = simd::cast_value_exact(total.finish());
+                    *slot = simd::cast_value_exact(simd::compensated_sum_strided_f64(
+                        values,
+                        block_start + inner,
+                        metadata.axis_len,
+                        metadata.contiguous_inner_len,
+                    ));
                 }
             },
         );
@@ -862,15 +854,13 @@ fn sum_axis_dense_contiguous_f64<T: Numeric>(
             let output_start = outer * metadata.contiguous_inner_len;
 
             for inner in 0..metadata.contiguous_inner_len {
-                let mut total = simd::CompensatedSum::new();
-                let mut offset = block_start + inner;
-
-                for _ in 0..metadata.axis_len {
-                    total.add(values[offset]);
-                    offset += metadata.contiguous_inner_len;
-                }
-
-                reduced[output_start + inner] = simd::cast_value_exact(total.finish());
+                reduced[output_start + inner] =
+                    simd::cast_value_exact(simd::compensated_sum_strided_f64(
+                        values,
+                        block_start + inner,
+                        metadata.axis_len,
+                        metadata.contiguous_inner_len,
+                    ));
             }
         }
     }
@@ -968,15 +958,7 @@ fn sum_strided_lane_f32(
     axis_len: usize,
     axis_stride: usize,
 ) -> f32 {
-    let mut total = simd::CompensatedSum::new();
-    let mut offset = lane_offset;
-
-    for _ in 0..axis_len {
-        total.add(f64::from(data[offset]));
-        offset += axis_stride;
-    }
-
-    total.finish() as f32
+    simd::compensated_sum_strided_f32(data, lane_offset, axis_len, axis_stride)
 }
 
 fn sum_strided_lane_f64(
@@ -985,15 +967,7 @@ fn sum_strided_lane_f64(
     axis_len: usize,
     axis_stride: usize,
 ) -> f64 {
-    let mut total = simd::CompensatedSum::new();
-    let mut offset = lane_offset;
-
-    for _ in 0..axis_len {
-        total.add(data[offset]);
-        offset += axis_stride;
-    }
-
-    total.finish()
+    simd::compensated_sum_strided_f64(data, lane_offset, axis_len, axis_stride)
 }
 
 fn prod_strided_lane<T: Numeric>(
