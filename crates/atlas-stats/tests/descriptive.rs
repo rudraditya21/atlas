@@ -1,7 +1,7 @@
 use atlas_ndarray::NDArray;
 use atlas_stats::{
-    AtlasStatsError, correlation, covariance, covariance_matrix, stddev, stddev_axis, variance,
-    variance_axis,
+    AtlasStatsError, correlation, correlation_matrix, covariance, covariance_matrix, stddev,
+    stddev_axis, variance, variance_axis,
 };
 
 fn assert_close(actual: f64, expected: f64) {
@@ -125,6 +125,28 @@ fn covariance_matrix_validates_rank_and_empty_observations() {
         AtlasStatsError::EmptyInput { op: "covariance_matrix" }
     );
     assert_eq!(covariance_matrix(&no_variables).unwrap().shape(), &[0, 0]);
+}
+
+#[test]
+fn correlation_matrix_returns_pairwise_pearson_correlations() {
+    let observations =
+        NDArray::from_shape_vec([4, 2], vec![1.0_f64, 2.0, 2.0, 4.0, 3.0, 6.0, 4.0, 8.0]).unwrap();
+
+    assert_eq!(correlation_matrix(&observations).unwrap().data(), &[1.0, 1.0, 1.0, 1.0]);
+}
+
+#[test]
+fn correlation_matrix_supports_views_and_rejects_zero_variance_variables() {
+    let source =
+        NDArray::from_shape_vec([2, 4], vec![0.0_f64, 1.0, 2.0, 3.0, 0.0, 2.0, 4.0, 6.0]).unwrap();
+    let view = source.view().transpose().slice([1, 0], [3, 2]).unwrap();
+    let constant = NDArray::from_shape_vec([3, 2], vec![1.0_f64, 1.0, 1.0, 2.0, 1.0, 3.0]).unwrap();
+
+    assert_eq!(correlation_matrix(view).unwrap().data(), &[1.0, 1.0, 1.0, 1.0]);
+    assert_eq!(
+        correlation_matrix(&constant).unwrap_err(),
+        AtlasStatsError::ZeroVariance { op: "correlation_matrix" }
+    );
 }
 
 #[test]

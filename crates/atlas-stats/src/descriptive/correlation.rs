@@ -45,7 +45,7 @@ where
     Ok(covariance_total / (lhs_variance_total.sqrt() * rhs_variance_total.sqrt()))
 }
 
-fn variance_total_is_effectively_zero(total: f64, mean: f64, scale: f64) -> bool {
+pub(super) fn variance_total_is_effectively_zero(total: f64, mean: f64, scale: f64) -> bool {
     let scale = scale.max(mean.abs()).max(f64::MIN_POSITIVE);
     let tolerance = f64::EPSILON.sqrt() * scale;
 

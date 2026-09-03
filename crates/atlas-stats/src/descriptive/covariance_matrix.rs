@@ -9,12 +9,26 @@ where
     T: Numeric + ToPrimitive,
     I: Into<StatsOperand<'a, T>>,
 {
-    const OP: &str = "covariance_matrix";
+    covariance_summary(input.into(), "covariance_matrix").map(|summary| summary.covariance)
+}
 
-    let input = input.into();
+pub(super) struct CovarianceSummary {
+    pub(super) covariance: NDArray<f64>,
+    pub(super) means: Vec<f64>,
+    pub(super) scales: Vec<f64>,
+    pub(super) observations: usize,
+}
+
+pub(super) fn covariance_summary<T>(
+    input: StatsOperand<'_, T>,
+    op: &'static str,
+) -> AtlasStatsResult<CovarianceSummary>
+where
+    T: Numeric + ToPrimitive,
+{
     if input.ndim() != 2 {
         return Err(AtlasStatsError::InvalidInputRank {
-            op: OP,
+            op,
             expected: "rank-2 [observations, variables] matrix",
             rank: input.ndim(),
         });
@@ -23,18 +37,26 @@ where
     let observations = input.shape()[0];
     let variables = input.shape()[1];
     if observations == 0 {
-        return Err(AtlasStatsError::EmptyInput { op: OP });
+        return Err(AtlasStatsError::EmptyInput { op });
     }
 
     checked_element_count(&[variables, variables])?;
     if variables == 0 {
-        return NDArray::from_shape_vec([0, 0], Vec::new()).map_err(Into::into);
+        return Ok(CovarianceSummary {
+            covariance: NDArray::from_shape_vec([0, 0], Vec::new())?,
+            means: Vec::new(),
+            scales: Vec::new(),
+            observations,
+        });
     }
 
     let mut means = vec![0.0; variables];
+    let mut scales = vec![0.0_f64; variables];
     for (index, value) in input.iter().enumerate() {
-        means[index % variables] +=
-            value.to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op: OP })?;
+        let variable = index % variables;
+        let value = value.to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op })?;
+        means[variable] += value;
+        scales[variable] = scales[variable].max(value.abs());
     }
     for mean in &mut means {
         *mean /= observations as f64;
@@ -46,7 +68,7 @@ where
     for (index, value) in input.iter().enumerate() {
         let variable = index % variables;
         centered[variable] =
-            value.to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op: OP })?
+            value.to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op })?
                 - means[variable];
 
         if variable + 1 == variables {
@@ -66,5 +88,10 @@ where
         }
     }
 
-    NDArray::from_shape_vec([variables, variables], covariance).map_err(Into::into)
+    Ok(CovarianceSummary {
+        covariance: NDArray::from_shape_vec([variables, variables], covariance)?,
+        means,
+        scales,
+        observations,
+    })
 }
