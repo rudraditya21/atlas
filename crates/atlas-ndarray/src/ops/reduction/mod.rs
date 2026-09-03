@@ -4,6 +4,7 @@ mod cumulative;
 mod dispatch;
 mod mean;
 mod metadata;
+mod nan;
 mod stats;
 mod truth;
 mod whole;
@@ -23,6 +24,7 @@ use self::{
         sum_axis_impl, sum_axis_keepdims_impl,
     },
     cumulative::{cumprod, cumprod_axis, cumsum, cumsum_axis},
+    nan::{nanmax_all, nanmean_all, nanmin_all, nanstd_all},
     stats::{variance_all, variance_axis},
     truth::{
         all_all, all_axis_impl, all_axis_keepdims_impl, any_all, any_axis_impl,
@@ -92,6 +94,38 @@ impl<T: Numeric> NDArray<T> {
         T: ToPrimitive,
     {
         mean_operand(self)
+    }
+
+    /// Returns the minimum after ignoring NaN values; errors for empty or all-NaN inputs.
+    pub fn nanmin(&self) -> AtlasNdResult<T>
+    where
+        T: num_traits::Float,
+    {
+        nanmin_operand(self)
+    }
+
+    /// Returns the maximum after ignoring NaN values; errors for empty or all-NaN inputs.
+    pub fn nanmax(&self) -> AtlasNdResult<T>
+    where
+        T: num_traits::Float,
+    {
+        nanmax_operand(self)
+    }
+
+    /// Returns the mean after ignoring NaN values; errors for empty or all-NaN inputs.
+    pub fn nanmean(&self) -> AtlasNdResult<f64>
+    where
+        T: num_traits::Float + ToPrimitive,
+    {
+        nanmean_operand(self)
+    }
+
+    /// Returns the population standard deviation after ignoring NaN values; errors for empty or all-NaN inputs.
+    pub fn nanstd(&self) -> AtlasNdResult<f64>
+    where
+        T: num_traits::Float + ToPrimitive,
+    {
+        nanstd_operand(self)
     }
 
     pub fn sum_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self>
@@ -337,6 +371,38 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
         T: ToPrimitive,
     {
         mean_operand(self)
+    }
+
+    /// Returns the minimum after ignoring NaN values; errors for empty or all-NaN inputs.
+    pub fn nanmin(&self) -> AtlasNdResult<T>
+    where
+        T: num_traits::Float,
+    {
+        nanmin_operand(self)
+    }
+
+    /// Returns the maximum after ignoring NaN values; errors for empty or all-NaN inputs.
+    pub fn nanmax(&self) -> AtlasNdResult<T>
+    where
+        T: num_traits::Float,
+    {
+        nanmax_operand(self)
+    }
+
+    /// Returns the mean after ignoring NaN values; errors for empty or all-NaN inputs.
+    pub fn nanmean(&self) -> AtlasNdResult<f64>
+    where
+        T: num_traits::Float + ToPrimitive,
+    {
+        nanmean_operand(self)
+    }
+
+    /// Returns the population standard deviation after ignoring NaN values; errors for empty or all-NaN inputs.
+    pub fn nanstd(&self) -> AtlasNdResult<f64>
+    where
+        T: num_traits::Float + ToPrimitive,
+    {
+        nanstd_operand(self)
     }
 
     /// Returns the first NaN index when present; otherwise, the first minimum index.
@@ -593,6 +659,38 @@ where
     O: OperandMetadata<T> + ?Sized,
 {
     mean_all(operand.data(), operand.offset(), operand.shape(), operand.strides())
+}
+
+fn nanmin_operand<T, O>(operand: &O) -> AtlasNdResult<T>
+where
+    T: Numeric + num_traits::Float,
+    O: OperandMetadata<T> + ?Sized,
+{
+    nanmin_all(operand.data(), operand.offset(), operand.shape(), operand.strides())
+}
+
+fn nanmax_operand<T, O>(operand: &O) -> AtlasNdResult<T>
+where
+    T: Numeric + num_traits::Float,
+    O: OperandMetadata<T> + ?Sized,
+{
+    nanmax_all(operand.data(), operand.offset(), operand.shape(), operand.strides())
+}
+
+fn nanmean_operand<T, O>(operand: &O) -> AtlasNdResult<f64>
+where
+    T: Numeric + num_traits::Float + ToPrimitive,
+    O: OperandMetadata<T> + ?Sized,
+{
+    nanmean_all(operand.data(), operand.offset(), operand.shape(), operand.strides())
+}
+
+fn nanstd_operand<T, O>(operand: &O) -> AtlasNdResult<f64>
+where
+    T: Numeric + num_traits::Float + ToPrimitive,
+    O: OperandMetadata<T> + ?Sized,
+{
+    nanstd_all(operand.data(), operand.offset(), operand.shape(), operand.strides())
 }
 
 fn variance_operand<T, O>(operand: &O, op: &'static str) -> AtlasNdResult<f64>

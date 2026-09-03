@@ -40,6 +40,9 @@ pub enum AtlasNdError {
     #[error("empty input for {op}")]
     EmptyReduction { op: &'static str },
 
+    #[error("all values are NaN for {op}")]
+    AllNaN { op: &'static str },
+
     #[error("numeric conversion failed for {op}")]
     NumericConversionFailed { op: &'static str },
 
@@ -73,6 +76,10 @@ mod tests {
             format!("shape overflow for element count: {:?}", vec![usize::MAX, 2])
         );
         assert_eq!(AtlasNdError::EmptyReduction { op: "mean" }.to_string(), "empty input for mean");
+        assert_eq!(
+            AtlasNdError::AllNaN { op: "nanmean" }.to_string(),
+            "all values are NaN for nanmean"
+        );
         assert_eq!(
             AtlasNdError::NumericConversionFailed { op: "mean" }.to_string(),
             "numeric conversion failed for mean"
