@@ -9,7 +9,7 @@ impl<T: ArrayElement> NDArray<T> {
 impl<'a, T: ArrayElement> ArrayView<'a, T> {
     pub fn diagonal(&self, offset: isize) -> AtlasNdResult<ArrayView<'a, T>> {
         if self.ndim() != 2 {
-            return Err(crate::AtlasNdError::InvalidArgument {
+            return Err(AtlasNdError::InvalidArgument {
                 op: "diagonal",
                 reason: "array must be two-dimensional",
             });

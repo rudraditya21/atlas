@@ -1,5 +1,6 @@
 use atlas_linalg::{
-    AtlasLinalgError, DotOutput, dot, least_squares, matmul, norm, solve, solve_spd, trace,
+    AtlasLinalgError, DotOutput, dot, least_squares, matmul, norm, solve, solve_lower_triangular,
+    solve_spd, solve_upper_triangular, trace,
 };
 use atlas_ndarray::NDArray;
 
@@ -146,4 +147,29 @@ fn solve_spd_accepts_transposed_matrix_and_sliced_rhs_views() {
     assert_eq!(solution.shape(), &[2, 1]);
     assert!((solution.data()[0] - 1.0).abs() <= 1.0e-10);
     assert!((solution.data()[1] - 2.0).abs() <= 1.0e-10);
+}
+
+#[test]
+fn triangular_solvers_accept_sliced_and_transposed_views() {
+    let lower_base = NDArray::from_shape_vec([2, 2], vec![2.0_f64, 3.0, 0.0, 1.0]).unwrap();
+    let lower_rhs_base = NDArray::from_shape_vec([2, 2], vec![0.0_f64, 4.0, 0.0, 5.0]).unwrap();
+    let upper_base =
+        NDArray::from_shape_vec([2, 3], vec![9.0_f64, 2.0, 3.0, 8.0, 0.0, 1.0]).unwrap();
+    let upper_rhs_base = NDArray::from_shape_vec([2, 2], vec![1.0_f64, -1.0, 11.0, 3.0]).unwrap();
+
+    let lower_solution = solve_lower_triangular(
+        lower_base.view().transpose(),
+        lower_rhs_base.view().slice([0, 1], [2, 1]).unwrap(),
+    )
+    .unwrap();
+    let upper_solution = solve_upper_triangular(
+        upper_base.view().slice([0, 1], [2, 2]).unwrap(),
+        upper_rhs_base.view().transpose(),
+    )
+    .unwrap();
+
+    assert_eq!(lower_solution.shape(), &[2, 1]);
+    assert_eq!(lower_solution.data(), &[2.0, -1.0]);
+    assert_eq!(upper_solution.shape(), &[2, 2]);
+    assert_eq!(upper_solution.data(), &[2.0, 1.0, -1.0, 3.0]);
 }

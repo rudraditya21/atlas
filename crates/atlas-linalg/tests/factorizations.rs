@@ -1,6 +1,7 @@
 use atlas_linalg::{
     AtlasLinalgError, AtlasLinalgResult, CholeskyFactorization, LUFactorization, QRFactorization,
-    cholesky, det, least_squares, lu, matmul, qr, slogdet, solve, solve_spd,
+    cholesky, det, least_squares, lu, matmul, qr, slogdet, solve, solve_lower_triangular,
+    solve_spd, solve_upper_triangular,
 };
 use atlas_ndarray::NDArray;
 
@@ -78,6 +79,75 @@ fn determinant_apis_reject_singular_input() {
 
     assert!(matches!(det(&singular), Err(AtlasLinalgError::SingularMatrix { op: "lu", .. })));
     assert!(matches!(slogdet(&singular), Err(AtlasLinalgError::SingularMatrix { op: "lu", .. })));
+}
+
+#[test]
+fn triangular_solvers_support_vector_and_matrix_right_hand_sides() {
+    let lower = NDArray::from_shape_vec([2, 2], vec![2.0_f64, 0.0, 3.0, 1.0]).unwrap();
+    let upper = NDArray::from_shape_vec([2, 2], vec![2.0_f64, 3.0, 0.0, 1.0]).unwrap();
+    let lower_rhs = NDArray::from_shape_vec([2], vec![4.0_f64, 5.0]).unwrap();
+    let upper_rhs = NDArray::from_shape_vec([2], vec![1.0_f64, -1.0]).unwrap();
+    let lower_multiple_rhs = NDArray::from_shape_vec([2, 2], vec![4.0_f64, 2.0, 5.0, 6.0]).unwrap();
+    let upper_multiple_rhs =
+        NDArray::from_shape_vec([2, 2], vec![1.0_f64, 11.0, -1.0, 3.0]).unwrap();
+
+    assert_close_slice(
+        solve_lower_triangular(&lower, &lower_rhs).unwrap().data(),
+        &[2.0, -1.0],
+        1e-10,
+    );
+    assert_close_slice(
+        solve_lower_triangular(&lower, &lower_multiple_rhs).unwrap().data(),
+        &[2.0, 1.0, -1.0, 3.0],
+        1e-10,
+    );
+    assert_close_slice(
+        solve_upper_triangular(&upper, &upper_rhs).unwrap().data(),
+        &[2.0, -1.0],
+        1e-10,
+    );
+    assert_close_slice(
+        solve_upper_triangular(&upper, &upper_multiple_rhs).unwrap().data(),
+        &[2.0, 1.0, -1.0, 3.0],
+        1e-10,
+    );
+}
+
+#[test]
+fn triangular_solvers_report_validation_and_singular_errors() {
+    let vector = NDArray::from_shape_vec([2], vec![1.0_f64, 2.0]).unwrap();
+    let non_square =
+        NDArray::from_shape_vec([2, 3], vec![1.0_f64, 0.0, 0.0, 1.0, 0.0, 0.0]).unwrap();
+    let lower = NDArray::from_shape_vec([2, 2], vec![1.0_f64, 0.0, 1.0, 1.0]).unwrap();
+    let mismatched_rhs = NDArray::from_shape_vec([3], vec![1.0_f64, 2.0, 3.0]).unwrap();
+    let scalar_rhs = NDArray::from_shape_vec([], vec![1.0_f64]).unwrap();
+    let singular_lower = NDArray::from_shape_vec([2, 2], vec![1.0_f64, 0.0, 1.0, 0.0]).unwrap();
+    let singular_upper = NDArray::from_shape_vec([2, 2], vec![1.0_f64, 1.0, 0.0, 0.0]).unwrap();
+
+    assert!(matches!(
+        solve_lower_triangular(&vector, &vector),
+        Err(AtlasLinalgError::InvalidInputRank { op: "solve_lower_triangular", rank: 1, .. })
+    ));
+    assert!(matches!(
+        solve_upper_triangular(&non_square, &vector),
+        Err(AtlasLinalgError::InvalidInputShape { op: "solve_upper_triangular", .. })
+    ));
+    assert!(matches!(
+        solve_lower_triangular(&lower, &mismatched_rhs),
+        Err(AtlasLinalgError::ShapeMismatch { op: "solve_lower_triangular", .. })
+    ));
+    assert!(matches!(
+        solve_upper_triangular(&lower, &scalar_rhs),
+        Err(AtlasLinalgError::InvalidInputRank { op: "solve_upper_triangular", rank: 0, .. })
+    ));
+    assert!(matches!(
+        solve_lower_triangular(&singular_lower, &vector),
+        Err(AtlasLinalgError::SingularMatrix { op: "solve_lower_triangular", pivot: 1 })
+    ));
+    assert!(matches!(
+        solve_upper_triangular(&singular_upper, &vector),
+        Err(AtlasLinalgError::SingularMatrix { op: "solve_upper_triangular", pivot: 1 })
+    ));
 }
 
 #[test]
