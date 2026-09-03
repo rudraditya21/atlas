@@ -10,7 +10,10 @@ mod whole;
 
 use num_traits::ToPrimitive;
 
-use crate::{AtlasNdResult, AxisIndex, NDArray, Numeric, OperandMetadata, view::ArrayView};
+use crate::{
+    AtlasNdResult, AxisIndex, ElementwiseArithmetic, NDArray, Numeric, OperandMetadata,
+    view::ArrayView,
+};
 
 use self::{
     arg::{argmax_all, argmax_axis, argmin_all, argmin_axis},
@@ -29,24 +32,42 @@ use self::{
 };
 
 impl<T: Numeric> NDArray<T> {
-    pub fn cumsum(&self) -> AtlasNdResult<Self> {
+    pub fn cumsum(&self) -> AtlasNdResult<Self>
+    where
+        T: ElementwiseArithmetic,
+    {
         cumsum_operand(self)
     }
-    pub fn cumprod(&self) -> AtlasNdResult<Self> {
+    pub fn cumprod(&self) -> AtlasNdResult<Self>
+    where
+        T: ElementwiseArithmetic,
+    {
         cumprod_operand(self)
     }
-    pub fn cumsum_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self> {
+    pub fn cumsum_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self>
+    where
+        T: ElementwiseArithmetic,
+    {
         cumsum_axis_operand(self, axis)
     }
-    pub fn cumprod_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self> {
+    pub fn cumprod_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self>
+    where
+        T: ElementwiseArithmetic,
+    {
         cumprod_axis_operand(self, axis)
     }
 
-    pub fn sum(&self) -> AtlasNdResult<T> {
+    pub fn sum(&self) -> AtlasNdResult<T>
+    where
+        T: ElementwiseArithmetic,
+    {
         sum_operand(self)
     }
 
-    pub fn prod(&self) -> AtlasNdResult<T> {
+    pub fn prod(&self) -> AtlasNdResult<T>
+    where
+        T: ElementwiseArithmetic,
+    {
         prod_operand(self)
     }
 
@@ -71,19 +92,31 @@ impl<T: Numeric> NDArray<T> {
         mean_operand(self)
     }
 
-    pub fn sum_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self> {
+    pub fn sum_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self>
+    where
+        T: ElementwiseArithmetic,
+    {
         sum_axis_operand(self, axis)
     }
 
-    pub fn sum_axis_keepdims<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self> {
+    pub fn sum_axis_keepdims<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self>
+    where
+        T: ElementwiseArithmetic,
+    {
         sum_axis_keepdims_operand(self, axis)
     }
 
-    pub fn prod_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self> {
+    pub fn prod_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self>
+    where
+        T: ElementwiseArithmetic,
+    {
         prod_axis_operand(self, axis)
     }
 
-    pub fn prod_axis_keepdims<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self> {
+    pub fn prod_axis_keepdims<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<Self>
+    where
+        T: ElementwiseArithmetic,
+    {
         prod_axis_keepdims_operand(self, axis)
     }
 
@@ -236,24 +269,42 @@ impl NDArray<bool> {
 }
 
 impl<'a, T: Numeric> ArrayView<'a, T> {
-    pub fn cumsum(&self) -> AtlasNdResult<NDArray<T>> {
+    pub fn cumsum(&self) -> AtlasNdResult<NDArray<T>>
+    where
+        T: ElementwiseArithmetic,
+    {
         cumsum_operand(self)
     }
-    pub fn cumprod(&self) -> AtlasNdResult<NDArray<T>> {
+    pub fn cumprod(&self) -> AtlasNdResult<NDArray<T>>
+    where
+        T: ElementwiseArithmetic,
+    {
         cumprod_operand(self)
     }
-    pub fn cumsum_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>> {
+    pub fn cumsum_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>>
+    where
+        T: ElementwiseArithmetic,
+    {
         cumsum_axis_operand(self, axis)
     }
-    pub fn cumprod_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>> {
+    pub fn cumprod_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>>
+    where
+        T: ElementwiseArithmetic,
+    {
         cumprod_axis_operand(self, axis)
     }
 
-    pub fn sum(&self) -> AtlasNdResult<T> {
+    pub fn sum(&self) -> AtlasNdResult<T>
+    where
+        T: ElementwiseArithmetic,
+    {
         sum_operand(self)
     }
 
-    pub fn prod(&self) -> AtlasNdResult<T> {
+    pub fn prod(&self) -> AtlasNdResult<T>
+    where
+        T: ElementwiseArithmetic,
+    {
         prod_operand(self)
     }
 
@@ -320,19 +371,31 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
         argmax_axis_operand(self, axis, true)
     }
 
-    pub fn sum_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>> {
+    pub fn sum_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>>
+    where
+        T: ElementwiseArithmetic,
+    {
         sum_axis_operand(self, axis)
     }
 
-    pub fn sum_axis_keepdims<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>> {
+    pub fn sum_axis_keepdims<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>>
+    where
+        T: ElementwiseArithmetic,
+    {
         sum_axis_keepdims_operand(self, axis)
     }
 
-    pub fn prod_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>> {
+    pub fn prod_axis<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>>
+    where
+        T: ElementwiseArithmetic,
+    {
         prod_axis_operand(self, axis)
     }
 
-    pub fn prod_axis_keepdims<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>> {
+    pub fn prod_axis_keepdims<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<T>>
+    where
+        T: ElementwiseArithmetic,
+    {
         prod_axis_keepdims_operand(self, axis)
     }
 
@@ -446,7 +509,7 @@ impl<'a> ArrayView<'a, bool> {
 
 fn sum_operand<T, O>(operand: &O) -> AtlasNdResult<T>
 where
-    T: Numeric,
+    T: ElementwiseArithmetic,
     O: OperandMetadata<T> + ?Sized,
 {
     sum_all(operand.data(), operand.offset(), operand.shape(), operand.strides())
@@ -454,7 +517,7 @@ where
 
 fn cumsum_operand<T, O>(operand: &O) -> AtlasNdResult<NDArray<T>>
 where
-    T: Numeric,
+    T: ElementwiseArithmetic,
     O: OperandMetadata<T> + ?Sized,
 {
     cumsum(operand.data(), operand.offset(), operand.shape(), operand.strides())
@@ -462,7 +525,7 @@ where
 
 fn cumprod_operand<T, O>(operand: &O) -> AtlasNdResult<NDArray<T>>
 where
-    T: Numeric,
+    T: ElementwiseArithmetic,
     O: OperandMetadata<T> + ?Sized,
 {
     cumprod(operand.data(), operand.offset(), operand.shape(), operand.strides())
@@ -470,7 +533,7 @@ where
 
 fn cumsum_axis_operand<T, O, A>(operand: &O, axis: A) -> AtlasNdResult<NDArray<T>>
 where
-    T: Numeric,
+    T: ElementwiseArithmetic,
     O: OperandMetadata<T> + ?Sized,
     A: AxisIndex,
 {
@@ -479,7 +542,7 @@ where
 
 fn cumprod_axis_operand<T, O, A>(operand: &O, axis: A) -> AtlasNdResult<NDArray<T>>
 where
-    T: Numeric,
+    T: ElementwiseArithmetic,
     O: OperandMetadata<T> + ?Sized,
     A: AxisIndex,
 {
@@ -488,7 +551,7 @@ where
 
 fn prod_operand<T, O>(operand: &O) -> AtlasNdResult<T>
 where
-    T: Numeric,
+    T: ElementwiseArithmetic,
     O: OperandMetadata<T> + ?Sized,
 {
     prod_all(operand.data(), operand.offset(), operand.shape(), operand.strides())
@@ -599,7 +662,7 @@ where
 
 fn sum_axis_operand<T, O, A>(operand: &O, axis: A) -> AtlasNdResult<NDArray<T>>
 where
-    T: Numeric,
+    T: ElementwiseArithmetic,
     O: OperandMetadata<T> + ?Sized,
     A: AxisIndex,
 {
@@ -608,7 +671,7 @@ where
 
 fn sum_axis_keepdims_operand<T, O, A>(operand: &O, axis: A) -> AtlasNdResult<NDArray<T>>
 where
-    T: Numeric,
+    T: ElementwiseArithmetic,
     O: OperandMetadata<T> + ?Sized,
     A: AxisIndex,
 {
@@ -623,7 +686,7 @@ where
 
 fn prod_axis_operand<T, O, A>(operand: &O, axis: A) -> AtlasNdResult<NDArray<T>>
 where
-    T: Numeric,
+    T: ElementwiseArithmetic,
     O: OperandMetadata<T> + ?Sized,
     A: AxisIndex,
 {
@@ -632,7 +695,7 @@ where
 
 fn prod_axis_keepdims_operand<T, O, A>(operand: &O, axis: A) -> AtlasNdResult<NDArray<T>>
 where
-    T: Numeric,
+    T: ElementwiseArithmetic,
     O: OperandMetadata<T> + ?Sized,
     A: AxisIndex,
 {
@@ -867,6 +930,19 @@ mod tests {
 
         assert_eq!(array.sum().unwrap_err(), AtlasNdError::EmptyReduction { op: "sum" });
         assert_eq!(array.prod().unwrap_err(), AtlasNdError::EmptyReduction { op: "prod" });
+    }
+
+    #[test]
+    fn integer_sum_product_and_cumulative_reductions_wrap_on_overflow() {
+        let sum = NDArray::from_shape_vec([2], vec![i8::MAX, 1]).unwrap();
+        let product = NDArray::from_shape_vec([2], vec![64_i8, 2]).unwrap();
+
+        assert_eq!(sum.sum().unwrap(), i8::MIN);
+        assert_eq!(product.prod().unwrap(), i8::MIN);
+        assert_eq!(sum.cumsum().unwrap().data(), &[i8::MAX, i8::MIN]);
+        assert_eq!(product.cumprod().unwrap().data(), &[64, i8::MIN]);
+        assert_eq!(sum.sum_axis(0).unwrap().data(), &[i8::MIN]);
+        assert_eq!(product.prod_axis(0).unwrap().data(), &[i8::MIN]);
     }
 
     #[test]

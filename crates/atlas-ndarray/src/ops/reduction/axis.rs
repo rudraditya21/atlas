@@ -3,7 +3,7 @@ use num_traits::ToPrimitive;
 use rayon::prelude::*;
 
 use crate::{
-    AtlasNdResult, AxisIndex, NDArray, Numeric,
+    AtlasNdResult, AxisIndex, ElementwiseArithmetic, NDArray, Numeric,
     internal::{layout::LayoutKind, offset_iter},
 };
 
@@ -14,7 +14,7 @@ use super::{
     whole::{max_contiguous, min_contiguous, prod_contiguous, sum_contiguous},
 };
 
-pub(super) fn sum_axis_impl<T: Numeric>(
+pub(super) fn sum_axis_impl<T: ElementwiseArithmetic>(
     data: &[T],
     base_offset: usize,
     shape: &[usize],
@@ -25,7 +25,7 @@ pub(super) fn sum_axis_impl<T: Numeric>(
     dispatch_sum_axis(data, base_offset, metadata)
 }
 
-pub(super) fn sum_axis_keepdims_impl<T: Numeric>(
+pub(super) fn sum_axis_keepdims_impl<T: ElementwiseArithmetic>(
     data: &[T],
     base_offset: usize,
     shape: &[usize],
@@ -36,7 +36,7 @@ pub(super) fn sum_axis_keepdims_impl<T: Numeric>(
     dispatch_sum_axis(data, base_offset, metadata)
 }
 
-fn dispatch_sum_axis<T: Numeric>(
+fn dispatch_sum_axis<T: ElementwiseArithmetic>(
     data: &[T],
     base_offset: usize,
     metadata: AxisReductionMetadata,
@@ -52,7 +52,7 @@ fn dispatch_sum_axis<T: Numeric>(
     }
 }
 
-pub(super) fn prod_axis_impl<T: Numeric>(
+pub(super) fn prod_axis_impl<T: ElementwiseArithmetic>(
     data: &[T],
     base_offset: usize,
     shape: &[usize],
@@ -63,7 +63,7 @@ pub(super) fn prod_axis_impl<T: Numeric>(
     dispatch_prod_axis(data, base_offset, metadata)
 }
 
-pub(super) fn prod_axis_keepdims_impl<T: Numeric>(
+pub(super) fn prod_axis_keepdims_impl<T: ElementwiseArithmetic>(
     data: &[T],
     base_offset: usize,
     shape: &[usize],
@@ -74,7 +74,7 @@ pub(super) fn prod_axis_keepdims_impl<T: Numeric>(
     dispatch_prod_axis(data, base_offset, metadata)
 }
 
-fn dispatch_prod_axis<T: Numeric>(
+fn dispatch_prod_axis<T: ElementwiseArithmetic>(
     data: &[T],
     base_offset: usize,
     metadata: AxisReductionMetadata,
@@ -235,7 +235,7 @@ where
     }
 }
 
-fn sum_axis_dense_contiguous<T: Numeric>(
+fn sum_axis_dense_contiguous<T: ElementwiseArithmetic>(
     data: &[T],
     base_offset: usize,
     metadata: AxisReductionMetadata,
@@ -265,7 +265,7 @@ fn sum_axis_dense_contiguous<T: Numeric>(
                     let mut offset = block_start + inner;
 
                     for _ in 0..metadata.axis_len {
-                        total += values[offset];
+                        total = total.elementwise_add(values[offset]);
                         offset += metadata.contiguous_inner_len;
                     }
 
@@ -283,7 +283,7 @@ fn sum_axis_dense_contiguous<T: Numeric>(
                 let mut offset = block_start + inner;
 
                 for _ in 0..metadata.axis_len {
-                    total += values[offset];
+                    total = total.elementwise_add(values[offset]);
                     offset += metadata.contiguous_inner_len;
                 }
 
@@ -295,7 +295,7 @@ fn sum_axis_dense_contiguous<T: Numeric>(
     NDArray::from_shape_vec(metadata.output.shape, reduced)
 }
 
-fn prod_axis_dense_contiguous<T: Numeric>(
+fn prod_axis_dense_contiguous<T: ElementwiseArithmetic>(
     data: &[T],
     base_offset: usize,
     metadata: AxisReductionMetadata,
@@ -316,7 +316,7 @@ fn prod_axis_dense_contiguous<T: Numeric>(
                     let mut offset = block_start + inner;
 
                     for _ in 0..metadata.axis_len {
-                        total *= values[offset];
+                        total = total.elementwise_mul(values[offset]);
                         offset += metadata.contiguous_inner_len;
                     }
 
@@ -334,7 +334,7 @@ fn prod_axis_dense_contiguous<T: Numeric>(
                 let mut offset = block_start + inner;
 
                 for _ in 0..metadata.axis_len {
-                    total *= values[offset];
+                    total = total.elementwise_mul(values[offset]);
                     offset += metadata.contiguous_inner_len;
                 }
 
@@ -462,7 +462,7 @@ where
     NDArray::from_shape_vec(metadata.output.shape, reduced)
 }
 
-fn sum_axis_contiguous<T: Numeric>(
+fn sum_axis_contiguous<T: ElementwiseArithmetic>(
     data: &[T],
     base_offset: usize,
     metadata: AxisReductionMetadata,
@@ -494,7 +494,7 @@ fn sum_axis_contiguous<T: Numeric>(
     NDArray::from_shape_vec(metadata.output.shape, reduced)
 }
 
-fn sum_axis_strided<T: Numeric>(
+fn sum_axis_strided<T: ElementwiseArithmetic>(
     data: &[T],
     base_offset: usize,
     metadata: AxisReductionMetadata,
@@ -534,7 +534,7 @@ fn sum_axis_strided<T: Numeric>(
     NDArray::from_shape_vec(metadata.output.shape, reduced)
 }
 
-fn prod_axis_contiguous<T: Numeric>(
+fn prod_axis_contiguous<T: ElementwiseArithmetic>(
     data: &[T],
     base_offset: usize,
     metadata: AxisReductionMetadata,
@@ -566,7 +566,7 @@ fn prod_axis_contiguous<T: Numeric>(
     NDArray::from_shape_vec(metadata.output.shape, reduced)
 }
 
-fn prod_axis_strided<T: Numeric>(
+fn prod_axis_strided<T: ElementwiseArithmetic>(
     data: &[T],
     base_offset: usize,
     metadata: AxisReductionMetadata,
@@ -765,7 +765,7 @@ pub(super) fn contiguous_region<T>(data: &[T], base_offset: usize, len: usize) -
     &data[base_offset..base_offset + len]
 }
 
-fn sum_strided_lane<T: Numeric>(
+fn sum_strided_lane<T: ElementwiseArithmetic>(
     data: &[T],
     lane_offset: usize,
     axis_len: usize,
@@ -775,14 +775,14 @@ fn sum_strided_lane<T: Numeric>(
     let mut offset = lane_offset;
 
     for _ in 0..axis_len {
-        total += data[offset];
+        total = total.elementwise_add(data[offset]);
         offset += axis_stride;
     }
 
     total
 }
 
-fn sum_axis_dense_contiguous_f32<T: Numeric>(
+fn sum_axis_dense_contiguous_f32<T: ElementwiseArithmetic>(
     values: &[f32],
     metadata: AxisReductionMetadata,
 ) -> AtlasNdResult<NDArray<T>> {
@@ -825,7 +825,7 @@ fn sum_axis_dense_contiguous_f32<T: Numeric>(
     NDArray::from_shape_vec(metadata.output.shape, reduced)
 }
 
-fn sum_axis_dense_contiguous_f64<T: Numeric>(
+fn sum_axis_dense_contiguous_f64<T: ElementwiseArithmetic>(
     values: &[f64],
     metadata: AxisReductionMetadata,
 ) -> AtlasNdResult<NDArray<T>> {
@@ -868,7 +868,7 @@ fn sum_axis_dense_contiguous_f64<T: Numeric>(
     NDArray::from_shape_vec(metadata.output.shape, reduced)
 }
 
-fn sum_axis_strided_f32<T: Numeric>(
+fn sum_axis_strided_f32<T: ElementwiseArithmetic>(
     data: &[f32],
     base_offset: usize,
     metadata: AxisReductionMetadata,
@@ -910,7 +910,7 @@ fn sum_axis_strided_f32<T: Numeric>(
     NDArray::from_shape_vec(metadata.output.shape, reduced)
 }
 
-fn sum_axis_strided_f64<T: Numeric>(
+fn sum_axis_strided_f64<T: ElementwiseArithmetic>(
     data: &[f64],
     base_offset: usize,
     metadata: AxisReductionMetadata,
@@ -970,7 +970,7 @@ fn sum_strided_lane_f64(
     simd::compensated_sum_strided_f64(data, lane_offset, axis_len, axis_stride)
 }
 
-fn prod_strided_lane<T: Numeric>(
+fn prod_strided_lane<T: ElementwiseArithmetic>(
     data: &[T],
     lane_offset: usize,
     axis_len: usize,
@@ -980,7 +980,7 @@ fn prod_strided_lane<T: Numeric>(
     let mut offset = lane_offset;
 
     for _ in 0..axis_len {
-        total *= data[offset];
+        total = total.elementwise_mul(data[offset]);
         offset += axis_stride;
     }
 

@@ -2,7 +2,7 @@ use num_traits::ToPrimitive;
 use rayon::prelude::*;
 
 use crate::{
-    AtlasNdError, AtlasNdResult, Numeric,
+    AtlasNdError, AtlasNdResult, ElementwiseArithmetic, Numeric,
     internal::simd,
     internal::{for_each_value, layout::dense_storage_slice},
 };
@@ -10,7 +10,7 @@ use crate::{
 use super::dispatch::{parallel_reduction_chunk_len, should_parallelize_reduction};
 use super::metadata::WholeReductionMetadata;
 
-pub(super) fn sum_contiguous<T: Numeric>(values: &[T]) -> T {
+pub(super) fn sum_contiguous<T: ElementwiseArithmetic>(values: &[T]) -> T {
     if should_parallelize_reduction(values.len()) {
         let partials: Vec<T> =
             values.par_chunks(parallel_reduction_chunk_len()).map(simd::sum_contiguous).collect();
@@ -31,18 +31,18 @@ pub(super) fn sum_contiguous<T: Numeric>(values: &[T]) -> T {
             return simd::cast_value_exact(total.finish());
         }
 
-        return partials.into_iter().fold(T::zero(), |total, partial| total + partial);
+        return partials.into_iter().fold(T::zero(), ElementwiseArithmetic::elementwise_add);
     }
 
     simd::sum_contiguous(values)
 }
 
-pub(super) fn prod_contiguous<T: Numeric>(values: &[T]) -> T {
+pub(super) fn prod_contiguous<T: ElementwiseArithmetic>(values: &[T]) -> T {
     if should_parallelize_reduction(values.len()) {
         let partials: Vec<T> =
             values.par_chunks(parallel_reduction_chunk_len()).map(simd::prod_contiguous).collect();
 
-        return partials.into_iter().fold(T::one(), |total, partial| total * partial);
+        return partials.into_iter().fold(T::one(), ElementwiseArithmetic::elementwise_mul);
     }
 
     simd::prod_contiguous(values)
@@ -84,7 +84,7 @@ where
     simd::max_contiguous(values, op)
 }
 
-pub(super) fn sum_all<T: Numeric>(
+pub(super) fn sum_all<T: ElementwiseArithmetic>(
     data: &[T],
     offset: usize,
     shape: &[usize],
@@ -117,12 +117,12 @@ pub(super) fn sum_all<T: Numeric>(
 
     let mut total = T::zero();
     for_each_value(data, offset, shape, strides, |value| {
-        total += *value;
+        total = total.elementwise_add(*value);
     });
     Ok(total)
 }
 
-pub(super) fn prod_all<T: Numeric>(
+pub(super) fn prod_all<T: ElementwiseArithmetic>(
     data: &[T],
     offset: usize,
     shape: &[usize],
@@ -137,7 +137,7 @@ pub(super) fn prod_all<T: Numeric>(
 
     let mut total = T::one();
     for_each_value(data, offset, shape, strides, |value| {
-        total *= *value;
+        total = total.elementwise_mul(*value);
     });
     Ok(total)
 }

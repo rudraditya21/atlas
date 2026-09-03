@@ -136,7 +136,7 @@ where
     map_scalar_scalar(input, scalar, out, op);
 }
 
-pub(crate) fn sum_contiguous<T: Numeric>(values: &[T]) -> T {
+pub(crate) fn sum_contiguous<T: ElementwiseArithmetic>(values: &[T]) -> T {
     #[cfg(target_arch = "x86_64")]
     {
         if values.len() >= SIMD_REDUCTION_THRESHOLD
@@ -167,7 +167,7 @@ pub(crate) fn sum_contiguous<T: Numeric>(values: &[T]) -> T {
     sum_scalar(values)
 }
 
-pub(crate) fn prod_contiguous<T: Numeric>(values: &[T]) -> T {
+pub(crate) fn prod_contiguous<T: ElementwiseArithmetic>(values: &[T]) -> T {
     #[cfg(target_arch = "x86_64")]
     {
         if is_f32::<T>() && std::is_x86_feature_detected!("avx") {
@@ -365,7 +365,7 @@ where
     }
 }
 
-fn sum_scalar<T: Numeric>(values: &[T]) -> T {
+fn sum_scalar<T: ElementwiseArithmetic>(values: &[T]) -> T {
     let len = values.len();
     let body_len = body_len(len);
     let mut acc0 = T::zero();
@@ -379,31 +379,31 @@ fn sum_scalar<T: Numeric>(values: &[T]) -> T {
     let mut index = 0;
 
     while index < body_len {
-        acc0 += values[index];
-        acc1 += values[index + 1];
-        acc2 += values[index + 2];
-        acc3 += values[index + 3];
-        acc4 += values[index + 4];
-        acc5 += values[index + 5];
-        acc6 += values[index + 6];
-        acc7 += values[index + 7];
+        acc0 = acc0.elementwise_add(values[index]);
+        acc1 = acc1.elementwise_add(values[index + 1]);
+        acc2 = acc2.elementwise_add(values[index + 2]);
+        acc3 = acc3.elementwise_add(values[index + 3]);
+        acc4 = acc4.elementwise_add(values[index + 4]);
+        acc5 = acc5.elementwise_add(values[index + 5]);
+        acc6 = acc6.elementwise_add(values[index + 6]);
+        acc7 = acc7.elementwise_add(values[index + 7]);
         index += SIMD_LANES;
     }
 
-    let mut total = acc0 + acc1;
-    total += acc2 + acc3;
-    total += acc4 + acc5;
-    total += acc6 + acc7;
+    let mut total = acc0.elementwise_add(acc1);
+    total = total.elementwise_add(acc2.elementwise_add(acc3));
+    total = total.elementwise_add(acc4.elementwise_add(acc5));
+    total = total.elementwise_add(acc6.elementwise_add(acc7));
 
     while index < len {
-        total += values[index];
+        total = total.elementwise_add(values[index]);
         index += 1;
     }
 
     total
 }
 
-fn prod_scalar<T: Numeric>(values: &[T]) -> T {
+fn prod_scalar<T: ElementwiseArithmetic>(values: &[T]) -> T {
     let len = values.len();
     let body_len = body_len(len);
     let mut acc0 = T::one();
@@ -417,24 +417,24 @@ fn prod_scalar<T: Numeric>(values: &[T]) -> T {
     let mut index = 0;
 
     while index < body_len {
-        acc0 *= values[index];
-        acc1 *= values[index + 1];
-        acc2 *= values[index + 2];
-        acc3 *= values[index + 3];
-        acc4 *= values[index + 4];
-        acc5 *= values[index + 5];
-        acc6 *= values[index + 6];
-        acc7 *= values[index + 7];
+        acc0 = acc0.elementwise_mul(values[index]);
+        acc1 = acc1.elementwise_mul(values[index + 1]);
+        acc2 = acc2.elementwise_mul(values[index + 2]);
+        acc3 = acc3.elementwise_mul(values[index + 3]);
+        acc4 = acc4.elementwise_mul(values[index + 4]);
+        acc5 = acc5.elementwise_mul(values[index + 5]);
+        acc6 = acc6.elementwise_mul(values[index + 6]);
+        acc7 = acc7.elementwise_mul(values[index + 7]);
         index += SIMD_LANES;
     }
 
-    let mut total = acc0 * acc1;
-    total *= acc2 * acc3;
-    total *= acc4 * acc5;
-    total *= acc6 * acc7;
+    let mut total = acc0.elementwise_mul(acc1);
+    total = total.elementwise_mul(acc2.elementwise_mul(acc3));
+    total = total.elementwise_mul(acc4.elementwise_mul(acc5));
+    total = total.elementwise_mul(acc6.elementwise_mul(acc7));
 
     while index < len {
-        total *= values[index];
+        total = total.elementwise_mul(values[index]);
         index += 1;
     }
 
