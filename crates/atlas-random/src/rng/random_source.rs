@@ -8,6 +8,8 @@ use crate::core::AtlasRandomResult;
 pub trait RandomSource {
     fn fill_bernoulli(&mut self, probability: f64, output: &mut [bool]) -> AtlasRandomResult<()>;
 
+    fn shuffle<T>(&mut self, values: &mut [T]);
+
     fn sample_uniform<T>(&mut self, low: T, high: T) -> AtlasRandomResult<T>
     where
         T: Numeric + SampleUniform + PartialOrd;

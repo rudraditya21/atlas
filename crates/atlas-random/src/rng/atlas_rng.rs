@@ -1,7 +1,7 @@
 use atlas_ndarray::Numeric;
 use num_traits::Float;
 use rand::{
-    RngCore, SeedableRng,
+    Rng, RngCore, SeedableRng,
     distributions::{Distribution, Uniform, uniform::SampleUniform},
     rngs::StdRng,
 };
@@ -92,6 +92,12 @@ impl RandomSource for AtlasRng {
             *value = distribution.sample(&mut self.inner);
         }
         Ok(())
+    }
+
+    fn shuffle<T>(&mut self, values: &mut [T]) {
+        for index in (1..values.len()).rev() {
+            values.swap(index, self.inner.gen_range(0..=index));
+        }
     }
 
     fn sample_uniform<T>(&mut self, low: T, high: T) -> AtlasRandomResult<T>
