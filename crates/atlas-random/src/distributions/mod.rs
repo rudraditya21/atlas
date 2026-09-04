@@ -1,4 +1,5 @@
 pub(crate) mod bernoulli;
+pub(crate) mod categorical;
 pub(crate) mod normal;
 pub(crate) mod permutation;
 pub(crate) mod rand;

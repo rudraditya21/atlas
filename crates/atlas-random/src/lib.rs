@@ -4,6 +4,7 @@ mod rng;
 
 pub use core::error::{AtlasRandomError, AtlasRandomResult};
 pub use distributions::bernoulli::bernoulli;
+pub use distributions::categorical::categorical;
 pub use distributions::normal::normal;
 pub use distributions::permutation::permutation;
 pub use distributions::rand::rand;
