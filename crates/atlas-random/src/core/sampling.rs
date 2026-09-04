@@ -56,6 +56,17 @@ where
     Ok(())
 }
 
+pub(crate) fn validate_bernoulli_probability(probability: f64) -> AtlasRandomResult<()> {
+    if probability.is_finite() && (0.0..=1.0).contains(&probability) {
+        Ok(())
+    } else {
+        Err(AtlasRandomError::InvalidArgument {
+            op: "bernoulli",
+            reason: "probability must be finite and within [0, 1]",
+        })
+    }
+}
+
 fn validate_uniform_finite_bounds<T>(low: T, high: T) -> AtlasRandomResult<()>
 where
     T: Copy + 'static,

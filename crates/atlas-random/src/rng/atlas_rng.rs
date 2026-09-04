@@ -5,11 +5,12 @@ use rand::{
     distributions::{Distribution, Uniform, uniform::SampleUniform},
     rngs::StdRng,
 };
-use rand_distr::{Normal, StandardNormal};
+use rand_distr::{Bernoulli, Normal, StandardNormal};
 use rayon::prelude::*;
 
 use crate::core::{
-    AtlasRandomError, AtlasRandomResult, validate_normal_parameters, validate_uniform_bounds,
+    AtlasRandomError, AtlasRandomResult, validate_bernoulli_probability,
+    validate_normal_parameters, validate_uniform_bounds,
 };
 
 use super::random_source::RandomSource;
@@ -65,6 +66,34 @@ impl Default for AtlasRng {
 }
 
 impl RandomSource for AtlasRng {
+    fn fill_bernoulli(&mut self, probability: f64, output: &mut [bool]) -> AtlasRandomResult<()> {
+        validate_bernoulli_probability(probability)?;
+        if output.is_empty() {
+            return Ok(());
+        }
+        if Self::should_parallelize_fill(output.len()) {
+            let chunk_seeds = self.chunk_seeds(output.len());
+            output
+                .par_chunks_mut(PARALLEL_SAMPLING_CHUNK_LEN)
+                .zip(chunk_seeds.into_par_iter())
+                .for_each(|(chunk, seed)| {
+                    let distribution = Bernoulli::new(probability)
+                        .expect("validated probability must initialize Bernoulli");
+                    let mut rng = StdRng::seed_from_u64(seed);
+                    for value in chunk {
+                        *value = distribution.sample(&mut rng);
+                    }
+                });
+            return Ok(());
+        }
+        let distribution =
+            Bernoulli::new(probability).expect("validated probability must initialize Bernoulli");
+        for value in output {
+            *value = distribution.sample(&mut self.inner);
+        }
+        Ok(())
+    }
+
     fn sample_uniform<T>(&mut self, low: T, high: T) -> AtlasRandomResult<T>
     where
         T: Numeric + SampleUniform + PartialOrd,
