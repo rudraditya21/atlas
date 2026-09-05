@@ -3,6 +3,12 @@
 //! This crate owns all optional Arrow and Polars integration. `atlas-ndarray` deliberately has
 //! no dependency on this crate, Arrow, or Polars, so its core array representation remains
 //! independent of external columnar-memory ecosystems.
+//!
+//! ## Null handling
+//!
+//! Atlas ndarrays have no validity bitmap. Conversions from Arrow reject arrays containing null
+//! values with [`AtlasArrowError::NullValues`]; nulls are never coerced to a numeric value or
+//! `NaN`. Conversions to Arrow always produce non-nullable arrays and record-batch fields.
 
 #![forbid(unsafe_code)]
 

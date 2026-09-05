@@ -109,6 +109,7 @@ mod tests {
         let converted = to_arrow_primitive(&values).unwrap();
 
         assert_eq!(converted.values(), &[1, 2, 3]);
+        assert_eq!(converted.null_count(), 0);
     }
 
     #[test]

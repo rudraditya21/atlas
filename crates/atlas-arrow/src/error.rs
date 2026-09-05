@@ -8,7 +8,7 @@ pub enum AtlasArrowError {
     #[error("invalid input rank for {op}: expected {expected}, got rank {rank}")]
     InvalidInputRank { op: &'static str, expected: &'static str, rank: usize },
 
-    #[error("null values are not supported for {op}")]
+    #[error("null values are rejected for {op}")]
     NullValues { op: &'static str },
 
     #[error("column name count mismatch for {op}: expected {expected}, got {actual}")]

@@ -92,6 +92,7 @@ mod tests {
         assert_eq!(batch.num_rows(), 2);
         assert_eq!(batch.num_columns(), 3);
         assert_eq!(batch.schema().field(1).name(), "b");
+        assert!(!batch.schema().field(1).is_nullable());
         assert_eq!(
             batch.column(1).as_any().downcast_ref::<Int32Array>().unwrap().values(),
             &[2, 5]
