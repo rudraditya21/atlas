@@ -1,0 +1,15 @@
+[package]
+name = "atlas-polars"
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+atlas-arrow.workspace = true
+atlas-ndarray.workspace = true
+polars.workspace = true
+polars-arrow.workspace = true
+thiserror.workspace = true
+
+[lints]
+workspace = true

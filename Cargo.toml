@@ -12,6 +12,7 @@ members = [
     "crates/atlas-arrow",
     "crates/atlas-linalg",
     "crates/atlas-ndarray",
+    "crates/atlas-polars",
     "crates/atlas-random",
     "crates/atlas-stats",
 ]
@@ -26,6 +27,8 @@ atlas-linalg = { path = "crates/atlas-linalg" }
 atlas-arrow = { path = "crates/atlas-arrow" }
 arrow-array = "53"
 arrow-schema = "53"
+polars = { version = "0.50", default-features = false }
+polars-arrow = "0.50"
 atlas-ndarray = { path = "crates/atlas-ndarray" }
 atlas-random = { path = "crates/atlas-random" }
 atlas-stats = { path = "crates/atlas-stats" }
