@@ -121,7 +121,7 @@ impl<T: Numeric + Float> LuFactorization<T> {
         let mut determinant = T::one();
 
         for index in 0..order {
-            determinant = determinant * self.u.data()[index * order + index];
+            determinant *= self.u.data()[index * order + index];
         }
 
         if self.permutation_is_odd(order)? { Ok(-determinant) } else { Ok(determinant) }
