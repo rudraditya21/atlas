@@ -26,7 +26,7 @@ proptest! {
             .flat_map(|column| (0..length).map(move |row| data[(start + row) * columns + column]))
             .collect();
         let materialized = transposed.to_owned();
-        let incremented = materialized.add(1_i32).unwrap();
+        let incremented = materialized.add(1_i32);
         let expected_incremented: Vec<_> = expected_transposed.iter().map(|value| value.wrapping_add(1)).collect();
 
         prop_assert_eq!(reshaped.data(), expected_slice);

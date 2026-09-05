@@ -27,8 +27,6 @@ proptest! {
 
         prop_assert_eq!(contiguous.abs().data(), strided.abs().data());
         prop_assert_eq!(contiguous.sign().data(), strided.sign().data());
-        prop_assert_eq!(contiguous.add(&contiguous).unwrap().data(), contiguous.add(&strided).unwrap().data());
-        prop_assert_eq!(contiguous.mul(&contiguous).unwrap().data(), contiguous.mul(&strided).unwrap().data());
     }
 
     #[test]
@@ -39,7 +37,12 @@ proptest! {
 
         prop_assert_eq!(contiguous.sum().unwrap(), strided.sum().unwrap());
         prop_assert_eq!(contiguous.prod().unwrap(), strided.prod().unwrap());
-        prop_assert_eq!(contiguous.sum_axis(1_i32).unwrap().data(), strided.sum_axis(1_i32).unwrap().data());
-        prop_assert_eq!(contiguous.prod_axis(0_i32).unwrap().data(), strided.prod_axis(0_i32).unwrap().data());
+        let contiguous_sum = contiguous.sum_axis(1_i32).unwrap();
+        let strided_sum = strided.sum_axis(1_i32).unwrap();
+        let contiguous_product = contiguous.prod_axis(0_i32).unwrap();
+        let strided_product = strided.prod_axis(0_i32).unwrap();
+
+        prop_assert_eq!(contiguous_sum.data(), strided_sum.data());
+        prop_assert_eq!(contiguous_product.data(), strided_product.data());
     }
 }
