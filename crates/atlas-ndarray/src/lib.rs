@@ -45,6 +45,7 @@ pub use ops::arithmetic::{
 pub use ops::bitwise::{BitwiseElement, BitwiseOperand};
 pub use ops::close::allclose;
 pub use ops::comparison::{EqOperand, GeOperand, GtOperand, LeOperand, LtOperand, NeOperand};
+pub use ops::indexing::Truthy;
 pub use ops::logical::LogicalOperand;
 pub use ops::unary::{FloatClassify, UnaryAbs, UnaryNeg, UnaryRound, UnarySign};
 pub use ops::where_::{IntoWhereOperand, WhereOperand};
