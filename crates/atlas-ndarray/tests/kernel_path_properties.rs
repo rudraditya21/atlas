@@ -25,8 +25,13 @@ proptest! {
     ) {
         let strided = backing.view().transpose();
 
-        prop_assert_eq!(contiguous.abs().data(), strided.abs().data());
-        prop_assert_eq!(contiguous.sign().data(), strided.sign().data());
+        let contiguous_abs = contiguous.abs();
+        let strided_abs = strided.abs();
+        let contiguous_sign = contiguous.sign();
+        let strided_sign = strided.sign();
+
+        prop_assert_eq!(contiguous_abs.data(), strided_abs.data());
+        prop_assert_eq!(contiguous_sign.data(), strided_sign.data());
     }
 
     #[test]
