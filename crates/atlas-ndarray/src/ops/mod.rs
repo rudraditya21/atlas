@@ -5,6 +5,7 @@ pub(crate) mod close;
 pub(crate) mod comparison;
 pub(crate) mod indexing;
 pub(crate) mod logical;
+pub(crate) mod put;
 pub(crate) mod reduction;
 pub(crate) mod take;
 pub(crate) mod unary;
