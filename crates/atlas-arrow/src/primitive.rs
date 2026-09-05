@@ -139,4 +139,15 @@ mod tests {
             AtlasArrowError::NullValues { op: "from_arrow_primitive" }
         );
     }
+
+    #[test]
+    fn primitive_conversion_preserves_empty_arrays() {
+        let values = NDArray::from_shape_vec([0], Vec::<i32>::new()).unwrap();
+        let arrow = to_arrow_primitive(&values).unwrap();
+        let converted = from_arrow_primitive::<i32>(&arrow).unwrap();
+
+        assert!(arrow.is_empty());
+        assert_eq!(converted.shape(), &[0]);
+        assert!(converted.data().is_empty());
+    }
 }

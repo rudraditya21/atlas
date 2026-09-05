@@ -9,6 +9,12 @@
 //! Atlas ndarrays have no validity bitmap. Conversions from Arrow reject arrays containing null
 //! values with [`AtlasArrowError::NullValues`]; nulls are never coerced to a numeric value or
 //! `NaN`. Conversions to Arrow always produce non-nullable arrays and record-batch fields.
+//!
+//! ## Ownership
+//!
+//! Conversions allocate exactly one destination buffer per converted array or column. Arrow
+//! offsets are read through their logical values, while RecordBatches remain independent chunks
+//! that callers convert individually.
 
 #![forbid(unsafe_code)]
 

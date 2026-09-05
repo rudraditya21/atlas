@@ -78,7 +78,7 @@ pub fn from_arrow_record_batch<T: ArrowPrimitive>(
 mod tests {
     use std::sync::Arc;
 
-    use arrow_array::{Array, ArrayRef, Int32Array, RecordBatch};
+    use arrow_array::{Array, ArrayRef, Int32Array, RecordBatch, StringArray};
     use arrow_schema::{DataType, Field, Schema};
     use atlas_ndarray::NDArray;
 
@@ -155,6 +155,58 @@ mod tests {
         assert_eq!(
             from_arrow_record_batch::<i32>(&nullable).unwrap_err(),
             AtlasArrowError::NullValues { op: "from_arrow_record_batch" }
+        );
+    }
+
+    #[test]
+    fn reverse_record_batch_conversion_respects_offsets_and_empty_batches() {
+        let values = Int32Array::from(vec![1_i32, 2, 3, 4]).slice(1, 2);
+        let offset_batch = RecordBatch::try_new(
+            Arc::new(Schema::new(vec![Field::new("a", DataType::Int32, false)])),
+            vec![Arc::new(values) as ArrayRef],
+        )
+        .unwrap();
+        let empty = NDArray::from_shape_vec([0, 2], Vec::<i32>::new()).unwrap();
+        let empty_batch = to_arrow_record_batch(&empty, &["a", "b"]).unwrap();
+
+        let converted = from_arrow_record_batch::<i32>(&offset_batch).unwrap();
+        let empty_converted = from_arrow_record_batch::<i32>(&empty_batch).unwrap();
+
+        assert_eq!(converted.shape(), &[2, 1]);
+        assert_eq!(converted.data(), &[2, 3]);
+        assert_eq!(empty_converted.shape(), &[0, 2]);
+        assert!(empty_converted.data().is_empty());
+    }
+
+    #[test]
+    fn record_batch_chunks_convert_independently() {
+        let first =
+            to_arrow_record_batch(&NDArray::from_shape_vec([1, 1], vec![1_i32]).unwrap(), &["a"])
+                .unwrap();
+        let second =
+            to_arrow_record_batch(&NDArray::from_shape_vec([1, 1], vec![2_i32]).unwrap(), &["a"])
+                .unwrap();
+
+        assert_eq!(from_arrow_record_batch::<i32>(&first).unwrap().data(), &[1]);
+        assert_eq!(from_arrow_record_batch::<i32>(&second).unwrap().data(), &[2]);
+    }
+
+    #[test]
+    fn reverse_record_batch_conversion_rejects_unsupported_dtypes() {
+        let batch = RecordBatch::try_new(
+            Arc::new(Schema::new(vec![Field::new("a", DataType::Utf8, false)])),
+            vec![Arc::new(StringArray::from(vec!["atlas"])) as ArrayRef],
+        )
+        .unwrap();
+
+        assert_eq!(
+            from_arrow_record_batch::<i32>(&batch).unwrap_err(),
+            AtlasArrowError::ColumnDTypeMismatch {
+                op: "from_arrow_record_batch",
+                column: 0,
+                expected: DataType::Int32.to_string(),
+                actual: DataType::Utf8.to_string(),
+            }
         );
     }
 }
