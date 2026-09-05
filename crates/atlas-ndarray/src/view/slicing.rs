@@ -106,20 +106,24 @@ impl<'a, T: ArrayElement> ArrayView<'a, T> {
         let mut offset = self.offset;
         let mut new_shape = Vec::with_capacity(self.shape.len());
         let mut new_strides = Vec::with_capacity(self.strides.len());
+        let mut is_empty = false;
 
         for (axis, ((range, dim), stride)) in
             ranges.iter().zip(self.shape.iter()).zip(self.strides.iter()).enumerate()
         {
             let normalized = normalize_slice_range(*range, axis, *dim)?;
-            let axis_offset = normalized.start.checked_mul(*stride).ok_or_else(|| {
-                AtlasNdError::ShapeOverflow { op: "slice offset", shape: self.shape.clone() }
-            })?;
             let stepped_stride = stride.checked_mul(normalized.step).ok_or_else(|| {
                 AtlasNdError::ShapeOverflow { op: "slice stride", shape: self.shape.clone() }
             })?;
-            offset = offset.checked_add(axis_offset).ok_or_else(|| {
-                AtlasNdError::ShapeOverflow { op: "slice offset", shape: self.shape.clone() }
-            })?;
+            if !is_empty {
+                let axis_offset = normalized.start.checked_mul(*stride).ok_or_else(|| {
+                    AtlasNdError::ShapeOverflow { op: "slice offset", shape: self.shape.clone() }
+                })?;
+                offset = offset.checked_add(axis_offset).ok_or_else(|| {
+                    AtlasNdError::ShapeOverflow { op: "slice offset", shape: self.shape.clone() }
+                })?;
+            }
+            is_empty |= normalized.len == 0;
             new_shape.push(normalized.len);
             new_strides.push(stepped_stride);
         }
@@ -308,6 +312,22 @@ mod tests {
         assert_eq!(empty.strides(), &[3, 1]);
         assert_eq!(empty.offset(), 6);
         assert!(empty.is_empty());
+    }
+
+    #[test]
+    fn slice_ranges_stops_advancing_offsets_after_an_empty_axis() {
+        let array = NDArray::from_vec([2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+        let slice = array
+            .view()
+            .slice_ranges([
+                SliceRange::between(Some(2), Some(2)),
+                SliceRange::between(Some(3), Some(3)),
+            ])
+            .unwrap();
+
+        assert_eq!(slice.shape(), &[0, 0]);
+        assert_eq!(slice.offset(), 6);
+        assert!(slice.is_empty());
     }
 
     #[test]
