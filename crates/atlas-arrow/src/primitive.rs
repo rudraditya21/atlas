@@ -1,5 +1,5 @@
 use arrow_array::{
-    BooleanArray, Float32Array, Float64Array, Int8Array, Int16Array, Int32Array, Int64Array,
+    Array, BooleanArray, Float32Array, Float64Array, Int8Array, Int16Array, Int32Array, Int64Array,
     UInt8Array, UInt16Array, UInt32Array, UInt64Array,
 };
 use atlas_ndarray::NDArray;
@@ -22,13 +22,26 @@ pub fn to_arrow_primitive<T: ArrowPrimitive>(array: &NDArray<T>) -> AtlasArrowRe
     Ok(T::to_arrow(array.data().to_vec()))
 }
 
+/// Converts an Arrow primitive array into a newly allocated rank-1 Atlas array.
+///
+/// Arrow offsets are respected through the array's logical iterator. Arrays containing nulls are
+/// rejected because Atlas ndarrays do not carry a validity bitmap.
+pub fn from_arrow_primitive<T: ArrowPrimitive>(array: &T::Array) -> AtlasArrowResult<NDArray<T>> {
+    Ok(NDArray::from_shape_vec([array.len()], T::from_arrow(array)?)?)
+}
+
 /// Maps a fixed-width Atlas primitive dtype to its Arrow primitive-array representation.
 pub trait ArrowPrimitive: InterchangeDType {
     /// Arrow primitive array produced by this conversion.
-    type Array;
+    type Array: Array;
 
     #[doc(hidden)]
     fn to_arrow(values: Vec<Self>) -> Self::Array
+    where
+        Self: Sized;
+
+    #[doc(hidden)]
+    fn from_arrow(array: &Self::Array) -> AtlasArrowResult<Vec<Self>>
     where
         Self: Sized;
 }
@@ -40,6 +53,13 @@ macro_rules! impl_arrow_primitive {
                 type Array = $array;
 
                 fn to_arrow(values: Vec<Self>) -> Self::Array { values.into() }
+
+                fn from_arrow(array: &Self::Array) -> AtlasArrowResult<Vec<Self>> {
+                    if array.null_count() != 0 {
+                        return Err(AtlasArrowError::NullValues { op: "from_arrow_primitive" });
+                    }
+                    Ok(array.iter().map(|value| value.expect("null count was checked")).collect())
+                }
             }
         )+
     };
@@ -63,7 +83,9 @@ impl_arrow_primitive!(
 mod tests {
     use atlas_ndarray::NDArray;
 
-    use crate::{AtlasArrowError, to_arrow_primitive};
+    use arrow_array::{Array, Int32Array};
+
+    use crate::{AtlasArrowError, from_arrow_primitive, to_arrow_primitive};
 
     #[test]
     fn primitive_conversion_copies_rank_one_values() {
@@ -80,6 +102,20 @@ mod tests {
         assert_eq!(
             to_arrow_primitive(&values).unwrap_err(),
             AtlasArrowError::InvalidInputRank { op: "to_arrow_primitive", rank: 2 }
+        );
+    }
+
+    #[test]
+    fn reverse_conversion_respects_arrow_offsets_and_rejects_nulls() {
+        let values = Int32Array::from(vec![1_i32, 2, 3, 4]);
+        let sliced = values.slice(1, 2);
+        let sliced = sliced.as_any().downcast_ref::<Int32Array>().unwrap();
+        let nullable = Int32Array::from(vec![Some(1_i32), None]);
+
+        assert_eq!(from_arrow_primitive::<i32>(sliced).unwrap().data(), &[2, 3]);
+        assert_eq!(
+            from_arrow_primitive::<i32>(&nullable).unwrap_err(),
+            AtlasArrowError::NullValues { op: "from_arrow_primitive" }
         );
     }
 }

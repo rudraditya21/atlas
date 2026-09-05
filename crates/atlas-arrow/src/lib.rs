@@ -12,4 +12,4 @@ mod primitive;
 
 pub use dtype::InterchangeDType;
 pub use error::{AtlasArrowError, AtlasArrowResult};
-pub use primitive::{ArrowPrimitive, to_arrow_primitive};
+pub use primitive::{ArrowPrimitive, from_arrow_primitive, to_arrow_primitive};
