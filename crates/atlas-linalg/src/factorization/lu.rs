@@ -5,7 +5,7 @@ use crate::core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand};
 use crate::dense::triangular::{solve_lower_triangular_with_op, solve_upper_triangular_with_op};
 use crate::internal::factorization::{
     copy_matrix_row_major, find_pivot_row, identity_matrix_data, swap_l_prefix_rows, swap_rows,
-    tolerance, validate_rank_two, zero_matrix_data,
+    tolerance, validate_finite, validate_rank_two, zero_matrix_data,
 };
 
 #[derive(Clone, Debug)]
@@ -238,6 +238,7 @@ where
     let n = rows;
     let tolerance = tolerance::<T>();
     let mut a = copy_matrix_row_major(&matrix);
+    validate_finite(&a, "lu")?;
     let mut p = identity_matrix_data(n);
     let mut l = zero_matrix_data(n, n);
 

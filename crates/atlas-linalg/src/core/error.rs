@@ -18,6 +18,9 @@ pub enum AtlasLinalgError {
     #[error("invalid input shape for {op}: {shape:?}: {reason}")]
     InvalidInputShape { op: &'static str, shape: Vec<usize>, reason: &'static str },
 
+    #[error("non-finite input for {op}")]
+    NonFiniteInput { op: &'static str },
+
     #[error("singular matrix for {op}: pivot {pivot}")]
     SingularMatrix { op: &'static str, pivot: usize },
 

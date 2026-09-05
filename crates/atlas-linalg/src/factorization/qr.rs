@@ -3,7 +3,8 @@ use num_traits::Float;
 
 use crate::core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand};
 use crate::internal::factorization::{
-    copy_matrix_row_major, dot_slice, validate_rank_two, vector_norm, zero_matrix_data,
+    copy_matrix_row_major, dot_slice, validate_finite, validate_rank_two, vector_norm,
+    zero_matrix_data,
 };
 
 #[derive(Clone, Debug)]
@@ -166,6 +167,7 @@ where
     }
 
     let a = copy_matrix_row_major(&matrix);
+    validate_finite(&a, "qr")?;
     let mut q_columns = vec![T::zero(); rows * cols];
     let mut r = zero_matrix_data(cols, cols);
     let mut work = vec![T::zero(); rows];

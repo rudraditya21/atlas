@@ -4,7 +4,8 @@ use num_traits::Float;
 use crate::core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand};
 use crate::dense::triangular::{solve_lower_triangular_with_op, solve_upper_triangular_with_op};
 use crate::internal::factorization::{
-    copy_matrix_row_major, dot_slice, is_symmetric, tolerance, validate_rank_two, zero_matrix_data,
+    copy_matrix_row_major, dot_slice, is_symmetric, tolerance, validate_finite, validate_rank_two,
+    zero_matrix_data,
 };
 
 #[derive(Clone, Debug)]
@@ -91,6 +92,7 @@ where
     let n = rows;
     let tolerance = tolerance::<T>();
     let a = copy_matrix_row_major(&matrix);
+    validate_finite(&a, "cholesky")?;
 
     if !is_symmetric(&a, n, tolerance) {
         return Err(AtlasLinalgError::InvalidInputShape {
