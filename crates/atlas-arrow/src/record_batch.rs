@@ -42,12 +42,47 @@ pub fn to_arrow_record_batch<T: ArrowPrimitive>(
         .map_err(|error| AtlasArrowError::RecordBatch { reason: error.to_string() })
 }
 
+/// Converts a homogeneous Arrow record batch into a newly allocated rank-2 Atlas matrix.
+///
+/// Each record-batch row becomes one Atlas row. Every column must have the Arrow dtype for `T`
+/// and contain no nulls; values are copied into dense row-major Atlas storage.
+pub fn from_arrow_record_batch<T: ArrowPrimitive>(
+    batch: &RecordBatch,
+) -> AtlasArrowResult<NDArray<T>> {
+    let columns = batch
+        .columns()
+        .iter()
+        .enumerate()
+        .map(|(index, array)| {
+            let column = array.as_any().downcast_ref::<T::Array>().ok_or_else(|| {
+                AtlasArrowError::ColumnDTypeMismatch {
+                    op: "from_arrow_record_batch",
+                    column: index,
+                    expected: T::ARROW_DATA_TYPE.to_string(),
+                    actual: array.data_type().to_string(),
+                }
+            })?;
+            T::from_arrow(column, "from_arrow_record_batch")
+        })
+        .collect::<AtlasArrowResult<Vec<_>>>()?;
+    let mut values = Vec::new();
+    for row in 0..batch.num_rows() {
+        for column in &columns {
+            values.push(column[row]);
+        }
+    }
+    Ok(NDArray::from_shape_vec([batch.num_rows(), batch.num_columns()], values)?)
+}
+
 #[cfg(test)]
 mod tests {
-    use arrow_array::{Array, Int32Array};
+    use std::sync::Arc;
+
+    use arrow_array::{Array, ArrayRef, Int32Array, RecordBatch};
+    use arrow_schema::{DataType, Field, Schema};
     use atlas_ndarray::NDArray;
 
-    use crate::{AtlasArrowError, to_arrow_record_batch};
+    use crate::{AtlasArrowError, from_arrow_record_batch, to_arrow_record_batch};
 
     #[test]
     fn record_batch_uses_matrix_columns_as_arrow_columns() {
@@ -83,6 +118,42 @@ mod tests {
                 expected: 2,
                 actual: 1,
             }
+        );
+    }
+
+    #[test]
+    fn reverse_record_batch_conversion_preserves_row_major_order() {
+        let matrix = NDArray::from_shape_vec([2, 3], vec![1_i32, 2, 3, 4, 5, 6]).unwrap();
+        let batch = to_arrow_record_batch(&matrix, &["a", "b", "c"]).unwrap();
+        let converted = from_arrow_record_batch::<i32>(&batch).unwrap();
+
+        assert_eq!(converted.shape(), matrix.shape());
+        assert_eq!(converted.data(), matrix.data());
+    }
+
+    #[test]
+    fn reverse_record_batch_conversion_rejects_mismatched_dtypes_and_nulls() {
+        let mismatched =
+            to_arrow_record_batch(&NDArray::from_shape_vec([1, 1], vec![1_i64]).unwrap(), &["a"])
+                .unwrap();
+        let nullable = RecordBatch::try_new(
+            Arc::new(Schema::new(vec![Field::new("a", DataType::Int32, true)])),
+            vec![Arc::new(Int32Array::from(vec![Some(1_i32), None])) as ArrayRef],
+        )
+        .unwrap();
+
+        assert_eq!(
+            from_arrow_record_batch::<i32>(&mismatched).unwrap_err(),
+            AtlasArrowError::ColumnDTypeMismatch {
+                op: "from_arrow_record_batch",
+                column: 0,
+                expected: "Int32".to_owned(),
+                actual: "Int64".to_owned(),
+            }
+        );
+        assert_eq!(
+            from_arrow_record_batch::<i32>(&nullable).unwrap_err(),
+            AtlasArrowError::NullValues { op: "from_arrow_record_batch" }
         );
     }
 }

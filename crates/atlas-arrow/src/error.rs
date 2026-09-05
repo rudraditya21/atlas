@@ -14,6 +14,9 @@ pub enum AtlasArrowError {
     #[error("column name count mismatch for {op}: expected {expected}, got {actual}")]
     ColumnNameCountMismatch { op: &'static str, expected: usize, actual: usize },
 
+    #[error("invalid dtype for column {column} in {op}: expected {expected}, got {actual}")]
+    ColumnDTypeMismatch { op: &'static str, column: usize, expected: String, actual: String },
+
     #[error("failed to create record batch: {reason}")]
     RecordBatch { reason: String },
 

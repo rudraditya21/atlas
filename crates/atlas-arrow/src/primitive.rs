@@ -31,13 +31,13 @@ pub fn to_arrow_primitive<T: ArrowPrimitive>(array: &NDArray<T>) -> AtlasArrowRe
 /// Arrow offsets are respected through the array's logical iterator. Arrays containing nulls are
 /// rejected because Atlas ndarrays do not carry a validity bitmap.
 pub fn from_arrow_primitive<T: ArrowPrimitive>(array: &T::Array) -> AtlasArrowResult<NDArray<T>> {
-    Ok(NDArray::from_shape_vec([array.len()], T::from_arrow(array)?)?)
+    Ok(NDArray::from_shape_vec([array.len()], T::from_arrow(array, "from_arrow_primitive")?)?)
 }
 
 /// Maps a fixed-width Atlas primitive dtype to its Arrow primitive-array representation.
 pub trait ArrowPrimitive: InterchangeDType {
     /// Arrow primitive array produced by this conversion.
-    type Array: Array;
+    type Array: Array + 'static;
 
     #[doc(hidden)]
     const ARROW_DATA_TYPE: DataType;
@@ -48,7 +48,7 @@ pub trait ArrowPrimitive: InterchangeDType {
         Self: Sized;
 
     #[doc(hidden)]
-    fn from_arrow(array: &Self::Array) -> AtlasArrowResult<Vec<Self>>
+    fn from_arrow(array: &Self::Array, op: &'static str) -> AtlasArrowResult<Vec<Self>>
     where
         Self: Sized;
 
@@ -68,9 +68,9 @@ macro_rules! impl_arrow_primitive {
 
                 fn to_arrow(values: Vec<Self>) -> Self::Array { values.into() }
 
-                fn from_arrow(array: &Self::Array) -> AtlasArrowResult<Vec<Self>> {
+                fn from_arrow(array: &Self::Array, op: &'static str) -> AtlasArrowResult<Vec<Self>> {
                     if array.null_count() != 0 {
-                        return Err(AtlasArrowError::NullValues { op: "from_arrow_primitive" });
+                        return Err(AtlasArrowError::NullValues { op });
                     }
                     Ok(array.iter().map(|value| value.expect("null count was checked")).collect())
                 }
