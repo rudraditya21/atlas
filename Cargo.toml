@@ -24,6 +24,7 @@ version = "0.1.0"
 [workspace.dependencies]
 atlas-linalg = { path = "crates/atlas-linalg" }
 atlas-arrow = { path = "crates/atlas-arrow" }
+arrow-array = "53"
 atlas-ndarray = { path = "crates/atlas-ndarray" }
 atlas-random = { path = "crates/atlas-random" }
 atlas-stats = { path = "crates/atlas-stats" }

@@ -7,5 +7,9 @@
 #![forbid(unsafe_code)]
 
 mod dtype;
+mod error;
+mod primitive;
 
 pub use dtype::InterchangeDType;
+pub use error::{AtlasArrowError, AtlasArrowResult};
+pub use primitive::{ArrowPrimitive, to_arrow_primitive};
