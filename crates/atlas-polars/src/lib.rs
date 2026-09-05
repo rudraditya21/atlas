@@ -161,3 +161,35 @@ pub fn from_polars_dataframe<T: PolarsPrimitive>(
     }
     Ok(NDArray::from_shape_vec([frame.height(), frame.width()], values)?)
 }
+
+#[cfg(test)]
+mod tests {
+    use atlas_ndarray::NDArray;
+    use polars::prelude::DataType;
+
+    use crate::{from_polars_dataframe, from_polars_series, to_polars_dataframe, to_polars_series};
+
+    #[test]
+    fn numeric_series_round_trip_preserves_dtype_and_values() {
+        let values = NDArray::from_shape_vec([3], vec![1_i32, 2, 3]).unwrap();
+        let series = to_polars_series("values", &values).unwrap();
+        let converted = from_polars_series::<i32>(&series).unwrap();
+
+        assert_eq!(series.name().as_str(), "values");
+        assert_eq!(series.dtype(), &DataType::Int32);
+        assert_eq!(converted.shape(), &[3]);
+        assert_eq!(converted.data(), values.data());
+    }
+
+    #[test]
+    fn numeric_dataframe_round_trip_preserves_column_orientation_and_dtype() {
+        let matrix = NDArray::from_shape_vec([2, 3], vec![1_f64, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+        let frame = to_polars_dataframe(&matrix, &["x", "y", "z"]).unwrap();
+        let converted = from_polars_dataframe::<f64>(&frame).unwrap();
+
+        assert_eq!(frame.shape(), (2, 3));
+        assert_eq!(frame.column("y").unwrap().dtype(), &DataType::Float64);
+        assert_eq!(converted.shape(), &[2, 3]);
+        assert_eq!(converted.data(), matrix.data());
+    }
+}
