@@ -6,4 +6,6 @@
 
 #![forbid(unsafe_code)]
 
-use atlas_ndarray as _;
+mod dtype;
+
+pub use dtype::InterchangeDType;
