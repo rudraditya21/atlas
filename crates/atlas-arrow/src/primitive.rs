@@ -1,7 +1,10 @@
+use std::sync::Arc;
+
 use arrow_array::{
-    Array, BooleanArray, Float32Array, Float64Array, Int8Array, Int16Array, Int32Array, Int64Array,
-    UInt8Array, UInt16Array, UInt32Array, UInt64Array,
+    Array, ArrayRef, BooleanArray, Float32Array, Float64Array, Int8Array, Int16Array, Int32Array,
+    Int64Array, UInt8Array, UInt16Array, UInt32Array, UInt64Array,
 };
+use arrow_schema::DataType;
 use atlas_ndarray::NDArray;
 
 use crate::{AtlasArrowError, AtlasArrowResult, InterchangeDType};
@@ -15,6 +18,7 @@ pub fn to_arrow_primitive<T: ArrowPrimitive>(array: &NDArray<T>) -> AtlasArrowRe
     if array.ndim() != 1 {
         return Err(AtlasArrowError::InvalidInputRank {
             op: "to_arrow_primitive",
+            expected: "rank-1 vector",
             rank: array.ndim(),
         });
     }
@@ -36,6 +40,9 @@ pub trait ArrowPrimitive: InterchangeDType {
     type Array: Array;
 
     #[doc(hidden)]
+    const ARROW_DATA_TYPE: DataType;
+
+    #[doc(hidden)]
     fn to_arrow(values: Vec<Self>) -> Self::Array
     where
         Self: Sized;
@@ -44,13 +51,20 @@ pub trait ArrowPrimitive: InterchangeDType {
     fn from_arrow(array: &Self::Array) -> AtlasArrowResult<Vec<Self>>
     where
         Self: Sized;
+
+    #[doc(hidden)]
+    fn to_arrow_ref(values: Vec<Self>) -> ArrayRef
+    where
+        Self: Sized;
 }
 
 macro_rules! impl_arrow_primitive {
-    ($($ty:ty => $array:ty),+ $(,)?) => {
+    ($($ty:ty => $array:ty, $data_type:expr),+ $(,)?) => {
         $(
             impl ArrowPrimitive for $ty {
                 type Array = $array;
+
+                const ARROW_DATA_TYPE: DataType = $data_type;
 
                 fn to_arrow(values: Vec<Self>) -> Self::Array { values.into() }
 
@@ -60,23 +74,25 @@ macro_rules! impl_arrow_primitive {
                     }
                     Ok(array.iter().map(|value| value.expect("null count was checked")).collect())
                 }
+
+                fn to_arrow_ref(values: Vec<Self>) -> ArrayRef { Arc::new(Self::to_arrow(values)) }
             }
         )+
     };
 }
 
 impl_arrow_primitive!(
-    bool => BooleanArray,
-    i8 => Int8Array,
-    i16 => Int16Array,
-    i32 => Int32Array,
-    i64 => Int64Array,
-    u8 => UInt8Array,
-    u16 => UInt16Array,
-    u32 => UInt32Array,
-    u64 => UInt64Array,
-    f32 => Float32Array,
-    f64 => Float64Array,
+    bool => BooleanArray, DataType::Boolean,
+    i8 => Int8Array, DataType::Int8,
+    i16 => Int16Array, DataType::Int16,
+    i32 => Int32Array, DataType::Int32,
+    i64 => Int64Array, DataType::Int64,
+    u8 => UInt8Array, DataType::UInt8,
+    u16 => UInt16Array, DataType::UInt16,
+    u32 => UInt32Array, DataType::UInt32,
+    u64 => UInt64Array, DataType::UInt64,
+    f32 => Float32Array, DataType::Float32,
+    f64 => Float64Array, DataType::Float64,
 );
 
 #[cfg(test)]
@@ -101,7 +117,11 @@ mod tests {
 
         assert_eq!(
             to_arrow_primitive(&values).unwrap_err(),
-            AtlasArrowError::InvalidInputRank { op: "to_arrow_primitive", rank: 2 }
+            AtlasArrowError::InvalidInputRank {
+                op: "to_arrow_primitive",
+                expected: "rank-1 vector",
+                rank: 2,
+            }
         );
     }
 

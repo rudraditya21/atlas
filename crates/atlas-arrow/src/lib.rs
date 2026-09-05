@@ -9,7 +9,9 @@
 mod dtype;
 mod error;
 mod primitive;
+mod record_batch;
 
 pub use dtype::InterchangeDType;
 pub use error::{AtlasArrowError, AtlasArrowResult};
 pub use primitive::{ArrowPrimitive, from_arrow_primitive, to_arrow_primitive};
+pub use record_batch::to_arrow_record_batch;
