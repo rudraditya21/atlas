@@ -1,8 +1,10 @@
 use atlas_ndarray::{NDArray, Numeric};
 use num_traits::Float;
 
-use crate::core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand};
-use crate::internal::factorization::{tolerance, validate_rank_two};
+use crate::{
+    core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand},
+    internal::factorization::{tolerance, validate_rank_two},
+};
 
 pub fn solve_lower_triangular<'a, 'b, T, M, R>(matrix: M, rhs: R) -> AtlasLinalgResult<NDArray<T>>
 where

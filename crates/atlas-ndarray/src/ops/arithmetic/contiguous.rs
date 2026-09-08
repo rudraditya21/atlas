@@ -1,6 +1,5 @@
-use crate::{NDArray, Numeric, internal::simd};
-
 use super::{ElementwiseArithmetic, from_owned_parts};
+use crate::{NDArray, Numeric, internal::simd};
 
 pub(super) fn elementwise_binary_contiguous<T, F>(
     lhs: &NDArray<T>,

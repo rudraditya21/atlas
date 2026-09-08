@@ -1,8 +1,10 @@
 use atlas_ndarray::{AtlasNdError, Numeric};
 use num_traits::ToPrimitive;
 
-use crate::core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand};
-use crate::internal::dense::{matrix_ref, vector_ref};
+use crate::{
+    core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand},
+    internal::dense::{matrix_ref, vector_ref},
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum MatrixNorm {

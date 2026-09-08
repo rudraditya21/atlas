@@ -1,10 +1,9 @@
+use super::from_owned_parts;
 use crate::{
     NDArray, Numeric,
     internal::offset_pair_iter,
     layout::{broadcast::BroadcastMetadata, element_count},
 };
-
-use super::from_owned_parts;
 
 pub(super) fn elementwise_binary_strided<T, F>(
     lhs: &NDArray<T>,

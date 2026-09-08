@@ -1,9 +1,8 @@
 use atlas_ndarray::Numeric;
 use num_traits::ToPrimitive;
 
-use crate::core::{AtlasStatsError, AtlasStatsResult, StatsOperand};
-
 use super::variance::variance;
+use crate::core::{AtlasStatsError, AtlasStatsResult, StatsOperand};
 
 pub fn stddev<'a, T, I>(input: I) -> AtlasStatsResult<f64>
 where

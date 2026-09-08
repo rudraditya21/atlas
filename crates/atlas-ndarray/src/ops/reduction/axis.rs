@@ -1,17 +1,15 @@
-use crate::internal::simd;
 use num_traits::ToPrimitive;
 use rayon::prelude::*;
-
-use crate::{
-    AtlasNdResult, AxisIndex, ElementwiseArithmetic, NDArray, Numeric,
-    internal::{layout::LayoutKind, offset_iter},
-};
 
 use super::{
     dispatch::should_parallelize_reduction,
     mean::{mean_axis_contiguous, mean_axis_dense_contiguous, mean_axis_strided},
     metadata::AxisReductionMetadata,
     whole::{max_contiguous, min_contiguous, prod_contiguous, sum_contiguous},
+};
+use crate::{
+    AtlasNdResult, AxisIndex, ElementwiseArithmetic, NDArray, Numeric,
+    internal::{layout::LayoutKind, offset_iter, simd},
 };
 
 pub(super) fn sum_axis_impl<T: ElementwiseArithmetic>(

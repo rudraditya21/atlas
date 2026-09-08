@@ -1,5 +1,6 @@
-use crate::{CastMode, DType};
 use thiserror::Error;
+
+use crate::{CastMode, DType};
 
 pub type AtlasNdResult<T> = Result<T, AtlasNdError>;
 

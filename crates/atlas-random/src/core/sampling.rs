@@ -1,5 +1,4 @@
-use core::any::Any;
-use core::cmp::Ordering;
+use core::{any::Any, cmp::Ordering};
 
 use atlas_ndarray::{NDArray, Numeric, checked_element_count};
 use num_traits::Float;

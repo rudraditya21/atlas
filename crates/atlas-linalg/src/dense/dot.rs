@@ -1,8 +1,10 @@
 use atlas_ndarray::{NDArray, Numeric};
 
 use super::matmul::matmul;
-use crate::core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand};
-use crate::internal::dense::{dot_kernel, vector_ref};
+use crate::{
+    core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand},
+    internal::dense::{dot_kernel, vector_ref},
+};
 
 #[derive(Clone, Debug)]
 pub enum DotOutput<T: Numeric> {
@@ -74,8 +76,10 @@ mod tests {
     use atlas_ndarray::NDArray;
 
     use super::{DotOutput, dot};
-    use crate::internal::dense::{VectorRef, dot_contiguous, dot_kernel, dot_strided, vector_ref};
-    use crate::{AtlasLinalgError, LinalgOperand};
+    use crate::{
+        AtlasLinalgError, LinalgOperand,
+        internal::dense::{VectorRef, dot_contiguous, dot_kernel, dot_strided, vector_ref},
+    };
 
     #[test]
     fn dot_rejects_ranks_above_two_and_mismatched_vector_lengths() {

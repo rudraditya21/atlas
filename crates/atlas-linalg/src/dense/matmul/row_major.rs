@@ -3,10 +3,11 @@ use std::cell::RefCell;
 use atlas_ndarray::Numeric;
 use rayon::prelude::*;
 
-use crate::internal::dense::{MatrixRef, VectorRef, dot_contiguous};
-use crate::internal::simd;
-
 use super::dispatch::should_parallelize_matmul;
+use crate::internal::{
+    dense::{MatrixRef, VectorRef, dot_contiguous},
+    simd,
+};
 
 const ROW_MAJOR_MATMUL_BLOCK_SIZE: usize = 32;
 // The blocked traversal starts once workloads move beyond the medium square

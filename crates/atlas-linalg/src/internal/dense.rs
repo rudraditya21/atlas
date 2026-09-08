@@ -1,7 +1,6 @@
 use atlas_ndarray::Numeric;
 
-use crate::core::LinalgOperand;
-use crate::internal::simd;
+use crate::{core::LinalgOperand, internal::simd};
 
 #[derive(Clone, Copy)]
 pub(crate) struct VectorRef<'a, T: Numeric> {

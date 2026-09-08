@@ -1,11 +1,13 @@
 use atlas_ndarray::{NDArray, Numeric};
 use num_traits::Float;
 
-use crate::core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand};
-use crate::dense::triangular::{solve_lower_triangular_with_op, solve_upper_triangular_with_op};
-use crate::internal::factorization::{
-    copy_matrix_row_major, dot_slice, is_symmetric, tolerance, validate_finite, validate_rank_two,
-    zero_matrix_data,
+use crate::{
+    core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand},
+    dense::triangular::{solve_lower_triangular_with_op, solve_upper_triangular_with_op},
+    internal::factorization::{
+        copy_matrix_row_major, dot_slice, is_symmetric, tolerance, validate_finite,
+        validate_rank_two, zero_matrix_data,
+    },
 };
 
 #[derive(Clone, Debug)]

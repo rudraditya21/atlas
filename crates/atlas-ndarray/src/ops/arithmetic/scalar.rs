@@ -1,6 +1,5 @@
-use crate::{NDArray, Numeric, internal::simd};
-
 use super::{ElementwiseArithmetic, from_owned_parts};
+use crate::{NDArray, Numeric, internal::simd};
 
 pub(super) fn add_scalar_rhs<T: ElementwiseArithmetic>(
     array: &NDArray<T>,

@@ -44,8 +44,10 @@ mod tests {
             matmul_vector_matrix_row_major,
         },
     };
-    use crate::internal::dense::{matrix_ref, vector_ref};
-    use crate::{AtlasLinalgError, LinalgOperand};
+    use crate::{
+        AtlasLinalgError, LinalgOperand,
+        internal::dense::{matrix_ref, vector_ref},
+    };
 
     fn vector_row_major(values: &[i32]) -> NDArray<i32> {
         NDArray::from_shape_vec([values.len()], values.to_vec()).unwrap()

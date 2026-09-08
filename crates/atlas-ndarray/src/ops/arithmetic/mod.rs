@@ -7,16 +7,16 @@ mod strided;
 
 use std::ops::{Add, Div, Mul, Rem, Sub};
 
-use crate::core::dtype::ArithmeticPromote;
-use crate::{AtlasNdError, AtlasNdResult, NDArray, Numeric, RuntimeScalar, core::dtype};
-
+pub use self::minmax::ElementwiseMinMax;
 use self::{
     contiguous::{elementwise_add_contiguous, elementwise_mul_contiguous},
     dispatch::{BinaryOperand, dispatch_elementwise_binary, dispatch_elementwise_binary_with},
     scalar::{add_scalar_lhs, add_scalar_rhs, mul_scalar_lhs, mul_scalar_rhs},
 };
-
-pub use self::minmax::ElementwiseMinMax;
+use crate::{
+    AtlasNdError, AtlasNdResult, NDArray, Numeric, RuntimeScalar,
+    core::{dtype, dtype::ArithmeticPromote},
+};
 
 /// Defines profile-independent elementwise arithmetic for built-in numeric types.
 pub trait ElementwiseArithmetic: Numeric {

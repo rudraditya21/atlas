@@ -118,13 +118,12 @@ fn max_relative_offset(shape: &[usize], strides: &[usize]) -> AtlasNdResult<usiz
 
 #[cfg(test)]
 mod tests {
-    use crate::AtlasNdError;
-
     use super::{
         checked_compute_strides, checked_element_count, checked_row_major_metadata,
         compute_strides, element_count, validate_row_major_shape_and_strides,
         validate_shape_and_strides, validate_view_shape_and_strides,
     };
+    use crate::AtlasNdError;
 
     #[test]
     fn element_count_handles_scalar_and_zero_sized_shapes() {

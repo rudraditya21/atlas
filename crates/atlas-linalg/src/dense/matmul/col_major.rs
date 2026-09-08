@@ -1,10 +1,11 @@
 use atlas_ndarray::Numeric;
 use rayon::prelude::*;
 
-use crate::internal::dense::{MatrixRef, VectorRef, dot_contiguous};
-use crate::internal::simd;
-
 use super::dispatch::should_parallelize_matmul;
+use crate::internal::{
+    dense::{MatrixRef, VectorRef, dot_contiguous},
+    simd,
+};
 
 pub(super) fn vector_matrix<T: Numeric>(lhs: VectorRef<'_, T>, rhs: MatrixRef<'_, T>) -> Vec<T> {
     let lhs = lhs.contiguous_slice();

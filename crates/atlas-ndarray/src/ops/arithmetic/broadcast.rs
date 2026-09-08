@@ -1,12 +1,9 @@
+use super::from_owned_parts;
 use crate::{
     NDArray, Numeric,
-    internal::broadcast_offset_pair_iter,
-    internal::shape::compute_strides,
-    internal::simd,
+    internal::{broadcast_offset_pair_iter, shape::compute_strides, simd},
     layout::{broadcast::BroadcastMetadata, element_count},
 };
-
-use super::from_owned_parts;
 
 pub(super) fn elementwise_binary_broadcast<T, F>(
     lhs: &NDArray<T>,

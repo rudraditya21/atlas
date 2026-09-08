@@ -1,8 +1,7 @@
 use crate::{
     ArrayElement, AsArray, AtlasNdResult, AxisIndex, CastMode, DType, NDArray, ReductionOp,
     RuntimeDType, RuntimeScalar,
-    core::asarray::cast_array,
-    core::axis::normalize_and_offset_indices,
+    core::{asarray::cast_array, axis::normalize_and_offset_indices},
     internal::{
         layout::{dense_storage_slice, is_contiguous_layout},
         materialize_contiguous_array,

@@ -1,8 +1,7 @@
 use num_traits::{Float, ToPrimitive};
 
-use crate::{AtlasNdError, AtlasNdResult, Numeric, internal::value_iter};
-
 use super::metadata::WholeReductionMetadata;
+use crate::{AtlasNdError, AtlasNdResult, Numeric, internal::value_iter};
 
 pub(super) fn nanmin_all<T: Numeric + Float>(
     data: &[T],

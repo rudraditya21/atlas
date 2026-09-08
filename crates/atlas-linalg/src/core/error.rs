@@ -1,6 +1,5 @@
-use thiserror::Error;
-
 use atlas_ndarray::AtlasNdError;
+use thiserror::Error;
 
 pub type AtlasLinalgResult<T> = Result<T, AtlasLinalgError>;
 

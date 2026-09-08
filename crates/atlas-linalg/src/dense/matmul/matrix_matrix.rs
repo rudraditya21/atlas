@@ -1,9 +1,10 @@
 use atlas_ndarray::{NDArray, Numeric};
 
-use crate::core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand};
-use crate::internal::dense::{MatrixRef, matrix_ref};
-
 use super::{col_major, generic, row_major};
+use crate::{
+    core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand},
+    internal::dense::{MatrixRef, matrix_ref},
+};
 
 pub(super) fn matmul_matrix_matrix<T: Numeric>(
     lhs: &LinalgOperand<'_, T>,

@@ -1,5 +1,6 @@
-use crate::{AtlasNdError, AtlasNdResult, NDArray, Numeric};
 use num_traits::Float;
+
+use crate::{AtlasNdError, AtlasNdResult, NDArray, Numeric};
 
 #[doc(hidden)]
 pub trait ArangeElement: Numeric + PartialOrd {

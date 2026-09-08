@@ -1,5 +1,7 @@
-use std::slice::{Iter, IterMut};
-use std::vec::IntoIter;
+use std::{
+    slice::{Iter, IterMut},
+    vec::IntoIter,
+};
 
 use crate::{ArrayElement, NDArray, internal, view::ArrayView};
 

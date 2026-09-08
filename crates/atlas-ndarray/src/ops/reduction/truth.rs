@@ -1,5 +1,10 @@
 use rayon::prelude::*;
 
+use super::{
+    axis::{contiguous_lane, contiguous_region, linear_offset},
+    dispatch::should_parallelize_reduction,
+    metadata::{AxisReductionMetadata, WholeReductionMetadata},
+};
 use crate::{
     AtlasNdResult, AxisIndex, NDArray,
     internal::{
@@ -7,12 +12,6 @@ use crate::{
         layout::{LayoutKind, dense_storage_slice},
         offset_iter,
     },
-};
-
-use super::{
-    axis::{contiguous_lane, contiguous_region, linear_offset},
-    dispatch::should_parallelize_reduction,
-    metadata::{AxisReductionMetadata, WholeReductionMetadata},
 };
 
 pub(super) fn all_all(data: &[bool], offset: usize, shape: &[usize], strides: &[usize]) -> bool {

@@ -1,11 +1,10 @@
 use atlas_ndarray::{NDArray, Numeric};
 use num_traits::ToPrimitive;
 
-use crate::{AtlasStatsError, AtlasStatsResult, StatsOperand};
-
 use super::{
     correlation::variance_total_is_effectively_zero, covariance_matrix::covariance_summary,
 };
+use crate::{AtlasStatsError, AtlasStatsResult, StatsOperand};
 
 /// Returns the Pearson correlation matrix for an `[observations, variables]` input matrix.
 ///

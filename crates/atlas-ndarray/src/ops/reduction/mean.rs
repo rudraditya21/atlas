@@ -1,15 +1,14 @@
 use num_traits::ToPrimitive;
 use rayon::prelude::*;
 
-use crate::{
-    AtlasNdError, AtlasNdResult, NDArray, Numeric,
-    internal::{offset_iter, simd, try_for_each_value},
-};
-
 use super::{
     axis::{contiguous_lane, linear_offset},
     dispatch::{parallel_reduction_chunk_len, should_parallelize_reduction},
     metadata::{AxisReductionMetadata, WholeReductionMetadata},
+};
+use crate::{
+    AtlasNdError, AtlasNdResult, NDArray, Numeric,
+    internal::{offset_iter, simd, try_for_each_value},
 };
 
 pub(super) fn mean_contiguous<T>(values: &[T], op: &'static str) -> AtlasNdResult<f64>

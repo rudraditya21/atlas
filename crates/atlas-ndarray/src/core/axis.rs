@@ -122,12 +122,11 @@ pub(crate) fn normalize_insertion_axis<A: AxisIndex>(axis: A, ndim: usize) -> At
 
 #[cfg(test)]
 mod tests {
-    use crate::AtlasNdError;
-
     use super::{
         normalize_and_offset_indices, normalize_axis, normalize_insertion_axis,
         normalize_scalar_index,
     };
+    use crate::AtlasNdError;
 
     #[test]
     fn normalize_axis_supports_positive_and_negative_indices() {

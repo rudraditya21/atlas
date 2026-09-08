@@ -1,11 +1,10 @@
 use atlas_ndarray::{NDArray, Numeric};
 
-use crate::core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand};
-
 use super::{
     matrix_matrix::matmul_matrix_matrix, matrix_vector::matmul_matrix_vector,
     vector_matrix::matmul_vector_matrix,
 };
+use crate::core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand};
 
 // Keep medium square matmuls on the serial path unless each worker receives a
 // meaningful row slab. The current benchmark suite covers 128x128 as the

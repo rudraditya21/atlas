@@ -113,12 +113,11 @@ pub fn contiguous_broadcast_metadata(
 
 #[cfg(test)]
 mod tests {
-    use crate::AtlasNdError;
-
     use super::{
         BroadcastMetadata, broadcast_pair, broadcast_shape, broadcast_strides,
         contiguous_broadcast_metadata,
     };
+    use crate::AtlasNdError;
 
     #[test]
     fn broadcast_shape_aligns_trailing_dimensions() {

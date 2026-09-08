@@ -1,7 +1,9 @@
 use atlas_ndarray::Numeric;
 
-use crate::core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand};
-use crate::internal::dense::matrix_ref;
+use crate::{
+    core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand},
+    internal::dense::matrix_ref,
+};
 
 pub fn trace<'a, T, O>(operand: O) -> AtlasLinalgResult<T>
 where

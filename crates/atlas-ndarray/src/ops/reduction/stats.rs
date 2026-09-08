@@ -1,11 +1,10 @@
 use num_traits::ToPrimitive;
 
+use super::metadata::{AxisReductionMetadata, ReductionOperand, WholeReductionMetadata};
 use crate::{
     AtlasNdError, AtlasNdResult, AxisIndex, NDArray, Numeric, OperandMetadata,
     internal::{for_each_value, offset_iter},
 };
-
-use super::metadata::{AxisReductionMetadata, ReductionOperand, WholeReductionMetadata};
 
 #[derive(Default)]
 pub(super) struct RunningVariance {

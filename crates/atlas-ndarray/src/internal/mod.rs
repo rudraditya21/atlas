@@ -4,11 +4,13 @@ pub(crate) mod shape;
 pub(crate) mod simd;
 pub(crate) mod traversal;
 
-pub(crate) use self::materialize::materialize_contiguous_array;
 use self::shape::{validate_row_major_shape_and_strides, validate_view_shape_and_strides};
-pub(crate) use self::traversal::{
-    ValueIter, broadcast_offset_pair_iter, for_each_value, offset_iter, offset_pair_iter,
-    try_for_each_value, value_iter,
+pub(crate) use self::{
+    materialize::materialize_contiguous_array,
+    traversal::{
+        ValueIter, broadcast_offset_pair_iter, for_each_value, offset_iter, offset_pair_iter,
+        try_for_each_value, value_iter,
+    },
 };
 use crate::{AtlasNdError, AtlasNdResult};
 

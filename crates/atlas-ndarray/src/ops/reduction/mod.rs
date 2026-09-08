@@ -11,11 +11,6 @@ mod whole;
 
 use num_traits::ToPrimitive;
 
-use crate::{
-    AtlasNdResult, AxisIndex, ElementwiseArithmetic, NDArray, Numeric, OperandMetadata,
-    view::ArrayView,
-};
-
 use self::{
     arg::{argmax_all, argmax_axis, argmin_all, argmin_axis},
     axis::{
@@ -31,6 +26,10 @@ use self::{
         any_axis_keepdims_impl,
     },
     whole::{max_all, mean_all, min_all, prod_all, sum_all},
+};
+use crate::{
+    AtlasNdResult, AxisIndex, ElementwiseArithmetic, NDArray, Numeric, OperandMetadata,
+    view::ArrayView,
 };
 
 impl<T: Numeric> NDArray<T> {

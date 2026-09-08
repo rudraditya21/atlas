@@ -1,14 +1,13 @@
-use crate::{
-    AtlasNdResult, NDArray, Numeric,
-    internal::layout::{PairLayoutKind, pair_layout_kind},
-    layout::broadcast::{BroadcastMetadata, broadcast_pair},
-};
-
 use super::{
     broadcast::elementwise_binary_broadcast,
     contiguous::elementwise_binary_contiguous,
     scalar::{elementwise_scalar_lhs, elementwise_scalar_rhs},
     strided::elementwise_binary_strided,
+};
+use crate::{
+    AtlasNdResult, NDArray, Numeric,
+    internal::layout::{PairLayoutKind, pair_layout_kind},
+    layout::broadcast::{BroadcastMetadata, broadcast_pair},
 };
 
 pub(super) enum BinaryOperand<'a, T: Numeric> {

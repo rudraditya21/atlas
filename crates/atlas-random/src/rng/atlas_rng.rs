@@ -8,12 +8,11 @@ use rand::{
 use rand_distr::{Bernoulli, Normal, StandardNormal};
 use rayon::prelude::*;
 
+use super::random_source::RandomSource;
 use crate::core::{
     AtlasRandomError, AtlasRandomResult, validate_bernoulli_probability,
     validate_normal_parameters, validate_uniform_bounds,
 };
-
-use super::random_source::RandomSource;
 
 const PARALLEL_SAMPLING_THRESHOLD: usize = 1 << 20;
 const PARALLEL_SAMPLING_CHUNK_LEN: usize = 1 << 15;

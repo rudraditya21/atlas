@@ -1,14 +1,14 @@
 use num_traits::ToPrimitive;
 use rayon::prelude::*;
 
+use super::{
+    dispatch::{parallel_reduction_chunk_len, should_parallelize_reduction},
+    metadata::WholeReductionMetadata,
+};
 use crate::{
     AtlasNdError, AtlasNdResult, ElementwiseArithmetic, Numeric,
-    internal::simd,
-    internal::{for_each_value, layout::dense_storage_slice},
+    internal::{for_each_value, layout::dense_storage_slice, simd},
 };
-
-use super::dispatch::{parallel_reduction_chunk_len, should_parallelize_reduction};
-use super::metadata::WholeReductionMetadata;
 
 pub(super) fn sum_contiguous<T: ElementwiseArithmetic>(values: &[T]) -> T {
     if should_parallelize_reduction(values.len()) {

@@ -1,10 +1,12 @@
 use atlas_ndarray::{NDArray, Numeric};
 use num_traits::Float;
 
-use crate::core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand};
-use crate::internal::factorization::{
-    copy_matrix_row_major, dot_slice, validate_finite, validate_rank_two, vector_norm,
-    zero_matrix_data,
+use crate::{
+    core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand},
+    internal::factorization::{
+        copy_matrix_row_major, dot_slice, validate_finite, validate_rank_two, vector_norm,
+        zero_matrix_data,
+    },
 };
 
 #[derive(Clone, Debug)]

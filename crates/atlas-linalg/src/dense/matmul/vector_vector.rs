@@ -1,7 +1,9 @@
 use atlas_ndarray::{NDArray, Numeric};
 
-use crate::core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand};
-use crate::internal::dense::{dot_kernel, vector_ref};
+use crate::{
+    core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand},
+    internal::dense::{dot_kernel, vector_ref},
+};
 
 #[allow(dead_code)]
 pub(super) fn matmul_vector_vector<T: Numeric>(

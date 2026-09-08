@@ -1,11 +1,12 @@
 use atlas_ndarray::{NDArray, Numeric};
 use num_traits::{Float, ToPrimitive};
 
-use crate::core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand};
-use crate::dense::norm::matrix_frobenius_norm;
-use crate::factorization::lu::lu;
-use crate::internal::dense::matrix_ref;
-use crate::internal::factorization::validate_rank_two;
+use crate::{
+    core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand},
+    dense::norm::matrix_frobenius_norm,
+    factorization::lu::lu,
+    internal::{dense::matrix_ref, factorization::validate_rank_two},
+};
 
 /// Estimates `κ_F(A) = ||A||_F * ||A⁻¹||_F` using LU factorization.
 ///

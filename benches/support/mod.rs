@@ -1,7 +1,8 @@
 #![allow(dead_code)]
 
-use criterion::{BenchmarkGroup, Throughput, measurement::WallTime};
 use std::time::Duration;
+
+use criterion::{BenchmarkGroup, Throughput, measurement::WallTime};
 
 pub(crate) const VECTOR_SIZES: [usize; 4] = [1 << 10, 1 << 14, 1 << 18, 1 << 20];
 pub(crate) const SQUARE_MATRIX_SIDES: [usize; 4] = [32, 128, 512, 1024];

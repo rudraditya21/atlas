@@ -97,9 +97,8 @@ impl_arrow_primitive!(
 
 #[cfg(test)]
 mod tests {
-    use atlas_ndarray::NDArray;
-
     use arrow_array::{Array, Int32Array};
+    use atlas_ndarray::NDArray;
 
     use crate::{AtlasArrowError, from_arrow_primitive, to_arrow_primitive};
 
