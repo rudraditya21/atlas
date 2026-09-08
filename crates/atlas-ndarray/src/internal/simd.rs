@@ -1,11 +1,11 @@
-use std::{
-    any::TypeId,
-    mem::{align_of, size_of},
-};
-
 use num_traits::ToPrimitive;
 
-use crate::{AtlasNdError, AtlasNdResult, ElementwiseArithmetic, Numeric};
+use crate::{
+    AtlasNdError, AtlasNdResult, ElementwiseArithmetic, Numeric,
+    simd_support::{cast_mut_slice, cast_value},
+};
+
+pub(crate) use crate::simd_support::{cast_slice, is_f32, is_f64};
 
 const SIMD_LANES: usize = 8;
 const SIMD_REDUCTION_THRESHOLD: usize = SIMD_LANES * 32;
@@ -512,27 +512,13 @@ fn body_len(len: usize) -> usize {
 }
 
 #[inline]
-pub(crate) fn is_f32<T: 'static>() -> bool {
-    TypeId::of::<T>() == TypeId::of::<f32>()
-}
-
-#[inline]
-pub(crate) fn is_f64<T: 'static>() -> bool {
-    TypeId::of::<T>() == TypeId::of::<f64>()
-}
-
-#[inline]
 fn to_f32<T: Numeric>(value: T) -> f32 {
-    assert_exact_type::<T, f32>();
-    // SAFETY: Callers only use this after an exact type check for f32.
-    unsafe { std::mem::transmute_copy::<T, f32>(&value) }
+    cast_value(value)
 }
 
 #[inline]
 fn to_f64<T: Numeric>(value: T) -> f64 {
-    assert_exact_type::<T, f64>();
-    // SAFETY: Callers only use this after an exact type check for f64.
-    unsafe { std::mem::transmute_copy::<T, f64>(&value) }
+    cast_value(value)
 }
 
 #[inline]
@@ -541,9 +527,7 @@ where
     U: Copy + 'static,
     T: Copy + 'static,
 {
-    assert_exact_type::<U, T>();
-    // SAFETY: Callers only use this after an exact type match between U and T.
-    unsafe { std::mem::transmute_copy::<U, T>(&value) }
+    cast_value(value)
 }
 
 fn compensated_sum_f32(values: &[f32]) -> f32 {
@@ -607,27 +591,6 @@ pub(crate) fn compensated_sum_strided_f64(
     }
 
     total.finish()
-}
-
-#[inline]
-pub(crate) fn cast_slice<T: 'static, U: 'static>(data: &[T]) -> &[U] {
-    assert_exact_type::<T, U>();
-    // SAFETY: Callers only use this after an exact type match between T and U.
-    unsafe { std::slice::from_raw_parts(data.as_ptr() as *const U, data.len()) }
-}
-
-#[inline]
-fn cast_mut_slice<T: 'static, U: 'static>(data: &mut [T]) -> &mut [U] {
-    assert_exact_type::<T, U>();
-    // SAFETY: Callers only use this after an exact type match between T and U.
-    unsafe { std::slice::from_raw_parts_mut(data.as_mut_ptr() as *mut U, data.len()) }
-}
-
-#[inline]
-fn assert_exact_type<T: 'static, U: 'static>() {
-    assert_eq!(TypeId::of::<T>(), TypeId::of::<U>());
-    assert_eq!(size_of::<T>(), size_of::<U>());
-    assert_eq!(align_of::<T>(), align_of::<U>());
 }
 
 #[cfg(target_arch = "x86_64")]

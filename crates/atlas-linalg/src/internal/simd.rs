@@ -1,9 +1,8 @@
-use std::{
-    any::TypeId,
-    mem::{align_of, size_of},
-};
-
 use atlas_ndarray::Numeric;
+
+pub(crate) use atlas_ndarray::simd_support::{
+    cast_mut_slice, cast_slice, cast_value, is_f32, is_f64,
+};
 
 const F32_LANES: usize = 8;
 const F64_LANES: usize = 4;
@@ -80,48 +79,6 @@ fn scaled_accumulate_scalar<T: Numeric>(output: &mut [T], input: &[T], scale: T)
     for (dst, &src) in output.iter_mut().zip(input) {
         *dst += scale * src;
     }
-}
-
-#[inline]
-pub(crate) fn is_f32<T: 'static>() -> bool {
-    TypeId::of::<T>() == TypeId::of::<f32>()
-}
-
-#[inline]
-pub(crate) fn is_f64<T: 'static>() -> bool {
-    TypeId::of::<T>() == TypeId::of::<f64>()
-}
-
-#[inline]
-pub(crate) fn cast_value<U, T>(value: U) -> T
-where
-    U: Copy + 'static,
-    T: Copy + 'static,
-{
-    assert_exact_type::<U, T>();
-    // SAFETY: Callers only use this after an exact type match between U and T.
-    unsafe { std::mem::transmute_copy::<U, T>(&value) }
-}
-
-#[inline]
-pub(crate) fn cast_slice<T: 'static, U: 'static>(data: &[T]) -> &[U] {
-    assert_exact_type::<T, U>();
-    // SAFETY: Callers only use this after an exact type match between T and U.
-    unsafe { std::slice::from_raw_parts(data.as_ptr() as *const U, data.len()) }
-}
-
-#[inline]
-pub(crate) fn cast_mut_slice<T: 'static, U: 'static>(data: &mut [T]) -> &mut [U] {
-    assert_exact_type::<T, U>();
-    // SAFETY: Callers only use this after an exact type match between T and U.
-    unsafe { std::slice::from_raw_parts_mut(data.as_mut_ptr() as *mut U, data.len()) }
-}
-
-#[inline]
-fn assert_exact_type<T: 'static, U: 'static>() {
-    assert_eq!(TypeId::of::<T>(), TypeId::of::<U>());
-    assert_eq!(size_of::<T>(), size_of::<U>());
-    assert_eq!(align_of::<T>(), align_of::<U>());
 }
 
 pub(crate) fn dot_contiguous_f32(lhs: &[f32], rhs: &[f32]) -> f32 {
