@@ -599,56 +599,68 @@ mod x86_64 {
 
     #[target_feature(enable = "avx")]
     pub(super) unsafe fn add_f32(lhs: &[f32], rhs: &[f32], out: &mut [f32]) {
-        map_f32(lhs, rhs, out, _mm256_add_ps);
+        // SAFETY: The caller verifies AVX support before invoking this kernel.
+        unsafe { map_f32(lhs, rhs, out, _mm256_add_ps) };
     }
 
     #[target_feature(enable = "avx")]
     pub(super) unsafe fn mul_f32(lhs: &[f32], rhs: &[f32], out: &mut [f32]) {
-        map_f32(lhs, rhs, out, _mm256_mul_ps);
+        // SAFETY: The caller verifies AVX support before invoking this kernel.
+        unsafe { map_f32(lhs, rhs, out, _mm256_mul_ps) };
     }
 
     #[target_feature(enable = "avx")]
     pub(super) unsafe fn add_scalar_f32(input: &[f32], scalar: f32, out: &mut [f32]) {
-        map_scalar_f32(input, scalar, out, _mm256_add_ps);
+        // SAFETY: The caller verifies AVX support before invoking this kernel.
+        unsafe { map_scalar_f32(input, scalar, out, _mm256_add_ps) };
     }
 
     #[target_feature(enable = "avx")]
     pub(super) unsafe fn mul_scalar_f32(input: &[f32], scalar: f32, out: &mut [f32]) {
-        map_scalar_f32(input, scalar, out, _mm256_mul_ps);
+        // SAFETY: The caller verifies AVX support before invoking this kernel.
+        unsafe { map_scalar_f32(input, scalar, out, _mm256_mul_ps) };
     }
 
     #[target_feature(enable = "avx")]
     pub(super) unsafe fn add_f64(lhs: &[f64], rhs: &[f64], out: &mut [f64]) {
-        map_f64(lhs, rhs, out, _mm256_add_pd);
+        // SAFETY: The caller verifies AVX support before invoking this kernel.
+        unsafe { map_f64(lhs, rhs, out, _mm256_add_pd) };
     }
 
     #[target_feature(enable = "avx")]
     pub(super) unsafe fn mul_f64(lhs: &[f64], rhs: &[f64], out: &mut [f64]) {
-        map_f64(lhs, rhs, out, _mm256_mul_pd);
+        // SAFETY: The caller verifies AVX support before invoking this kernel.
+        unsafe { map_f64(lhs, rhs, out, _mm256_mul_pd) };
     }
 
     #[target_feature(enable = "avx")]
     pub(super) unsafe fn add_scalar_f64(input: &[f64], scalar: f64, out: &mut [f64]) {
-        map_scalar_f64(input, scalar, out, _mm256_add_pd);
+        // SAFETY: The caller verifies AVX support before invoking this kernel.
+        unsafe { map_scalar_f64(input, scalar, out, _mm256_add_pd) };
     }
 
     #[target_feature(enable = "avx")]
     pub(super) unsafe fn mul_scalar_f64(input: &[f64], scalar: f64, out: &mut [f64]) {
-        map_scalar_f64(input, scalar, out, _mm256_mul_pd);
+        // SAFETY: The caller verifies AVX support before invoking this kernel.
+        unsafe { map_scalar_f64(input, scalar, out, _mm256_mul_pd) };
     }
 
     #[target_feature(enable = "avx")]
     pub(super) unsafe fn sum_f32(values: &[f32]) -> f32 {
         let mut index = 0;
-        let mut accumulator = _mm256_setzero_ps();
+        // SAFETY: This function requires AVX support.
+        let mut accumulator = { _mm256_setzero_ps() };
 
         while index + 8 <= values.len() {
-            accumulator = _mm256_add_ps(accumulator, _mm256_loadu_ps(values.as_ptr().add(index)));
+            // SAFETY: `index + 8 <= values.len()` keeps the unaligned load in bounds.
+            accumulator =
+                unsafe { _mm256_add_ps(accumulator, _mm256_loadu_ps(values.as_ptr().add(index))) };
             index += 8;
         }
 
         let mut lanes = [0.0_f32; 8];
-        _mm256_storeu_ps(lanes.as_mut_ptr(), accumulator);
+        // SAFETY: `lanes` holds exactly eight f32 values.
+        unsafe { _mm256_storeu_ps(lanes.as_mut_ptr(), accumulator) };
         let mut total = super::CompensatedSum::new();
         for value in lanes {
             total.add(f64::from(value));
@@ -663,15 +675,19 @@ mod x86_64 {
     #[target_feature(enable = "avx")]
     pub(super) unsafe fn sum_f64(values: &[f64]) -> f64 {
         let mut index = 0;
-        let mut accumulator = _mm256_setzero_pd();
+        // SAFETY: This function requires AVX support.
+        let mut accumulator = { _mm256_setzero_pd() };
 
         while index + 4 <= values.len() {
-            accumulator = _mm256_add_pd(accumulator, _mm256_loadu_pd(values.as_ptr().add(index)));
+            // SAFETY: `index + 4 <= values.len()` keeps the unaligned load in bounds.
+            accumulator =
+                unsafe { _mm256_add_pd(accumulator, _mm256_loadu_pd(values.as_ptr().add(index))) };
             index += 4;
         }
 
         let mut lanes = [0.0_f64; 4];
-        _mm256_storeu_pd(lanes.as_mut_ptr(), accumulator);
+        // SAFETY: `lanes` holds exactly four f64 values.
+        unsafe { _mm256_storeu_pd(lanes.as_mut_ptr(), accumulator) };
         let mut total = super::CompensatedSum::new();
         for value in lanes {
             total.add(value);
@@ -690,17 +706,19 @@ mod x86_64 {
         }
 
         let body_len = values.len() / 8 * 8;
-        let mut acc = _mm256_set1_ps(1.0);
+        // SAFETY: This function requires AVX support.
+        let mut acc = { _mm256_set1_ps(1.0) };
         let mut index = 0;
 
         while index < body_len {
-            let vector = _mm256_loadu_ps(values.as_ptr().add(index));
-            acc = _mm256_mul_ps(acc, vector);
+            // SAFETY: `index < body_len` guarantees eight readable values.
+            acc = unsafe { _mm256_mul_ps(acc, _mm256_loadu_ps(values.as_ptr().add(index))) };
             index += 8;
         }
 
         let mut lanes = [1.0_f32; 8];
-        _mm256_storeu_ps(lanes.as_mut_ptr(), acc);
+        // SAFETY: `lanes` holds exactly eight f32 values.
+        unsafe { _mm256_storeu_ps(lanes.as_mut_ptr(), acc) };
         let mut total: f32 = lanes.into_iter().product();
 
         while index < values.len() {
@@ -719,17 +737,19 @@ mod x86_64 {
 
         let body_len = values.len() / 8 * 8;
         let mut index = 0;
-        let mut acc = _mm256_loadu_ps(values.as_ptr());
+        // SAFETY: The length check guarantees eight readable values.
+        let mut acc = unsafe { _mm256_loadu_ps(values.as_ptr()) };
         index += 8;
 
         while index < body_len {
-            let vector = _mm256_loadu_ps(values.as_ptr().add(index));
-            acc = _mm256_min_ps(acc, vector);
+            // SAFETY: `index < body_len` guarantees eight readable values.
+            acc = unsafe { _mm256_min_ps(acc, _mm256_loadu_ps(values.as_ptr().add(index))) };
             index += 8;
         }
 
         let mut lanes = [0.0_f32; 8];
-        _mm256_storeu_ps(lanes.as_mut_ptr(), acc);
+        // SAFETY: `lanes` holds exactly eight f32 values.
+        unsafe { _mm256_storeu_ps(lanes.as_mut_ptr(), acc) };
         let mut minimum = lanes.into_iter().fold(f32::INFINITY, f32::min);
 
         while index < values.len() {
@@ -748,17 +768,19 @@ mod x86_64 {
 
         let body_len = values.len() / 8 * 8;
         let mut index = 0;
-        let mut acc = _mm256_loadu_ps(values.as_ptr());
+        // SAFETY: The length check guarantees eight readable values.
+        let mut acc = unsafe { _mm256_loadu_ps(values.as_ptr()) };
         index += 8;
 
         while index < body_len {
-            let vector = _mm256_loadu_ps(values.as_ptr().add(index));
-            acc = _mm256_max_ps(acc, vector);
+            // SAFETY: `index < body_len` guarantees eight readable values.
+            acc = unsafe { _mm256_max_ps(acc, _mm256_loadu_ps(values.as_ptr().add(index))) };
             index += 8;
         }
 
         let mut lanes = [0.0_f32; 8];
-        _mm256_storeu_ps(lanes.as_mut_ptr(), acc);
+        // SAFETY: `lanes` holds exactly eight f32 values.
+        unsafe { _mm256_storeu_ps(lanes.as_mut_ptr(), acc) };
         let mut maximum = lanes.into_iter().fold(f32::NEG_INFINITY, f32::max);
 
         while index < values.len() {
@@ -776,17 +798,19 @@ mod x86_64 {
         }
 
         let body_len = values.len() / 4 * 4;
-        let mut acc = _mm256_set1_pd(1.0);
+        // SAFETY: This function requires AVX support.
+        let mut acc = { _mm256_set1_pd(1.0) };
         let mut index = 0;
 
         while index < body_len {
-            let vector = _mm256_loadu_pd(values.as_ptr().add(index));
-            acc = _mm256_mul_pd(acc, vector);
+            // SAFETY: `index < body_len` guarantees four readable values.
+            acc = unsafe { _mm256_mul_pd(acc, _mm256_loadu_pd(values.as_ptr().add(index))) };
             index += 4;
         }
 
         let mut lanes = [1.0_f64; 4];
-        _mm256_storeu_pd(lanes.as_mut_ptr(), acc);
+        // SAFETY: `lanes` holds exactly four f64 values.
+        unsafe { _mm256_storeu_pd(lanes.as_mut_ptr(), acc) };
         let mut total: f64 = lanes.into_iter().product();
 
         while index < values.len() {
@@ -805,17 +829,19 @@ mod x86_64 {
 
         let body_len = values.len() / 4 * 4;
         let mut index = 0;
-        let mut acc = _mm256_loadu_pd(values.as_ptr());
+        // SAFETY: The length check guarantees four readable values.
+        let mut acc = unsafe { _mm256_loadu_pd(values.as_ptr()) };
         index += 4;
 
         while index < body_len {
-            let vector = _mm256_loadu_pd(values.as_ptr().add(index));
-            acc = _mm256_min_pd(acc, vector);
+            // SAFETY: `index < body_len` guarantees four readable values.
+            acc = unsafe { _mm256_min_pd(acc, _mm256_loadu_pd(values.as_ptr().add(index))) };
             index += 4;
         }
 
         let mut lanes = [0.0_f64; 4];
-        _mm256_storeu_pd(lanes.as_mut_ptr(), acc);
+        // SAFETY: `lanes` holds exactly four f64 values.
+        unsafe { _mm256_storeu_pd(lanes.as_mut_ptr(), acc) };
         let mut minimum = lanes.into_iter().fold(f64::INFINITY, f64::min);
 
         while index < values.len() {
@@ -834,17 +860,19 @@ mod x86_64 {
 
         let body_len = values.len() / 4 * 4;
         let mut index = 0;
-        let mut acc = _mm256_loadu_pd(values.as_ptr());
+        // SAFETY: The length check guarantees four readable values.
+        let mut acc = unsafe { _mm256_loadu_pd(values.as_ptr()) };
         index += 4;
 
         while index < body_len {
-            let vector = _mm256_loadu_pd(values.as_ptr().add(index));
-            acc = _mm256_max_pd(acc, vector);
+            // SAFETY: `index < body_len` guarantees four readable values.
+            acc = unsafe { _mm256_max_pd(acc, _mm256_loadu_pd(values.as_ptr().add(index))) };
             index += 4;
         }
 
         let mut lanes = [0.0_f64; 4];
-        _mm256_storeu_pd(lanes.as_mut_ptr(), acc);
+        // SAFETY: `lanes` holds exactly four f64 values.
+        unsafe { _mm256_storeu_pd(lanes.as_mut_ptr(), acc) };
         let mut maximum = lanes.into_iter().fold(f64::NEG_INFINITY, f64::max);
 
         while index < values.len() {
@@ -866,10 +894,12 @@ mod x86_64 {
         let mut index = 0;
 
         while index < body_len {
-            let left = _mm256_loadu_ps(lhs.as_ptr().add(index));
-            let right = _mm256_loadu_ps(rhs.as_ptr().add(index));
-            let result = op(left, right);
-            _mm256_storeu_ps(out.as_mut_ptr().add(index), result);
+            // SAFETY: `index < body_len` guarantees eight readable inputs and writable outputs.
+            unsafe {
+                let left = _mm256_loadu_ps(lhs.as_ptr().add(index));
+                let right = _mm256_loadu_ps(rhs.as_ptr().add(index));
+                _mm256_storeu_ps(out.as_mut_ptr().add(index), op(left, right));
+            }
             index += 8;
         }
 
@@ -887,13 +917,16 @@ mod x86_64 {
         op: unsafe fn(__m256, __m256) -> __m256,
     ) {
         let body_len = input.len() / 8 * 8;
-        let scalar_vector = _mm256_set1_ps(scalar);
+        // SAFETY: This function requires AVX support.
+        let scalar_vector = { _mm256_set1_ps(scalar) };
         let mut index = 0;
 
         while index < body_len {
-            let values = _mm256_loadu_ps(input.as_ptr().add(index));
-            let result = op(values, scalar_vector);
-            _mm256_storeu_ps(out.as_mut_ptr().add(index), result);
+            // SAFETY: `index < body_len` guarantees eight readable inputs and writable outputs.
+            unsafe {
+                let values = _mm256_loadu_ps(input.as_ptr().add(index));
+                _mm256_storeu_ps(out.as_mut_ptr().add(index), op(values, scalar_vector));
+            }
             index += 8;
         }
 
@@ -914,10 +947,12 @@ mod x86_64 {
         let mut index = 0;
 
         while index < body_len {
-            let left = _mm256_loadu_pd(lhs.as_ptr().add(index));
-            let right = _mm256_loadu_pd(rhs.as_ptr().add(index));
-            let result = op(left, right);
-            _mm256_storeu_pd(out.as_mut_ptr().add(index), result);
+            // SAFETY: `index < body_len` guarantees four readable inputs and writable outputs.
+            unsafe {
+                let left = _mm256_loadu_pd(lhs.as_ptr().add(index));
+                let right = _mm256_loadu_pd(rhs.as_ptr().add(index));
+                _mm256_storeu_pd(out.as_mut_ptr().add(index), op(left, right));
+            }
             index += 4;
         }
 
@@ -935,13 +970,16 @@ mod x86_64 {
         op: unsafe fn(__m256d, __m256d) -> __m256d,
     ) {
         let body_len = input.len() / 4 * 4;
-        let scalar_vector = _mm256_set1_pd(scalar);
+        // SAFETY: This function requires AVX support.
+        let scalar_vector = { _mm256_set1_pd(scalar) };
         let mut index = 0;
 
         while index < body_len {
-            let values = _mm256_loadu_pd(input.as_ptr().add(index));
-            let result = op(values, scalar_vector);
-            _mm256_storeu_pd(out.as_mut_ptr().add(index), result);
+            // SAFETY: `index < body_len` guarantees four readable inputs and writable outputs.
+            unsafe {
+                let values = _mm256_loadu_pd(input.as_ptr().add(index));
+                _mm256_storeu_pd(out.as_mut_ptr().add(index), op(values, scalar_vector));
+            }
             index += 4;
         }
 
@@ -952,7 +990,7 @@ mod x86_64 {
     }
 
     #[inline]
-    unsafe fn op_scalar_f32(lhs: f32, rhs: f32, op: unsafe fn(__m256, __m256) -> __m256) -> f32 {
+    fn op_scalar_f32(lhs: f32, rhs: f32, op: unsafe fn(__m256, __m256) -> __m256) -> f32 {
         if std::ptr::fn_addr_eq(op, _mm256_add_ps as unsafe fn(__m256, __m256) -> __m256) {
             lhs + rhs
         } else {
@@ -961,7 +999,7 @@ mod x86_64 {
     }
 
     #[inline]
-    unsafe fn op_scalar_f64(lhs: f64, rhs: f64, op: unsafe fn(__m256d, __m256d) -> __m256d) -> f64 {
+    fn op_scalar_f64(lhs: f64, rhs: f64, op: unsafe fn(__m256d, __m256d) -> __m256d) -> f64 {
         if std::ptr::fn_addr_eq(op, _mm256_add_pd as unsafe fn(__m256d, __m256d) -> __m256d) {
             lhs + rhs
         } else {
