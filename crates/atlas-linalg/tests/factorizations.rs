@@ -1,7 +1,7 @@
 use atlas_linalg::{
-    AtlasLinalgError, AtlasLinalgResult, CholeskyFactorization, LUFactorization, QRFactorization,
-    cholesky, det, least_squares, lu, matmul, qr, slogdet, solve, solve_lower_triangular,
-    solve_spd, solve_upper_triangular,
+    AtlasLinalgError, AtlasLinalgResult, CholeskyFactorization, LUFactorization, LuFactorization,
+    QRFactorization, QrFactorization, cholesky, det, least_squares, lu, matmul, qr, slogdet, solve,
+    solve_lower_triangular, solve_spd, solve_upper_triangular,
 };
 use atlas_ndarray::NDArray;
 
@@ -42,6 +42,30 @@ fn lu_reconstructs_permuted_input() {
     assert_shape(&permuted, &[3, 3]);
     assert_shape(&reconstructed, &[3, 3]);
     assert_close_slice(permuted.data(), reconstructed.data(), 1e-10);
+}
+
+#[test]
+fn public_lu_factors_reject_incompatible_shapes_and_non_permutations() {
+    let rhs = NDArray::from_shape_vec([2], vec![1.0_f64, 2.0]).unwrap();
+    let incompatible = LuFactorization {
+        p: NDArray::eye(1).unwrap(),
+        l: NDArray::eye(2).unwrap(),
+        u: NDArray::eye(2).unwrap(),
+    };
+    let non_permutation = LuFactorization {
+        p: NDArray::from_shape_vec([2, 2], vec![1.0_f64, 1.0, 0.0, 0.0]).unwrap(),
+        l: NDArray::eye(2).unwrap(),
+        u: NDArray::eye(2).unwrap(),
+    };
+
+    assert!(matches!(
+        incompatible.solve(&rhs),
+        Err(AtlasLinalgError::InvalidInputShape { op: "solve", .. })
+    ));
+    assert!(matches!(
+        non_permutation.det(),
+        Err(AtlasLinalgError::InvalidInputShape { op: "det", .. })
+    ));
 }
 
 #[test]
@@ -169,6 +193,20 @@ fn qr_reconstructs_tall_input_and_has_reduced_shapes() {
 }
 
 #[test]
+fn public_qr_factors_reject_incompatible_factor_shapes() {
+    let factors = QrFactorization {
+        q: NDArray::eye(2).unwrap(),
+        r: NDArray::from_shape_vec([2, 3], vec![1.0_f64; 6]).unwrap(),
+    };
+    let rhs = NDArray::from_shape_vec([2], vec![1.0_f64, 2.0]).unwrap();
+
+    assert!(matches!(
+        factors.apply_q_transpose(&rhs),
+        Err(AtlasLinalgError::InvalidInputShape { op: "apply_q_transpose", .. })
+    ));
+}
+
+#[test]
 fn cholesky_reconstructs_symmetric_positive_definite_input() {
     let matrix = NDArray::from_shape_vec([2, 2], vec![4.0_f64, 2.0, 2.0, 3.0]).unwrap();
 
@@ -179,6 +217,25 @@ fn cholesky_reconstructs_symmetric_positive_definite_input() {
     let reconstructed = matmul(&factor.l, factor.l.view().transpose()).unwrap();
     assert_shape(&reconstructed, &[2, 2]);
     assert_close_slice(reconstructed.data(), matrix.data(), 1e-10);
+}
+
+#[test]
+fn public_cholesky_factors_reject_non_square_and_non_positive_diagonals() {
+    let rhs = NDArray::from_shape_vec([2], vec![1.0_f64, 2.0]).unwrap();
+    let non_square =
+        CholeskyFactorization { l: NDArray::from_shape_vec([2, 1], vec![1.0_f64, 0.0]).unwrap() };
+    let non_positive = CholeskyFactorization {
+        l: NDArray::from_shape_vec([2, 2], vec![1.0_f64, 0.0, 0.0, -1.0]).unwrap(),
+    };
+
+    assert!(matches!(
+        non_square.solve(&rhs),
+        Err(AtlasLinalgError::InvalidInputShape { op: "solve_spd", .. })
+    ));
+    assert!(matches!(
+        non_positive.solve(&rhs),
+        Err(AtlasLinalgError::NotPositiveDefinite { op: "solve_spd", index: 1 })
+    ));
 }
 
 #[test]
