@@ -1014,6 +1014,57 @@ mod tests {
         mul_contiguous, mul_scalar_contiguous, prod_contiguous, sum_contiguous,
     };
 
+    macro_rules! assert_floating_simd_matches_scalar {
+        ($name:ident, $ty:ty, $tolerance:expr) => {
+            #[test]
+            fn $name() {
+                const LEN: usize = 259;
+                let lhs: Vec<$ty> = (0..LEN).map(|index| index as $ty * 0.25 - 31.5).collect();
+                let rhs: Vec<$ty> = (0..LEN).map(|index| index as $ty * -0.125 + 15.25).collect();
+                let mut add_out = vec![0.0; LEN];
+                let mut mul_out = vec![0.0; LEN];
+
+                add_contiguous(&lhs, &rhs, &mut add_out);
+                mul_contiguous(&lhs, &rhs, &mut mul_out);
+
+                let expected_add: Vec<$ty> =
+                    lhs.iter().zip(&rhs).map(|(&left, &right)| left + right).collect();
+                let expected_mul: Vec<$ty> =
+                    lhs.iter().zip(&rhs).map(|(&left, &right)| left * right).collect();
+                assert_eq!(add_out, expected_add);
+                assert_eq!(mul_out, expected_mul);
+
+                let product_values: Vec<$ty> =
+                    (0..LEN).map(|index| 1.0 + (index % 3) as $ty * 0.001).collect();
+                let expected_sum = lhs.iter().copied().fold(0.0, |total, value| total + value);
+                let expected_product =
+                    product_values.iter().copied().fold(1.0, |total, value| total * value);
+                let expected_min = lhs.iter().copied().fold(lhs[0], |min, value| min.min(value));
+                let expected_max = lhs.iter().copied().fold(lhs[0], |max, value| max.max(value));
+
+                assert!((sum_contiguous(&lhs) - expected_sum).abs() <= $tolerance);
+                assert!((prod_contiguous(&product_values) - expected_product).abs() <= $tolerance);
+                assert_eq!(min_contiguous(&lhs, "min").unwrap(), expected_min);
+                assert_eq!(max_contiguous(&lhs, "max").unwrap(), expected_max);
+
+                let mut nan_values = lhs;
+                nan_values[LEN - 2] = <$ty>::NAN;
+                add_contiguous(&nan_values, &rhs, &mut add_out);
+                mul_contiguous(&nan_values, &rhs, &mut mul_out);
+
+                assert!(add_out[LEN - 2].is_nan());
+                assert!(mul_out[LEN - 2].is_nan());
+                assert!(sum_contiguous(&nan_values).is_nan());
+                assert!(prod_contiguous(&nan_values).is_nan());
+                assert!(min_contiguous(&nan_values, "min").unwrap().is_nan());
+                assert!(max_contiguous(&nan_values, "max").unwrap().is_nan());
+            }
+        };
+    }
+
+    assert_floating_simd_matches_scalar!(f32_simd_matches_scalar_with_tails_and_nans, f32, 1e-4);
+    assert_floating_simd_matches_scalar!(f64_simd_matches_scalar_with_tails_and_nans, f64, 1e-12);
+
     #[test]
     fn f32_simd_candidates_match_expected_results() {
         let lhs = vec![1.0_f32; 19];

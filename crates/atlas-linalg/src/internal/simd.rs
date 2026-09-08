@@ -301,7 +301,44 @@ mod x86_64 {
 
 #[cfg(test)]
 mod tests {
-    use super::{dot_contiguous, scaled_accumulate_contiguous};
+    use super::{
+        dot_contiguous, dot_contiguous_f32, dot_contiguous_f64, scaled_accumulate_contiguous,
+    };
+
+    macro_rules! assert_floating_dot_matches_scalar {
+        ($name:ident, $kernel:ident, $ty:ty, $tolerance:expr) => {
+            #[test]
+            fn $name() {
+                const LEN: usize = 259;
+                let lhs: Vec<$ty> = (0..LEN).map(|index| index as $ty * 0.25 - 31.5).collect();
+                let rhs: Vec<$ty> = (0..LEN).map(|index| index as $ty * -0.125 + 15.25).collect();
+                let expected =
+                    lhs.iter().zip(&rhs).fold(0.0, |total, (&left, &right)| total + left * right);
+
+                assert!((dot_contiguous(&lhs, &rhs) - expected).abs() <= $tolerance);
+                assert!(($kernel(&lhs, &rhs) - expected).abs() <= $tolerance);
+
+                let mut nan_lhs = lhs;
+                nan_lhs[LEN - 2] = <$ty>::NAN;
+
+                assert!(dot_contiguous(&nan_lhs, &rhs).is_nan());
+                assert!($kernel(&nan_lhs, &rhs).is_nan());
+            }
+        };
+    }
+
+    assert_floating_dot_matches_scalar!(
+        f32_dot_matches_scalar_with_tails_and_nans,
+        dot_contiguous_f32,
+        f32,
+        1e-3
+    );
+    assert_floating_dot_matches_scalar!(
+        f64_dot_matches_scalar_with_tails_and_nans,
+        dot_contiguous_f64,
+        f64,
+        1e-12
+    );
 
     #[test]
     fn contiguous_dot_matches_expected_results() {
