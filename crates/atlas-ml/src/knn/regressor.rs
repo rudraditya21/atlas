@@ -257,7 +257,7 @@ mod tests {
     }
 
     #[test]
-    fn kd_tree_predictions_match_brute_force() {
+    fn tree_backend_predictions_match_brute_force() {
         let features = NDArray::from_shape_vec([3, 1], vec![0.0_f64, 2.0, 4.0]).unwrap();
         let targets = NDArray::from_shape_vec([3], vec![0.0_f64, 2.0, 10.0]).unwrap();
         let brute_force = KnnRegressor::fit(
@@ -267,8 +267,8 @@ mod tests {
         )
         .unwrap();
         let kd_tree = KnnRegressor::fit(
-            features,
-            targets,
+            features.clone(),
+            targets.clone(),
             KnnConfig::new(2)
                 .unwrap()
                 .with_weighting(KnnWeighting::Distance)
@@ -276,10 +276,24 @@ mod tests {
                 .unwrap(),
         )
         .unwrap();
+        let ball_tree = KnnRegressor::fit(
+            features,
+            targets,
+            KnnConfig::new(2)
+                .unwrap()
+                .with_weighting(KnnWeighting::Distance)
+                .with_search_algorithm(KnnSearchAlgorithm::BallTree)
+                .unwrap(),
+        )
+        .unwrap();
         let queries = NDArray::from_shape_vec([2, 1], vec![1.0_f64, 3.0]).unwrap();
 
         assert_eq!(
             kd_tree.predict(&queries).unwrap().data(),
+            brute_force.predict(&queries).unwrap().data()
+        );
+        assert_eq!(
+            ball_tree.predict(&queries).unwrap().data(),
             brute_force.predict(&queries).unwrap().data()
         );
     }

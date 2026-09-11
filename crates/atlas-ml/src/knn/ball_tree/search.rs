@@ -108,11 +108,17 @@ fn search_node<F, M>(
 
     let should_visit_far = !candidates.is_full()
         || far_bound.map_or(true, |lower_bound| {
-            lower_bound <= candidates.neighbors().last().unwrap().distance
+            can_match_candidate(lower_bound, candidates.neighbors().last().unwrap().distance)
         });
     if should_visit_far {
         search_node(far, features, query, metric, row, candidates);
     }
+}
+
+fn can_match_candidate(lower_bound: f64, worst_distance: f64) -> bool {
+    lower_bound <= worst_distance
+        || lower_bound - worst_distance
+            <= 4.0 * f64::EPSILON * lower_bound.abs().max(worst_distance.abs()).max(1.0)
 }
 
 #[cfg(test)]
@@ -153,5 +159,18 @@ mod tests {
                 brute_force_search(&features, &query, k, &SquaredEuclideanDistance)
             );
         }
+    }
+
+    #[test]
+    fn preserves_training_index_ties_at_ball_boundaries() {
+        let features =
+            NDArray::from_shape_vec([3, 2], vec![0.0_f64, 0.0, 2.0, 0.0, 0.0, 2.0]).unwrap();
+        let tree = BallTree::build(&features).unwrap();
+        let query = [1.0_f64, 1.0];
+
+        assert_eq!(
+            tree.search(&features, &query, 2, &SquaredEuclideanDistance),
+            brute_force_search(&features, &query, 2, &SquaredEuclideanDistance)
+        );
     }
 }

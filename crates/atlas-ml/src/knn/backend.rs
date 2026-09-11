@@ -3,10 +3,10 @@ use std::sync::Arc;
 use atlas_ndarray::NDArray;
 
 use super::{
-    config::KnnSearchAlgorithm, kd_tree::tree::KdTree, metric::DistanceMetric, neighbor::Neighbor,
-    search::brute_force_search,
+    ball_tree::tree::BallTree, config::KnnSearchAlgorithm, kd_tree::tree::KdTree,
+    metric::DistanceMetric, neighbor::Neighbor, search::brute_force_search,
 };
-use crate::{AtlasMlError, AtlasMlResult};
+use crate::AtlasMlResult;
 
 pub(crate) trait NeighborSearchBackend: Send + Sync {
     fn algorithm(&self) -> KnnSearchAlgorithm;
@@ -28,10 +28,7 @@ pub(crate) fn build_search_backend(
             Ok(Box::new(BruteForceBackend { features }))
         }
         KnnSearchAlgorithm::KdTree => Ok(Box::new(KdTreeBackend::new(features)?)),
-        KnnSearchAlgorithm::BallTree => Err(AtlasMlError::InvalidArgument {
-            op: "knn_config",
-            reason: "the requested search algorithm is not available",
-        }),
+        KnnSearchAlgorithm::BallTree => Ok(Box::new(BallTreeBackend::new(features)?)),
     }
 }
 
@@ -70,6 +67,34 @@ impl KdTreeBackend {
 impl NeighborSearchBackend for KdTreeBackend {
     fn algorithm(&self) -> KnnSearchAlgorithm {
         KnnSearchAlgorithm::KdTree
+    }
+
+    fn search(
+        &self,
+        query: &[f64],
+        k: usize,
+        metric: &dyn DistanceMetric,
+    ) -> AtlasMlResult<Vec<Neighbor>> {
+        self.tree.search(self.features.as_ref(), query, k, metric)
+    }
+}
+
+struct BallTreeBackend {
+    features: Arc<NDArray<f64>>,
+    tree: BallTree,
+}
+
+impl BallTreeBackend {
+    fn new(features: Arc<NDArray<f64>>) -> AtlasMlResult<Self> {
+        let tree = BallTree::build(features.as_ref())?;
+
+        Ok(Self { features, tree })
+    }
+}
+
+impl NeighborSearchBackend for BallTreeBackend {
+    fn algorithm(&self) -> KnnSearchAlgorithm {
+        KnnSearchAlgorithm::BallTree
     }
 
     fn search(
@@ -126,13 +151,6 @@ mod tests {
     }
 
     #[test]
-    fn rejects_backends_that_are_not_implemented() {
-        let features = Arc::new(NDArray::from_shape_vec([1, 1], vec![0.0_f64]).unwrap());
-
-        assert!(build_search_backend(features, KnnSearchAlgorithm::BallTree).is_err());
-    }
-
-    #[test]
     fn kd_tree_backend_satisfies_the_equivalence_contract() {
         let features = Arc::new(
             NDArray::from_shape_vec([3, 2], vec![0.0_f64, 0.0, 2.0, 0.0, 0.0, 2.0]).unwrap(),
@@ -142,6 +160,19 @@ mod tests {
         let queries = [&[0.0_f64, 0.0][..], &[1.0_f64, 1.0][..]];
 
         assert_eq!(backend.algorithm(), KnnSearchAlgorithm::KdTree);
+        assert_backend_equivalence(backend.as_ref(), features.as_ref(), &queries);
+    }
+
+    #[test]
+    fn ball_tree_backend_satisfies_the_equivalence_contract() {
+        let features = Arc::new(
+            NDArray::from_shape_vec([3, 2], vec![0.0_f64, 0.0, 2.0, 0.0, 0.0, 2.0]).unwrap(),
+        );
+        let backend =
+            build_search_backend(Arc::clone(&features), KnnSearchAlgorithm::BallTree).unwrap();
+        let queries = [&[0.0_f64, 0.0][..], &[1.0_f64, 1.0][..]];
+
+        assert_eq!(backend.algorithm(), KnnSearchAlgorithm::BallTree);
         assert_backend_equivalence(backend.as_ref(), features.as_ref(), &queries);
     }
 
