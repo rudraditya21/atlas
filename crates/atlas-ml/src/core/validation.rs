@@ -42,11 +42,39 @@ where
     Ok(())
 }
 
+pub(crate) fn validate_prediction_feature_inputs<F, T>(
+    features: &F,
+    expected_feature_count: usize,
+    op: &'static str,
+) -> AtlasMlResult<()>
+where
+    F: OperandMetadata<T> + ?Sized,
+    T: ArrayElement,
+{
+    if features.ndim() != 2 {
+        return Err(AtlasMlError::InvalidInputRank {
+            op,
+            expected: "a rank-2 [queries, features] matrix",
+            rank: features.ndim(),
+        });
+    }
+    if features.shape()[1] != expected_feature_count {
+        return Err(AtlasMlError::ShapeMismatch {
+            op,
+            left: features.shape().to_vec(),
+            right: vec![expected_feature_count],
+            reason: "feature count must match training data",
+        });
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use atlas_ndarray::NDArray;
 
-    use super::validate_supervised_training_inputs;
+    use super::{validate_prediction_feature_inputs, validate_supervised_training_inputs};
     use crate::AtlasMlError;
 
     const OP: &str = "knn_fit";
@@ -112,6 +140,39 @@ mod tests {
                 left: vec![3, 2],
                 right: vec![2],
                 reason: "sample counts must match",
+            })
+        );
+    }
+
+    #[test]
+    fn accepts_matching_and_empty_query_batches() {
+        let queries = NDArray::<f64>::zeros([2, 3]).unwrap();
+        let empty_queries = NDArray::<f64>::zeros([0, 3]).unwrap();
+
+        assert_eq!(validate_prediction_feature_inputs(&queries, 3, "knn_predict"), Ok(()));
+        assert_eq!(validate_prediction_feature_inputs(&empty_queries, 3, "knn_predict"), Ok(()));
+    }
+
+    #[test]
+    fn rejects_invalid_query_rank_and_feature_width() {
+        let vector = NDArray::from_shape_vec([3], vec![0.0_f64; 3]).unwrap();
+        let queries = NDArray::<f64>::zeros([2, 2]).unwrap();
+
+        assert_eq!(
+            validate_prediction_feature_inputs(&vector, 3, "knn_predict"),
+            Err(AtlasMlError::InvalidInputRank {
+                op: "knn_predict",
+                expected: "a rank-2 [queries, features] matrix",
+                rank: 1,
+            })
+        );
+        assert_eq!(
+            validate_prediction_feature_inputs(&queries, 3, "knn_predict"),
+            Err(AtlasMlError::ShapeMismatch {
+                op: "knn_predict",
+                left: vec![2, 2],
+                right: vec![3],
+                reason: "feature count must match training data",
             })
         );
     }
