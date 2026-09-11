@@ -1,8 +1,9 @@
 use atlas_ndarray::NDArray;
 use atlas_stats::{
     AtlasStatsError, correlation, correlation_matrix, covariance, covariance_ddof,
-    covariance_matrix, median, quantile, stddev, stddev_axis, stddev_ddof, variance, variance_axis,
-    variance_ddof, weighted_covariance, weighted_mean, weighted_variance,
+    covariance_matrix, median, quantile, stddev, stddev_axis, stddev_axis_ddof, stddev_ddof,
+    variance, variance_axis, variance_axis_ddof, variance_ddof, weighted_covariance, weighted_mean,
+    weighted_variance,
 };
 
 fn assert_close(actual: f64, expected: f64) {
@@ -68,6 +69,37 @@ fn axiswise_variance_and_stddev_reduce_the_selected_axis() {
     assert_eq!(variance_axis(&values, 0).unwrap().data(), &[2.25, 2.25, 2.25]);
     assert_eq!(variance_axis(&values, 1).unwrap().data(), &[2.0 / 3.0, 2.0 / 3.0]);
     assert_eq!(stddev_axis(&values, -1).unwrap().data(), &[(2.0_f64 / 3.0).sqrt(); 2]);
+}
+
+#[test]
+fn axiswise_variance_and_stddev_support_degrees_of_freedom() {
+    let values = NDArray::from_shape_vec([2, 3], vec![1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+    let view = values.view().transpose();
+
+    assert_eq!(variance_axis_ddof(&values, 1, 0).unwrap().data(), &[2.0 / 3.0; 2]);
+    assert_eq!(variance_axis_ddof(&values, 1, 1).unwrap().data(), &[1.0; 2]);
+    assert_eq!(stddev_axis_ddof(&values, 1, 1).unwrap().data(), &[1.0; 2]);
+    assert_eq!(variance_axis_ddof(view, 0, 1).unwrap().data(), &[1.0; 2]);
+}
+
+#[test]
+fn axiswise_degrees_of_freedom_validate_lanes() {
+    let singleton_lanes = NDArray::from_shape_vec([2, 1], vec![1.0_f64, 2.0]).unwrap();
+    let empty_lanes = NDArray::<f64>::zeros([2, 0]).unwrap();
+
+    assert_eq!(variance_axis_ddof(&singleton_lanes, 1, 0).unwrap().data(), &[0.0; 2]);
+    assert_eq!(
+        variance_axis_ddof(&singleton_lanes, 1, 1).unwrap_err(),
+        AtlasStatsError::InvalidDegreesOfFreedom { op: "variance_axis_ddof", ddof: 1, count: 1 }
+    );
+    assert_eq!(
+        stddev_axis_ddof(&singleton_lanes, 1, 1).unwrap_err(),
+        AtlasStatsError::InvalidDegreesOfFreedom { op: "stddev_axis_ddof", ddof: 1, count: 1 }
+    );
+    assert_eq!(
+        variance_axis_ddof(&empty_lanes, 1, 0).unwrap_err(),
+        AtlasStatsError::EmptyInput { op: "variance_axis_ddof" }
+    );
 }
 
 #[test]

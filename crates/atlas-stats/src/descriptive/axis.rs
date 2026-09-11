@@ -18,8 +18,8 @@ impl RunningVariance {
         self.sum_squares += delta * (value - self.mean);
     }
 
-    fn population(self) -> f64 {
-        self.sum_squares / self.count as f64
+    fn variance(self, ddof: usize) -> f64 {
+        self.sum_squares / (self.count - ddof) as f64
     }
 }
 
@@ -29,12 +29,26 @@ where
     I: Into<StatsOperand<'a, T>>,
     A: AxisIndex,
 {
-    variance_axis_impl(input.into(), axis, "variance_axis")
+    variance_axis_impl(input.into(), axis, 0, "variance_axis")
+}
+
+pub fn variance_axis_ddof<'a, T, I, A>(
+    input: I,
+    axis: A,
+    ddof: usize,
+) -> AtlasStatsResult<NDArray<f64>>
+where
+    T: Numeric + ToPrimitive,
+    I: Into<StatsOperand<'a, T>>,
+    A: AxisIndex,
+{
+    variance_axis_impl(input.into(), axis, ddof, "variance_axis_ddof")
 }
 
 pub(super) fn variance_axis_impl<T, A>(
     input: StatsOperand<'_, T>,
     axis: A,
+    ddof: usize,
     op: &'static str,
 ) -> AtlasStatsResult<NDArray<f64>>
 where
@@ -54,6 +68,9 @@ where
     if axis_len == 0 {
         return Err(AtlasStatsError::EmptyInput { op });
     }
+    if ddof >= axis_len {
+        return Err(AtlasStatsError::InvalidDegreesOfFreedom { op, ddof, count: axis_len });
+    }
 
     let inner_len = shape[axis + 1..].iter().product::<usize>();
     let block_len = axis_len * inner_len;
@@ -68,7 +85,7 @@ where
 
     NDArray::from_shape_vec(
         output_shape,
-        variances.into_iter().map(|variance| variance.population()).collect(),
+        variances.into_iter().map(|variance| variance.variance(ddof)).collect(),
     )
     .map_err(Into::into)
 }
@@ -79,7 +96,25 @@ where
     I: Into<StatsOperand<'a, T>>,
     A: AxisIndex,
 {
-    let values = variance_axis_impl(input.into(), axis, "stddev_axis")?;
+    let values = variance_axis_impl(input.into(), axis, 0, "stddev_axis")?;
+    NDArray::from_shape_vec(
+        values.shape().to_vec(),
+        values.data().iter().map(|value| value.sqrt()).collect(),
+    )
+    .map_err(Into::into)
+}
+
+pub fn stddev_axis_ddof<'a, T, I, A>(
+    input: I,
+    axis: A,
+    ddof: usize,
+) -> AtlasStatsResult<NDArray<f64>>
+where
+    T: Numeric + ToPrimitive,
+    I: Into<StatsOperand<'a, T>>,
+    A: AxisIndex,
+{
+    let values = variance_axis_impl(input.into(), axis, ddof, "stddev_axis_ddof")?;
     NDArray::from_shape_vec(
         values.shape().to_vec(),
         values.data().iter().map(|value| value.sqrt()).collect(),
