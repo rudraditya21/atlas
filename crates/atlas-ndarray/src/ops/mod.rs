@@ -11,3 +11,4 @@ pub(crate) mod reduction;
 pub(crate) mod take;
 pub(crate) mod unary;
 pub(crate) mod where_;
+pub(crate) mod zip_map;
