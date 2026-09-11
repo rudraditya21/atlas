@@ -10,7 +10,7 @@ pub use core::{
 
 pub use dense::{
     condition::condition_number,
-    diag::{diag, diag_view},
+    diag::{batched_diag, diag, diag_view},
     dot::{DotOutput, batched_dot, dot},
     matmul::matmul,
     norm::{MatrixNorm, matrix_norm, norm},

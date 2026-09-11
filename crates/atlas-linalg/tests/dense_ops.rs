@@ -1,5 +1,6 @@
 use atlas_linalg::{
-    AtlasLinalgError, DotOutput, batched_dot, batched_transpose, dot, matmul, norm, trace,
+    AtlasLinalgError, DotOutput, batched_diag, batched_dot, batched_transpose, dot, matmul, norm,
+    trace,
 };
 use atlas_ndarray::NDArray;
 
@@ -125,6 +126,53 @@ fn batched_transpose_rejects_non_batched_matrices() {
         batched_transpose(&matrix).unwrap_err(),
         AtlasLinalgError::InvalidInputRank {
             op: "batched_transpose",
+            expected: "a rank-3 [batch, rows, columns] array",
+            rank: 2,
+        }
+    );
+}
+
+#[test]
+fn batched_diag_extracts_square_and_rectangular_diagonals() {
+    let square = NDArray::from_shape_vec(
+        [2, 3, 3],
+        vec![0_i32, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17],
+    )
+    .unwrap();
+    let rectangular =
+        NDArray::from_shape_vec([2, 2, 3], vec![0_i32, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]).unwrap();
+
+    assert_eq!(batched_diag(&square, 0).unwrap().data(), &[0, 4, 8, 9, 13, 17]);
+    assert_eq!(batched_diag(&rectangular, 1).unwrap().data(), &[1, 5, 7, 11]);
+    assert_eq!(batched_diag(&rectangular, -1).unwrap().data(), &[3, 9]);
+}
+
+#[test]
+fn batched_diag_supports_views_and_empty_batches() {
+    let source = NDArray::from_shape_vec(
+        [2, 2, 4],
+        vec![1_i32, 2, 3, 0, 4, 5, 6, 0, 7, 8, 9, 0, 10, 11, 12, 0],
+    )
+    .unwrap();
+    let empty = NDArray::<i32>::zeros([0, 2, 3]).unwrap();
+
+    let diagonal = batched_diag(source.view().slice([0, 0, 0], [2, 2, 3]).unwrap(), 0).unwrap();
+    let empty_diagonal = batched_diag(&empty, 0).unwrap();
+
+    assert_eq!(diagonal.shape(), &[2, 2]);
+    assert_eq!(diagonal.data(), &[1, 5, 7, 11]);
+    assert_eq!(empty_diagonal.shape(), &[0, 2]);
+    assert!(empty_diagonal.data().is_empty());
+}
+
+#[test]
+fn batched_diag_rejects_non_batched_matrices() {
+    let matrix = NDArray::<i32>::zeros([2, 3]).unwrap();
+
+    assert_eq!(
+        batched_diag(&matrix, 0).unwrap_err(),
+        AtlasLinalgError::InvalidInputRank {
+            op: "batched_diag",
             expected: "a rank-3 [batch, rows, columns] array",
             rank: 2,
         }
