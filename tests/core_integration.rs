@@ -124,7 +124,12 @@ fn ndarray_linalg_pipeline_reports_exact_boundary_errors() {
     );
     assert_eq!(
         matmul(&tensor, &rhs).unwrap_err(),
-        AtlasLinalgError::InvalidOperandRank { op: "matmul", left: 3, right: 2 }
+        AtlasLinalgError::ShapeMismatch {
+            op: "matmul",
+            left: vec![1, 2, 3],
+            right: vec![2, 2],
+            reason: "batch dimensions must match",
+        }
     );
 }
 

@@ -22,15 +22,26 @@ pub(super) fn matmul_matrix_vector<T: Numeric>(
         });
     }
 
-    let data = if lhs.is_row_major_contiguous() && rhs.is_contiguous() {
+    let data = matmul_matrix_vector_refs(lhs, rhs);
+
+    Ok(NDArray::from_shape_vec([lhs.rows], data)?)
+}
+
+pub(super) fn matmul_matrix_vector_refs<T: Numeric>(
+    lhs: MatrixRef<'_, T>,
+    rhs: VectorRef<'_, T>,
+) -> Vec<T> {
+    if lhs.cols == 0 {
+        return vec![T::zero(); lhs.rows];
+    }
+
+    if lhs.is_row_major_contiguous() && rhs.is_contiguous() {
         matmul_matrix_vector_row_major(lhs, rhs)
     } else if lhs.is_col_major_contiguous() && rhs.is_contiguous() {
         matmul_matrix_vector_col_major(lhs, rhs)
     } else {
         matmul_matrix_vector_generic(lhs, rhs)
-    };
-
-    Ok(NDArray::from_shape_vec([lhs.rows], data)?)
+    }
 }
 
 pub(super) fn matmul_matrix_vector_row_major<T: Numeric>(
