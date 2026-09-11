@@ -38,7 +38,7 @@ impl KnnClassifier {
         validate_finite_feature_values(&features, FIT_OP)?;
         config.validate(features.shape()[0])?;
 
-        Ok(Self { config, index: TrainingIndex::new(features, config.search_algorithm()), labels })
+        Ok(Self { config, index: TrainingIndex::new(features, config.search_algorithm())?, labels })
     }
 
     pub const fn config(&self) -> KnnConfig {

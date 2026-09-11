@@ -35,7 +35,11 @@ impl KnnRegressor {
         validate_finite_target_values(targets.data(), FIT_OP)?;
         config.validate(features.shape()[0])?;
 
-        Ok(Self { config, index: TrainingIndex::new(features, config.search_algorithm()), targets })
+        Ok(Self {
+            config,
+            index: TrainingIndex::new(features, config.search_algorithm())?,
+            targets,
+        })
     }
 
     pub const fn config(&self) -> KnnConfig {

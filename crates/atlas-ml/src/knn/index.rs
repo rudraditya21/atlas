@@ -16,11 +16,14 @@ pub(crate) struct TrainingIndex {
 }
 
 impl TrainingIndex {
-    pub(crate) fn new(features: NDArray<f64>, algorithm: KnnSearchAlgorithm) -> Self {
+    pub(crate) fn new(
+        features: NDArray<f64>,
+        algorithm: KnnSearchAlgorithm,
+    ) -> AtlasMlResult<Self> {
         let features = Arc::new(features);
-        let backend = build_search_backend(Arc::clone(&features), algorithm);
+        let backend = build_search_backend(Arc::clone(&features), algorithm)?;
 
-        Self { features, backend }
+        Ok(Self { features, backend })
     }
 
     pub(crate) fn features(&self) -> &Arc<NDArray<f64>> {
@@ -57,7 +60,8 @@ mod tests {
         let index = TrainingIndex::new(
             NDArray::from_shape_vec([2, 3], vec![0.0_f64, 1.0, 2.0, 3.0, 4.0, 5.0]).unwrap(),
             KnnSearchAlgorithm::BruteForce,
-        );
+        )
+        .unwrap();
 
         assert_eq!(index.features().shape(), &[2, 3]);
         assert_eq!(index.features().data(), &[0.0, 1.0, 2.0, 3.0, 4.0, 5.0]);
@@ -69,7 +73,8 @@ mod tests {
         let index = TrainingIndex::new(
             NDArray::from_shape_vec([2, 1], vec![0.0_f64, 2.0]).unwrap(),
             KnnSearchAlgorithm::BruteForce,
-        );
+        )
+        .unwrap();
 
         assert_eq!(index.search_algorithm(), KnnSearchAlgorithm::BruteForce);
         assert_eq!(
