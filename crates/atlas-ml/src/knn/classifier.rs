@@ -1,12 +1,18 @@
-use atlas_ndarray::NDArray;
+use std::collections::BTreeMap;
 
-use super::{config::KnnConfig, index::TrainingIndex};
+use atlas_ndarray::{NDArray, OperandMetadata};
+
+use super::{config::KnnConfig, index::TrainingIndex, metric::SquaredEuclideanDistance};
 use crate::{
     AtlasMlResult,
-    core::validation::{validate_finite_feature_values, validate_supervised_training_inputs},
+    core::validation::{
+        validate_finite_feature_values, validate_prediction_feature_inputs,
+        validate_supervised_training_inputs,
+    },
 };
 
 const FIT_OP: &str = "knn_classifier_fit";
+const PREDICT_OP: &str = "knn_classifier_predict";
 
 pub struct KnnClassifier {
     config: KnnConfig,
@@ -37,6 +43,50 @@ impl KnnClassifier {
 
     pub fn labels(&self) -> &NDArray<usize> {
         &self.labels
+    }
+
+    pub fn predict<Q>(&self, queries: &Q) -> AtlasMlResult<NDArray<usize>>
+    where
+        Q: OperandMetadata<f64> + ?Sized,
+    {
+        validate_prediction_feature_inputs(queries, self.feature_count(), PREDICT_OP)?;
+        validate_finite_feature_values(queries, PREDICT_OP)?;
+
+        let query_count = queries.shape()[0];
+        let mut query = vec![0.0; self.feature_count()];
+        let mut predictions = Vec::with_capacity(query_count);
+        for query_index in 0..query_count {
+            copy_row(queries, query_index, &mut query);
+            predictions.push(self.predict_one(&query)?);
+        }
+
+        Ok(NDArray::from_shape_vec([query_count], predictions)?)
+    }
+
+    fn predict_one(&self, query: &[f64]) -> AtlasMlResult<usize> {
+        let neighbors = self.index.search(query, self.config.k(), &SquaredEuclideanDistance)?;
+        let mut votes = BTreeMap::new();
+        for neighbor in neighbors {
+            *votes.entry(self.labels.data()[neighbor.index]).or_insert(0_usize) += 1;
+        }
+
+        Ok(votes
+            .into_iter()
+            .max_by(|(left_label, left_count), (right_label, right_count)| {
+                left_count.cmp(right_count).then_with(|| right_label.cmp(left_label))
+            })
+            .expect("a fitted classifier always has at least one neighbor")
+            .0)
+    }
+}
+
+fn copy_row<Q>(queries: &Q, row_index: usize, row: &mut [f64])
+where
+    Q: OperandMetadata<f64> + ?Sized,
+{
+    let row_offset = queries.offset() + row_index * queries.strides()[0];
+    for (feature_index, value) in row.iter_mut().enumerate() {
+        *value = queries.data()[row_offset + feature_index * queries.strides()[1]];
     }
 }
 
@@ -112,5 +162,47 @@ mod tests {
             .map(|_| ()),
             Err(AtlasMlError::NonFiniteInput { op: "knn_classifier_fit" })
         );
+    }
+
+    fn classifier(k: usize) -> KnnClassifier {
+        KnnClassifier::fit(
+            NDArray::from_shape_vec([4, 2], vec![0.0_f64, 0.0, 0.2, 0.0, 5.0, 5.0, 5.2, 5.0])
+                .unwrap(),
+            NDArray::from_shape_vec([4], vec![0_usize, 0, 1, 1]).unwrap(),
+            KnnConfig::new(k).unwrap(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn predicts_separable_classes() {
+        let queries = NDArray::from_shape_vec([2, 2], vec![0.1_f64, 0.0, 5.1, 5.0]).unwrap();
+
+        assert_eq!(classifier(3).predict(&queries).unwrap().data(), &[0, 1]);
+    }
+
+    #[test]
+    fn predicts_with_one_and_all_training_neighbors() {
+        let query = NDArray::from_shape_vec([1, 2], vec![5.1_f64, 5.0]).unwrap();
+        let all_neighbors = NDArray::from_shape_vec([1, 2], vec![0.1_f64, 0.0]).unwrap();
+
+        assert_eq!(classifier(1).predict(&query).unwrap().data(), &[1]);
+        assert_eq!(classifier(4).predict(&all_neighbors).unwrap().data(), &[0]);
+    }
+
+    #[test]
+    fn predicts_from_logical_query_views() {
+        let queries = NDArray::from_shape_vec([2, 2], vec![0.1_f64, 5.1, 0.0, 5.0]).unwrap();
+
+        assert_eq!(classifier(3).predict(&queries.view().transpose()).unwrap().data(), &[0, 1]);
+    }
+
+    #[test]
+    fn predicts_empty_query_batches() {
+        let queries = NDArray::<f64>::zeros([0, 2]).unwrap();
+        let predictions = classifier(1).predict(&queries).unwrap();
+
+        assert_eq!(predictions.shape(), &[0]);
+        assert!(predictions.data().is_empty());
     }
 }
