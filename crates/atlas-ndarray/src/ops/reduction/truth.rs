@@ -48,6 +48,23 @@ pub(super) fn any_all(data: &[bool], offset: usize, shape: &[usize], strides: &[
     any
 }
 
+pub(super) fn count_true_all(
+    data: &[bool],
+    offset: usize,
+    shape: &[usize],
+    strides: &[usize],
+) -> usize {
+    if let Some(values) = dense_storage_slice(data, offset, shape, strides) {
+        return values.iter().filter(|&&value| value).count();
+    }
+
+    let mut count = 0;
+    for_each_value(data, offset, shape, strides, |value| {
+        count += usize::from(*value);
+    });
+    count
+}
+
 pub(super) fn all_axis_impl(
     data: &[bool],
     base_offset: usize,

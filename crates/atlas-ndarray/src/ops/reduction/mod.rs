@@ -23,7 +23,7 @@ use self::{
     stats::{variance_all, variance_axis},
     truth::{
         all_all, all_axis_impl, all_axis_keepdims_impl, any_all, any_axis_impl,
-        any_axis_keepdims_impl,
+        any_axis_keepdims_impl, count_true_all,
     },
     whole::{max_all, mean_all, min_all, prod_all, sum_all},
 };
@@ -284,6 +284,11 @@ impl<T: Numeric> NDArray<T> {
 }
 
 impl NDArray<bool> {
+    /// Returns the number of true logical values.
+    pub fn count_true(&self) -> usize {
+        count_true_all(self.data(), 0, self.shape(), self.strides())
+    }
+
     pub fn all(&self) -> bool {
         all_operand(self)
     }
@@ -561,6 +566,11 @@ impl<'a, T: Numeric> ArrayView<'a, T> {
 }
 
 impl<'a> ArrayView<'a, bool> {
+    /// Returns the number of true logical values.
+    pub fn count_true(&self) -> usize {
+        count_true_all(self.data(), self.offset(), self.shape(), self.strides())
+    }
+
     pub fn all(&self) -> bool {
         all_operand(self)
     }
