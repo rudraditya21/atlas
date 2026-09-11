@@ -5,4 +5,7 @@ mod knn;
 
 pub use core::error::{AtlasMlError, AtlasMlResult};
 
-pub use knn::config::{KnnConfig, KnnSearchAlgorithm};
+pub use knn::{
+    classifier::KnnClassifier,
+    config::{KnnConfig, KnnSearchAlgorithm},
+};
