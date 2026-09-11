@@ -7,7 +7,10 @@ pub use core::{
 };
 
 pub use descriptive::{
-    axis::{stddev_axis, stddev_axis_ddof, variance_axis, variance_axis_ddof},
+    axis::{
+        stddev_axis, stddev_axis_ddof, stddev_axis_keepdims, stddev_axis_keepdims_ddof,
+        variance_axis, variance_axis_ddof, variance_axis_keepdims, variance_axis_keepdims_ddof,
+    },
     correlation::correlation,
     correlation_matrix::correlation_matrix,
     covariance::{covariance, covariance_ddof},

@@ -17,8 +17,7 @@ fn batched_dot_supports_matching_batches_and_views() {
     let lhs = NDArray::from_shape_vec([2, 3], vec![1_i32, 2, 3, 4, 5, 6]).unwrap();
     let rhs = NDArray::from_shape_vec([2, 3], vec![7_i32, 8, 9, 10, 11, 12]).unwrap();
     let lhs_view = NDArray::from_shape_vec([2, 4], vec![1_i32, 2, 3, 0, 4, 5, 6, 0]).unwrap();
-    let rhs_view =
-        NDArray::from_shape_vec([2, 4], vec![7_i32, 8, 9, 0, 10, 11, 12, 0]).unwrap();
+    let rhs_view = NDArray::from_shape_vec([2, 4], vec![7_i32, 8, 9, 0, 10, 11, 12, 0]).unwrap();
 
     assert_eq!(batched_dot(&lhs, &rhs).unwrap().data(), &[50, 167]);
     assert_eq!(

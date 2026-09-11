@@ -2,8 +2,9 @@ use atlas_ndarray::NDArray;
 use atlas_stats::{
     AtlasStatsError, correlation, correlation_matrix, covariance, covariance_ddof,
     covariance_matrix, covariance_matrix_ddof, median, quantile, stddev, stddev_axis,
-    stddev_axis_ddof, stddev_ddof, variance, variance_axis, variance_axis_ddof, variance_ddof,
-    weighted_covariance, weighted_mean, weighted_variance,
+    stddev_axis_ddof, stddev_axis_keepdims, stddev_axis_keepdims_ddof, stddev_ddof, variance,
+    variance_axis, variance_axis_ddof, variance_axis_keepdims, variance_axis_keepdims_ddof,
+    variance_ddof, weighted_covariance, weighted_mean, weighted_variance,
 };
 
 fn assert_close(actual: f64, expected: f64) {
@@ -80,6 +81,52 @@ fn axiswise_variance_and_stddev_support_degrees_of_freedom() {
     assert_eq!(variance_axis_ddof(&values, 1, 1).unwrap().data(), &[1.0; 2]);
     assert_eq!(stddev_axis_ddof(&values, 1, 1).unwrap().data(), &[1.0; 2]);
     assert_eq!(variance_axis_ddof(view, 0, 1).unwrap().data(), &[1.0; 2]);
+}
+
+#[test]
+fn axiswise_variance_and_stddev_keepdims_preserve_reduced_axes() {
+    let values = NDArray::from_shape_vec([2, 3], vec![1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+
+    let variance = variance_axis_keepdims(&values, -1).unwrap();
+    let sample_variance = variance_axis_keepdims_ddof(&values, 1, 1).unwrap();
+    let sample_stddev = stddev_axis_keepdims_ddof(&values, 1, 1).unwrap();
+
+    assert_eq!(variance.shape(), &[2, 1]);
+    assert_eq!(variance.data(), &[2.0 / 3.0; 2]);
+    assert_eq!(sample_variance.shape(), &[2, 1]);
+    assert_eq!(sample_variance.data(), &[1.0; 2]);
+    assert_eq!(sample_stddev.shape(), &[2, 1]);
+    assert_eq!(sample_stddev.data(), &[1.0; 2]);
+}
+
+#[test]
+fn axiswise_keepdims_variance_validates_lanes_and_degrees_of_freedom() {
+    let singleton_lanes = NDArray::from_shape_vec([2, 1], vec![1.0_f64, 2.0]).unwrap();
+    let empty_lanes = NDArray::<f64>::zeros([2, 0]).unwrap();
+    let empty_output = NDArray::<f64>::zeros([0, 2]).unwrap();
+
+    assert_eq!(variance_axis_keepdims(&singleton_lanes, 1).unwrap().data(), &[0.0; 2]);
+    assert_eq!(variance_axis_keepdims(&empty_output, 1).unwrap().shape(), &[0, 1]);
+    assert_eq!(
+        variance_axis_keepdims_ddof(&singleton_lanes, 1, 1).unwrap_err(),
+        AtlasStatsError::InvalidDegreesOfFreedom {
+            op: "variance_axis_keepdims_ddof",
+            ddof: 1,
+            count: 1,
+        }
+    );
+    assert_eq!(
+        stddev_axis_keepdims_ddof(&singleton_lanes, 1, 1).unwrap_err(),
+        AtlasStatsError::InvalidDegreesOfFreedom {
+            op: "stddev_axis_keepdims_ddof",
+            ddof: 1,
+            count: 1,
+        }
+    );
+    assert_eq!(
+        stddev_axis_keepdims(&empty_lanes, 1).unwrap_err(),
+        AtlasStatsError::EmptyInput { op: "stddev_axis_keepdims" }
+    );
 }
 
 #[test]
