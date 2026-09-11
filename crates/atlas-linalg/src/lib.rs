@@ -15,6 +15,7 @@ pub use dense::{
     matmul::matmul,
     norm::{MatrixNorm, matrix_norm, norm},
     trace::trace,
+    transpose::batched_transpose,
     triangular::{solve_lower_triangular, solve_upper_triangular},
 };
 pub use factorization::{

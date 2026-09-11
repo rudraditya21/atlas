@@ -1,4 +1,6 @@
-use atlas_linalg::{AtlasLinalgError, DotOutput, batched_dot, dot, matmul, norm, trace};
+use atlas_linalg::{
+    AtlasLinalgError, DotOutput, batched_dot, batched_transpose, dot, matmul, norm, trace,
+};
 use atlas_ndarray::NDArray;
 
 #[test]
@@ -72,6 +74,59 @@ fn batched_dot_rejects_mismatched_shapes() {
             left: vec![2, 3],
             right: vec![2, 2],
             reason: "vector lengths must match",
+        }
+    );
+}
+
+#[test]
+fn batched_transpose_swaps_only_matrix_axes() {
+    let matrices =
+        NDArray::from_shape_vec([2, 2, 3], vec![0_i32, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]).unwrap();
+
+    let transposed = batched_transpose(&matrices).unwrap();
+
+    assert_eq!(transposed.shape(), &[2, 3, 2]);
+    assert_eq!(transposed.data(), &[0, 3, 1, 4, 2, 5, 6, 9, 7, 10, 8, 11]);
+}
+
+#[test]
+fn batched_transpose_supports_views() {
+    let source = NDArray::from_shape_vec(
+        [2, 2, 4],
+        vec![1_i32, 2, 3, 0, 4, 5, 6, 0, 7, 8, 9, 0, 10, 11, 12, 0],
+    )
+    .unwrap();
+
+    let transposed = batched_transpose(source.view().slice([0, 0, 0], [2, 2, 3]).unwrap()).unwrap();
+
+    assert_eq!(transposed.shape(), &[2, 3, 2]);
+    assert_eq!(transposed.data(), &[1, 4, 2, 5, 3, 6, 7, 10, 8, 11, 9, 12]);
+}
+
+#[test]
+fn batched_transpose_preserves_empty_dimensions() {
+    let empty_batches = batched_transpose(&NDArray::<i32>::zeros([0, 2, 3]).unwrap()).unwrap();
+    let zero_rows = batched_transpose(&NDArray::<i32>::zeros([2, 0, 3]).unwrap()).unwrap();
+    let zero_columns = batched_transpose(&NDArray::<i32>::zeros([2, 3, 0]).unwrap()).unwrap();
+
+    assert_eq!(empty_batches.shape(), &[0, 3, 2]);
+    assert_eq!(zero_rows.shape(), &[2, 3, 0]);
+    assert_eq!(zero_columns.shape(), &[2, 0, 3]);
+    assert!(empty_batches.data().is_empty());
+    assert!(zero_rows.data().is_empty());
+    assert!(zero_columns.data().is_empty());
+}
+
+#[test]
+fn batched_transpose_rejects_non_batched_matrices() {
+    let matrix = NDArray::<i32>::zeros([2, 3]).unwrap();
+
+    assert_eq!(
+        batched_transpose(&matrix).unwrap_err(),
+        AtlasLinalgError::InvalidInputRank {
+            op: "batched_transpose",
+            expected: "a rank-3 [batch, rows, columns] array",
+            rank: 2,
         }
     );
 }
