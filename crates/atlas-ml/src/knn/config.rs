@@ -1,0 +1,80 @@
+use crate::{AtlasMlError, AtlasMlResult};
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum KnnSearchAlgorithm {
+    #[default]
+    BruteForce,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct KnnConfig {
+    k: usize,
+    search_algorithm: KnnSearchAlgorithm,
+}
+
+impl KnnConfig {
+    pub fn new(k: usize) -> AtlasMlResult<Self> {
+        if k == 0 {
+            return Err(AtlasMlError::InvalidArgument {
+                op: "knn_config",
+                reason: "k must be positive",
+            });
+        }
+
+        Ok(Self { k, search_algorithm: KnnSearchAlgorithm::BruteForce })
+    }
+
+    pub const fn k(&self) -> usize {
+        self.k
+    }
+
+    pub const fn search_algorithm(&self) -> KnnSearchAlgorithm {
+        self.search_algorithm
+    }
+
+    pub fn validate(&self, training_samples: usize) -> AtlasMlResult<()> {
+        if self.k > training_samples {
+            return Err(AtlasMlError::InvalidArgument {
+                op: "knn_config",
+                reason: "k must not exceed the number of training samples",
+            });
+        }
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{KnnConfig, KnnSearchAlgorithm};
+    use crate::AtlasMlError;
+
+    #[test]
+    fn defaults_to_brute_force_search() {
+        let config = KnnConfig::new(3).unwrap();
+
+        assert_eq!(config.k(), 3);
+        assert_eq!(config.search_algorithm(), KnnSearchAlgorithm::BruteForce);
+    }
+
+    #[test]
+    fn rejects_zero_neighbors() {
+        assert_eq!(
+            KnnConfig::new(0),
+            Err(AtlasMlError::InvalidArgument { op: "knn_config", reason: "k must be positive" })
+        );
+    }
+
+    #[test]
+    fn rejects_neighbor_counts_larger_than_training_data() {
+        let config = KnnConfig::new(3).unwrap();
+
+        assert_eq!(
+            config.validate(2),
+            Err(AtlasMlError::InvalidArgument {
+                op: "knn_config",
+                reason: "k must not exceed the number of training samples",
+            })
+        );
+    }
+}
