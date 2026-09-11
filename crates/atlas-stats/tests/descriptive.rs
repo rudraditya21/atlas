@@ -1,8 +1,8 @@
 use atlas_ndarray::NDArray;
 use atlas_stats::{
-    AtlasStatsError, correlation, correlation_matrix, covariance, covariance_matrix, median,
-    quantile, stddev, stddev_axis, stddev_ddof, variance, variance_axis, variance_ddof,
-    weighted_covariance, weighted_mean, weighted_variance,
+    AtlasStatsError, correlation, correlation_matrix, covariance, covariance_ddof,
+    covariance_matrix, median, quantile, stddev, stddev_axis, stddev_ddof, variance, variance_axis,
+    variance_ddof, weighted_covariance, weighted_mean, weighted_variance,
 };
 
 fn assert_close(actual: f64, expected: f64) {
@@ -106,6 +106,30 @@ fn covariance_uses_population_definition() {
     let rhs = NDArray::from_shape_vec([4], vec![2.0_f64, 4.0, 6.0, 8.0]).unwrap();
 
     assert_close(covariance(&lhs, &rhs).unwrap(), 2.5);
+}
+
+#[test]
+fn covariance_supports_degrees_of_freedom_and_views() {
+    let lhs = NDArray::from_shape_vec([4], vec![1.0_f64, 2.0, 3.0, 4.0]).unwrap();
+    let rhs = NDArray::from_shape_vec([4], vec![2.0_f64, 4.0, 6.0, 8.0]).unwrap();
+    let lhs_view = lhs.view().slice([1], [3]).unwrap();
+    let rhs_view = rhs.view().slice([1], [3]).unwrap();
+
+    assert_close(covariance_ddof(&lhs, &rhs, 0).unwrap(), 2.5);
+    assert_close(covariance_ddof(&lhs, &rhs, 1).unwrap(), 10.0 / 3.0);
+    assert_close(covariance_ddof(lhs_view, rhs_view, 1).unwrap(), 2.0);
+}
+
+#[test]
+fn covariance_degrees_of_freedom_rejects_insufficient_samples() {
+    let lhs = NDArray::from_shape_vec([1], vec![5.0_f64]).unwrap();
+    let rhs = NDArray::from_shape_vec([1], vec![9.0_f64]).unwrap();
+
+    assert_close(covariance_ddof(&lhs, &rhs, 0).unwrap(), 0.0);
+    assert_eq!(
+        covariance_ddof(&lhs, &rhs, 1).unwrap_err(),
+        AtlasStatsError::InvalidDegreesOfFreedom { op: "covariance_ddof", ddof: 1, count: 1 }
+    );
 }
 
 #[test]

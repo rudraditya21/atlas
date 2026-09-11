@@ -2,7 +2,8 @@ use atlas_ndarray::Numeric;
 use num_traits::ToPrimitive;
 
 use crate::core::{
-    AtlasStatsResult, StatsOperand, means, try_for_each_vector_pair_f64, validate_vector_pair,
+    AtlasStatsError, AtlasStatsResult, StatsOperand, means, try_for_each_vector_pair_f64,
+    validate_non_empty, validate_vector_pair,
 };
 
 pub fn covariance<'a, T, L, R>(lhs: L, rhs: R) -> AtlasStatsResult<f64>
@@ -11,20 +12,42 @@ where
     L: Into<StatsOperand<'a, T>>,
     R: Into<StatsOperand<'a, T>>,
 {
-    let lhs = lhs.into();
-    let rhs = rhs.into();
+    covariance_with_ddof(lhs.into(), rhs.into(), 0, "covariance")
+}
 
-    validate_vector_pair(&lhs, &rhs, "covariance")?;
+pub fn covariance_ddof<'a, T, L, R>(lhs: L, rhs: R, ddof: usize) -> AtlasStatsResult<f64>
+where
+    T: Numeric + ToPrimitive + 'a,
+    L: Into<StatsOperand<'a, T>>,
+    R: Into<StatsOperand<'a, T>>,
+{
+    covariance_with_ddof(lhs.into(), rhs.into(), ddof, "covariance_ddof")
+}
 
-    let (lhs_mean, rhs_mean, len) = means(&lhs, &rhs, "covariance")?;
+fn covariance_with_ddof<T>(
+    lhs: StatsOperand<'_, T>,
+    rhs: StatsOperand<'_, T>,
+    ddof: usize,
+    op: &'static str,
+) -> AtlasStatsResult<f64>
+where
+    T: Numeric + ToPrimitive,
+{
+    validate_vector_pair(&lhs, &rhs, op)?;
+    let len = validate_non_empty(&lhs, op)?;
+    if ddof >= len {
+        return Err(AtlasStatsError::InvalidDegreesOfFreedom { op, ddof, count: len });
+    }
+
+    let (lhs_mean, rhs_mean, _) = means(&lhs, &rhs, op)?;
     let mut total = 0.0_f64;
 
-    try_for_each_vector_pair_f64(&lhs, &rhs, "covariance", |left, right| {
+    try_for_each_vector_pair_f64(&lhs, &rhs, op, |left, right| {
         total += (left - lhs_mean) * (right - rhs_mean);
         Ok(())
     })?;
 
-    Ok(total / len as f64)
+    Ok(total / (len - ddof) as f64)
 }
 
 #[cfg(test)]
