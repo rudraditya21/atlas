@@ -1,7 +1,7 @@
 use atlas_ndarray::{NDArray, OperandMetadata};
 
 use super::{
-    config::{KnnConfig, KnnWeighting},
+    config::{KnnConfig, KnnSearchAlgorithm, KnnWeighting},
     index::TrainingIndex,
     metric::SquaredEuclideanDistance,
     neighbor::Neighbor,
@@ -44,6 +44,11 @@ impl KnnRegressor {
 
     pub const fn config(&self) -> KnnConfig {
         self.config
+    }
+
+    /// Returns the backend selected when this model was fitted.
+    pub fn selected_search_algorithm(&self) -> KnnSearchAlgorithm {
+        self.index.search_algorithm()
     }
 
     pub fn feature_count(&self) -> usize {
@@ -132,6 +137,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(regressor.config().k(), 1);
+        assert_eq!(regressor.selected_search_algorithm(), KnnSearchAlgorithm::BruteForce);
         assert_eq!(regressor.feature_count(), 2);
         assert_eq!(regressor.targets().data(), &[1.5, -2.0]);
     }

@@ -3,7 +3,10 @@ use std::collections::BTreeMap;
 use atlas_ndarray::{NDArray, OperandMetadata};
 
 use super::{
-    config::KnnConfig, index::TrainingIndex, metric::SquaredEuclideanDistance, row::copy_row,
+    config::{KnnConfig, KnnSearchAlgorithm},
+    index::TrainingIndex,
+    metric::SquaredEuclideanDistance,
+    row::copy_row,
 };
 use crate::{
     AtlasMlResult,
@@ -43,6 +46,11 @@ impl KnnClassifier {
 
     pub const fn config(&self) -> KnnConfig {
         self.config
+    }
+
+    /// Returns the backend selected when this model was fitted.
+    pub fn selected_search_algorithm(&self) -> KnnSearchAlgorithm {
+        self.index.search_algorithm()
     }
 
     pub fn feature_count(&self) -> usize {
@@ -120,6 +128,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(classifier.config().k(), 1);
+        assert_eq!(classifier.selected_search_algorithm(), KnnSearchAlgorithm::BruteForce);
         assert_eq!(classifier.feature_count(), 2);
         assert_eq!(classifier.labels().data(), &[3, 7]);
     }
@@ -282,6 +291,24 @@ mod tests {
     }
 
     #[test]
+    fn reports_explicit_search_backend_selection() {
+        for algorithm in [
+            KnnSearchAlgorithm::BruteForce,
+            KnnSearchAlgorithm::KdTree,
+            KnnSearchAlgorithm::BallTree,
+        ] {
+            let classifier = KnnClassifier::fit(
+                features(),
+                NDArray::from_shape_vec([2], vec![0_usize, 1]).unwrap(),
+                KnnConfig::new(1).unwrap().with_search_algorithm(algorithm).unwrap(),
+            )
+            .unwrap();
+
+            assert_eq!(classifier.selected_search_algorithm(), algorithm);
+        }
+    }
+
+    #[test]
     fn automatic_backend_predictions_match_brute_force() {
         let small_sample_count = crate::AUTO_BRUTE_FORCE_MAX_SAMPLES;
         let small_features = NDArray::from_shape_vec(
@@ -306,6 +333,7 @@ mod tests {
             KnnConfig::new(3).unwrap().with_search_algorithm(KnnSearchAlgorithm::Auto).unwrap(),
         )
         .unwrap();
+        assert_eq!(small_automatic.selected_search_algorithm(), KnnSearchAlgorithm::BruteForce);
         let sample_count = crate::AUTO_BRUTE_FORCE_MAX_SAMPLES + 1;
         let features = NDArray::from_shape_vec(
             [sample_count, 1],
@@ -326,6 +354,7 @@ mod tests {
             KnnConfig::new(3).unwrap().with_search_algorithm(KnnSearchAlgorithm::Auto).unwrap(),
         )
         .unwrap();
+        assert_eq!(automatic.selected_search_algorithm(), KnnSearchAlgorithm::KdTree);
         let small_queries = NDArray::from_shape_vec([1, 1], vec![32.5_f64]).unwrap();
         let queries = NDArray::from_shape_vec([2, 1], vec![0.2_f64, 32.5]).unwrap();
 
