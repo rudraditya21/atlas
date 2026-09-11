@@ -1,4 +1,4 @@
-use atlas_ndarray::{ArrayElement, OperandMetadata};
+use atlas_ndarray::{ArrayElement, OperandMetadata, checked_element_count};
 
 use super::error::{AtlasMlError, AtlasMlResult};
 
@@ -70,11 +70,49 @@ where
     Ok(())
 }
 
+pub(crate) fn validate_finite_feature_values<F>(features: &F, op: &'static str) -> AtlasMlResult<()>
+where
+    F: OperandMetadata<f64> + ?Sized,
+{
+    if let Some(values) = features.dense_slice() {
+        return validate_finite_values(values, op);
+    }
+
+    let shape = features.shape();
+    for linear_index in 0..checked_element_count(shape)? {
+        let mut remainder = linear_index;
+        let mut offset = features.offset();
+
+        for axis in (0..shape.len()).rev() {
+            let coordinate = remainder % shape[axis];
+            remainder /= shape[axis];
+            offset += coordinate * features.strides()[axis];
+        }
+
+        if !features.data()[offset].is_finite() {
+            return Err(AtlasMlError::NonFiniteInput { op });
+        }
+    }
+
+    Ok(())
+}
+
+fn validate_finite_values(values: &[f64], op: &'static str) -> AtlasMlResult<()> {
+    if values.iter().all(|value| value.is_finite()) {
+        Ok(())
+    } else {
+        Err(AtlasMlError::NonFiniteInput { op })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use atlas_ndarray::NDArray;
 
-    use super::{validate_prediction_feature_inputs, validate_supervised_training_inputs};
+    use super::{
+        validate_finite_feature_values, validate_prediction_feature_inputs,
+        validate_supervised_training_inputs,
+    };
     use crate::AtlasMlError;
 
     const OP: &str = "knn_fit";
@@ -174,6 +212,28 @@ mod tests {
                 right: vec![3],
                 reason: "feature count must match training data",
             })
+        );
+    }
+
+    #[test]
+    fn validates_finite_feature_values() {
+        let finite = NDArray::from_shape_vec([2, 2], vec![-1.0_f64, 0.0, 1.0, 2.0]).unwrap();
+        let nan = NDArray::from_shape_vec([1, 1], vec![f64::NAN]).unwrap();
+        let positive_infinity = NDArray::from_shape_vec([1, 1], vec![f64::INFINITY]).unwrap();
+        let negative_infinity = NDArray::from_shape_vec([1, 1], vec![f64::NEG_INFINITY]).unwrap();
+
+        assert_eq!(validate_finite_feature_values(&finite, OP), Ok(()));
+        assert_eq!(
+            validate_finite_feature_values(&nan, OP),
+            Err(AtlasMlError::NonFiniteInput { op: OP })
+        );
+        assert_eq!(
+            validate_finite_feature_values(&positive_infinity, OP),
+            Err(AtlasMlError::NonFiniteInput { op: OP })
+        );
+        assert_eq!(
+            validate_finite_feature_values(&negative_infinity, OP),
+            Err(AtlasMlError::NonFiniteInput { op: OP })
         );
     }
 }
