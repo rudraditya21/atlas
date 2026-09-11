@@ -359,6 +359,7 @@ where
 mod tests {
     use atlas_ndarray::NDArray;
 
+    use super::LuFactorization;
     use crate::{AtlasLinalgError, lu, matmul};
 
     fn assert_close_slice(actual: &[f64], expected: &[f64], tolerance: f64) {
@@ -396,6 +397,57 @@ mod tests {
         assert!(matches!(
             lu(&singular).unwrap_err(),
             AtlasLinalgError::SingularMatrix { op: "lu", .. }
+        ));
+    }
+
+    #[test]
+    fn lu_solve_rejects_malformed_lower_and_upper_factors() {
+        let rhs = NDArray::from_shape_vec([2], vec![1.0_f64, 2.0]).unwrap();
+        let malformed_lower = LuFactorization {
+            p: NDArray::eye(2).unwrap(),
+            l: NDArray::from_shape_vec([2, 2], vec![1.0, 1.0, 0.0, 1.0]).unwrap(),
+            u: NDArray::eye(2).unwrap(),
+        };
+        let malformed_upper = LuFactorization {
+            p: NDArray::eye(2).unwrap(),
+            l: NDArray::eye(2).unwrap(),
+            u: NDArray::from_shape_vec([2, 2], vec![1.0, 0.0, 1.0, 1.0]).unwrap(),
+        };
+
+        assert!(matches!(
+            malformed_lower.solve(&rhs),
+            Err(AtlasLinalgError::InvalidFactor {
+                op: "solve",
+                factor: "LU lower",
+                reason: "must be triangular",
+            })
+        ));
+        assert!(matches!(
+            malformed_upper.solve(&rhs),
+            Err(AtlasLinalgError::InvalidFactor {
+                op: "solve",
+                factor: "LU upper",
+                reason: "must be triangular",
+            })
+        ));
+    }
+
+    #[test]
+    fn lu_solve_rejects_non_unit_lower_factors() {
+        let rhs = NDArray::from_shape_vec([2], vec![1.0_f64, 2.0]).unwrap();
+        let factors = LuFactorization {
+            p: NDArray::eye(2).unwrap(),
+            l: NDArray::from_shape_vec([2, 2], vec![2.0, 0.0, 0.0, 1.0]).unwrap(),
+            u: NDArray::eye(2).unwrap(),
+        };
+
+        assert!(matches!(
+            factors.solve(&rhs),
+            Err(AtlasLinalgError::InvalidFactor {
+                op: "solve",
+                factor: "LU lower",
+                reason: "must have a unit diagonal",
+            })
         ));
     }
 }

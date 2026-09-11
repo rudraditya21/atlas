@@ -323,6 +323,7 @@ fn qr_rank_tolerance<T: Float>(column_norm: T, rows: usize, cols: usize) -> T {
 mod tests {
     use atlas_ndarray::NDArray;
 
+    use super::QrFactorization;
     use crate::{AtlasLinalgError, matmul, qr};
 
     fn assert_close_slice(actual: &[f64], expected: &[f64], tolerance: f64) {
@@ -358,6 +359,24 @@ mod tests {
         assert!(matches!(
             qr(&rank_deficient).unwrap_err(),
             AtlasLinalgError::RankDeficientMatrix { op: "qr", .. }
+        ));
+    }
+
+    #[test]
+    fn qr_solve_rejects_a_non_upper_r_factor() {
+        let factors = QrFactorization {
+            q: NDArray::eye(2).unwrap(),
+            r: NDArray::from_shape_vec([2, 2], vec![1.0_f64, 0.0, 1.0, 1.0]).unwrap(),
+        };
+        let rhs = NDArray::from_shape_vec([2], vec![1.0_f64, 2.0]).unwrap();
+
+        assert!(matches!(
+            factors.solve_r(&rhs),
+            Err(AtlasLinalgError::InvalidFactor {
+                op: "solve_r",
+                factor: "QR upper",
+                reason: "must be triangular",
+            })
         ));
     }
 

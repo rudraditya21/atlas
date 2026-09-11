@@ -152,6 +152,7 @@ where
 mod tests {
     use atlas_ndarray::NDArray;
 
+    use super::CholeskyFactorization;
     use crate::{AtlasLinalgError, cholesky, matmul};
 
     fn assert_close_slice(actual: &[f64], expected: &[f64], tolerance: f64) {
@@ -185,6 +186,23 @@ mod tests {
         assert!(matches!(
             cholesky(&non_spd).unwrap_err(),
             AtlasLinalgError::NotPositiveDefinite { op: "cholesky", .. }
+        ));
+    }
+
+    #[test]
+    fn cholesky_solve_rejects_a_non_lower_factor() {
+        let factor = CholeskyFactorization {
+            l: NDArray::from_shape_vec([2, 2], vec![1.0_f64, 1.0, 0.0, 1.0]).unwrap(),
+        };
+        let rhs = NDArray::from_shape_vec([2], vec![1.0_f64, 2.0]).unwrap();
+
+        assert!(matches!(
+            factor.solve(&rhs),
+            Err(AtlasLinalgError::InvalidFactor {
+                op: "solve_spd",
+                factor: "Cholesky lower",
+                reason: "must be triangular",
+            })
         ));
     }
 }
