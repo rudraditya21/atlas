@@ -171,6 +171,84 @@ fn batched_matrix_vector_matmul_rejects_incompatible_shapes() {
 }
 
 #[test]
+fn batched_vector_matrix_matmul_supports_matching_batches() {
+    let vectors = NDArray::from_shape_vec([2, 3], vec![1_i32, 2, 3, 4, 5, 6]).unwrap();
+    let matrices =
+        NDArray::from_shape_vec([2, 3, 2], vec![1_i32, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+            .unwrap();
+
+    let product = matmul(&vectors, &matrices).unwrap();
+
+    assert_eq!(product.shape(), &[2, 2]);
+    assert_eq!(product.data(), &[22, 28, 139, 154]);
+}
+
+#[test]
+fn batched_vector_matrix_matmul_supports_strided_views() {
+    let vectors = NDArray::from_shape_vec([2, 4], vec![1_i32, 2, 3, 0, 4, 5, 6, 0]).unwrap();
+    let matrices = NDArray::from_shape_vec(
+        [2, 3, 3],
+        vec![1_i32, 2, 0, 3, 4, 0, 5, 6, 0, 7, 8, 0, 9, 10, 0, 11, 12, 0],
+    )
+    .unwrap();
+
+    let product = matmul(
+        vectors.view().slice([0, 0], [2, 3]).unwrap(),
+        matrices.view().slice([0, 0, 0], [2, 3, 2]).unwrap(),
+    )
+    .unwrap();
+
+    assert_eq!(product.shape(), &[2, 2]);
+    assert_eq!(product.data(), &[22, 28, 139, 154]);
+}
+
+#[test]
+fn batched_vector_matrix_matmul_handles_zero_sized_dimensions() {
+    let empty_batches =
+        matmul(&NDArray::<i32>::zeros([0, 3]).unwrap(), &NDArray::<i32>::zeros([0, 3, 2]).unwrap())
+            .unwrap();
+    let zero_inner =
+        matmul(&NDArray::<i32>::zeros([2, 0]).unwrap(), &NDArray::<i32>::zeros([2, 0, 3]).unwrap())
+            .unwrap();
+    let zero_columns =
+        matmul(&NDArray::<i32>::zeros([2, 3]).unwrap(), &NDArray::<i32>::zeros([2, 3, 0]).unwrap())
+            .unwrap();
+
+    assert_eq!(empty_batches.shape(), &[0, 2]);
+    assert!(empty_batches.data().is_empty());
+    assert_eq!(zero_inner.shape(), &[2, 3]);
+    assert_eq!(zero_inner.data(), &[0; 6]);
+    assert_eq!(zero_columns.shape(), &[2, 0]);
+    assert!(zero_columns.data().is_empty());
+}
+
+#[test]
+fn batched_vector_matrix_matmul_rejects_incompatible_shapes() {
+    let vectors = NDArray::<i32>::zeros([2, 3]).unwrap();
+    let different_batches = NDArray::<i32>::zeros([1, 3, 2]).unwrap();
+    let incompatible_matrices = NDArray::<i32>::zeros([2, 2, 2]).unwrap();
+
+    assert_eq!(
+        matmul(&vectors, &different_batches).unwrap_err(),
+        AtlasLinalgError::ShapeMismatch {
+            op: "matmul",
+            left: vec![2, 3],
+            right: vec![1, 3, 2],
+            reason: "batch dimensions must match",
+        }
+    );
+    assert_eq!(
+        matmul(&vectors, &incompatible_matrices).unwrap_err(),
+        AtlasLinalgError::ShapeMismatch {
+            op: "matmul",
+            left: vec![2, 3],
+            right: vec![2, 2, 2],
+            reason: "left vector length must match matrix row count",
+        }
+    );
+}
+
+#[test]
 fn batched_matmul_preserves_empty_batches() {
     let lhs = NDArray::<i32>::zeros([0, 2, 3]).unwrap();
     let rhs = NDArray::<i32>::zeros([0, 3, 2]).unwrap();

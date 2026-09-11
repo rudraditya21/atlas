@@ -1,6 +1,9 @@
 use atlas_ndarray::{NDArray, Numeric, checked_element_count};
 
-use super::{matrix_matrix::matmul_matrix_refs, matrix_vector::matmul_matrix_vector_refs};
+use super::{
+    matrix_matrix::matmul_matrix_refs, matrix_vector::matmul_matrix_vector_refs,
+    vector_matrix::matmul_vector_matrix_refs,
+};
 use crate::{
     core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand},
     internal::dense::{MatrixRef, VectorRef},
@@ -84,6 +87,48 @@ pub(super) fn matmul_batched_matrix_vector<T: Numeric>(
         data.extend(matmul_matrix_vector_refs(
             batch_matrix_ref(lhs, batch, *lhs_rows, *lhs_columns),
             batch_vector_ref(rhs, batch, *rhs_length),
+        ));
+    }
+
+    Ok(NDArray::from_shape_vec(output_shape, data)?)
+}
+
+pub(super) fn matmul_batched_vector_matrix<T: Numeric>(
+    lhs: &LinalgOperand<'_, T>,
+    rhs: &LinalgOperand<'_, T>,
+) -> AtlasLinalgResult<NDArray<T>> {
+    let [lhs_batches, lhs_length] = lhs.shape() else {
+        unreachable!("batched matmul dispatch only receives rank-two left operands");
+    };
+    let [rhs_batches, rhs_rows, rhs_columns] = rhs.shape() else {
+        unreachable!("batched matmul dispatch only receives rank-three right operands");
+    };
+
+    if lhs_batches != rhs_batches {
+        return Err(AtlasLinalgError::ShapeMismatch {
+            op: "matmul",
+            left: lhs.shape().to_vec(),
+            right: rhs.shape().to_vec(),
+            reason: "batch dimensions must match",
+        });
+    }
+    if lhs_length != rhs_rows {
+        return Err(AtlasLinalgError::ShapeMismatch {
+            op: "matmul",
+            left: lhs.shape().to_vec(),
+            right: rhs.shape().to_vec(),
+            reason: "left vector length must match matrix row count",
+        });
+    }
+
+    let output_shape = [*lhs_batches, *rhs_columns];
+    let output_len = checked_element_count(&output_shape)?;
+    let mut data = Vec::with_capacity(output_len);
+
+    for batch in 0..*lhs_batches {
+        data.extend(matmul_vector_matrix_refs(
+            batch_vector_ref(lhs, batch, *lhs_length),
+            batch_matrix_ref(rhs, batch, *rhs_rows, *rhs_columns),
         ));
     }
 
