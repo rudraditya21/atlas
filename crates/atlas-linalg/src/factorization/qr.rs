@@ -4,8 +4,8 @@ use num_traits::Float;
 use crate::{
     core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand},
     internal::factorization::{
-        copy_matrix_row_major, dot_slice, validate_finite, validate_rank_two, vector_norm,
-        zero_matrix_data,
+        copy_matrix_row_major, dot_slice, validate_finite, validate_rank_two,
+        validate_upper_triangular, vector_norm, zero_matrix_data,
     },
 };
 
@@ -41,7 +41,7 @@ impl<T: Numeric + Float> QrFactorization<T> {
         T: 'a,
         R: Into<LinalgOperand<'a, T>>,
     {
-        let (rows, columns) = self.q_shape()?;
+        let (rows, columns) = self.q_shape("apply_q_transpose")?;
         let rhs = rhs.into();
         let (rhs_columns, vector_rhs) = match rhs.shape() {
             [rhs_rows] if *rhs_rows == rows => (1, true),
@@ -87,7 +87,7 @@ impl<T: Numeric + Float> QrFactorization<T> {
         T: 'a,
         R: Into<LinalgOperand<'a, T>>,
     {
-        let (_, order) = self.q_shape()?;
+        let (_, order) = self.q_shape("solve_r")?;
         let rhs = rhs.into();
         let (rhs_columns, vector_rhs) = match rhs.shape() {
             [rhs_rows] if *rhs_rows == order => (1, true),
@@ -133,10 +133,10 @@ impl<T: Numeric + Float> QrFactorization<T> {
         }
     }
 
-    fn q_shape(&self) -> AtlasLinalgResult<(usize, usize)> {
+    fn q_shape(&self, op: &'static str) -> AtlasLinalgResult<(usize, usize)> {
         let [rows, columns] = self.q.shape() else {
             return Err(AtlasLinalgError::InvalidInputShape {
-                op: "apply_q_transpose",
+                op,
                 shape: self.q.shape().to_vec(),
                 reason: "QR Q factor must be a matrix",
             });
@@ -144,11 +144,13 @@ impl<T: Numeric + Float> QrFactorization<T> {
 
         if self.r.shape() != [*columns, *columns] {
             return Err(AtlasLinalgError::InvalidInputShape {
-                op: "apply_q_transpose",
+                op,
                 shape: self.r.shape().to_vec(),
                 reason: "QR R factor must be square with Q column count",
             });
         }
+
+        validate_upper_triangular(&self.r, op, "QR upper")?;
 
         Ok((*rows, *columns))
     }

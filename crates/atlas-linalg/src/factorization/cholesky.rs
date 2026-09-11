@@ -6,7 +6,7 @@ use crate::{
     dense::triangular::{solve_lower_triangular_with_op, solve_upper_triangular_with_op},
     internal::factorization::{
         copy_matrix_row_major, dot_slice, is_symmetric, tolerance, validate_finite,
-        validate_rank_two, zero_matrix_data,
+        validate_lower_triangular, validate_rank_two, zero_matrix_data,
     },
 };
 
@@ -77,6 +77,8 @@ impl<T: Numeric + Float> CholeskyFactorization<T> {
                 reason: "Cholesky lower factor must be square",
             });
         }
+
+        validate_lower_triangular(&self.l, "solve_spd", "Cholesky lower", false)?;
 
         Ok(*rows)
     }

@@ -6,7 +6,8 @@ use crate::{
     dense::triangular::{solve_lower_triangular_with_op, solve_upper_triangular_with_op},
     internal::factorization::{
         copy_matrix_row_major, find_pivot_row, identity_matrix_data, swap_l_prefix_rows, swap_rows,
-        tolerance, validate_finite, validate_rank_two, zero_matrix_data,
+        tolerance, validate_finite, validate_lower_triangular, validate_rank_two,
+        validate_upper_triangular, zero_matrix_data,
     },
 };
 
@@ -178,6 +179,9 @@ impl<T: Numeric + Float> LuFactorization<T> {
                 reason: "LU factors must be square matrices of the same order",
             });
         }
+
+        validate_lower_triangular(&self.l, op, "LU lower", true)?;
+        validate_upper_triangular(&self.u, op, "LU upper")?;
 
         Ok(*rows)
     }
