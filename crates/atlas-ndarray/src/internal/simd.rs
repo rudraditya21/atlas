@@ -1,11 +1,10 @@
 use num_traits::ToPrimitive;
 
+pub(crate) use crate::simd_support::{cast_slice, is_f32, is_f64};
 use crate::{
     AtlasNdError, AtlasNdResult, ElementwiseArithmetic, Numeric,
     simd_support::{cast_mut_slice, cast_value},
 };
-
-pub(crate) use crate::simd_support::{cast_slice, is_f32, is_f64};
 
 const SIMD_LANES: usize = 8;
 const SIMD_REDUCTION_THRESHOLD: usize = SIMD_LANES * 32;

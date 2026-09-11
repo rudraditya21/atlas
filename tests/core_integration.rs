@@ -62,10 +62,10 @@ fn ndarray_qr_stats_pipeline_preserves_reconstruction_statistics() {
     let matrix = NDArray::from_shape_vec([3, 2], vec![1.0_f64, 1.0, 1.0, 0.0, 0.0, 1.0]).unwrap();
 
     let factors = qr(&matrix).unwrap();
-    let reconstructed = matmul(&factors.q, &factors.r).unwrap();
+    let reconstructed = matmul(factors.q(), factors.r()).unwrap();
 
-    assert_eq!(factors.q.shape(), &[3, 2]);
-    assert_eq!(factors.r.shape(), &[2, 2]);
+    assert_eq!(factors.q().shape(), &[3, 2]);
+    assert_eq!(factors.r().shape(), &[2, 2]);
     assert_eq!(reconstructed.shape(), matrix.shape());
     assert!(reconstructed.data().iter().all(|value| value.is_finite()));
     assert_close(variance(&reconstructed).unwrap(), variance(&matrix).unwrap());
@@ -77,9 +77,9 @@ fn ndarray_cholesky_stats_pipeline_preserves_reconstruction_statistics() {
     let matrix = NDArray::from_shape_vec([2, 2], vec![4.0_f64, 2.0, 2.0, 3.0]).unwrap();
 
     let factor = cholesky(&matrix).unwrap();
-    let reconstructed = matmul(&factor.l, factor.l.view().transpose()).unwrap();
+    let reconstructed = matmul(factor.l(), factor.l().view().transpose()).unwrap();
 
-    assert_eq!(factor.l.shape(), &[2, 2]);
+    assert_eq!(factor.l().shape(), &[2, 2]);
     assert_eq!(reconstructed.shape(), matrix.shape());
     assert!(reconstructed.data().iter().all(|value| value.is_finite()));
     assert_close(variance(&reconstructed).unwrap(), variance(&matrix).unwrap());

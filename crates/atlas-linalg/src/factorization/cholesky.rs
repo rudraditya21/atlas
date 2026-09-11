@@ -12,7 +12,14 @@ use crate::{
 
 #[derive(Clone, Debug)]
 pub struct CholeskyFactorization<T: Numeric> {
-    pub l: NDArray<T>,
+    l: NDArray<T>,
+}
+
+impl<T: Numeric> CholeskyFactorization<T> {
+    /// Returns the lower-triangular factor.
+    pub fn l(&self) -> &NDArray<T> {
+        &self.l
+    }
 }
 
 impl<T: Numeric + Float> CholeskyFactorization<T> {
@@ -158,9 +165,9 @@ mod tests {
         let matrix = NDArray::from_shape_vec([2, 2], vec![4.0_f64, 2.0, 2.0, 3.0]).unwrap();
         let factor = cholesky(&matrix).unwrap();
 
-        assert_eq!(factor.l.shape(), &[2, 2]);
+        assert_eq!(factor.l().shape(), &[2, 2]);
 
-        let reconstructed = matmul(&factor.l, factor.l.view().transpose()).unwrap();
+        let reconstructed = matmul(factor.l(), factor.l().view().transpose()).unwrap();
         assert_close_slice(reconstructed.data(), matrix.data(), 1e-10);
     }
 

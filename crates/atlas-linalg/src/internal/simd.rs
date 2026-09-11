@@ -1,5 +1,4 @@
 use atlas_ndarray::Numeric;
-
 pub(crate) use atlas_ndarray::simd_support::{
     cast_mut_slice, cast_slice, cast_value, is_f32, is_f64,
 };

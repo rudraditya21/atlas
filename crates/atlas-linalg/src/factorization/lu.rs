@@ -12,9 +12,26 @@ use crate::{
 
 #[derive(Clone, Debug)]
 pub struct LuFactorization<T: Numeric> {
-    pub p: NDArray<T>,
-    pub l: NDArray<T>,
-    pub u: NDArray<T>,
+    p: NDArray<T>,
+    l: NDArray<T>,
+    u: NDArray<T>,
+}
+
+impl<T: Numeric> LuFactorization<T> {
+    /// Returns the row-permutation factor.
+    pub fn p(&self) -> &NDArray<T> {
+        &self.p
+    }
+
+    /// Returns the unit lower-triangular factor.
+    pub fn l(&self) -> &NDArray<T> {
+        &self.l
+    }
+
+    /// Returns the upper-triangular factor.
+    pub fn u(&self) -> &NDArray<T> {
+        &self.u
+    }
 }
 
 impl<T: Numeric + Float> LuFactorization<T> {
@@ -313,7 +330,7 @@ where
     M: Into<LinalgOperand<'a, T>>,
 {
     let factorization = lu(matrix)?;
-    let identity = NDArray::eye(factorization.u.shape()[0])?;
+    let identity = NDArray::eye(factorization.u().shape()[0])?;
 
     factorization.solve(&identity)
 }
@@ -353,12 +370,12 @@ mod tests {
         let matrix = NDArray::from_shape_vec([2, 2], vec![0.0_f64, 2.0, 1.0, 3.0]).unwrap();
         let factors = lu(&matrix).unwrap();
 
-        assert_eq!(factors.p.shape(), &[2, 2]);
-        assert_eq!(factors.l.shape(), &[2, 2]);
-        assert_eq!(factors.u.shape(), &[2, 2]);
+        assert_eq!(factors.p().shape(), &[2, 2]);
+        assert_eq!(factors.l().shape(), &[2, 2]);
+        assert_eq!(factors.u().shape(), &[2, 2]);
 
-        let pa = matmul(&factors.p, &matrix).unwrap();
-        let lu_product = matmul(&factors.l, &factors.u).unwrap();
+        let pa = matmul(factors.p(), &matrix).unwrap();
+        let lu_product = matmul(factors.l(), factors.u()).unwrap();
 
         assert_close_slice(pa.data(), lu_product.data(), 1e-10);
     }

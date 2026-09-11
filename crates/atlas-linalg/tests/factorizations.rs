@@ -1,7 +1,7 @@
 use atlas_linalg::{
-    AtlasLinalgError, AtlasLinalgResult, CholeskyFactorization, LUFactorization, LuFactorization,
-    QRFactorization, QrFactorization, cholesky, det, least_squares, lu, matmul, qr, slogdet, solve,
-    solve_lower_triangular, solve_spd, solve_upper_triangular,
+    AtlasLinalgError, AtlasLinalgResult, CholeskyFactorization, LUFactorization, QRFactorization,
+    cholesky, det, least_squares, lu, matmul, qr, slogdet, solve, solve_lower_triangular,
+    solve_spd, solve_upper_triangular,
 };
 use atlas_ndarray::NDArray;
 
@@ -32,40 +32,16 @@ fn lu_reconstructs_permuted_input() {
 
     let factors: LUFactorization<f64> = expect_ok(lu(&matrix));
 
-    assert_shape(&factors.p, &[3, 3]);
-    assert_shape(&factors.l, &[3, 3]);
-    assert_shape(&factors.u, &[3, 3]);
+    assert_shape(factors.p(), &[3, 3]);
+    assert_shape(factors.l(), &[3, 3]);
+    assert_shape(factors.u(), &[3, 3]);
 
-    let permuted = matmul(&factors.p, &matrix).unwrap();
-    let reconstructed = matmul(&factors.l, &factors.u).unwrap();
+    let permuted = matmul(factors.p(), &matrix).unwrap();
+    let reconstructed = matmul(factors.l(), factors.u()).unwrap();
 
     assert_shape(&permuted, &[3, 3]);
     assert_shape(&reconstructed, &[3, 3]);
     assert_close_slice(permuted.data(), reconstructed.data(), 1e-10);
-}
-
-#[test]
-fn public_lu_factors_reject_incompatible_shapes_and_non_permutations() {
-    let rhs = NDArray::from_shape_vec([2], vec![1.0_f64, 2.0]).unwrap();
-    let incompatible = LuFactorization {
-        p: NDArray::eye(1).unwrap(),
-        l: NDArray::eye(2).unwrap(),
-        u: NDArray::eye(2).unwrap(),
-    };
-    let non_permutation = LuFactorization {
-        p: NDArray::from_shape_vec([2, 2], vec![1.0_f64, 1.0, 0.0, 0.0]).unwrap(),
-        l: NDArray::eye(2).unwrap(),
-        u: NDArray::eye(2).unwrap(),
-    };
-
-    assert!(matches!(
-        incompatible.solve(&rhs),
-        Err(AtlasLinalgError::InvalidInputShape { op: "solve", .. })
-    ));
-    assert!(matches!(
-        non_permutation.det(),
-        Err(AtlasLinalgError::InvalidInputShape { op: "det", .. })
-    ));
 }
 
 #[test]
@@ -180,30 +156,16 @@ fn qr_reconstructs_tall_input_and_has_reduced_shapes() {
 
     let factors: QRFactorization<f64> = expect_ok(qr(&matrix));
 
-    assert_shape(&factors.q, &[3, 2]);
-    assert_shape(&factors.r, &[2, 2]);
+    assert_shape(factors.q(), &[3, 2]);
+    assert_shape(factors.r(), &[2, 2]);
 
-    let reconstructed = matmul(&factors.q, &factors.r).unwrap();
+    let reconstructed = matmul(factors.q(), factors.r()).unwrap();
     assert_shape(&reconstructed, &[3, 2]);
     assert_close_slice(reconstructed.data(), matrix.data(), 1e-10);
 
-    let gram = matmul(factors.q.view().transpose(), &factors.q).unwrap();
+    let gram = matmul(factors.q().view().transpose(), factors.q()).unwrap();
     assert_shape(&gram, &[2, 2]);
     assert_close_slice(gram.data(), &[1.0, 0.0, 0.0, 1.0], 1e-10);
-}
-
-#[test]
-fn public_qr_factors_reject_incompatible_factor_shapes() {
-    let factors = QrFactorization {
-        q: NDArray::eye(2).unwrap(),
-        r: NDArray::from_shape_vec([2, 3], vec![1.0_f64; 6]).unwrap(),
-    };
-    let rhs = NDArray::from_shape_vec([2], vec![1.0_f64, 2.0]).unwrap();
-
-    assert!(matches!(
-        factors.apply_q_transpose(&rhs),
-        Err(AtlasLinalgError::InvalidInputShape { op: "apply_q_transpose", .. })
-    ));
 }
 
 #[test]
@@ -212,30 +174,11 @@ fn cholesky_reconstructs_symmetric_positive_definite_input() {
 
     let factor: CholeskyFactorization<f64> = expect_ok(cholesky(&matrix));
 
-    assert_shape(&factor.l, &[2, 2]);
+    assert_shape(factor.l(), &[2, 2]);
 
-    let reconstructed = matmul(&factor.l, factor.l.view().transpose()).unwrap();
+    let reconstructed = matmul(factor.l(), factor.l().view().transpose()).unwrap();
     assert_shape(&reconstructed, &[2, 2]);
     assert_close_slice(reconstructed.data(), matrix.data(), 1e-10);
-}
-
-#[test]
-fn public_cholesky_factors_reject_non_square_and_non_positive_diagonals() {
-    let rhs = NDArray::from_shape_vec([2], vec![1.0_f64, 2.0]).unwrap();
-    let non_square =
-        CholeskyFactorization { l: NDArray::from_shape_vec([2, 1], vec![1.0_f64, 0.0]).unwrap() };
-    let non_positive = CholeskyFactorization {
-        l: NDArray::from_shape_vec([2, 2], vec![1.0_f64, 0.0, 0.0, -1.0]).unwrap(),
-    };
-
-    assert!(matches!(
-        non_square.solve(&rhs),
-        Err(AtlasLinalgError::InvalidInputShape { op: "solve_spd", .. })
-    ));
-    assert!(matches!(
-        non_positive.solve(&rhs),
-        Err(AtlasLinalgError::NotPositiveDefinite { op: "solve_spd", index: 1 })
-    ));
 }
 
 #[test]
@@ -247,12 +190,12 @@ fn lu_reconstructs_four_by_four_input_and_preserves_square_shapes() {
     .unwrap();
 
     let factors = lu(&matrix).unwrap();
-    let permuted = matmul(&factors.p, &matrix).unwrap();
-    let reconstructed = matmul(&factors.l, &factors.u).unwrap();
+    let permuted = matmul(factors.p(), &matrix).unwrap();
+    let reconstructed = matmul(factors.l(), factors.u()).unwrap();
 
-    assert_shape(&factors.p, &[4, 4]);
-    assert_shape(&factors.l, &[4, 4]);
-    assert_shape(&factors.u, &[4, 4]);
+    assert_shape(factors.p(), &[4, 4]);
+    assert_shape(factors.l(), &[4, 4]);
+    assert_shape(factors.u(), &[4, 4]);
     assert_shape(&permuted, &[4, 4]);
     assert_shape(&reconstructed, &[4, 4]);
     assert_close_slice(permuted.data(), reconstructed.data(), 1e-10);
@@ -267,11 +210,11 @@ fn qr_reconstructs_square_input_with_square_q_and_r_shapes() {
     .unwrap();
 
     let factors = qr(&matrix).unwrap();
-    let reconstructed = matmul(&factors.q, &factors.r).unwrap();
-    let gram = matmul(factors.q.view().transpose(), &factors.q).unwrap();
+    let reconstructed = matmul(factors.q(), factors.r()).unwrap();
+    let gram = matmul(factors.q().view().transpose(), factors.q()).unwrap();
 
-    assert_shape(&factors.q, &[3, 3]);
-    assert_shape(&factors.r, &[3, 3]);
+    assert_shape(factors.q(), &[3, 3]);
+    assert_shape(factors.r(), &[3, 3]);
     assert_shape(&reconstructed, &[3, 3]);
     assert_shape(&gram, &[3, 3]);
     assert_close_slice(reconstructed.data(), matrix.data(), 1e-10);
@@ -287,9 +230,9 @@ fn cholesky_reconstructs_three_by_three_input_and_preserves_shape() {
     .unwrap();
 
     let factor = cholesky(&matrix).unwrap();
-    let reconstructed = matmul(&factor.l, factor.l.view().transpose()).unwrap();
+    let reconstructed = matmul(factor.l(), factor.l().view().transpose()).unwrap();
 
-    assert_shape(&factor.l, &[3, 3]);
+    assert_shape(factor.l(), &[3, 3]);
     assert_shape(&reconstructed, &[3, 3]);
     assert_close_slice(reconstructed.data(), matrix.data(), 1e-10);
 }

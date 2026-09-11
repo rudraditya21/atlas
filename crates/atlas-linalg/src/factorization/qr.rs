@@ -11,8 +11,20 @@ use crate::{
 
 #[derive(Clone, Debug)]
 pub struct QrFactorization<T: Numeric> {
-    pub q: NDArray<T>,
-    pub r: NDArray<T>,
+    q: NDArray<T>,
+    r: NDArray<T>,
+}
+
+impl<T: Numeric> QrFactorization<T> {
+    /// Returns the reduced orthonormal factor.
+    pub fn q(&self) -> &NDArray<T> {
+        &self.q
+    }
+
+    /// Returns the upper-triangular factor.
+    pub fn r(&self) -> &NDArray<T> {
+        &self.r
+    }
 }
 
 impl<T: Numeric + Float> QrFactorization<T> {
@@ -325,10 +337,10 @@ mod tests {
             NDArray::from_shape_vec([3, 2], vec![1.0_f64, 1.0, 1.0, 0.0, 0.0, 1.0]).unwrap();
         let factors = qr(&matrix).unwrap();
 
-        assert_eq!(factors.q.shape(), &[3, 2]);
-        assert_eq!(factors.r.shape(), &[2, 2]);
+        assert_eq!(factors.q().shape(), &[3, 2]);
+        assert_eq!(factors.r().shape(), &[2, 2]);
 
-        let reconstructed = matmul(&factors.q, &factors.r).unwrap();
+        let reconstructed = matmul(factors.q(), factors.r()).unwrap();
         assert_close_slice(reconstructed.data(), matrix.data(), 1e-10);
     }
 
@@ -370,7 +382,7 @@ mod tests {
         .unwrap();
         let factors = qr(&matrix).unwrap();
 
-        let gram = matmul(factors.q.view().transpose(), &factors.q).unwrap();
+        let gram = matmul(factors.q().view().transpose(), factors.q()).unwrap();
         assert_close_slice(gram.data(), &[1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0], 1.0e-6);
     }
 }
