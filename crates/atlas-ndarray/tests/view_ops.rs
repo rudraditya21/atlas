@@ -25,6 +25,29 @@ fn step_aware_slicing_builds_strided_views_from_normalized_ranges() {
 }
 
 #[test]
+fn stepped_slices_preserve_offsets_tails_and_materialization() {
+    let array = NDArray::from_vec([2, 6], (0_i32..12).collect()).unwrap();
+    let stepped =
+        array.view().slice_ranges([SliceRange::full(), SliceRange::new(Some(1), None, 2)]).unwrap();
+    let materialized = stepped.to_owned();
+    let empty = array
+        .view()
+        .slice_ranges([SliceRange::full(), SliceRange::new(Some(6), Some(6), 2)])
+        .unwrap();
+
+    assert_eq!(stepped.shape(), &[2, 3]);
+    assert_eq!(stepped.strides(), &[6, 2]);
+    assert_eq!(stepped.offset(), 1);
+    assert_eq!(materialized.shape(), &[2, 3]);
+    assert_eq!(materialized.strides(), &[3, 1]);
+    assert_eq!(materialized.data(), &[1, 3, 5, 7, 9, 11]);
+    assert_eq!(empty.shape(), &[2, 0]);
+    assert_eq!(empty.offset(), 6);
+    assert!(empty.is_empty());
+    assert!(empty.to_owned().data().is_empty());
+}
+
+#[test]
 fn transpose_reorders_metadata_without_copying() {
     let array = NDArray::from_vec(vec![2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
     let transposed = array.view().transpose();
