@@ -3,8 +3,10 @@ use std::sync::Arc;
 use atlas_ndarray::NDArray;
 
 use super::{
-    config::KnnSearchAlgorithm, metric::DistanceMetric, neighbor::Neighbor,
-    search::brute_force_search,
+    backend::{NeighborSearchBackend, build_search_backend},
+    config::KnnSearchAlgorithm,
+    metric::DistanceMetric,
+    neighbor::Neighbor,
 };
 use crate::AtlasMlResult;
 
@@ -16,11 +18,7 @@ pub(crate) struct TrainingIndex {
 impl TrainingIndex {
     pub(crate) fn new(features: NDArray<f64>, algorithm: KnnSearchAlgorithm) -> Self {
         let features = Arc::new(features);
-        let backend: Box<dyn NeighborSearchBackend> = match algorithm {
-            KnnSearchAlgorithm::BruteForce => {
-                Box::new(BruteForceBackend::new(Arc::clone(&features)))
-            }
-        };
+        let backend = build_search_backend(Arc::clone(&features), algorithm);
 
         Self { features, backend }
     }
@@ -40,42 +38,6 @@ impl TrainingIndex {
         metric: &dyn DistanceMetric,
     ) -> AtlasMlResult<Vec<Neighbor>> {
         self.backend.search(query, k, metric)
-    }
-}
-
-trait NeighborSearchBackend: Send + Sync {
-    fn algorithm(&self) -> KnnSearchAlgorithm;
-
-    fn search(
-        &self,
-        query: &[f64],
-        k: usize,
-        metric: &dyn DistanceMetric,
-    ) -> AtlasMlResult<Vec<Neighbor>>;
-}
-
-struct BruteForceBackend {
-    features: Arc<NDArray<f64>>,
-}
-
-impl BruteForceBackend {
-    fn new(features: Arc<NDArray<f64>>) -> Self {
-        Self { features }
-    }
-}
-
-impl NeighborSearchBackend for BruteForceBackend {
-    fn algorithm(&self) -> KnnSearchAlgorithm {
-        KnnSearchAlgorithm::BruteForce
-    }
-
-    fn search(
-        &self,
-        query: &[f64],
-        k: usize,
-        metric: &dyn DistanceMetric,
-    ) -> AtlasMlResult<Vec<Neighbor>> {
-        brute_force_search(self.features.as_ref(), query, k, metric)
     }
 }
 

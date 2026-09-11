@@ -1,3 +1,4 @@
+pub(crate) mod backend;
 pub(crate) mod classifier;
 pub(crate) mod config;
 pub(crate) mod index;
