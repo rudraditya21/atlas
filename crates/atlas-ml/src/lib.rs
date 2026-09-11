@@ -7,6 +7,6 @@ pub use core::error::{AtlasMlError, AtlasMlResult};
 
 pub use knn::{
     classifier::KnnClassifier,
-    config::{KnnConfig, KnnSearchAlgorithm, KnnWeighting},
+    config::{AUTO_BRUTE_FORCE_MAX_SAMPLES, KnnConfig, KnnSearchAlgorithm, KnnWeighting},
     regressor::KnnRegressor,
 };

@@ -1,11 +1,15 @@
 use crate::{AtlasMlError, AtlasMlResult};
 
+/// Largest training set for which [`KnnSearchAlgorithm::Auto`] uses brute-force search.
+pub const AUTO_BRUTE_FORCE_MAX_SAMPLES: usize = 64;
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum KnnSearchAlgorithm {
     #[default]
     BruteForce,
     KdTree,
     BallTree,
+    /// Uses brute force through [`AUTO_BRUTE_FORCE_MAX_SAMPLES`] samples and a KD-tree above it.
     Auto,
 }
 

@@ -280,4 +280,62 @@ mod tests {
             brute_force.predict(&queries).unwrap().data()
         );
     }
+
+    #[test]
+    fn automatic_backend_predictions_match_brute_force() {
+        let small_sample_count = crate::AUTO_BRUTE_FORCE_MAX_SAMPLES;
+        let small_features = NDArray::from_shape_vec(
+            [small_sample_count, 1],
+            (0..small_sample_count).map(|value| value as f64).collect(),
+        )
+        .unwrap();
+        let small_labels = NDArray::from_shape_vec(
+            [small_sample_count],
+            (0..small_sample_count).map(|value| value % 2).collect(),
+        )
+        .unwrap();
+        let small_brute_force = KnnClassifier::fit(
+            small_features.clone(),
+            small_labels.clone(),
+            KnnConfig::new(3).unwrap(),
+        )
+        .unwrap();
+        let small_automatic = KnnClassifier::fit(
+            small_features,
+            small_labels,
+            KnnConfig::new(3).unwrap().with_search_algorithm(KnnSearchAlgorithm::Auto).unwrap(),
+        )
+        .unwrap();
+        let sample_count = crate::AUTO_BRUTE_FORCE_MAX_SAMPLES + 1;
+        let features = NDArray::from_shape_vec(
+            [sample_count, 1],
+            (0..sample_count).map(|value| value as f64).collect(),
+        )
+        .unwrap();
+        let labels = NDArray::from_shape_vec(
+            [sample_count],
+            (0..sample_count).map(|value| value % 2).collect(),
+        )
+        .unwrap();
+        let brute_force =
+            KnnClassifier::fit(features.clone(), labels.clone(), KnnConfig::new(3).unwrap())
+                .unwrap();
+        let automatic = KnnClassifier::fit(
+            features,
+            labels,
+            KnnConfig::new(3).unwrap().with_search_algorithm(KnnSearchAlgorithm::Auto).unwrap(),
+        )
+        .unwrap();
+        let small_queries = NDArray::from_shape_vec([1, 1], vec![32.5_f64]).unwrap();
+        let queries = NDArray::from_shape_vec([2, 1], vec![0.2_f64, 32.5]).unwrap();
+
+        assert_eq!(
+            small_automatic.predict(&small_queries).unwrap().data(),
+            small_brute_force.predict(&small_queries).unwrap().data()
+        );
+        assert_eq!(
+            automatic.predict(&queries).unwrap().data(),
+            brute_force.predict(&queries).unwrap().data()
+        );
+    }
 }

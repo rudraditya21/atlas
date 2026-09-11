@@ -3,8 +3,12 @@ use std::sync::Arc;
 use atlas_ndarray::NDArray;
 
 use super::{
-    ball_tree::tree::BallTree, config::KnnSearchAlgorithm, kd_tree::tree::KdTree,
-    metric::DistanceMetric, neighbor::Neighbor, search::brute_force_search,
+    ball_tree::tree::BallTree,
+    config::{AUTO_BRUTE_FORCE_MAX_SAMPLES, KnnSearchAlgorithm},
+    kd_tree::tree::KdTree,
+    metric::DistanceMetric,
+    neighbor::Neighbor,
+    search::brute_force_search,
 };
 use crate::AtlasMlResult;
 
@@ -24,11 +28,13 @@ pub(crate) fn build_search_backend(
     algorithm: KnnSearchAlgorithm,
 ) -> AtlasMlResult<Box<dyn NeighborSearchBackend>> {
     match algorithm {
-        KnnSearchAlgorithm::BruteForce | KnnSearchAlgorithm::Auto => {
-            Ok(Box::new(BruteForceBackend { features }))
-        }
+        KnnSearchAlgorithm::BruteForce => Ok(Box::new(BruteForceBackend { features })),
         KnnSearchAlgorithm::KdTree => Ok(Box::new(KdTreeBackend::new(features)?)),
         KnnSearchAlgorithm::BallTree => Ok(Box::new(BallTreeBackend::new(features)?)),
+        KnnSearchAlgorithm::Auto if features.shape()[0] <= AUTO_BRUTE_FORCE_MAX_SAMPLES => {
+            Ok(Box::new(BruteForceBackend { features }))
+        }
+        KnnSearchAlgorithm::Auto => Ok(Box::new(KdTreeBackend::new(features)?)),
     }
 }
 
@@ -134,7 +140,7 @@ mod tests {
     use atlas_ndarray::NDArray;
 
     use super::{NeighborSearchBackend, assert_backend_equivalence, build_search_backend};
-    use crate::knn::config::KnnSearchAlgorithm;
+    use crate::knn::config::{AUTO_BRUTE_FORCE_MAX_SAMPLES, KnnSearchAlgorithm};
 
     #[test]
     fn brute_force_backend_satisfies_the_equivalence_contract() {
@@ -177,10 +183,33 @@ mod tests {
     }
 
     #[test]
-    fn automatic_selection_resolves_to_brute_force() {
-        let features = Arc::new(NDArray::from_shape_vec([1, 1], vec![0.0_f64]).unwrap());
+    fn automatic_selection_uses_brute_force_at_the_threshold() {
+        let features = Arc::new(
+            NDArray::from_shape_vec(
+                [AUTO_BRUTE_FORCE_MAX_SAMPLES, 1],
+                vec![0.0_f64; AUTO_BRUTE_FORCE_MAX_SAMPLES],
+            )
+            .unwrap(),
+        );
         let backend = build_search_backend(features, KnnSearchAlgorithm::Auto).unwrap();
 
         assert_eq!(backend.algorithm(), KnnSearchAlgorithm::BruteForce);
+    }
+
+    #[test]
+    fn automatic_selection_uses_a_kd_tree_above_the_threshold() {
+        let sample_count = AUTO_BRUTE_FORCE_MAX_SAMPLES + 1;
+        let features = Arc::new(
+            NDArray::from_shape_vec(
+                [sample_count, 1],
+                (0..sample_count).map(|value| value as f64).collect(),
+            )
+            .unwrap(),
+        );
+        let backend =
+            build_search_backend(Arc::clone(&features), KnnSearchAlgorithm::Auto).unwrap();
+
+        assert_eq!(backend.algorithm(), KnnSearchAlgorithm::KdTree);
+        assert_backend_equivalence(backend.as_ref(), features.as_ref(), &[&[32.5_f64]]);
     }
 }
