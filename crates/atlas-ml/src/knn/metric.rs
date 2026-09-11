@@ -1,3 +1,4 @@
+#[cfg(test)]
 use crate::{AtlasMlError, AtlasMlResult};
 
 pub(crate) trait DistanceMetric {
@@ -16,6 +17,7 @@ pub(crate) trait DistanceMetric {
         None
     }
 
+    #[cfg(test)]
     fn distance(&self, lhs: &[f64], rhs: &[f64]) -> AtlasMlResult<f64> {
         if lhs.len() != rhs.len() {
             return Err(AtlasMlError::ShapeMismatch {

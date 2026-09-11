@@ -139,7 +139,7 @@ mod tests {
 
     use atlas_ndarray::NDArray;
 
-    use super::{NeighborSearchBackend, assert_backend_equivalence, build_search_backend};
+    use super::{assert_backend_equivalence, build_search_backend};
     use crate::knn::config::{AUTO_BRUTE_FORCE_MAX_SAMPLES, KnnSearchAlgorithm};
 
     fn assert_all_backends_equivalent(features: Arc<NDArray<f64>>, queries: &[&[f64]]) {

@@ -27,6 +27,7 @@ impl KdTreeNode {
         Self::Internal { split_axis, pivot_index, left: Box::new(left), right: Box::new(right) }
     }
 
+    #[cfg(test)]
     pub(crate) const fn is_leaf(&self) -> bool {
         matches!(self, Self::Leaf { .. })
     }

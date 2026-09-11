@@ -50,6 +50,7 @@ impl BallTreeNode {
         }
     }
 
+    #[cfg(test)]
     pub(crate) const fn is_leaf(&self) -> bool {
         matches!(self, Self::Leaf { .. })
     }
