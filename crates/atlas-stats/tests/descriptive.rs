@@ -1,9 +1,9 @@
 use atlas_ndarray::NDArray;
 use atlas_stats::{
     AtlasStatsError, correlation, correlation_matrix, covariance, covariance_ddof,
-    covariance_matrix, median, quantile, stddev, stddev_axis, stddev_axis_ddof, stddev_ddof,
-    variance, variance_axis, variance_axis_ddof, variance_ddof, weighted_covariance, weighted_mean,
-    weighted_variance,
+    covariance_matrix, covariance_matrix_ddof, median, quantile, stddev, stddev_axis,
+    stddev_axis_ddof, stddev_ddof, variance, variance_axis, variance_axis_ddof, variance_ddof,
+    weighted_covariance, weighted_mean, weighted_variance,
 };
 
 fn assert_close(actual: f64, expected: f64) {
@@ -173,6 +173,38 @@ fn covariance_matrix_uses_observations_as_rows_and_variables_as_columns() {
 
     assert_eq!(covariance.shape(), &[2, 2]);
     assert_eq!(covariance.data(), &[2.0 / 3.0, 4.0 / 3.0, 4.0 / 3.0, 8.0 / 3.0]);
+}
+
+#[test]
+fn covariance_matrix_supports_degrees_of_freedom_and_transposed_views() {
+    let observations =
+        NDArray::from_shape_vec([3, 2], vec![1.0_f64, 2.0, 2.0, 4.0, 3.0, 6.0]).unwrap();
+    let source =
+        NDArray::from_shape_vec([2, 4], vec![0.0_f64, 1.0, 2.0, 3.0, 0.0, 2.0, 4.0, 6.0]).unwrap();
+    let view = source.view().transpose().slice([1, 0], [3, 2]).unwrap();
+
+    assert_eq!(covariance_matrix_ddof(&observations, 1).unwrap().data(), &[1.0, 2.0, 2.0, 4.0]);
+    assert_eq!(covariance_matrix_ddof(view, 1).unwrap().data(), &[1.0, 2.0, 2.0, 4.0]);
+}
+
+#[test]
+fn covariance_matrix_degrees_of_freedom_validate_observations() {
+    let observations =
+        NDArray::from_shape_vec([3, 2], vec![1.0_f64, 2.0, 2.0, 4.0, 3.0, 6.0]).unwrap();
+    let empty = NDArray::<f64>::zeros([0, 2]).unwrap();
+
+    assert_eq!(
+        covariance_matrix_ddof(&observations, 3).unwrap_err(),
+        AtlasStatsError::InvalidDegreesOfFreedom {
+            op: "covariance_matrix_ddof",
+            ddof: 3,
+            count: 3,
+        }
+    );
+    assert_eq!(
+        covariance_matrix_ddof(&empty, 0).unwrap_err(),
+        AtlasStatsError::EmptyInput { op: "covariance_matrix_ddof" }
+    );
 }
 
 #[test]

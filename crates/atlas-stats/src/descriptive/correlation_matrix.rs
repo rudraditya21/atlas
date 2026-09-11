@@ -16,7 +16,7 @@ where
 {
     const OP: &str = "correlation_matrix";
 
-    let summary = covariance_summary(input.into(), OP)?;
+    let summary = covariance_summary(input.into(), 0, OP)?;
     let variables = summary.means.len();
 
     for index in 0..variables {

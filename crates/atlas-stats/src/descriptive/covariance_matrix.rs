@@ -9,7 +9,17 @@ where
     T: Numeric + ToPrimitive,
     I: Into<StatsOperand<'a, T>>,
 {
-    covariance_summary(input.into(), "covariance_matrix").map(|summary| summary.covariance)
+    covariance_summary(input.into(), 0, "covariance_matrix").map(|summary| summary.covariance)
+}
+
+/// Returns the covariance matrix normalized by `observations - ddof`.
+pub fn covariance_matrix_ddof<'a, T, I>(input: I, ddof: usize) -> AtlasStatsResult<NDArray<f64>>
+where
+    T: Numeric + ToPrimitive,
+    I: Into<StatsOperand<'a, T>>,
+{
+    covariance_summary(input.into(), ddof, "covariance_matrix_ddof")
+        .map(|summary| summary.covariance)
 }
 
 pub(super) struct CovarianceSummary {
@@ -21,6 +31,7 @@ pub(super) struct CovarianceSummary {
 
 pub(super) fn covariance_summary<T>(
     input: StatsOperand<'_, T>,
+    ddof: usize,
     op: &'static str,
 ) -> AtlasStatsResult<CovarianceSummary>
 where
@@ -38,6 +49,9 @@ where
     let variables = input.shape()[1];
     if observations == 0 {
         return Err(AtlasStatsError::EmptyInput { op });
+    }
+    if ddof >= observations {
+        return Err(AtlasStatsError::InvalidDegreesOfFreedom { op, ddof, count: observations });
     }
 
     checked_element_count(&[variables, variables])?;
@@ -82,7 +96,7 @@ where
 
     for row in 0..variables {
         for column in row..variables {
-            let value = covariance[row * variables + column] / observations as f64;
+            let value = covariance[row * variables + column] / (observations - ddof) as f64;
             covariance[row * variables + column] = value;
             covariance[column * variables + row] = value;
         }
