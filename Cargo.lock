@@ -154,6 +154,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "atlas-ml"
+version = "0.1.0"
+dependencies = [
+ "atlas-ndarray",
+]
+
+[[package]]
 name = "atlas-ndarray"
 version = "0.1.0"
 dependencies = [

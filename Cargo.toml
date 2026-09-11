@@ -11,6 +11,7 @@ members = [
     "crates/atlas-constants",
     "crates/atlas-arrow",
     "crates/atlas-linalg",
+    "crates/atlas-ml",
     "crates/atlas-ndarray",
     "crates/atlas-polars",
     "crates/atlas-random",
@@ -24,6 +25,7 @@ version = "0.1.0"
 
 [workspace.dependencies]
 atlas-linalg = { path = "crates/atlas-linalg" }
+atlas-ml = { path = "crates/atlas-ml" }
 atlas-arrow = { path = "crates/atlas-arrow" }
 arrow-array = "53"
 arrow-schema = "53"

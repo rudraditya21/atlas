@@ -1,0 +1,11 @@
+[package]
+name = "atlas-ml"
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+atlas-ndarray.workspace = true
+
+[lints]
+workspace = true
