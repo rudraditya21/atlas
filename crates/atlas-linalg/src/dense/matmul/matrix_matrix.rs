@@ -22,7 +22,14 @@ pub(super) fn matmul_matrix_matrix<T: Numeric>(
         });
     }
 
-    let data = if lhs.is_row_major_contiguous() && rhs.is_row_major_contiguous() {
+    Ok(NDArray::from_shape_vec([lhs.rows, rhs.cols], matmul_matrix_refs(lhs, rhs))?)
+}
+
+pub(super) fn matmul_matrix_refs<T: Numeric>(
+    lhs: MatrixRef<'_, T>,
+    rhs: MatrixRef<'_, T>,
+) -> Vec<T> {
+    if lhs.is_row_major_contiguous() && rhs.is_row_major_contiguous() {
         matmul_matrix_matrix_row_major(lhs, rhs)
     } else if lhs.is_col_major_contiguous() && rhs.is_row_major_contiguous() {
         matmul_matrix_matrix_lhs_col_major(lhs, rhs)
@@ -30,9 +37,7 @@ pub(super) fn matmul_matrix_matrix<T: Numeric>(
         matmul_matrix_matrix_rhs_col_major(lhs, rhs)
     } else {
         matmul_matrix_matrix_generic(lhs, rhs)
-    };
-
-    Ok(NDArray::from_shape_vec([lhs.rows, rhs.cols], data)?)
+    }
 }
 
 pub(super) fn matmul_matrix_matrix_row_major<T: Numeric>(

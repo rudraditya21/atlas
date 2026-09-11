@@ -1,8 +1,8 @@
 use atlas_ndarray::{NDArray, Numeric};
 
 use super::{
-    matrix_matrix::matmul_matrix_matrix, matrix_vector::matmul_matrix_vector,
-    vector_matrix::matmul_vector_matrix,
+    batched::matmul_batched_matrix_matrix, matrix_matrix::matmul_matrix_matrix,
+    matrix_vector::matmul_matrix_vector, vector_matrix::matmul_vector_matrix,
 };
 use crate::core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand};
 
@@ -21,6 +21,7 @@ pub(super) fn dispatch_matmul<T: Numeric>(
         (1, 2) => matmul_vector_matrix(lhs, rhs),
         (2, 1) => matmul_matrix_vector(lhs, rhs),
         (2, 2) => matmul_matrix_matrix(lhs, rhs),
+        (3, 3) => matmul_batched_matrix_matrix(lhs, rhs),
         _ => Err(AtlasLinalgError::InvalidOperandRank {
             op: "matmul",
             left: lhs.ndim(),

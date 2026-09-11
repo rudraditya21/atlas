@@ -62,6 +62,79 @@ fn matmul_supports_vector_matrix_matrix_vector_and_matrix_matrix() {
 }
 
 #[test]
+fn matmul_supports_matching_batched_matrices() {
+    let lhs = NDArray::from_shape_vec([2, 2, 3], vec![1_i32, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+        .unwrap();
+    let rhs = NDArray::from_shape_vec([2, 3, 2], vec![1_i32, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12])
+        .unwrap();
+
+    let product = matmul(&lhs, &rhs).unwrap();
+
+    assert_eq!(product.shape(), &[2, 2, 2]);
+    assert_eq!(product.data(), &[22, 28, 49, 64, 220, 244, 301, 334]);
+}
+
+#[test]
+fn batched_matmul_supports_strided_views() {
+    let lhs = NDArray::from_shape_vec(
+        [2, 2, 4],
+        vec![1_i32, 2, 3, 0, 4, 5, 6, 0, 7, 8, 9, 0, 10, 11, 12, 0],
+    )
+    .unwrap();
+    let rhs = NDArray::from_shape_vec(
+        [2, 3, 3],
+        vec![1_i32, 2, 0, 3, 4, 0, 5, 6, 0, 7, 8, 0, 9, 10, 0, 11, 12, 0],
+    )
+    .unwrap();
+
+    let product = matmul(
+        lhs.view().slice([0, 0, 0], [2, 2, 3]).unwrap(),
+        rhs.view().slice([0, 0, 0], [2, 3, 2]).unwrap(),
+    )
+    .unwrap();
+
+    assert_eq!(product.shape(), &[2, 2, 2]);
+    assert_eq!(product.data(), &[22, 28, 49, 64, 220, 244, 301, 334]);
+}
+
+#[test]
+fn batched_matmul_preserves_empty_batches() {
+    let lhs = NDArray::<i32>::zeros([0, 2, 3]).unwrap();
+    let rhs = NDArray::<i32>::zeros([0, 3, 2]).unwrap();
+
+    let product = matmul(&lhs, &rhs).unwrap();
+
+    assert_eq!(product.shape(), &[0, 2, 2]);
+    assert!(product.data().is_empty());
+}
+
+#[test]
+fn batched_matmul_rejects_mismatched_batch_and_matrix_dimensions() {
+    let lhs = NDArray::<i32>::zeros([2, 2, 3]).unwrap();
+    let different_batches = NDArray::<i32>::zeros([1, 3, 2]).unwrap();
+    let incompatible_matrices = NDArray::<i32>::zeros([2, 4, 2]).unwrap();
+
+    assert_eq!(
+        matmul(&lhs, &different_batches).unwrap_err(),
+        AtlasLinalgError::ShapeMismatch {
+            op: "matmul",
+            left: vec![2, 2, 3],
+            right: vec![1, 3, 2],
+            reason: "batch dimensions must match",
+        }
+    );
+    assert_eq!(
+        matmul(&lhs, &incompatible_matrices).unwrap_err(),
+        AtlasLinalgError::ShapeMismatch {
+            op: "matmul",
+            left: vec![2, 2, 3],
+            right: vec![2, 4, 2],
+            reason: "left matrix column count must match right matrix row count",
+        }
+    );
+}
+
+#[test]
 fn matmul_rejects_vector_vector_operands_in_v0_scope() {
     let lhs = NDArray::from_shape_vec([3], vec![1_i32, 2, 3]).unwrap();
     let rhs = NDArray::from_shape_vec([3], vec![4_i32, 5, 6]).unwrap();

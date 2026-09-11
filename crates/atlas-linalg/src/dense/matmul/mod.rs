@@ -1,3 +1,4 @@
+mod batched;
 mod col_major;
 mod dispatch;
 mod generic;
