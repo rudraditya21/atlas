@@ -14,6 +14,12 @@ use crate::{
 const FIT_OP: &str = "knn_classifier_fit";
 const PREDICT_OP: &str = "knn_classifier_predict";
 
+#[derive(Default)]
+struct ClassVote {
+    count: usize,
+    total_distance: f64,
+}
+
 pub struct KnnClassifier {
     config: KnnConfig,
     index: TrainingIndex,
@@ -45,6 +51,10 @@ impl KnnClassifier {
         &self.labels
     }
 
+    /// Predicts one class per query row.
+    ///
+    /// The class with the most neighbor votes wins. Equal vote counts use the
+    /// smallest total squared-neighbor distance, then the lower class label.
     pub fn predict<Q>(&self, queries: &Q) -> AtlasMlResult<NDArray<usize>>
     where
         Q: OperandMetadata<f64> + ?Sized,
@@ -67,13 +77,20 @@ impl KnnClassifier {
         let neighbors = self.index.search(query, self.config.k(), &SquaredEuclideanDistance)?;
         let mut votes = BTreeMap::new();
         for neighbor in neighbors {
-            *votes.entry(self.labels.data()[neighbor.index]).or_insert(0_usize) += 1;
+            let vote =
+                votes.entry(self.labels.data()[neighbor.index]).or_insert_with(ClassVote::default);
+            vote.count += 1;
+            vote.total_distance += neighbor.distance;
         }
 
         Ok(votes
             .into_iter()
-            .max_by(|(left_label, left_count), (right_label, right_count)| {
-                left_count.cmp(right_count).then_with(|| right_label.cmp(left_label))
+            .max_by(|(left_label, left_vote), (right_label, right_vote)| {
+                left_vote
+                    .count
+                    .cmp(&right_vote.count)
+                    .then_with(|| right_vote.total_distance.total_cmp(&left_vote.total_distance))
+                    .then_with(|| right_label.cmp(left_label))
             })
             .expect("a fitted classifier always has at least one neighbor")
             .0)
@@ -204,5 +221,38 @@ mod tests {
 
         assert_eq!(predictions.shape(), &[0]);
         assert!(predictions.data().is_empty());
+    }
+
+    #[test]
+    fn resolves_equal_vote_counts_by_total_neighbor_distance() {
+        let classifier = KnnClassifier::fit(
+            NDArray::from_shape_vec([4, 1], vec![1.0_f64, 10.0, 2.0, 3.0]).unwrap(),
+            NDArray::from_shape_vec([4], vec![0_usize, 0, 1, 1]).unwrap(),
+            KnnConfig::new(4).unwrap(),
+        )
+        .unwrap();
+        let query = NDArray::from_shape_vec([1, 1], vec![0.0_f64]).unwrap();
+
+        assert_eq!(classifier.predict(&query).unwrap().data(), &[1]);
+    }
+
+    #[test]
+    fn resolves_equal_votes_and_distances_by_lower_label_stably() {
+        let first = KnnClassifier::fit(
+            NDArray::from_shape_vec([2, 1], vec![-1.0_f64, 1.0]).unwrap(),
+            NDArray::from_shape_vec([2], vec![1_usize, 0]).unwrap(),
+            KnnConfig::new(2).unwrap(),
+        )
+        .unwrap();
+        let second = KnnClassifier::fit(
+            NDArray::from_shape_vec([2, 1], vec![-1.0_f64, 1.0]).unwrap(),
+            NDArray::from_shape_vec([2], vec![0_usize, 1]).unwrap(),
+            KnnConfig::new(2).unwrap(),
+        )
+        .unwrap();
+        let query = NDArray::from_shape_vec([1, 1], vec![0.0_f64]).unwrap();
+
+        assert_eq!(first.predict(&query).unwrap().data(), &[0]);
+        assert_eq!(second.predict(&query).unwrap().data(), &[0]);
     }
 }
