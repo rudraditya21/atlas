@@ -1,7 +1,11 @@
 use atlas_ndarray::{NDArray, OperandMetadata};
 
 use super::{
-    config::KnnConfig, index::TrainingIndex, metric::SquaredEuclideanDistance, row::copy_row,
+    config::{KnnConfig, KnnWeighting},
+    index::TrainingIndex,
+    metric::SquaredEuclideanDistance,
+    neighbor::Neighbor,
+    row::copy_row,
 };
 use crate::{
     AtlasMlResult,
@@ -66,10 +70,40 @@ impl KnnRegressor {
 
     fn predict_one(&self, query: &[f64]) -> AtlasMlResult<f64> {
         let neighbors = self.index.search(query, self.config.k(), &SquaredEuclideanDistance)?;
-        let total =
-            neighbors.iter().map(|neighbor| self.targets.data()[neighbor.index]).sum::<f64>();
 
-        Ok(total / neighbors.len() as f64)
+        Ok(match self.config.weighting() {
+            KnnWeighting::Uniform => mean_targets(&neighbors, self.targets.data()),
+            KnnWeighting::Distance => distance_weighted_mean(&neighbors, self.targets.data()),
+        })
+    }
+}
+
+fn mean_targets(neighbors: &[Neighbor], targets: &[f64]) -> f64 {
+    neighbors.iter().map(|neighbor| targets[neighbor.index]).sum::<f64>() / neighbors.len() as f64
+}
+
+fn distance_weighted_mean(neighbors: &[Neighbor], targets: &[f64]) -> f64 {
+    let mut exact_total = 0.0;
+    let mut exact_count = 0;
+    for neighbor in neighbors {
+        if neighbor.distance == 0.0 {
+            exact_total += targets[neighbor.index];
+            exact_count += 1;
+        }
+    }
+    if exact_count != 0 {
+        return exact_total / exact_count as f64;
+    }
+
+    let (weighted_total, total_weight) =
+        neighbors.iter().fold((0.0, 0.0), |(total, weight), neighbor| {
+            let neighbor_weight = neighbor.distance.sqrt().recip();
+            (total + neighbor_weight * targets[neighbor.index], weight + neighbor_weight)
+        });
+    if total_weight == 0.0 {
+        mean_targets(neighbors, targets)
+    } else {
+        weighted_total / total_weight
     }
 }
 
@@ -78,7 +112,7 @@ mod tests {
     use atlas_ndarray::NDArray;
 
     use super::KnnRegressor;
-    use crate::{AtlasMlError, KnnConfig};
+    use crate::{AtlasMlError, KnnConfig, KnnWeighting};
 
     fn features() -> NDArray<f64> {
         NDArray::from_shape_vec([2, 2], vec![0.0_f64, 1.0, 2.0, 3.0]).unwrap()
@@ -190,5 +224,31 @@ mod tests {
 
         assert_eq!(regressor(1).predict(&query).unwrap().data(), &[0.0]);
         assert_eq!(regressor(3).predict(&query).unwrap().data(), &[4.0]);
+    }
+
+    #[test]
+    fn predicts_known_distance_weighted_means() {
+        let regressor = KnnRegressor::fit(
+            NDArray::from_shape_vec([2, 1], vec![1.0_f64, 3.0]).unwrap(),
+            NDArray::from_shape_vec([2], vec![0.0_f64, 12.0]).unwrap(),
+            KnnConfig::new(2).unwrap().with_weighting(KnnWeighting::Distance),
+        )
+        .unwrap();
+        let query = NDArray::from_shape_vec([1, 1], vec![0.0_f64]).unwrap();
+
+        assert_eq!(regressor.predict(&query).unwrap().data(), &[3.0]);
+    }
+
+    #[test]
+    fn averages_repeated_exact_matches_before_other_neighbors() {
+        let regressor = KnnRegressor::fit(
+            NDArray::from_shape_vec([3, 1], vec![0.0_f64, 0.0, 2.0]).unwrap(),
+            NDArray::from_shape_vec([3], vec![2.0_f64, 4.0, 100.0]).unwrap(),
+            KnnConfig::new(3).unwrap().with_weighting(KnnWeighting::Distance),
+        )
+        .unwrap();
+        let query = NDArray::from_shape_vec([1, 1], vec![0.0_f64]).unwrap();
+
+        assert_eq!(regressor.predict(&query).unwrap().data(), &[3.0]);
     }
 }

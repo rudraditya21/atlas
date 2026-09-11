@@ -6,10 +6,18 @@ pub enum KnnSearchAlgorithm {
     BruteForce,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum KnnWeighting {
+    #[default]
+    Uniform,
+    Distance,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct KnnConfig {
     k: usize,
     search_algorithm: KnnSearchAlgorithm,
+    weighting: KnnWeighting,
 }
 
 impl KnnConfig {
@@ -21,7 +29,11 @@ impl KnnConfig {
             });
         }
 
-        Ok(Self { k, search_algorithm: KnnSearchAlgorithm::BruteForce })
+        Ok(Self {
+            k,
+            search_algorithm: KnnSearchAlgorithm::BruteForce,
+            weighting: KnnWeighting::Uniform,
+        })
     }
 
     pub const fn k(&self) -> usize {
@@ -30,6 +42,15 @@ impl KnnConfig {
 
     pub const fn search_algorithm(&self) -> KnnSearchAlgorithm {
         self.search_algorithm
+    }
+
+    pub const fn with_weighting(mut self, weighting: KnnWeighting) -> Self {
+        self.weighting = weighting;
+        self
+    }
+
+    pub const fn weighting(&self) -> KnnWeighting {
+        self.weighting
     }
 
     pub fn validate(&self, training_samples: usize) -> AtlasMlResult<()> {
@@ -46,7 +67,7 @@ impl KnnConfig {
 
 #[cfg(test)]
 mod tests {
-    use super::{KnnConfig, KnnSearchAlgorithm};
+    use super::{KnnConfig, KnnSearchAlgorithm, KnnWeighting};
     use crate::AtlasMlError;
 
     #[test]
@@ -55,6 +76,7 @@ mod tests {
 
         assert_eq!(config.k(), 3);
         assert_eq!(config.search_algorithm(), KnnSearchAlgorithm::BruteForce);
+        assert_eq!(config.weighting(), KnnWeighting::Uniform);
     }
 
     #[test]
