@@ -15,7 +15,7 @@ pub use descriptive::{
     quantile::{
         median, median_axis, median_axis_keepdims, quantile, quantile_axis, quantile_axis_keepdims,
     },
-    stddev::stddev,
-    variance::variance,
+    stddev::{stddev, stddev_ddof},
+    variance::{variance, variance_ddof},
     weighted::{weighted_covariance, weighted_mean, weighted_variance},
 };

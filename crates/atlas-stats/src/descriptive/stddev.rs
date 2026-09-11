@@ -1,25 +1,34 @@
 use atlas_ndarray::Numeric;
 use num_traits::ToPrimitive;
 
-use super::variance::variance;
-use crate::core::{AtlasStatsError, AtlasStatsResult, StatsOperand};
+use super::variance::variance_with_ddof;
+use crate::core::{AtlasStatsResult, StatsOperand};
 
 pub fn stddev<'a, T, I>(input: I) -> AtlasStatsResult<f64>
 where
     T: Numeric + ToPrimitive + 'a,
     I: Into<StatsOperand<'a, T>>,
 {
-    Ok(variance(input).map_err(remap_stddev_error)?.sqrt())
+    stddev_with_ddof(input.into(), 0, "stddev")
 }
 
-fn remap_stddev_error(error: AtlasStatsError) -> AtlasStatsError {
-    match error {
-        AtlasStatsError::EmptyInput { .. } => AtlasStatsError::EmptyInput { op: "stddev" },
-        AtlasStatsError::NumericConversionFailed { .. } => {
-            AtlasStatsError::NumericConversionFailed { op: "stddev" }
-        }
-        other => other,
-    }
+pub fn stddev_ddof<'a, T, I>(input: I, ddof: usize) -> AtlasStatsResult<f64>
+where
+    T: Numeric + ToPrimitive + 'a,
+    I: Into<StatsOperand<'a, T>>,
+{
+    stddev_with_ddof(input.into(), ddof, "stddev_ddof")
+}
+
+fn stddev_with_ddof<T>(
+    input: StatsOperand<'_, T>,
+    ddof: usize,
+    op: &'static str,
+) -> AtlasStatsResult<f64>
+where
+    T: Numeric + ToPrimitive,
+{
+    Ok(variance_with_ddof(input, ddof, op)?.sqrt())
 }
 
 #[cfg(test)]

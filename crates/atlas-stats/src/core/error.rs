@@ -14,6 +14,11 @@ pub enum AtlasStatsError {
     #[error("empty input for {op}")]
     EmptyInput { op: &'static str },
 
+    #[error(
+        "invalid degrees of freedom for {op}: ddof {ddof} must be less than sample count {count}"
+    )]
+    InvalidDegreesOfFreedom { op: &'static str, ddof: usize, count: usize },
+
     #[error("numeric conversion failed for {op}")]
     NumericConversionFailed { op: &'static str },
 

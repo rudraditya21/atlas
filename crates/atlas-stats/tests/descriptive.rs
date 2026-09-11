@@ -1,8 +1,8 @@
 use atlas_ndarray::NDArray;
 use atlas_stats::{
     AtlasStatsError, correlation, correlation_matrix, covariance, covariance_matrix, median,
-    quantile, stddev, stddev_axis, variance, variance_axis, weighted_covariance, weighted_mean,
-    weighted_variance,
+    quantile, stddev, stddev_axis, stddev_ddof, variance, variance_axis, variance_ddof,
+    weighted_covariance, weighted_mean, weighted_variance,
 };
 
 fn assert_close(actual: f64, expected: f64) {
@@ -26,6 +26,30 @@ fn variance_and_stddev_use_population_definition() {
 
     assert_close(variance(&values).unwrap(), 1.25);
     assert_close(stddev(&values).unwrap(), 1.118_033_988_749_895);
+}
+
+#[test]
+fn variance_and_stddev_support_degrees_of_freedom() {
+    let values = NDArray::from_shape_vec([4], vec![1.0_f64, 2.0, 3.0, 4.0]).unwrap();
+
+    assert_close(variance_ddof(&values, 0).unwrap(), 1.25);
+    assert_close(variance_ddof(&values, 1).unwrap(), 5.0 / 3.0);
+    assert_close(stddev_ddof(&values, 1).unwrap(), (5.0_f64 / 3.0).sqrt());
+}
+
+#[test]
+fn degrees_of_freedom_rejects_insufficient_samples() {
+    let values = NDArray::from_shape_vec([1], vec![5.0_f64]).unwrap();
+
+    assert_close(variance_ddof(&values, 0).unwrap(), 0.0);
+    assert_eq!(
+        variance_ddof(&values, 1).unwrap_err(),
+        AtlasStatsError::InvalidDegreesOfFreedom { op: "variance_ddof", ddof: 1, count: 1 }
+    );
+    assert_eq!(
+        stddev_ddof(&values, 1).unwrap_err(),
+        AtlasStatsError::InvalidDegreesOfFreedom { op: "stddev_ddof", ddof: 1, count: 1 }
+    );
 }
 
 #[test]

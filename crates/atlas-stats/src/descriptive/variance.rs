@@ -8,18 +8,39 @@ where
     T: Numeric + ToPrimitive + 'a,
     I: Into<StatsOperand<'a, T>>,
 {
-    let input = input.into();
-    let len = validate_non_empty(&input, "variance")?;
-    let mean = mean(&input, "variance")?;
+    variance_with_ddof(input.into(), 0, "variance")
+}
+
+pub fn variance_ddof<'a, T, I>(input: I, ddof: usize) -> AtlasStatsResult<f64>
+where
+    T: Numeric + ToPrimitive + 'a,
+    I: Into<StatsOperand<'a, T>>,
+{
+    variance_with_ddof(input.into(), ddof, "variance_ddof")
+}
+
+pub(crate) fn variance_with_ddof<T>(
+    input: StatsOperand<'_, T>,
+    ddof: usize,
+    op: &'static str,
+) -> AtlasStatsResult<f64>
+where
+    T: Numeric + ToPrimitive,
+{
+    let len = validate_non_empty(&input, op)?;
+    if ddof >= len {
+        return Err(crate::core::AtlasStatsError::InvalidDegreesOfFreedom { op, ddof, count: len });
+    }
+    let mean = mean(&input, op)?;
     let mut total = 0.0_f64;
 
-    try_for_each_f64(&input, "variance", |value| {
+    try_for_each_f64(&input, op, |value| {
         let delta = value - mean;
         total += delta * delta;
         Ok(())
     })?;
 
-    Ok(total / len as f64)
+    Ok(total / (len - ddof) as f64)
 }
 
 #[cfg(test)]
