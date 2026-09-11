@@ -7,6 +7,8 @@ const BUILD_OP: &str = "ball_tree_build";
 
 pub(crate) struct BallTree {
     root: BallTreeNode,
+    sample_count: usize,
+    feature_count: usize,
 }
 
 impl BallTree {
@@ -25,11 +27,23 @@ impl BallTree {
             return Err(AtlasMlError::EmptyInput { op: BUILD_OP });
         }
 
-        Ok(Self { root: build_node(features, (0..features.shape()[0]).collect()) })
+        Ok(Self {
+            root: build_node(features, (0..features.shape()[0]).collect()),
+            sample_count: features.shape()[0],
+            feature_count: features.shape()[1],
+        })
     }
 
     pub(crate) fn root(&self) -> &BallTreeNode {
         &self.root
+    }
+
+    pub(crate) const fn sample_count(&self) -> usize {
+        self.sample_count
+    }
+
+    pub(crate) const fn feature_count(&self) -> usize {
+        self.feature_count
     }
 }
 

@@ -7,6 +7,15 @@ pub(crate) trait DistanceMetric {
         None
     }
 
+    fn ball_distance_lower_bound(
+        &self,
+        _query: &[f64],
+        _center: &[f64],
+        _radius: f64,
+    ) -> Option<f64> {
+        None
+    }
+
     fn distance(&self, lhs: &[f64], rhs: &[f64]) -> AtlasMlResult<f64> {
         if lhs.len() != rhs.len() {
             return Err(AtlasMlError::ShapeMismatch {
@@ -37,6 +46,13 @@ impl DistanceMetric for SquaredEuclideanDistance {
 
     fn axis_distance_lower_bound(&self, axis_delta: f64) -> Option<f64> {
         Some(axis_delta * axis_delta)
+    }
+
+    fn ball_distance_lower_bound(&self, query: &[f64], center: &[f64], radius: f64) -> Option<f64> {
+        let center_distance = self.distance_same_dimension(query, center).sqrt();
+        let lower_distance = (center_distance - radius).max(0.0);
+
+        Some(lower_distance * lower_distance)
     }
 }
 
