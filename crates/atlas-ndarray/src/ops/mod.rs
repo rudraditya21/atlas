@@ -8,6 +8,7 @@ pub(crate) mod logical;
 pub(crate) mod map;
 pub(crate) mod put;
 pub(crate) mod reduction;
+pub(crate) mod select;
 pub(crate) mod take;
 pub(crate) mod unary;
 pub(crate) mod where_;
