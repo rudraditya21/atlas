@@ -8,4 +8,5 @@ pub use core::error::{AtlasMlError, AtlasMlResult};
 pub use knn::{
     classifier::KnnClassifier,
     config::{KnnConfig, KnnSearchAlgorithm},
+    regressor::KnnRegressor,
 };

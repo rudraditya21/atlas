@@ -97,6 +97,13 @@ where
     Ok(())
 }
 
+pub(crate) fn validate_finite_target_values(
+    targets: &[f64],
+    op: &'static str,
+) -> AtlasMlResult<()> {
+    validate_finite_values(targets, op)
+}
+
 fn validate_finite_values(values: &[f64], op: &'static str) -> AtlasMlResult<()> {
     if values.iter().all(|value| value.is_finite()) {
         Ok(())
