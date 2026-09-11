@@ -1,4 +1,4 @@
-use atlas_linalg::{AtlasLinalgError, DotOutput, dot, matmul, norm, trace};
+use atlas_linalg::{AtlasLinalgError, DotOutput, batched_dot, dot, matmul, norm, trace};
 use atlas_ndarray::NDArray;
 
 #[test]
@@ -10,6 +10,71 @@ fn dot_supports_vector_inputs() {
         DotOutput::Scalar(value) => assert_eq!(value, 15.0),
         other => panic!("expected scalar dot output, got {other:?}"),
     }
+}
+
+#[test]
+fn batched_dot_supports_matching_batches_and_views() {
+    let lhs = NDArray::from_shape_vec([2, 3], vec![1_i32, 2, 3, 4, 5, 6]).unwrap();
+    let rhs = NDArray::from_shape_vec([2, 3], vec![7_i32, 8, 9, 10, 11, 12]).unwrap();
+    let lhs_view = NDArray::from_shape_vec([2, 4], vec![1_i32, 2, 3, 0, 4, 5, 6, 0]).unwrap();
+    let rhs_view =
+        NDArray::from_shape_vec([2, 4], vec![7_i32, 8, 9, 0, 10, 11, 12, 0]).unwrap();
+
+    assert_eq!(batched_dot(&lhs, &rhs).unwrap().data(), &[50, 167]);
+    assert_eq!(
+        batched_dot(
+            lhs_view.view().slice([0, 0], [2, 3]).unwrap(),
+            rhs_view.view().slice([0, 0], [2, 3]).unwrap(),
+        )
+        .unwrap()
+        .data(),
+        &[50, 167]
+    );
+}
+
+#[test]
+fn batched_dot_handles_empty_batches_and_zero_length_vectors() {
+    let empty_batches = batched_dot(
+        &NDArray::<i32>::zeros([0, 3]).unwrap(),
+        &NDArray::<i32>::zeros([0, 3]).unwrap(),
+    )
+    .unwrap();
+    let zero_length = batched_dot(
+        &NDArray::<i32>::zeros([2, 0]).unwrap(),
+        &NDArray::<i32>::zeros([2, 0]).unwrap(),
+    )
+    .unwrap();
+
+    assert_eq!(empty_batches.shape(), &[0]);
+    assert!(empty_batches.data().is_empty());
+    assert_eq!(zero_length.shape(), &[2]);
+    assert_eq!(zero_length.data(), &[0, 0]);
+}
+
+#[test]
+fn batched_dot_rejects_mismatched_shapes() {
+    let lhs = NDArray::<i32>::zeros([2, 3]).unwrap();
+    let different_batches = NDArray::<i32>::zeros([1, 3]).unwrap();
+    let different_lengths = NDArray::<i32>::zeros([2, 2]).unwrap();
+
+    assert_eq!(
+        batched_dot(&lhs, &different_batches).unwrap_err(),
+        AtlasLinalgError::ShapeMismatch {
+            op: "batched_dot",
+            left: vec![2, 3],
+            right: vec![1, 3],
+            reason: "batch dimensions must match",
+        }
+    );
+    assert_eq!(
+        batched_dot(&lhs, &different_lengths).unwrap_err(),
+        AtlasLinalgError::ShapeMismatch {
+            op: "batched_dot",
+            left: vec![2, 3],
+            right: vec![2, 2],
+            reason: "vector lengths must match",
+        }
+    );
 }
 
 #[test]

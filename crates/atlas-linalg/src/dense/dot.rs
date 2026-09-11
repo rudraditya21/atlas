@@ -3,7 +3,7 @@ use atlas_ndarray::{NDArray, Numeric};
 use super::matmul::matmul;
 use crate::{
     core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand},
-    internal::dense::{dot_kernel, vector_ref},
+    internal::dense::{VectorRef, dot_kernel, vector_ref},
 };
 
 #[derive(Clone, Debug)]
@@ -56,6 +56,65 @@ where
             left: lhs.ndim(),
             right: rhs.ndim(),
         }),
+    }
+}
+
+/// Returns one dot product per batch for identically shaped `[batch, length]` operands.
+pub fn batched_dot<'a, T, L, R>(lhs: L, rhs: R) -> AtlasLinalgResult<NDArray<T>>
+where
+    T: Numeric + 'a,
+    L: Into<LinalgOperand<'a, T>>,
+    R: Into<LinalgOperand<'a, T>>,
+{
+    let lhs = lhs.into();
+    let rhs = rhs.into();
+
+    let ([lhs_batches, lhs_length], [rhs_batches, rhs_length]) = (lhs.shape(), rhs.shape()) else {
+        return Err(AtlasLinalgError::InvalidOperandRank {
+            op: "batched_dot",
+            left: lhs.ndim(),
+            right: rhs.ndim(),
+        });
+    };
+    if lhs_batches != rhs_batches {
+        return Err(AtlasLinalgError::ShapeMismatch {
+            op: "batched_dot",
+            left: lhs.shape().to_vec(),
+            right: rhs.shape().to_vec(),
+            reason: "batch dimensions must match",
+        });
+    }
+    if lhs_length != rhs_length {
+        return Err(AtlasLinalgError::ShapeMismatch {
+            op: "batched_dot",
+            left: lhs.shape().to_vec(),
+            right: rhs.shape().to_vec(),
+            reason: "vector lengths must match",
+        });
+    }
+
+    let data = (0..*lhs_batches)
+        .map(|batch| {
+            dot_kernel(
+                batch_vector_ref(&lhs, batch, *lhs_length),
+                batch_vector_ref(&rhs, batch, *rhs_length),
+            )
+        })
+        .collect();
+
+    Ok(NDArray::from_shape_vec([*lhs_batches], data)?)
+}
+
+fn batch_vector_ref<'operand, 'data, T: Numeric>(
+    operand: &'operand LinalgOperand<'data, T>,
+    batch: usize,
+    length: usize,
+) -> VectorRef<'operand, T> {
+    VectorRef {
+        data: operand.data(),
+        offset: operand.offset() + batch * operand.strides()[0],
+        len: length,
+        stride: operand.strides()[1],
     }
 }
 

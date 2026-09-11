@@ -11,7 +11,7 @@ pub use core::{
 pub use dense::{
     condition::condition_number,
     diag::{diag, diag_view},
-    dot::{DotOutput, dot},
+    dot::{DotOutput, batched_dot, dot},
     matmul::matmul,
     norm::{MatrixNorm, matrix_norm, norm},
     trace::trace,
