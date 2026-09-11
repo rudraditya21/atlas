@@ -12,12 +12,13 @@ use crate::{
     AtlasMlResult,
     core::validation::{
         validate_finite_feature_values, validate_prediction_feature_inputs,
-        validate_supervised_training_inputs,
+        validate_prediction_feature_row, validate_supervised_training_inputs,
     },
 };
 
 const FIT_OP: &str = "knn_classifier_fit";
 const PREDICT_OP: &str = "knn_classifier_predict";
+const PREDICT_ONE_OP: &str = "knn_classifier_predict_one";
 
 #[derive(Default)]
 struct ClassVote {
@@ -83,7 +84,10 @@ impl KnnClassifier {
         Ok(NDArray::from_shape_vec([query_count], predictions)?)
     }
 
-    fn predict_one(&self, query: &[f64]) -> AtlasMlResult<usize> {
+    /// Predicts the class for one feature row.
+    pub fn predict_one(&self, query: &[f64]) -> AtlasMlResult<usize> {
+        validate_prediction_feature_row(query, self.feature_count(), PREDICT_ONE_OP)?;
+
         let neighbors = self.index.search(query, self.config.k(), &SquaredEuclideanDistance)?;
         let mut votes = BTreeMap::new();
         for neighbor in neighbors {
@@ -206,6 +210,26 @@ mod tests {
 
         assert_eq!(classifier(1).predict(&query).unwrap().data(), &[1]);
         assert_eq!(classifier(4).predict(&all_neighbors).unwrap().data(), &[0]);
+    }
+
+    #[test]
+    fn predicts_and_validates_single_queries() {
+        let model = classifier(1);
+
+        assert_eq!(model.predict_one(&[5.1, 5.0]), Ok(1));
+        assert_eq!(
+            model.predict_one(&[0.0]),
+            Err(AtlasMlError::ShapeMismatch {
+                op: "knn_classifier_predict_one",
+                left: vec![1],
+                right: vec![2],
+                reason: "feature count must match training data",
+            })
+        );
+        assert_eq!(
+            model.predict_one(&[f64::NAN, 0.0]),
+            Err(AtlasMlError::NonFiniteInput { op: "knn_classifier_predict_one" })
+        );
     }
 
     #[test]

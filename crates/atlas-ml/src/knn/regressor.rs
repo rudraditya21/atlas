@@ -11,12 +11,14 @@ use crate::{
     AtlasMlResult,
     core::validation::{
         validate_finite_feature_values, validate_finite_target_values,
-        validate_prediction_feature_inputs, validate_supervised_training_inputs,
+        validate_prediction_feature_inputs, validate_prediction_feature_row,
+        validate_supervised_training_inputs,
     },
 };
 
 const FIT_OP: &str = "knn_regressor_fit";
 const PREDICT_OP: &str = "knn_regressor_predict";
+const PREDICT_ONE_OP: &str = "knn_regressor_predict_one";
 
 pub struct KnnRegressor {
     config: KnnConfig,
@@ -77,7 +79,10 @@ impl KnnRegressor {
         Ok(NDArray::from_shape_vec([query_count], predictions)?)
     }
 
-    fn predict_one(&self, query: &[f64]) -> AtlasMlResult<f64> {
+    /// Predicts the target for one feature row.
+    pub fn predict_one(&self, query: &[f64]) -> AtlasMlResult<f64> {
+        validate_prediction_feature_row(query, self.feature_count(), PREDICT_ONE_OP)?;
+
         let neighbors = self.index.search(query, self.config.k(), &SquaredEuclideanDistance)?;
 
         Ok(match self.config.weighting() {
@@ -203,6 +208,26 @@ mod tests {
         let query = NDArray::from_shape_vec([1, 1], vec![2.0_f64]).unwrap();
 
         assert_eq!(regressor(1).predict(&query).unwrap().data(), &[2.0]);
+    }
+
+    #[test]
+    fn predicts_and_validates_single_queries() {
+        let model = regressor(1);
+
+        assert_eq!(model.predict_one(&[2.0]), Ok(2.0));
+        assert_eq!(
+            model.predict_one(&[2.0, 3.0]),
+            Err(AtlasMlError::ShapeMismatch {
+                op: "knn_regressor_predict_one",
+                left: vec![2],
+                right: vec![1],
+                reason: "feature count must match training data",
+            })
+        );
+        assert_eq!(
+            model.predict_one(&[f64::INFINITY]),
+            Err(AtlasMlError::NonFiniteInput { op: "knn_regressor_predict_one" })
+        );
     }
 
     #[test]

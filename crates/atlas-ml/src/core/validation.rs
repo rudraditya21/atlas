@@ -70,6 +70,23 @@ where
     Ok(())
 }
 
+pub(crate) fn validate_prediction_feature_row(
+    features: &[f64],
+    expected_feature_count: usize,
+    op: &'static str,
+) -> AtlasMlResult<()> {
+    if features.len() != expected_feature_count {
+        return Err(AtlasMlError::ShapeMismatch {
+            op,
+            left: vec![features.len()],
+            right: vec![expected_feature_count],
+            reason: "feature count must match training data",
+        });
+    }
+
+    validate_finite_values(features, op)
+}
+
 pub(crate) fn validate_finite_feature_values<F>(features: &F, op: &'static str) -> AtlasMlResult<()>
 where
     F: OperandMetadata<f64> + ?Sized,
