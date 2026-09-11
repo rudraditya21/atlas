@@ -209,6 +209,19 @@ mod tests {
     }
 
     #[test]
+    fn predicts_duplicate_labels_for_zero_distance_queries() {
+        let classifier = KnnClassifier::fit(
+            NDArray::from_shape_vec([3, 1], vec![0.0_f64, 0.0, 2.0]).unwrap(),
+            NDArray::from_shape_vec([3], vec![4_usize, 4, 9]).unwrap(),
+            KnnConfig::new(2).unwrap(),
+        )
+        .unwrap();
+        let query = NDArray::from_shape_vec([1, 1], vec![0.0_f64]).unwrap();
+
+        assert_eq!(classifier.predict(&query).unwrap().data(), &[4]);
+    }
+
+    #[test]
     fn predicts_from_logical_query_views() {
         let queries = NDArray::from_shape_vec([2, 2], vec![0.1_f64, 5.1, 0.0, 5.0]).unwrap();
 

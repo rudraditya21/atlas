@@ -142,6 +142,27 @@ mod tests {
     use super::{NeighborSearchBackend, assert_backend_equivalence, build_search_backend};
     use crate::knn::config::{AUTO_BRUTE_FORCE_MAX_SAMPLES, KnnSearchAlgorithm};
 
+    fn assert_all_backends_equivalent(features: Arc<NDArray<f64>>, queries: &[&[f64]]) {
+        for algorithm in [
+            KnnSearchAlgorithm::BruteForce,
+            KnnSearchAlgorithm::KdTree,
+            KnnSearchAlgorithm::BallTree,
+        ] {
+            let backend = build_search_backend(Arc::clone(&features), algorithm).unwrap();
+
+            assert_backend_equivalence(backend.as_ref(), features.as_ref(), queries);
+        }
+    }
+
+    fn seeded_values(mut state: u64, len: usize) -> Vec<f64> {
+        (0..len)
+            .map(|_| {
+                state = state.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+                ((state >> 11) as f64 / (1_u64 << 53) as f64) * 20.0 - 10.0
+            })
+            .collect()
+    }
+
     #[test]
     fn brute_force_backend_satisfies_the_equivalence_contract() {
         let features = Arc::new(
@@ -211,5 +232,35 @@ mod tests {
 
         assert_eq!(backend.algorithm(), KnnSearchAlgorithm::KdTree);
         assert_backend_equivalence(backend.as_ref(), features.as_ref(), &[&[32.5_f64]]);
+    }
+
+    #[test]
+    fn randomized_backends_match_brute_force() {
+        const FEATURE_COUNT: usize = 3;
+        const SAMPLE_COUNT: usize = 17;
+
+        for seed in [1_u64, 7, 42, 1_337] {
+            let features = Arc::new(
+                NDArray::from_shape_vec(
+                    [SAMPLE_COUNT, FEATURE_COUNT],
+                    seeded_values(seed, SAMPLE_COUNT * FEATURE_COUNT),
+                )
+                .unwrap(),
+            );
+            let query_values = seeded_values(seed.wrapping_add(1), 4 * FEATURE_COUNT);
+            let queries = query_values.chunks_exact(FEATURE_COUNT).collect::<Vec<_>>();
+
+            assert_all_backends_equivalent(features, &queries);
+        }
+    }
+
+    #[test]
+    fn backends_handle_single_sample_and_duplicate_zero_distance_queries() {
+        let single_sample = Arc::new(NDArray::from_shape_vec([1, 1], vec![3.0_f64]).unwrap());
+        assert_all_backends_equivalent(single_sample, &[&[3.0_f64]]);
+
+        let duplicate_points =
+            Arc::new(NDArray::from_shape_vec([3, 1], vec![0.0_f64, 0.0, 2.0]).unwrap());
+        assert_all_backends_equivalent(duplicate_points, &[&[0.0_f64]]);
     }
 }
