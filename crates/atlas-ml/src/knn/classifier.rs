@@ -104,7 +104,7 @@ mod tests {
     use atlas_ndarray::NDArray;
 
     use super::KnnClassifier;
-    use crate::{AtlasMlError, KnnConfig};
+    use crate::{AtlasMlError, KnnConfig, KnnSearchAlgorithm};
 
     fn features() -> NDArray<f64> {
         NDArray::from_shape_vec([2, 2], vec![0.0_f64, 1.0, 2.0, 3.0]).unwrap()
@@ -246,5 +246,28 @@ mod tests {
 
         assert_eq!(first.predict(&query).unwrap().data(), &[0]);
         assert_eq!(second.predict(&query).unwrap().data(), &[0]);
+    }
+
+    #[test]
+    fn kd_tree_predictions_match_brute_force() {
+        let features =
+            NDArray::from_shape_vec([4, 2], vec![0.0_f64, 0.0, 0.2, 0.0, 5.0, 5.0, 5.2, 5.0])
+                .unwrap();
+        let labels = NDArray::from_shape_vec([4], vec![0_usize, 0, 1, 1]).unwrap();
+        let brute_force =
+            KnnClassifier::fit(features.clone(), labels.clone(), KnnConfig::new(3).unwrap())
+                .unwrap();
+        let kd_tree = KnnClassifier::fit(
+            features,
+            labels,
+            KnnConfig::new(3).unwrap().with_search_algorithm(KnnSearchAlgorithm::KdTree).unwrap(),
+        )
+        .unwrap();
+        let queries = NDArray::from_shape_vec([2, 2], vec![0.1_f64, 0.0, 5.1, 5.0]).unwrap();
+
+        assert_eq!(
+            kd_tree.predict(&queries).unwrap().data(),
+            brute_force.predict(&queries).unwrap().data()
+        );
     }
 }

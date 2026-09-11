@@ -116,7 +116,7 @@ mod tests {
     use atlas_ndarray::NDArray;
 
     use super::KnnRegressor;
-    use crate::{AtlasMlError, KnnConfig, KnnWeighting};
+    use crate::{AtlasMlError, KnnConfig, KnnSearchAlgorithm, KnnWeighting};
 
     fn features() -> NDArray<f64> {
         NDArray::from_shape_vec([2, 2], vec![0.0_f64, 1.0, 2.0, 3.0]).unwrap()
@@ -254,5 +254,33 @@ mod tests {
         let query = NDArray::from_shape_vec([1, 1], vec![0.0_f64]).unwrap();
 
         assert_eq!(regressor.predict(&query).unwrap().data(), &[3.0]);
+    }
+
+    #[test]
+    fn kd_tree_predictions_match_brute_force() {
+        let features = NDArray::from_shape_vec([3, 1], vec![0.0_f64, 2.0, 4.0]).unwrap();
+        let targets = NDArray::from_shape_vec([3], vec![0.0_f64, 2.0, 10.0]).unwrap();
+        let brute_force = KnnRegressor::fit(
+            features.clone(),
+            targets.clone(),
+            KnnConfig::new(2).unwrap().with_weighting(KnnWeighting::Distance),
+        )
+        .unwrap();
+        let kd_tree = KnnRegressor::fit(
+            features,
+            targets,
+            KnnConfig::new(2)
+                .unwrap()
+                .with_weighting(KnnWeighting::Distance)
+                .with_search_algorithm(KnnSearchAlgorithm::KdTree)
+                .unwrap(),
+        )
+        .unwrap();
+        let queries = NDArray::from_shape_vec([2, 1], vec![1.0_f64, 3.0]).unwrap();
+
+        assert_eq!(
+            kd_tree.predict(&queries).unwrap().data(),
+            brute_force.predict(&queries).unwrap().data()
+        );
     }
 }

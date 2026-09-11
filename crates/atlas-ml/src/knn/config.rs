@@ -80,13 +80,13 @@ impl KnnConfig {
 
 fn validate_search_algorithm(algorithm: KnnSearchAlgorithm) -> AtlasMlResult<()> {
     match algorithm {
-        KnnSearchAlgorithm::BruteForce | KnnSearchAlgorithm::Auto => Ok(()),
-        KnnSearchAlgorithm::KdTree | KnnSearchAlgorithm::BallTree => {
-            Err(AtlasMlError::InvalidArgument {
-                op: "knn_config",
-                reason: "the requested search algorithm is not available",
-            })
+        KnnSearchAlgorithm::BruteForce | KnnSearchAlgorithm::KdTree | KnnSearchAlgorithm::Auto => {
+            Ok(())
         }
+        KnnSearchAlgorithm::BallTree => Err(AtlasMlError::InvalidArgument {
+            op: "knn_config",
+            reason: "the requested search algorithm is not available",
+        }),
     }
 }
 
@@ -131,23 +131,24 @@ mod tests {
             .unwrap()
             .with_search_algorithm(KnnSearchAlgorithm::BruteForce)
             .unwrap();
+        let kd_tree =
+            KnnConfig::new(3).unwrap().with_search_algorithm(KnnSearchAlgorithm::KdTree).unwrap();
         let automatic =
             KnnConfig::new(3).unwrap().with_search_algorithm(KnnSearchAlgorithm::Auto).unwrap();
 
         assert_eq!(brute_force.search_algorithm(), KnnSearchAlgorithm::BruteForce);
+        assert_eq!(kd_tree.search_algorithm(), KnnSearchAlgorithm::KdTree);
         assert_eq!(automatic.search_algorithm(), KnnSearchAlgorithm::Auto);
     }
 
     #[test]
     fn rejects_unavailable_algorithm_choices() {
-        for algorithm in [KnnSearchAlgorithm::KdTree, KnnSearchAlgorithm::BallTree] {
-            assert_eq!(
-                KnnConfig::new(3).unwrap().with_search_algorithm(algorithm),
-                Err(AtlasMlError::InvalidArgument {
-                    op: "knn_config",
-                    reason: "the requested search algorithm is not available",
-                })
-            );
-        }
+        assert_eq!(
+            KnnConfig::new(3).unwrap().with_search_algorithm(KnnSearchAlgorithm::BallTree),
+            Err(AtlasMlError::InvalidArgument {
+                op: "knn_config",
+                reason: "the requested search algorithm is not available",
+            })
+        );
     }
 }

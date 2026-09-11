@@ -3,6 +3,10 @@ use crate::{AtlasMlError, AtlasMlResult};
 pub(crate) trait DistanceMetric {
     fn distance_same_dimension(&self, lhs: &[f64], rhs: &[f64]) -> f64;
 
+    fn axis_distance_lower_bound(&self, _axis_delta: f64) -> Option<f64> {
+        None
+    }
+
     fn distance(&self, lhs: &[f64], rhs: &[f64]) -> AtlasMlResult<f64> {
         if lhs.len() != rhs.len() {
             return Err(AtlasMlError::ShapeMismatch {
@@ -29,6 +33,10 @@ impl DistanceMetric for SquaredEuclideanDistance {
                 delta * delta
             })
             .sum()
+    }
+
+    fn axis_distance_lower_bound(&self, axis_delta: f64) -> Option<f64> {
+        Some(axis_delta * axis_delta)
     }
 }
 
