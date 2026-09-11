@@ -1,4 +1,4 @@
-use atlas_ndarray::NDArray;
+use atlas_ndarray::OperandMetadata;
 
 use super::node::KdTreeNode;
 use crate::{AtlasMlError, AtlasMlResult};
@@ -7,10 +7,15 @@ const BUILD_OP: &str = "kd_tree_build";
 
 pub(crate) struct KdTree {
     root: KdTreeNode,
+    sample_count: usize,
+    feature_count: usize,
 }
 
 impl KdTree {
-    pub(crate) fn build(features: &NDArray<f64>) -> AtlasMlResult<Self> {
+    pub(crate) fn build<F>(features: &F) -> AtlasMlResult<Self>
+    where
+        F: OperandMetadata<f64> + ?Sized,
+    {
         if features.ndim() != 2 {
             return Err(AtlasMlError::InvalidInputRank {
                 op: BUILD_OP,
@@ -22,22 +27,35 @@ impl KdTree {
             return Err(AtlasMlError::EmptyInput { op: BUILD_OP });
         }
 
-        let indices = (0..features.shape()[0]).collect();
-        let root = if features.shape()[1] == 0 {
+        let sample_count = features.shape()[0];
+        let feature_count = features.shape()[1];
+        let indices = (0..sample_count).collect();
+        let root = if feature_count == 0 {
             KdTreeNode::leaf(indices)
         } else {
             build_node(features, indices, 0)
         };
 
-        Ok(Self { root })
+        Ok(Self { root, sample_count, feature_count })
     }
 
     pub(crate) fn root(&self) -> &KdTreeNode {
         &self.root
     }
+
+    pub(crate) const fn sample_count(&self) -> usize {
+        self.sample_count
+    }
+
+    pub(crate) const fn feature_count(&self) -> usize {
+        self.feature_count
+    }
 }
 
-fn build_node(features: &NDArray<f64>, mut indices: Vec<usize>, depth: usize) -> KdTreeNode {
+fn build_node<F>(features: &F, mut indices: Vec<usize>, depth: usize) -> KdTreeNode
+where
+    F: OperandMetadata<f64> + ?Sized,
+{
     if indices.len() == 1 {
         return KdTreeNode::leaf(indices);
     }
@@ -59,8 +77,11 @@ fn build_node(features: &NDArray<f64>, mut indices: Vec<usize>, depth: usize) ->
     KdTreeNode::internal(split_axis, pivot_index, left, right)
 }
 
-fn feature(features: &NDArray<f64>, row: usize, axis: usize) -> f64 {
-    features.data()[row * features.shape()[1] + axis]
+pub(super) fn feature<F>(features: &F, row: usize, axis: usize) -> f64
+where
+    F: OperandMetadata<f64> + ?Sized,
+{
+    features.data()[features.offset() + row * features.strides()[0] + axis * features.strides()[1]]
 }
 
 #[cfg(test)]
