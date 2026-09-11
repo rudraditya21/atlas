@@ -2,7 +2,9 @@ use std::collections::BTreeMap;
 
 use atlas_ndarray::{NDArray, OperandMetadata};
 
-use super::{config::KnnConfig, index::TrainingIndex, metric::SquaredEuclideanDistance};
+use super::{
+    config::KnnConfig, index::TrainingIndex, metric::SquaredEuclideanDistance, row::copy_row,
+};
 use crate::{
     AtlasMlResult,
     core::validation::{
@@ -94,16 +96,6 @@ impl KnnClassifier {
             })
             .expect("a fitted classifier always has at least one neighbor")
             .0)
-    }
-}
-
-fn copy_row<Q>(queries: &Q, row_index: usize, row: &mut [f64])
-where
-    Q: OperandMetadata<f64> + ?Sized,
-{
-    let row_offset = queries.offset() + row_index * queries.strides()[0];
-    for (feature_index, value) in row.iter_mut().enumerate() {
-        *value = queries.data()[row_offset + feature_index * queries.strides()[1]];
     }
 }
 

@@ -1,15 +1,18 @@
-use atlas_ndarray::NDArray;
+use atlas_ndarray::{NDArray, OperandMetadata};
 
-use super::{config::KnnConfig, index::TrainingIndex};
+use super::{
+    config::KnnConfig, index::TrainingIndex, metric::SquaredEuclideanDistance, row::copy_row,
+};
 use crate::{
     AtlasMlResult,
     core::validation::{
         validate_finite_feature_values, validate_finite_target_values,
-        validate_supervised_training_inputs,
+        validate_prediction_feature_inputs, validate_supervised_training_inputs,
     },
 };
 
 const FIT_OP: &str = "knn_regressor_fit";
+const PREDICT_OP: &str = "knn_regressor_predict";
 
 pub struct KnnRegressor {
     config: KnnConfig,
@@ -41,6 +44,32 @@ impl KnnRegressor {
 
     pub fn targets(&self) -> &NDArray<f64> {
         &self.targets
+    }
+
+    pub fn predict<Q>(&self, queries: &Q) -> AtlasMlResult<NDArray<f64>>
+    where
+        Q: OperandMetadata<f64> + ?Sized,
+    {
+        validate_prediction_feature_inputs(queries, self.feature_count(), PREDICT_OP)?;
+        validate_finite_feature_values(queries, PREDICT_OP)?;
+
+        let query_count = queries.shape()[0];
+        let mut query = vec![0.0; self.feature_count()];
+        let mut predictions = Vec::with_capacity(query_count);
+        for query_index in 0..query_count {
+            copy_row(queries, query_index, &mut query);
+            predictions.push(self.predict_one(&query)?);
+        }
+
+        Ok(NDArray::from_shape_vec([query_count], predictions)?)
+    }
+
+    fn predict_one(&self, query: &[f64]) -> AtlasMlResult<f64> {
+        let neighbors = self.index.search(query, self.config.k(), &SquaredEuclideanDistance)?;
+        let total =
+            neighbors.iter().map(|neighbor| self.targets.data()[neighbor.index]).sum::<f64>();
+
+        Ok(total / neighbors.len() as f64)
     }
 }
 
@@ -114,5 +143,52 @@ mod tests {
             .map(|_| ()),
             Err(AtlasMlError::NonFiniteInput { op: "knn_regressor_fit" })
         );
+    }
+
+    fn regressor(k: usize) -> KnnRegressor {
+        KnnRegressor::fit(
+            NDArray::from_shape_vec([3, 1], vec![0.0_f64, 2.0, 4.0]).unwrap(),
+            NDArray::from_shape_vec([3], vec![0.0_f64, 2.0, 10.0]).unwrap(),
+            KnnConfig::new(k).unwrap(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn predicts_exact_training_targets() {
+        let query = NDArray::from_shape_vec([1, 1], vec![2.0_f64]).unwrap();
+
+        assert_eq!(regressor(1).predict(&query).unwrap().data(), &[2.0]);
+    }
+
+    #[test]
+    fn averages_selected_neighbor_targets() {
+        let query = NDArray::from_shape_vec([1, 1], vec![1.0_f64]).unwrap();
+
+        assert_eq!(regressor(2).predict(&query).unwrap().data(), &[1.0]);
+    }
+
+    #[test]
+    fn predicts_from_logical_query_views() {
+        let queries = NDArray::from_shape_vec([1, 2], vec![1.0_f64, 3.0]).unwrap();
+
+        assert_eq!(regressor(2).predict(&queries.view().transpose()).unwrap().data(), &[1.0, 6.0]);
+    }
+
+    #[test]
+    fn predicts_empty_query_batches() {
+        let queries = NDArray::<f64>::zeros([0, 1]).unwrap();
+        let predictions = regressor(1).predict(&queries).unwrap();
+
+        assert_eq!(predictions.shape(), &[0]);
+        assert!(predictions.data().is_empty());
+    }
+
+    #[test]
+    fn predicts_with_minimum_and_maximum_neighbor_counts() {
+        let query = NDArray::from_shape_vec([1, 1], vec![0.0_f64]).unwrap();
+
+        assert_eq!(regressor(1).predict(&query).unwrap().data(), &[0.0]);
+        assert_eq!(regressor(3).predict(&query).unwrap().data(), &[4.0]);
     }
 }

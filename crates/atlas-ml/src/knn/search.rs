@@ -1,6 +1,8 @@
 use atlas_ndarray::OperandMetadata;
 
-use super::{metric::DistanceMetric, neighbor::Neighbor, neighbor_set::BoundedNeighborSet};
+use super::{
+    metric::DistanceMetric, neighbor::Neighbor, neighbor_set::BoundedNeighborSet, row::copy_row,
+};
 use crate::{AtlasMlError, AtlasMlResult};
 
 const OP: &str = "brute_force_knn_search";
@@ -52,16 +54,6 @@ where
     }
 
     Ok(neighbors.neighbors().to_vec())
-}
-
-fn copy_row<F>(features: &F, row_index: usize, row: &mut [f64])
-where
-    F: OperandMetadata<f64> + ?Sized,
-{
-    let row_offset = features.offset() + row_index * features.strides()[0];
-    for (feature_index, value) in row.iter_mut().enumerate() {
-        *value = features.data()[row_offset + feature_index * features.strides()[1]];
-    }
 }
 
 #[cfg(test)]
