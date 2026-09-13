@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use atlas_ndarray::{NDArray, OperandMetadata};
 
 use super::{
-    config::{KnnConfig, KnnSearchAlgorithm},
+    config::{KnnConfig, KnnSearchAlgorithm, KnnWeighting},
     index::TrainingIndex,
     metric::SquaredEuclideanDistance,
     row::copy_row,
@@ -22,7 +22,7 @@ const PREDICT_ONE_OP: &str = "knn_classifier_predict_one";
 
 #[derive(Default)]
 struct ClassVote {
-    count: usize,
+    weight: f64,
     total_distance: f64,
 }
 
@@ -64,8 +64,10 @@ impl KnnClassifier {
 
     /// Predicts one class per query row.
     ///
-    /// The class with the most neighbor votes wins. Equal vote counts use the
-    /// smallest total squared-neighbor distance, then the lower class label.
+    /// Uniform weighting counts neighbor votes. Distance weighting uses inverse
+    /// Euclidean distance and considers only exact matches when any exist.
+    /// Equal vote weights use the smallest total squared-neighbor distance,
+    /// then the lower class label.
     pub fn predict<Q>(&self, queries: &Q) -> AtlasMlResult<NDArray<usize>>
     where
         Q: OperandMetadata<f64> + ?Sized,
@@ -89,11 +91,20 @@ impl KnnClassifier {
         validate_prediction_feature_row(query, self.feature_count(), PREDICT_ONE_OP)?;
 
         let neighbors = self.index.search(query, self.config.k(), &SquaredEuclideanDistance)?;
+        let exact_matches = self.config.weighting() == KnnWeighting::Distance
+            && neighbors.iter().any(|neighbor| neighbor.distance == 0.0);
         let mut votes = BTreeMap::new();
         for neighbor in neighbors {
+            if exact_matches && neighbor.distance != 0.0 {
+                continue;
+            }
+
             let vote =
                 votes.entry(self.labels.data()[neighbor.index]).or_insert_with(ClassVote::default);
-            vote.count += 1;
+            vote.weight += match self.config.weighting() {
+                KnnWeighting::Uniform => 1.0,
+                KnnWeighting::Distance => neighbor.distance.sqrt().recip(),
+            };
             vote.total_distance += neighbor.distance;
         }
 
@@ -101,8 +112,8 @@ impl KnnClassifier {
             .into_iter()
             .max_by(|(left_label, left_vote), (right_label, right_vote)| {
                 left_vote
-                    .count
-                    .cmp(&right_vote.count)
+                    .weight
+                    .total_cmp(&right_vote.weight)
                     .then_with(|| right_vote.total_distance.total_cmp(&left_vote.total_distance))
                     .then_with(|| right_label.cmp(left_label))
             })
@@ -116,7 +127,7 @@ mod tests {
     use atlas_ndarray::NDArray;
 
     use super::KnnClassifier;
-    use crate::{AtlasMlError, KnnConfig, KnnSearchAlgorithm};
+    use crate::{AtlasMlError, KnnConfig, KnnSearchAlgorithm, KnnWeighting};
 
     fn features() -> NDArray<f64> {
         NDArray::from_shape_vec([2, 2], vec![0.0_f64, 1.0, 2.0, 3.0]).unwrap()
@@ -243,6 +254,43 @@ mod tests {
         let query = NDArray::from_shape_vec([1, 1], vec![0.0_f64]).unwrap();
 
         assert_eq!(classifier.predict(&query).unwrap().data(), &[4]);
+    }
+
+    #[test]
+    fn distance_weighting_can_change_the_predicted_class() {
+        let features = NDArray::from_shape_vec([3, 1], vec![1.0_f64, 2.0, 0.1]).unwrap();
+        let labels = NDArray::from_shape_vec([3], vec![0_usize, 0, 1]).unwrap();
+        let uniform =
+            KnnClassifier::fit(features.clone(), labels.clone(), KnnConfig::new(3).unwrap())
+                .unwrap();
+        let distance = KnnClassifier::fit(
+            features,
+            labels,
+            KnnConfig::new(3).unwrap().with_weighting(KnnWeighting::Distance),
+        )
+        .unwrap();
+
+        assert_eq!(uniform.predict_one(&[0.0]), Ok(0));
+        assert_eq!(distance.predict_one(&[0.0]), Ok(1));
+    }
+
+    #[test]
+    fn distance_weighting_prioritizes_and_stably_resolves_exact_matches() {
+        let first = KnnClassifier::fit(
+            NDArray::from_shape_vec([3, 1], vec![0.0_f64, 0.0, 0.001]).unwrap(),
+            NDArray::from_shape_vec([3], vec![5_usize, 2, 5]).unwrap(),
+            KnnConfig::new(3).unwrap().with_weighting(KnnWeighting::Distance),
+        )
+        .unwrap();
+        let second = KnnClassifier::fit(
+            NDArray::from_shape_vec([3, 1], vec![0.0_f64, 0.0, 0.001]).unwrap(),
+            NDArray::from_shape_vec([3], vec![2_usize, 5, 5]).unwrap(),
+            KnnConfig::new(3).unwrap().with_weighting(KnnWeighting::Distance),
+        )
+        .unwrap();
+
+        assert_eq!(first.predict_one(&[0.0]), Ok(2));
+        assert_eq!(second.predict_one(&[0.0]), Ok(2));
     }
 
     #[test]
