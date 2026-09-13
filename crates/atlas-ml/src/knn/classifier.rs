@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use atlas_ndarray::{NDArray, OperandMetadata};
 
@@ -19,9 +19,11 @@ use crate::{
 const FIT_OP: &str = "knn_classifier_fit";
 const PREDICT_OP: &str = "knn_classifier_predict";
 const PREDICT_ONE_OP: &str = "knn_classifier_predict_one";
+const PREDICT_PROBA_OP: &str = "knn_classifier_predict_proba";
 
 #[derive(Default)]
 struct ClassVote {
+    count: usize,
     weight: f64,
     total_distance: f64,
 }
@@ -30,6 +32,7 @@ pub struct KnnClassifier {
     config: KnnConfig,
     index: TrainingIndex,
     labels: NDArray<usize>,
+    classes: Box<[usize]>,
 }
 
 impl KnnClassifier {
@@ -41,8 +44,15 @@ impl KnnClassifier {
         validate_supervised_training_inputs(&features, &labels, FIT_OP)?;
         validate_finite_feature_values(&features, FIT_OP)?;
         config.validate(features.shape()[0])?;
+        let classes: Box<[usize]> =
+            labels.data().iter().copied().collect::<BTreeSet<_>>().into_iter().collect();
 
-        Ok(Self { config, index: TrainingIndex::new(features, config.search_algorithm())?, labels })
+        Ok(Self {
+            config,
+            index: TrainingIndex::new(features, config.search_algorithm())?,
+            labels,
+            classes,
+        })
     }
 
     pub const fn config(&self) -> KnnConfig {
@@ -60,6 +70,11 @@ impl KnnClassifier {
 
     pub fn labels(&self) -> &NDArray<usize> {
         &self.labels
+    }
+
+    /// Returns the ascending class-label order used by [`Self::predict_proba`].
+    pub fn classes(&self) -> &[usize] {
+        &self.classes
     }
 
     /// Predicts one class per query row.
@@ -86,10 +101,35 @@ impl KnnClassifier {
         Ok(NDArray::from_shape_vec([query_count], predictions)?)
     }
 
+    /// Returns normalized class vote weights for each query row.
+    ///
+    /// Columns follow the ascending label order returned by [`Self::classes`].
+    pub fn predict_proba<Q>(&self, queries: &Q) -> AtlasMlResult<NDArray<f64>>
+    where
+        Q: OperandMetadata<f64> + ?Sized,
+    {
+        validate_prediction_feature_inputs(queries, self.feature_count(), PREDICT_PROBA_OP)?;
+        validate_finite_feature_values(queries, PREDICT_PROBA_OP)?;
+
+        let query_count = queries.shape()[0];
+        let mut query = vec![0.0; self.feature_count()];
+        let mut probabilities = Vec::with_capacity(query_count * self.classes.len());
+        for query_index in 0..query_count {
+            copy_row(queries, query_index, &mut query);
+            probabilities.extend(self.probabilities_for(&query)?);
+        }
+
+        Ok(NDArray::from_shape_vec([query_count, self.classes.len()], probabilities)?)
+    }
+
     /// Predicts the class for one feature row.
     pub fn predict_one(&self, query: &[f64]) -> AtlasMlResult<usize> {
         validate_prediction_feature_row(query, self.feature_count(), PREDICT_ONE_OP)?;
 
+        Ok(self.class_from_votes(self.votes_for(query)?))
+    }
+
+    fn votes_for(&self, query: &[f64]) -> AtlasMlResult<BTreeMap<usize, ClassVote>> {
         let neighbors = self.index.search(query, self.config.k(), &SquaredEuclideanDistance)?;
         let exact_matches = self.config.weighting() == KnnWeighting::Distance
             && neighbors.iter().any(|neighbor| neighbor.distance == 0.0);
@@ -101,14 +141,20 @@ impl KnnClassifier {
 
             let vote =
                 votes.entry(self.labels.data()[neighbor.index]).or_insert_with(ClassVote::default);
+            vote.count += 1;
             vote.weight += match self.config.weighting() {
                 KnnWeighting::Uniform => 1.0,
+                KnnWeighting::Distance if exact_matches => 1.0,
                 KnnWeighting::Distance => neighbor.distance.sqrt().recip(),
             };
             vote.total_distance += neighbor.distance;
         }
 
-        Ok(votes
+        Ok(votes)
+    }
+
+    fn class_from_votes(&self, votes: BTreeMap<usize, ClassVote>) -> usize {
+        votes
             .into_iter()
             .max_by(|(left_label, left_vote), (right_label, right_vote)| {
                 left_vote
@@ -118,7 +164,29 @@ impl KnnClassifier {
                     .then_with(|| right_label.cmp(left_label))
             })
             .expect("a fitted classifier always has at least one neighbor")
-            .0)
+            .0
+    }
+
+    fn probabilities_for(&self, query: &[f64]) -> AtlasMlResult<Vec<f64>> {
+        let votes = self.votes_for(query)?;
+        let total_weight = votes.values().map(|vote| vote.weight).sum::<f64>();
+        let fallback_to_counts = total_weight == 0.0;
+        let normalizer = if fallback_to_counts {
+            votes.values().map(|vote| vote.count).sum::<usize>() as f64
+        } else {
+            total_weight
+        };
+
+        Ok(self
+            .classes
+            .iter()
+            .map(|class| {
+                votes.get(class).map_or(0.0, |vote| {
+                    let weight = if fallback_to_counts { vote.count as f64 } else { vote.weight };
+                    weight / normalizer
+                })
+            })
+            .collect())
     }
 }
 
@@ -212,6 +280,54 @@ mod tests {
         let queries = NDArray::from_shape_vec([2, 2], vec![0.1_f64, 0.0, 5.1, 5.0]).unwrap();
 
         assert_eq!(classifier(3).predict(&queries).unwrap().data(), &[0, 1]);
+    }
+
+    #[test]
+    fn probabilities_use_ascending_classes_and_uniform_vote_weights() {
+        let classifier = KnnClassifier::fit(
+            NDArray::from_shape_vec([3, 1], vec![0.0_f64, 1.0, 2.0]).unwrap(),
+            NDArray::from_shape_vec([3], vec![7_usize, 2, 7]).unwrap(),
+            KnnConfig::new(3).unwrap(),
+        )
+        .unwrap();
+        let queries = NDArray::from_shape_vec([1, 1], vec![0.0_f64]).unwrap();
+        let probabilities = classifier.predict_proba(&queries).unwrap();
+
+        assert_eq!(classifier.classes(), &[2, 7]);
+        assert_eq!(probabilities.shape(), &[1, 2]);
+        assert_eq!(probabilities.data(), &[1.0 / 3.0, 2.0 / 3.0]);
+    }
+
+    #[test]
+    fn probabilities_use_distance_weights_and_exact_matches() {
+        let distance_weighted = KnnClassifier::fit(
+            NDArray::from_shape_vec([3, 1], vec![1.0_f64, 2.0, 0.1]).unwrap(),
+            NDArray::from_shape_vec([3], vec![0_usize, 0, 1]).unwrap(),
+            KnnConfig::new(3).unwrap().with_weighting(KnnWeighting::Distance),
+        )
+        .unwrap();
+        let exact_matches = KnnClassifier::fit(
+            NDArray::from_shape_vec([3, 1], vec![0.0_f64, 0.0, 1.0]).unwrap(),
+            NDArray::from_shape_vec([3], vec![5_usize, 2, 5]).unwrap(),
+            KnnConfig::new(3).unwrap().with_weighting(KnnWeighting::Distance),
+        )
+        .unwrap();
+        let query = NDArray::from_shape_vec([1, 1], vec![0.0_f64]).unwrap();
+
+        let probabilities = distance_weighted.predict_proba(&query).unwrap();
+        assert!((probabilities.data()[0] - 3.0 / 23.0).abs() < 1e-12);
+        assert!((probabilities.data()[1] - 20.0 / 23.0).abs() < 1e-12);
+        assert_eq!(exact_matches.classes(), &[2, 5]);
+        assert_eq!(exact_matches.predict_proba(&query).unwrap().data(), &[0.5, 0.5]);
+    }
+
+    #[test]
+    fn probabilities_preserve_empty_query_batches() {
+        let queries = NDArray::<f64>::zeros([0, 2]).unwrap();
+        let probabilities = classifier(1).predict_proba(&queries).unwrap();
+
+        assert_eq!(probabilities.shape(), &[0, 2]);
+        assert!(probabilities.data().is_empty());
     }
 
     #[test]
