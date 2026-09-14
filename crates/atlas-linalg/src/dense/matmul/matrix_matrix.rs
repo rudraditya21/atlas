@@ -29,6 +29,13 @@ pub(super) fn matmul_matrix_refs<T: Numeric>(
     lhs: MatrixRef<'_, T>,
     rhs: MatrixRef<'_, T>,
 ) -> Vec<T> {
+    if lhs.rows == 0 || rhs.cols == 0 {
+        return Vec::new();
+    }
+    if lhs.cols == 0 {
+        return vec![T::zero(); lhs.rows * rhs.cols];
+    }
+
     if lhs.is_row_major_contiguous() && rhs.is_row_major_contiguous() {
         matmul_matrix_matrix_row_major(lhs, rhs)
     } else if lhs.is_col_major_contiguous() && rhs.is_row_major_contiguous() {
