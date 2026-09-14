@@ -4,12 +4,14 @@ use crate::{
     AtlasMlError, AtlasMlResult, binary_log_loss, classification_accuracy,
     core::validation::{
         validate_binary_labels, validate_finite_feature_values, validate_prediction_feature_inputs,
-        validate_prediction_feature_row, validate_supervised_training_inputs,
+        validate_prediction_feature_row, validate_sample_weights,
+        validate_supervised_training_inputs,
     },
 };
 
 const CONFIG_OP: &str = "logistic_regression_config";
 const FIT_OP: &str = "binary_logistic_regression_fit";
+const WEIGHTED_FIT_OP: &str = "binary_logistic_regression_fit_weighted";
 const PREDICT_PROBA_OP: &str = "binary_logistic_regression_predict_proba";
 const PREDICT_PROBA_ONE_OP: &str = "binary_logistic_regression_predict_proba_one";
 const PREDICT_OP: &str = "binary_logistic_regression_predict";
@@ -107,9 +109,48 @@ impl BinaryLogisticRegression {
         F: OperandMetadata<f64> + ?Sized,
         L: OperandMetadata<usize> + ?Sized,
     {
-        validate_supervised_training_inputs(features, labels, FIT_OP)?;
-        validate_finite_feature_values(features, FIT_OP)?;
-        validate_binary_labels(labels, FIT_OP)?;
+        validate_training_inputs(features, labels, FIT_OP)?;
+        let weights = vec![1.0; features.shape()[0]];
+
+        Self::fit_with_validated_weights(features, labels, &weights, config)
+    }
+
+    /// Fits a binary classifier with nonnegative per-sample gradient weights.
+    pub fn fit_weighted<F, L, W>(
+        features: &F,
+        labels: &L,
+        sample_weights: &W,
+        config: LogisticRegressionConfig,
+    ) -> AtlasMlResult<Self>
+    where
+        F: OperandMetadata<f64> + ?Sized,
+        L: OperandMetadata<usize> + ?Sized,
+        W: OperandMetadata<f64> + ?Sized,
+    {
+        validate_training_inputs(features, labels, WEIGHTED_FIT_OP)?;
+        validate_sample_weights(sample_weights, features.shape()[0], WEIGHTED_FIT_OP)?;
+        let weights = sample_weight_values(sample_weights);
+        if weights.iter().all(|&weight| weight == 0.0) {
+            return Err(AtlasMlError::InvalidArgument {
+                op: WEIGHTED_FIT_OP,
+                reason: "sample weights must have positive total",
+            });
+        }
+
+        Self::fit_with_validated_weights(features, labels, &weights, config)
+    }
+
+    fn fit_with_validated_weights<F, L>(
+        features: &F,
+        labels: &L,
+        sample_weights: &[f64],
+        config: LogisticRegressionConfig,
+    ) -> AtlasMlResult<Self>
+    where
+        F: OperandMetadata<f64> + ?Sized,
+        L: OperandMetadata<usize> + ?Sized,
+    {
+        let total_weight = sample_weights.iter().sum::<f64>();
 
         let sample_count = features.shape()[0];
         let feature_count = features.shape()[1];
@@ -128,14 +169,15 @@ impl BinaryLogisticRegression {
                             * coefficients[feature_index]
                 });
                 let error = sigmoid(logit) - label(labels, sample_index) as f64;
-                intercept_gradient += error;
+                intercept_gradient += sample_weights[sample_index] * error;
                 for feature_index in 0..feature_count {
-                    coefficient_gradients[feature_index] +=
-                        error * feature(features, sample_index, feature_index);
+                    coefficient_gradients[feature_index] += sample_weights[sample_index]
+                        * error
+                        * feature(features, sample_index, feature_index);
                 }
             }
 
-            let scale = config.learning_rate() / sample_count as f64;
+            let scale = config.learning_rate() / total_weight;
             let intercept_update = scale * intercept_gradient;
             intercept -= intercept_update;
             let mut maximum_update = intercept_update.abs();
@@ -303,6 +345,27 @@ impl BinaryLogisticRegression {
         validate_binary_labels(labels, SCORE_OP)?;
         classification_accuracy(labels, &predictions)
     }
+}
+
+fn validate_training_inputs<F, L>(features: &F, labels: &L, op: &'static str) -> AtlasMlResult<()>
+where
+    F: OperandMetadata<f64> + ?Sized,
+    L: OperandMetadata<usize> + ?Sized,
+{
+    validate_supervised_training_inputs(features, labels, op)?;
+    validate_finite_feature_values(features, op)?;
+    validate_binary_labels(labels, op)
+}
+
+fn sample_weight_values<W>(sample_weights: &W) -> Vec<f64>
+where
+    W: OperandMetadata<f64> + ?Sized,
+{
+    (0..sample_weights.shape()[0])
+        .map(|index| {
+            sample_weights.data()[sample_weights.offset() + index * sample_weights.strides()[0]]
+        })
+        .collect()
 }
 
 fn validate_threshold(threshold: f64, op: &'static str) -> AtlasMlResult<()> {
@@ -893,6 +956,97 @@ mod tests {
                 .unwrap(),
         )
         .unwrap();
+
+        assert_eq!(model.predict(&features).unwrap().data(), labels.data());
+    }
+
+    #[test]
+    fn weighted_fitting_changes_the_class_imbalance_decision() {
+        let features = NDArray::from_shape_vec([4, 1], vec![0.0_f64; 4]).unwrap();
+        let labels = NDArray::from_shape_vec([4], vec![0_usize, 0, 0, 1]).unwrap();
+        let weights = NDArray::from_shape_vec([4], vec![1.0_f64, 1.0, 1.0, 4.0]).unwrap();
+        let config = LogisticRegressionConfig::new(0.1, 1_000, 1e-8).unwrap();
+
+        let unweighted = BinaryLogisticRegression::fit(&features, &labels, config).unwrap();
+        let weighted =
+            BinaryLogisticRegression::fit_weighted(&features, &labels, &weights, config).unwrap();
+
+        assert!(unweighted.predict_proba_one(&[0.0]).unwrap() < 0.5);
+        assert!(weighted.predict_proba_one(&[0.0]).unwrap() > 0.5);
+    }
+
+    #[test]
+    fn weighted_fitting_ignores_zero_weight_rows() {
+        let features = NDArray::from_shape_vec([3, 1], vec![-1.0_f64, 1.0, 100.0]).unwrap();
+        let labels = NDArray::from_shape_vec([3], vec![0_usize, 1, 0]).unwrap();
+        let weights = NDArray::from_shape_vec([3], vec![1.0_f64, 1.0, 0.0]).unwrap();
+        let reference_features = NDArray::from_shape_vec([2, 1], vec![-1.0_f64, 1.0]).unwrap();
+        let reference_labels = NDArray::from_shape_vec([2], vec![0_usize, 1]).unwrap();
+        let config = LogisticRegressionConfig::new(0.1, 500, 1e-12).unwrap();
+
+        let weighted =
+            BinaryLogisticRegression::fit_weighted(&features, &labels, &weights, config).unwrap();
+        let reference =
+            BinaryLogisticRegression::fit(&reference_features, &reference_labels, config).unwrap();
+
+        assert!((weighted.intercept() - reference.intercept()).abs() < 1e-12);
+        assert!(
+            (weighted.coefficients().data()[0] - reference.coefficients().data()[0]).abs() < 1e-12
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_weighted_fitting_weights() {
+        let features = NDArray::from_shape_vec([2, 1], vec![0.0_f64, 1.0]).unwrap();
+        let labels = NDArray::from_shape_vec([2], vec![0_usize, 1]).unwrap();
+        let negative = NDArray::from_shape_vec([2], vec![1.0_f64, -1.0]).unwrap();
+        let non_finite = NDArray::from_shape_vec([2], vec![1.0_f64, f64::NAN]).unwrap();
+        let mismatched = NDArray::from_shape_vec([1], vec![1.0_f64]).unwrap();
+        let all_zero = NDArray::from_shape_vec([2], vec![0.0_f64, 0.0]).unwrap();
+        let config = LogisticRegressionConfig::default();
+
+        assert_eq!(
+            BinaryLogisticRegression::fit_weighted(&features, &labels, &negative, config)
+                .map(|_| ()),
+            Err(AtlasMlError::InvalidArgument {
+                op: "binary_logistic_regression_fit_weighted",
+                reason: "sample weights must be nonnegative",
+            })
+        );
+        assert_eq!(
+            BinaryLogisticRegression::fit_weighted(&features, &labels, &non_finite, config)
+                .map(|_| ()),
+            Err(AtlasMlError::NonFiniteInput { op: "binary_logistic_regression_fit_weighted" })
+        );
+        assert_eq!(
+            BinaryLogisticRegression::fit_weighted(&features, &labels, &mismatched, config)
+                .map(|_| ()),
+            Err(AtlasMlError::ShapeMismatch {
+                op: "binary_logistic_regression_fit_weighted",
+                left: vec![1],
+                right: vec![2],
+                reason: "weight count must match sample count",
+            })
+        );
+        assert_eq!(
+            BinaryLogisticRegression::fit_weighted(&features, &labels, &all_zero, config)
+                .map(|_| ()),
+            Err(AtlasMlError::InvalidArgument {
+                op: "binary_logistic_regression_fit_weighted",
+                reason: "sample weights must have positive total",
+            })
+        );
+    }
+
+    #[test]
+    fn weighted_fitting_preserves_separable_predictions() {
+        let features = NDArray::from_shape_vec([4, 1], vec![-2.0_f64, -1.0, 1.0, 2.0]).unwrap();
+        let labels = NDArray::from_shape_vec([4], vec![0_usize, 0, 1, 1]).unwrap();
+        let weights = NDArray::from_shape_vec([4], vec![1.0_f64, 2.0, 1.0, 2.0]).unwrap();
+        let config = LogisticRegressionConfig::new(0.5, 1_000, 1e-6).unwrap();
+
+        let model =
+            BinaryLogisticRegression::fit_weighted(&features, &labels, &weights, config).unwrap();
 
         assert_eq!(model.predict(&features).unwrap().data(), labels.data());
     }
