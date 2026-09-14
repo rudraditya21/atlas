@@ -1,6 +1,7 @@
 //! Machine-learning algorithms built on Atlas arrays.
 
 mod core;
+mod decision_stump;
 mod gaussian_naive_bayes;
 mod knn;
 mod linear_regression;
@@ -25,6 +26,7 @@ pub use core::{
     },
 };
 
+pub use decision_stump::DecisionStumpClassifier;
 pub use gaussian_naive_bayes::{GaussianNaiveBayes, GaussianNaiveBayesConfig};
 pub use knn::{
     classifier::KnnClassifier,
