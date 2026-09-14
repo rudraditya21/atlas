@@ -6,6 +6,7 @@ use crate::{
 };
 
 const FIT_OP: &str = "min_max_scaler_fit";
+const FIT_WITH_RANGE_OP: &str = "min_max_scaler_fit_with_range";
 const TRANSFORM_OP: &str = "min_max_scaler_transform";
 const INVERSE_TRANSFORM_OP: &str = "min_max_scaler_inverse_transform";
 
@@ -14,6 +15,8 @@ const INVERSE_TRANSFORM_OP: &str = "min_max_scaler_inverse_transform";
 pub struct MinMaxScaler {
     minimums: Box<[f64]>,
     maximums: Box<[f64]>,
+    output_minimum: f64,
+    output_maximum: f64,
 }
 
 impl MinMaxScaler {
@@ -22,8 +25,33 @@ impl MinMaxScaler {
     where
         F: OperandMetadata<f64> + ?Sized,
     {
-        validate_fit_features(features)?;
-        validate_finite_feature_values(features, FIT_OP)?;
+        Self::fit_with_range_inner(features, 0.0, 1.0, FIT_OP)
+    }
+
+    /// Fits per-feature ranges that transform into `[output_minimum, output_maximum]`.
+    pub fn fit_with_range<F>(
+        features: &F,
+        output_minimum: f64,
+        output_maximum: f64,
+    ) -> AtlasMlResult<Self>
+    where
+        F: OperandMetadata<f64> + ?Sized,
+    {
+        Self::fit_with_range_inner(features, output_minimum, output_maximum, FIT_WITH_RANGE_OP)
+    }
+
+    fn fit_with_range_inner<F>(
+        features: &F,
+        output_minimum: f64,
+        output_maximum: f64,
+        op: &'static str,
+    ) -> AtlasMlResult<Self>
+    where
+        F: OperandMetadata<f64> + ?Sized,
+    {
+        validate_feature_range(output_minimum, output_maximum, op)?;
+        validate_fit_features(features, op)?;
+        validate_finite_feature_values(features, op)?;
 
         let feature_count = features.shape()[1];
         let mut minimums = vec![f64::INFINITY; feature_count];
@@ -36,7 +64,12 @@ impl MinMaxScaler {
             }
         }
 
-        Ok(Self { minimums: minimums.into(), maximums: maximums.into() })
+        Ok(Self {
+            minimums: minimums.into(),
+            maximums: maximums.into(),
+            output_minimum,
+            output_maximum,
+        })
     }
 
     /// Fits this scaler and transforms the same feature matrix.
@@ -59,9 +92,14 @@ impl MinMaxScaler {
         &self.maximums
     }
 
+    /// Returns the configured inclusive output interval.
+    pub const fn feature_range(&self) -> (f64, f64) {
+        (self.output_minimum, self.output_maximum)
+    }
+
     /// Normalizes a rank-2 feature matrix relative to the fitted feature ranges.
     ///
-    /// Constant features transform to `0.0`.
+    /// Constant features transform to the configured output minimum.
     pub fn transform<F>(&self, features: &F) -> AtlasMlResult<NDArray<f64>>
     where
         F: OperandMetadata<f64> + ?Sized,
@@ -76,10 +114,13 @@ impl MinMaxScaler {
             for feature_index in 0..feature_count {
                 let range = self.maximums[feature_index] - self.minimums[feature_index];
                 let value = if range == 0.0 {
-                    0.0
+                    self.output_minimum
                 } else {
-                    (feature(features, sample_index, feature_index) - self.minimums[feature_index])
-                        / range
+                    self.output_minimum
+                        + (feature(features, sample_index, feature_index)
+                            - self.minimums[feature_index])
+                            / range
+                            * (self.output_maximum - self.output_minimum)
                 };
                 transformed.push(value);
             }
@@ -107,7 +148,9 @@ impl MinMaxScaler {
                 restored.push(if range == 0.0 {
                     self.minimums[feature_index]
                 } else {
-                    feature(features, sample_index, feature_index) * range
+                    (feature(features, sample_index, feature_index) - self.output_minimum)
+                        / (self.output_maximum - self.output_minimum)
+                        * range
                         + self.minimums[feature_index]
                 });
             }
@@ -117,19 +160,37 @@ impl MinMaxScaler {
     }
 }
 
-fn validate_fit_features<F>(features: &F) -> AtlasMlResult<()>
+fn validate_fit_features<F>(features: &F, op: &'static str) -> AtlasMlResult<()>
 where
     F: OperandMetadata<f64> + ?Sized,
 {
     if features.ndim() != 2 {
         return Err(AtlasMlError::InvalidInputRank {
-            op: FIT_OP,
+            op,
             expected: "a rank-2 [samples, features] matrix",
             rank: features.ndim(),
         });
     }
     if features.shape()[0] == 0 {
-        return Err(AtlasMlError::EmptyInput { op: FIT_OP });
+        return Err(AtlasMlError::EmptyInput { op });
+    }
+
+    Ok(())
+}
+
+fn validate_feature_range(
+    output_minimum: f64,
+    output_maximum: f64,
+    op: &'static str,
+) -> AtlasMlResult<()> {
+    if !output_minimum.is_finite() || !output_maximum.is_finite() {
+        return Err(AtlasMlError::NonFiniteInput { op });
+    }
+    if output_minimum >= output_maximum {
+        return Err(AtlasMlError::InvalidArgument {
+            op,
+            reason: "feature range minimum must be less than maximum",
+        });
     }
 
     Ok(())
@@ -171,6 +232,61 @@ mod tests {
         let scaler = MinMaxScaler::fit(&features).unwrap();
 
         assert_eq!(scaler.transform(&features).unwrap().data(), &[0.0, 0.0, 1.0, 0.0]);
+    }
+
+    #[test]
+    fn transforms_to_a_configured_feature_range() {
+        let features = NDArray::from_shape_vec([3, 1], vec![1.0_f64, 3.0, 5.0]).unwrap();
+        let scaler = MinMaxScaler::fit_with_range(&features, -1.0, 1.0).unwrap();
+
+        assert_eq!(scaler.feature_range(), (-1.0, 1.0));
+        assert_eq!(scaler.transform(&features).unwrap().data(), &[-1.0, 0.0, 1.0]);
+    }
+
+    #[test]
+    fn transforms_and_inverses_constant_features_with_a_configured_range() {
+        let features = NDArray::from_shape_vec([2, 2], vec![3.0_f64, 5.0, 3.0, 5.0]).unwrap();
+        let scaler = MinMaxScaler::fit_with_range(&features, -2.0, 2.0).unwrap();
+        let transformed = scaler.transform(&features).unwrap();
+
+        assert_eq!(transformed.data(), &[-2.0, -2.0, -2.0, -2.0]);
+        assert_eq!(scaler.inverse_transform(&transformed).unwrap().data(), features.data());
+    }
+
+    #[test]
+    fn inverses_a_configured_feature_range() {
+        let features = NDArray::from_shape_vec([3, 1], vec![1.0_f64, 3.0, 5.0]).unwrap();
+        let scaler = MinMaxScaler::fit_with_range(&features, -1.0, 1.0).unwrap();
+        let transformed = scaler.transform(&features).unwrap();
+
+        assert_close(scaler.inverse_transform(&transformed).unwrap().data(), features.data());
+    }
+
+    #[test]
+    fn rejects_invalid_configured_feature_ranges() {
+        let features = NDArray::from_shape_vec([1, 1], vec![1.0_f64]).unwrap();
+
+        assert_eq!(
+            MinMaxScaler::fit_with_range(&features, 1.0, 1.0),
+            Err(AtlasMlError::InvalidArgument {
+                op: "min_max_scaler_fit_with_range",
+                reason: "feature range minimum must be less than maximum",
+            })
+        );
+        assert_eq!(
+            MinMaxScaler::fit_with_range(&features, f64::NAN, 1.0),
+            Err(AtlasMlError::NonFiniteInput { op: "min_max_scaler_fit_with_range" })
+        );
+    }
+
+    #[test]
+    fn transforms_logical_views_to_configured_feature_ranges() {
+        let source =
+            NDArray::from_shape_vec([2, 3], vec![1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+        let view = source.view().transpose();
+        let scaler = MinMaxScaler::fit_with_range(&view, -1.0, 1.0).unwrap();
+
+        assert_eq!(scaler.transform(&view).unwrap().data(), &[-1.0, -1.0, 0.0, 0.0, 1.0, 1.0]);
     }
 
     #[test]
