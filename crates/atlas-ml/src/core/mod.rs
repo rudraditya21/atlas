@@ -1,3 +1,4 @@
+pub(crate) mod confusion_matrix;
 pub(crate) mod error;
 pub(crate) mod label_encoder;
 pub(crate) mod metrics;

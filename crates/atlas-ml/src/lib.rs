@@ -5,6 +5,7 @@ mod knn;
 mod nearest_centroid;
 
 pub use core::{
+    confusion_matrix::{ConfusionMatrix, confusion_matrix},
     error::{AtlasMlError, AtlasMlResult},
     label_encoder::LabelEncoder,
     metrics::{classification_accuracy, mean_absolute_error, mean_squared_error},
