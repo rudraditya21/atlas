@@ -4,6 +4,7 @@ mod core;
 mod knn;
 mod linear_regression;
 mod nearest_centroid;
+mod ridge_regression;
 
 pub use core::{
     confusion_matrix::{ConfusionMatrix, confusion_matrix},
@@ -26,3 +27,4 @@ pub use knn::{
 };
 pub use linear_regression::LinearRegression;
 pub use nearest_centroid::NearestCentroidClassifier;
+pub use ridge_regression::RidgeRegressionConfig;
