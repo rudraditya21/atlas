@@ -1,6 +1,6 @@
 use atlas_linalg::{
-    AtlasLinalgError, DotOutput, batched_diag, batched_dot, batched_transpose, dot, matmul, norm,
-    solve_lower_triangular, solve_spd, solve_upper_triangular, trace,
+    AtlasLinalgError, DotOutput, batched_diag, batched_dot, batched_transpose, conjugate_gradient,
+    dot, matmul, norm, solve_lower_triangular, solve_spd, solve_upper_triangular, trace,
 };
 use atlas_ndarray::NDArray;
 
@@ -197,6 +197,63 @@ fn batched_spd_solve_rejects_non_spd_batches_and_mismatched_shapes() {
             reason: "right-hand side row count must match coefficient matrix row count",
         }
     );
+}
+
+#[test]
+fn conjugate_gradient_solves_known_systems_and_logical_views() {
+    let matrix =
+        NDArray::from_shape_vec([3, 3], vec![4.0_f64, 1.0, 0.0, 1.0, 3.0, 1.0, 0.0, 1.0, 2.0])
+            .unwrap();
+    let rhs = NDArray::from_shape_vec([3], vec![6.0_f64, 10.0, 8.0]).unwrap();
+    let matrix_view =
+        NDArray::from_shape_vec([2, 3], vec![4.0_f64, 1.0, 9.0, 1.0, 3.0, 9.0]).unwrap();
+    let rhs_view = NDArray::from_shape_vec([3], vec![1.0_f64, 2.0, 9.0]).unwrap();
+
+    let solution = conjugate_gradient(&matrix, &rhs, 3, 1e-12).unwrap();
+    let view_solution = conjugate_gradient(
+        matrix_view.view().slice([0, 0], [2, 2]).unwrap(),
+        rhs_view.view().slice([0], [2]).unwrap(),
+        2,
+        1e-12,
+    )
+    .unwrap();
+
+    for (actual, expected) in solution.data().iter().zip([1.0, 2.0, 3.0]) {
+        assert!((actual - expected).abs() < 1e-12);
+    }
+    for (actual, expected) in view_solution.data().iter().zip([1.0 / 11.0, 7.0 / 11.0]) {
+        assert!((actual - expected).abs() < 1e-12);
+    }
+}
+
+#[test]
+fn conjugate_gradient_reports_iteration_limits_and_invalid_matrices() {
+    let matrix =
+        NDArray::from_shape_vec([3, 3], vec![4.0_f64, 1.0, 0.0, 1.0, 3.0, 1.0, 0.0, 1.0, 2.0])
+            .unwrap();
+    let rhs = NDArray::from_shape_vec([3], vec![6.0_f64, 10.0, 8.0]).unwrap();
+    let non_square = NDArray::<f64>::zeros([2, 3]).unwrap();
+    let non_symmetric = NDArray::from_shape_vec([2, 2], vec![1.0_f64, 2.0, 3.0, 4.0]).unwrap();
+    let non_spd = NDArray::from_shape_vec([2, 2], vec![1.0_f64, 2.0, 2.0, 1.0]).unwrap();
+    let short_rhs = NDArray::<f64>::zeros([2]).unwrap();
+    let nonzero_rhs = NDArray::from_shape_vec([2], vec![1.0_f64, 0.0]).unwrap();
+
+    assert_eq!(
+        conjugate_gradient(&matrix, &rhs, 1, 1e-12).unwrap_err(),
+        AtlasLinalgError::IterationLimit { op: "conjugate_gradient", iterations: 1 }
+    );
+    assert!(matches!(
+        conjugate_gradient(&non_square, &short_rhs, 2, 1e-12),
+        Err(AtlasLinalgError::InvalidInputShape { op: "conjugate_gradient", .. })
+    ));
+    assert!(matches!(
+        conjugate_gradient(&non_symmetric, &short_rhs, 2, 1e-12),
+        Err(AtlasLinalgError::InvalidInputShape { op: "conjugate_gradient", .. })
+    ));
+    assert!(matches!(
+        conjugate_gradient(&non_spd, &nonzero_rhs, 2, 1e-12),
+        Err(AtlasLinalgError::NotPositiveDefinite { op: "conjugate_gradient", .. })
+    ));
 }
 
 #[test]

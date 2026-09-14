@@ -32,6 +32,12 @@ pub enum AtlasLinalgError {
     #[error("matrix is not positive definite for {op}: diagonal {index}")]
     NotPositiveDefinite { op: &'static str, index: usize },
 
+    #[error("invalid argument for {op}: {reason}")]
+    InvalidArgument { op: &'static str, reason: &'static str },
+
+    #[error("iteration limit reached for {op}: {iterations}")]
+    IterationLimit { op: &'static str, iterations: usize },
+
     #[error(transparent)]
     NdArray(#[from] AtlasNdError),
 }
