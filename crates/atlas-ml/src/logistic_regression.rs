@@ -1,7 +1,7 @@
 use atlas_ndarray::{NDArray, OperandMetadata};
 
 use crate::{
-    AtlasMlError, AtlasMlResult, classification_accuracy,
+    AtlasMlError, AtlasMlResult, binary_log_loss, classification_accuracy,
     core::validation::{
         validate_finite_feature_values, validate_prediction_feature_inputs,
         validate_prediction_feature_row, validate_supervised_training_inputs,
@@ -91,6 +91,7 @@ pub struct BinaryLogisticRegression {
     coefficients: NDArray<f64>,
     iterations: usize,
     converged: bool,
+    training_loss: f64,
 }
 
 impl BinaryLogisticRegression {
@@ -151,11 +152,24 @@ impl BinaryLogisticRegression {
             }
         }
 
+        let probabilities = (0..sample_count)
+            .map(|sample_index| {
+                sigmoid((0..feature_count).fold(intercept, |total, feature_index| {
+                    total
+                        + feature(features, sample_index, feature_index)
+                            * coefficients[feature_index]
+                }))
+            })
+            .collect();
+        let probabilities = NDArray::from_shape_vec([sample_count], probabilities)?;
+        let training_loss = binary_log_loss(labels, &probabilities)?;
+
         Ok(Self {
             intercept,
             coefficients: NDArray::from_shape_vec([feature_count], coefficients)?,
             iterations,
             converged,
+            training_loss,
         })
     }
 
@@ -182,6 +196,11 @@ impl BinaryLogisticRegression {
     /// Returns whether fitting met the configured convergence tolerance.
     pub const fn converged(&self) -> bool {
         self.converged
+    }
+
+    /// Returns final mean binary log loss on the training samples, excluding L2 penalty.
+    pub const fn training_loss(&self) -> f64 {
+        self.training_loss
     }
 
     /// Predicts the probability of label `1` for every query row.
@@ -409,6 +428,7 @@ mod tests {
 
         assert!(model.coefficients().data()[0] > 0.0);
         assert!(model.intercept().abs() < 1e-12);
+        assert!(model.training_loss().is_finite());
     }
 
     #[test]
@@ -421,6 +441,7 @@ mod tests {
 
         assert!(model.iterations() < config.max_iterations());
         assert!(model.converged());
+        assert!(model.training_loss().is_finite());
     }
 
     #[test]
@@ -433,6 +454,7 @@ mod tests {
 
         assert_eq!(model.iterations(), config.max_iterations());
         assert!(!model.converged());
+        assert!(model.training_loss().is_finite());
     }
 
     #[test]
@@ -531,6 +553,7 @@ mod tests {
             coefficients: NDArray::from_shape_vec([1], vec![1.0_f64]).unwrap(),
             iterations: 0,
             converged: false,
+            training_loss: 0.0,
         };
         let queries = NDArray::from_shape_vec([1, 1], vec![f64::NAN]).unwrap();
 
@@ -547,6 +570,7 @@ mod tests {
             coefficients: NDArray::from_shape_vec([2], vec![1.0_f64, 1.0]).unwrap(),
             iterations: 0,
             converged: false,
+            training_loss: 0.0,
         };
         let queries = NDArray::from_shape_vec([1, 1], vec![0.0_f64]).unwrap();
 
@@ -583,6 +607,7 @@ mod tests {
             coefficients: NDArray::from_shape_vec([1], vec![0.0_f64]).unwrap(),
             iterations: 0,
             converged: false,
+            training_loss: 0.0,
         };
         let query = NDArray::from_shape_vec([1, 1], vec![4.0_f64]).unwrap();
 
@@ -611,6 +636,7 @@ mod tests {
             coefficients: NDArray::from_shape_vec([1], vec![1.0_f64]).unwrap(),
             iterations: 0,
             converged: false,
+            training_loss: 0.0,
         };
 
         let predictions = model.predict(&NDArray::<f64>::zeros([0, 1]).unwrap()).unwrap();
@@ -626,6 +652,7 @@ mod tests {
             coefficients: NDArray::from_shape_vec([1], vec![1.0_f64]).unwrap(),
             iterations: 0,
             converged: false,
+            training_loss: 0.0,
         };
 
         assert!(model.predict_proba_one(&[1.0]).unwrap() > 0.5);
@@ -640,6 +667,7 @@ mod tests {
             coefficients: NDArray::from_shape_vec([2], vec![1.0_f64, 1.0]).unwrap(),
             iterations: 0,
             converged: false,
+            training_loss: 0.0,
         };
 
         assert_eq!(
@@ -660,6 +688,7 @@ mod tests {
             coefficients: NDArray::from_shape_vec([1], vec![1.0_f64]).unwrap(),
             iterations: 0,
             converged: false,
+            training_loss: 0.0,
         };
 
         assert_eq!(
@@ -677,6 +706,7 @@ mod tests {
             coefficients: NDArray::from_shape_vec([1], vec![0.0_f64]).unwrap(),
             iterations: 0,
             converged: false,
+            training_loss: 0.0,
         };
 
         assert_eq!(model.predict_one(&[4.0]).unwrap(), 1);
@@ -703,6 +733,7 @@ mod tests {
             coefficients: NDArray::from_shape_vec([1], vec![1.0_f64]).unwrap(),
             iterations: 0,
             converged: false,
+            training_loss: 0.0,
         };
         let features = NDArray::from_shape_vec([2, 1], vec![-1.0_f64, 1.0]).unwrap();
         let labels = NDArray::from_shape_vec([2], vec![0_usize, 0]).unwrap();
@@ -717,6 +748,7 @@ mod tests {
             coefficients: NDArray::from_shape_vec([1], vec![1.0_f64]).unwrap(),
             iterations: 0,
             converged: false,
+            training_loss: 0.0,
         };
         let features = NDArray::from_shape_vec([2, 1], vec![-1.0_f64, 1.0]).unwrap();
         let labels = NDArray::from_shape_vec([2], vec![0_usize, 2]).unwrap();
@@ -737,6 +769,7 @@ mod tests {
             coefficients: NDArray::from_shape_vec([1], vec![1.0_f64]).unwrap(),
             iterations: 0,
             converged: false,
+            training_loss: 0.0,
         };
         let features = NDArray::from_shape_vec([2, 1], vec![-1.0_f64, 1.0]).unwrap();
         let labels = NDArray::from_shape_vec([1], vec![0_usize]).unwrap();
