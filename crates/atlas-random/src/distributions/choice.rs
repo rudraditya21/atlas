@@ -15,6 +15,29 @@ pub fn choice_indices<R: RandomSource>(
         .and_then(|indices| NDArray::from_shape_vec([sample_count], indices).map_err(Into::into))
 }
 
+/// Samples `sample_count` indices from `0..population_size`, allowing repeated indices.
+pub fn choice_indices_with_replacement<R: RandomSource>(
+    population_size: usize,
+    sample_count: usize,
+    rng: &mut R,
+) -> AtlasRandomResult<NDArray<usize>> {
+    if sample_count == 0 {
+        return NDArray::from_shape_vec([0], Vec::new()).map_err(Into::into);
+    }
+    if population_size == 0 {
+        return Err(AtlasRandomError::InvalidArgument {
+            op: "choice_indices_with_replacement",
+            reason: "population size must be positive",
+        });
+    }
+
+    let mut indices = Vec::with_capacity(sample_count);
+    for _ in 0..sample_count {
+        indices.push(rng.sample_uniform(0_usize, population_size)?);
+    }
+    NDArray::from_shape_vec([sample_count], indices).map_err(Into::into)
+}
+
 /// Samples `sample_count` distinct logical positions from `input` without replacement.
 ///
 /// Duplicate source values can appear when they occupy different logical positions.
@@ -69,7 +92,9 @@ where
 mod tests {
     use atlas_ndarray::NDArray;
 
-    use crate::{AtlasRandomError, AtlasRng, choice, choice_indices};
+    use crate::{
+        AtlasRandomError, AtlasRng, choice, choice_indices, choice_indices_with_replacement,
+    };
 
     #[test]
     fn choice_indices_are_seeded_and_unique() {
@@ -115,5 +140,24 @@ mod tests {
 
         assert!(choice_indices(0, 0, &mut rng).unwrap().data().is_empty());
         assert!(choice(&values, 0, &mut rng).unwrap().data().is_empty());
+    }
+
+    #[test]
+    fn replacement_choice_indices_are_seeded_and_in_bounds() {
+        let mut left_rng = AtlasRng::seed_from_u64(37);
+        let mut right_rng = AtlasRng::seed_from_u64(37);
+        let left = choice_indices_with_replacement(3, 8, &mut left_rng).unwrap();
+        let right = choice_indices_with_replacement(3, 8, &mut right_rng).unwrap();
+
+        assert_eq!(left.data(), right.data());
+        assert!(left.data().iter().all(|&index| index < 3));
+    }
+
+    #[test]
+    fn replacement_choice_indices_support_zero_samples_and_singletons() {
+        let mut rng = AtlasRng::seed_from_u64(41);
+
+        assert!(choice_indices_with_replacement(4, 0, &mut rng).unwrap().data().is_empty());
+        assert_eq!(choice_indices_with_replacement(1, 4, &mut rng).unwrap().data(), &[0; 4]);
     }
 }
