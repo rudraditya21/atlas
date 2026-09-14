@@ -23,6 +23,7 @@ pub use factorization::{
     conjugate_gradient::{
         ConjugateGradientResult, conjugate_gradient, conjugate_gradient_with_diagnostics,
     },
+    eigen::{SymmetricEigenDecomposition, symmetric_eigendecomposition},
     lu::{LuFactorization, det, inverse, lu, slogdet, solve, solve_transpose},
     qr::{QrFactorization, least_squares, matrix_rank, qr},
 };

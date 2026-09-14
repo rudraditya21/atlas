@@ -1,7 +1,7 @@
 use atlas_linalg::{
     AtlasLinalgError, DotOutput, batched_diag, batched_dot, batched_transpose, conjugate_gradient,
     conjugate_gradient_with_diagnostics, dot, matmul, norm, solve_lower_triangular, solve_spd,
-    solve_upper_triangular, trace,
+    solve_upper_triangular, symmetric_eigendecomposition, trace,
 };
 use atlas_ndarray::NDArray;
 
@@ -275,6 +275,94 @@ fn conjugate_gradient_diagnostics_report_converged_and_limited_outcomes() {
     assert_eq!(limited.iterations(), 1);
     assert!(limited.residual_norm() > 1e-12);
     assert_eq!(limited.solution().shape(), &[3]);
+}
+
+#[test]
+fn symmetric_eigendecomposition_reconstructs_and_orthogonalizes() {
+    let matrix = NDArray::from_shape_vec([2, 2], vec![4.0_f64, 1.0, 1.0, 3.0]).unwrap();
+
+    let decomposition = symmetric_eigendecomposition(&matrix).unwrap();
+    let eigenvalues = decomposition.eigenvalues();
+    let eigenvectors = decomposition.eigenvectors();
+
+    assert!((eigenvalues.data()[0] - (7.0 - 5.0_f64.sqrt()) / 2.0).abs() < 1e-12);
+    assert!((eigenvalues.data()[1] - (7.0 + 5.0_f64.sqrt()) / 2.0).abs() < 1e-12);
+    for row in 0..2 {
+        for column in 0..2 {
+            let reconstructed = (0..2)
+                .map(|index| {
+                    eigenvectors.data()[row * 2 + index]
+                        * eigenvalues.data()[index]
+                        * eigenvectors.data()[column * 2 + index]
+                })
+                .sum::<f64>();
+            let orthogonality = (0..2)
+                .map(|index| {
+                    eigenvectors.data()[index * 2 + row] * eigenvectors.data()[index * 2 + column]
+                })
+                .sum::<f64>();
+
+            assert!((reconstructed - matrix.data()[row * 2 + column]).abs() < 1e-12);
+            assert!((orthogonality - if row == column { 1.0 } else { 0.0 }).abs() < 1e-12);
+        }
+    }
+}
+
+#[test]
+fn symmetric_eigendecomposition_handles_repeated_values_and_views() {
+    let repeated =
+        NDArray::from_shape_vec([3, 3], vec![2.0_f64, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 2.0])
+            .unwrap();
+    let view_source =
+        NDArray::from_shape_vec([2, 3], vec![4.0_f64, 1.0, 9.0, 1.0, 3.0, 9.0]).unwrap();
+
+    let repeated_decomposition = symmetric_eigendecomposition(&repeated).unwrap();
+    let view_decomposition =
+        symmetric_eigendecomposition(view_source.view().slice([0, 0], [2, 2]).unwrap()).unwrap();
+
+    assert_eq!(repeated_decomposition.eigenvalues().data(), &[2.0, 2.0, 2.0]);
+    for row in 0..3 {
+        for column in 0..3 {
+            let dot = (0..3)
+                .map(|index| {
+                    repeated_decomposition.eigenvectors().data()[index * 3 + row]
+                        * repeated_decomposition.eigenvectors().data()[index * 3 + column]
+                })
+                .sum::<f64>();
+            assert!((dot - if row == column { 1.0 } else { 0.0 }).abs() < 1e-12);
+        }
+    }
+    assert!(
+        (view_decomposition.eigenvalues().data()[0] - (7.0 - 5.0_f64.sqrt()) / 2.0).abs() < 1e-12
+    );
+    assert!(
+        (view_decomposition.eigenvalues().data()[1] - (7.0 + 5.0_f64.sqrt()) / 2.0).abs() < 1e-12
+    );
+}
+
+#[test]
+fn symmetric_eigendecomposition_rejects_invalid_matrices() {
+    let vector = NDArray::from_shape_vec([2], vec![1.0_f64, 2.0]).unwrap();
+    let non_square = NDArray::<f64>::zeros([2, 3]).unwrap();
+    let non_symmetric = NDArray::from_shape_vec([2, 2], vec![1.0_f64, 2.0, 3.0, 4.0]).unwrap();
+    let non_finite = NDArray::from_shape_vec([2, 2], vec![1.0_f64, 0.0, 0.0, f64::NAN]).unwrap();
+
+    assert!(matches!(
+        symmetric_eigendecomposition(&vector),
+        Err(AtlasLinalgError::InvalidInputRank { op: "symmetric_eigendecomposition", .. })
+    ));
+    assert!(matches!(
+        symmetric_eigendecomposition(&non_square),
+        Err(AtlasLinalgError::InvalidInputShape { op: "symmetric_eigendecomposition", .. })
+    ));
+    assert!(matches!(
+        symmetric_eigendecomposition(&non_symmetric),
+        Err(AtlasLinalgError::InvalidInputShape { op: "symmetric_eigendecomposition", .. })
+    ));
+    assert!(matches!(
+        symmetric_eigendecomposition(&non_finite),
+        Err(AtlasLinalgError::NonFiniteInput { op: "symmetric_eigendecomposition" })
+    ));
 }
 
 #[test]
