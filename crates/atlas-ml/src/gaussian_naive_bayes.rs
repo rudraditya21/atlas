@@ -2,11 +2,16 @@ use atlas_ndarray::{NDArray, OperandMetadata};
 
 use crate::{
     AtlasMlError, AtlasMlResult, LabelEncoder,
-    core::validation::{validate_finite_feature_values, validate_supervised_training_inputs},
+    core::validation::{
+        validate_finite_feature_values, validate_prediction_feature_inputs,
+        validate_supervised_training_inputs,
+    },
 };
 
 const CONFIG_OP: &str = "gaussian_naive_bayes_config";
 const FIT_OP: &str = "gaussian_naive_bayes_fit";
+const PREDICT_PROBA_OP: &str = "gaussian_naive_bayes_predict_proba";
+const PREDICT_OP: &str = "gaussian_naive_bayes_predict";
 const DEFAULT_VARIANCE_SMOOTHING: f64 = 1e-9;
 
 /// Configuration for Gaussian Naive Bayes.
@@ -129,6 +134,95 @@ impl GaussianNaiveBayes {
     pub fn variances(&self) -> &NDArray<f64> {
         &self.variances
     }
+
+    /// Returns the number of input features expected by this model.
+    pub fn feature_count(&self) -> usize {
+        self.means.shape()[1]
+    }
+
+    /// Predicts normalized class probabilities for every query row.
+    ///
+    /// Columns follow the ascending class order returned by [`Self::classes`].
+    pub fn predict_proba<Q>(&self, queries: &Q) -> AtlasMlResult<NDArray<f64>>
+    where
+        Q: OperandMetadata<f64> + ?Sized,
+    {
+        validate_prediction_feature_inputs(queries, self.feature_count(), PREDICT_PROBA_OP)?;
+        validate_finite_feature_values(queries, PREDICT_PROBA_OP)?;
+
+        let mut probabilities = Vec::with_capacity(queries.shape()[0] * self.classes.len());
+        for query_index in 0..queries.shape()[0] {
+            let scores = self.log_scores(queries, query_index);
+            probabilities.extend(normalize_log_scores(&scores));
+        }
+
+        Ok(NDArray::from_shape_vec([queries.shape()[0], self.classes.len()], probabilities)?)
+    }
+
+    /// Predicts the most probable class for every query row.
+    ///
+    /// Equal probabilities resolve to the lowest class label.
+    pub fn predict<Q>(&self, queries: &Q) -> AtlasMlResult<NDArray<usize>>
+    where
+        Q: OperandMetadata<f64> + ?Sized,
+    {
+        validate_prediction_feature_inputs(queries, self.feature_count(), PREDICT_OP)?;
+        validate_finite_feature_values(queries, PREDICT_OP)?;
+
+        let mut predictions = Vec::with_capacity(queries.shape()[0]);
+        for query_index in 0..queries.shape()[0] {
+            let scores = self.log_scores(queries, query_index);
+            let class_index = scores
+                .iter()
+                .enumerate()
+                .max_by(|(left_index, left), (right_index, right)| {
+                    left.total_cmp(right).then_with(|| right_index.cmp(left_index))
+                })
+                .map(|(index, _)| index)
+                .expect("a fitted Gaussian Naive Bayes model has at least one class");
+            predictions.push(self.classes[class_index]);
+        }
+
+        Ok(NDArray::from_shape_vec([queries.shape()[0]], predictions)?)
+    }
+
+    fn log_scores<Q>(&self, queries: &Q, query_index: usize) -> Vec<f64>
+    where
+        Q: OperandMetadata<f64> + ?Sized,
+    {
+        (0..self.classes.len())
+            .map(|class_index| {
+                (0..self.feature_count()).fold(
+                    self.class_priors.data()[class_index].ln(),
+                    |score, feature_index| {
+                        let index = class_index * self.feature_count() + feature_index;
+                        let variance = self.variances.data()[index];
+                        let difference =
+                            feature(queries, query_index, feature_index) - self.means.data()[index];
+                        if variance == 0.0 {
+                            if difference == 0.0 { score } else { f64::NEG_INFINITY }
+                        } else {
+                            score
+                                - 0.5
+                                    * ((2.0 * std::f64::consts::PI * variance).ln()
+                                        + difference * difference / variance)
+                        }
+                    },
+                )
+            })
+            .collect()
+    }
+}
+
+fn normalize_log_scores(log_scores: &[f64]) -> Vec<f64> {
+    let maximum = log_scores.iter().copied().fold(f64::NEG_INFINITY, f64::max);
+    if maximum == f64::NEG_INFINITY {
+        return vec![1.0 / log_scores.len() as f64; log_scores.len()];
+    }
+    let weights = log_scores.iter().map(|&score| (score - maximum).exp()).collect::<Vec<_>>();
+    let total = weights.iter().sum::<f64>();
+
+    weights.into_iter().map(|weight| weight / total).collect()
 }
 
 fn feature<F>(features: &F, sample_index: usize, feature_index: usize) -> f64
@@ -275,6 +369,105 @@ mod tests {
 
         assert_eq!(model.classes(), &[1, 3]);
         assert_close_slice(model.means().data(), &[0.5, 4.5]);
+    }
+
+    #[test]
+    fn predicts_separable_class_probabilities() {
+        let features = NDArray::from_shape_vec([4, 1], vec![0.0_f64, 0.2, 5.0, 5.2]).unwrap();
+        let labels = NDArray::from_shape_vec([4], vec![1_usize, 1, 4, 4]).unwrap();
+        let model = GaussianNaiveBayes::fit(
+            &features,
+            &labels,
+            GaussianNaiveBayesConfig::new(0.1).unwrap(),
+        )
+        .unwrap();
+        let queries = NDArray::from_shape_vec([2, 1], vec![0.1_f64, 5.1]).unwrap();
+
+        let probabilities = model.predict_proba(&queries).unwrap();
+
+        assert_eq!(probabilities.shape(), &[2, 2]);
+        assert!(probabilities.data()[0] > 0.999);
+        assert!(probabilities.data()[3] > 0.999);
+        assert_close(probabilities.data()[0] + probabilities.data()[1], 1.0);
+        assert_close(probabilities.data()[2] + probabilities.data()[3], 1.0);
+        assert_eq!(model.predict(&queries).unwrap().data(), &[1, 4]);
+    }
+
+    #[test]
+    fn resolves_equal_probabilities_by_lower_class_label() {
+        let features = NDArray::from_shape_vec([2, 1], vec![-1.0_f64, 1.0]).unwrap();
+        let labels = NDArray::from_shape_vec([2], vec![3_usize, 1]).unwrap();
+        let model = GaussianNaiveBayes::fit(
+            &features,
+            &labels,
+            GaussianNaiveBayesConfig::new(1.0).unwrap(),
+        )
+        .unwrap();
+        let query = NDArray::from_shape_vec([1, 1], vec![0.0_f64]).unwrap();
+
+        assert_close_slice(model.predict_proba(&query).unwrap().data(), &[0.5, 0.5]);
+        assert_eq!(model.predict(&query).unwrap().data(), &[1]);
+    }
+
+    #[test]
+    fn predicts_logical_query_views() {
+        let features = NDArray::from_shape_vec([4, 1], vec![0.0_f64, 0.2, 5.0, 5.2]).unwrap();
+        let labels = NDArray::from_shape_vec([4], vec![1_usize, 1, 4, 4]).unwrap();
+        let model = GaussianNaiveBayes::fit(
+            &features,
+            &labels,
+            GaussianNaiveBayesConfig::new(0.1).unwrap(),
+        )
+        .unwrap();
+        let queries = NDArray::from_shape_vec([1, 2], vec![0.1_f64, 5.1]).unwrap();
+
+        assert_eq!(model.predict(&queries.view().transpose()).unwrap().data(), &[1, 4]);
+    }
+
+    #[test]
+    fn predicts_empty_query_batches() {
+        let features = NDArray::from_shape_vec([2, 1], vec![0.0_f64, 1.0]).unwrap();
+        let labels = NDArray::from_shape_vec([2], vec![1_usize, 4]).unwrap();
+        let model =
+            GaussianNaiveBayes::fit(&features, &labels, GaussianNaiveBayesConfig::default())
+                .unwrap();
+        let queries = NDArray::<f64>::zeros([0, 1]).unwrap();
+
+        assert_eq!(model.predict_proba(&queries).unwrap().shape(), &[0, 2]);
+        assert_eq!(model.predict(&queries).unwrap().shape(), &[0]);
+    }
+
+    #[test]
+    fn rejects_prediction_width_mismatches() {
+        let features = NDArray::from_shape_vec([2, 1], vec![0.0_f64, 1.0]).unwrap();
+        let labels = NDArray::from_shape_vec([2], vec![1_usize, 4]).unwrap();
+        let model =
+            GaussianNaiveBayes::fit(&features, &labels, GaussianNaiveBayesConfig::default())
+                .unwrap();
+        let queries = NDArray::from_shape_vec([1, 2], vec![0.0_f64, 1.0]).unwrap();
+
+        assert_eq!(
+            model.predict_proba(&queries).map(|_| ()),
+            Err(AtlasMlError::ShapeMismatch {
+                op: "gaussian_naive_bayes_predict_proba",
+                left: vec![1, 2],
+                right: vec![1],
+                reason: "feature count must match training data",
+            })
+        );
+        assert_eq!(
+            model.predict(&queries).map(|_| ()),
+            Err(AtlasMlError::ShapeMismatch {
+                op: "gaussian_naive_bayes_predict",
+                left: vec![1, 2],
+                right: vec![1],
+                reason: "feature count must match training data",
+            })
+        );
+    }
+
+    fn assert_close(actual: f64, expected: f64) {
+        assert!((actual - expected).abs() < 1e-12);
     }
 
     fn assert_close_slice(actual: &[f64], expected: &[f64]) {
