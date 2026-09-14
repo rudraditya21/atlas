@@ -1,6 +1,7 @@
 use atlas_linalg::{
     AtlasLinalgError, DotOutput, batched_diag, batched_dot, batched_transpose, conjugate_gradient,
-    dot, matmul, norm, solve_lower_triangular, solve_spd, solve_upper_triangular, trace,
+    conjugate_gradient_with_diagnostics, dot, matmul, norm, solve_lower_triangular, solve_spd,
+    solve_upper_triangular, trace,
 };
 use atlas_ndarray::NDArray;
 
@@ -254,6 +255,26 @@ fn conjugate_gradient_reports_iteration_limits_and_invalid_matrices() {
         conjugate_gradient(&non_spd, &nonzero_rhs, 2, 1e-12),
         Err(AtlasLinalgError::NotPositiveDefinite { op: "conjugate_gradient", .. })
     ));
+}
+
+#[test]
+fn conjugate_gradient_diagnostics_report_converged_and_limited_outcomes() {
+    let matrix =
+        NDArray::from_shape_vec([3, 3], vec![4.0_f64, 1.0, 0.0, 1.0, 3.0, 1.0, 0.0, 1.0, 2.0])
+            .unwrap();
+    let rhs = NDArray::from_shape_vec([3], vec![6.0_f64, 10.0, 8.0]).unwrap();
+
+    let converged = conjugate_gradient_with_diagnostics(&matrix, &rhs, 3, 1e-12).unwrap();
+    let limited = conjugate_gradient_with_diagnostics(&matrix, &rhs, 1, 1e-12).unwrap();
+
+    assert!(converged.converged());
+    assert_eq!(converged.iterations(), 3);
+    assert!(converged.residual_norm() < 1e-12);
+    assert_eq!(converged.solution().data().len(), 3);
+    assert!(!limited.converged());
+    assert_eq!(limited.iterations(), 1);
+    assert!(limited.residual_norm() > 1e-12);
+    assert_eq!(limited.solution().shape(), &[3]);
 }
 
 #[test]

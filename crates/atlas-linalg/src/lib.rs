@@ -20,7 +20,9 @@ pub use dense::{
 };
 pub use factorization::{
     cholesky::{CholeskyFactorization, cholesky, solve_spd},
-    conjugate_gradient::conjugate_gradient,
+    conjugate_gradient::{
+        ConjugateGradientResult, conjugate_gradient, conjugate_gradient_with_diagnostics,
+    },
     lu::{LuFactorization, det, inverse, lu, slogdet, solve, solve_transpose},
     qr::{QrFactorization, least_squares, matrix_rank, qr},
 };

@@ -11,6 +11,32 @@ use crate::{
 
 const OP: &str = "conjugate_gradient";
 
+/// Solution and termination diagnostics from conjugate gradients.
+pub struct ConjugateGradientResult<T: Numeric> {
+    solution: NDArray<T>,
+    iterations: usize,
+    residual_norm: T,
+    converged: bool,
+}
+
+impl<T: Numeric> ConjugateGradientResult<T> {
+    pub fn solution(&self) -> &NDArray<T> {
+        &self.solution
+    }
+
+    pub const fn iterations(&self) -> usize {
+        self.iterations
+    }
+
+    pub fn residual_norm(&self) -> T {
+        self.residual_norm
+    }
+
+    pub const fn converged(&self) -> bool {
+        self.converged
+    }
+}
+
 /// Solves a symmetric positive-definite linear system with conjugate gradients.
 ///
 /// `tolerance` is the absolute Euclidean residual-norm threshold.
@@ -20,6 +46,29 @@ pub fn conjugate_gradient<'a, 'b, T, M, R>(
     max_iterations: usize,
     tolerance: T,
 ) -> AtlasLinalgResult<NDArray<T>>
+where
+    T: Numeric + Float + 'a + 'b,
+    M: Into<LinalgOperand<'a, T>>,
+    R: Into<LinalgOperand<'b, T>>,
+{
+    let result = conjugate_gradient_with_diagnostics(matrix, rhs, max_iterations, tolerance)?;
+    if result.converged {
+        Ok(result.solution)
+    } else {
+        Err(AtlasLinalgError::IterationLimit { op: OP, iterations: result.iterations })
+    }
+}
+
+/// Solves a symmetric positive-definite system and returns its termination diagnostics.
+///
+/// Unlike [`conjugate_gradient`], reaching `max_iterations` returns a result with
+/// `converged() == false` rather than an error.
+pub fn conjugate_gradient_with_diagnostics<'a, 'b, T, M, R>(
+    matrix: M,
+    rhs: R,
+    max_iterations: usize,
+    tolerance: T,
+) -> AtlasLinalgResult<ConjugateGradientResult<T>>
 where
     T: Numeric + Float + 'a + 'b,
     M: Into<LinalgOperand<'a, T>>,
@@ -81,7 +130,12 @@ where
     let mut direction = residual.clone();
     let mut residual_norm_squared = dot_slice(&residual, &residual);
     if residual_norm_squared.sqrt() <= tolerance {
-        return NDArray::from_shape_vec([rows], solution).map_err(Into::into);
+        return Ok(ConjugateGradientResult {
+            solution: NDArray::from_shape_vec([rows], solution)?,
+            iterations: 0,
+            residual_norm: residual_norm_squared.sqrt(),
+            converged: true,
+        });
     }
 
     for iteration in 0..max_iterations {
@@ -99,7 +153,12 @@ where
 
         let next_residual_norm_squared = dot_slice(&residual, &residual);
         if next_residual_norm_squared.sqrt() <= tolerance {
-            return NDArray::from_shape_vec([rows], solution).map_err(Into::into);
+            return Ok(ConjugateGradientResult {
+                solution: NDArray::from_shape_vec([rows], solution)?,
+                iterations: iteration + 1,
+                residual_norm: next_residual_norm_squared.sqrt(),
+                converged: true,
+            });
         }
         let beta = next_residual_norm_squared / residual_norm_squared;
         for index in 0..rows {
@@ -108,7 +167,12 @@ where
         residual_norm_squared = next_residual_norm_squared;
     }
 
-    Err(AtlasLinalgError::IterationLimit { op: OP, iterations: max_iterations })
+    Ok(ConjugateGradientResult {
+        solution: NDArray::from_shape_vec([rows], solution)?,
+        iterations: max_iterations,
+        residual_norm: residual_norm_squared.sqrt(),
+        converged: false,
+    })
 }
 
 fn logical_vector<T: Numeric>(vector: &LinalgOperand<'_, T>) -> Vec<T> {
