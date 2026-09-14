@@ -2,6 +2,7 @@
 
 mod core;
 mod knn;
+mod linear_regression;
 mod nearest_centroid;
 
 pub use core::{
@@ -20,4 +21,5 @@ pub use knn::{
     config::{AUTO_BRUTE_FORCE_MAX_SAMPLES, KnnConfig, KnnSearchAlgorithm, KnnWeighting},
     regressor::KnnRegressor,
 };
+pub use linear_regression::LinearRegression;
 pub use nearest_centroid::NearestCentroidClassifier;

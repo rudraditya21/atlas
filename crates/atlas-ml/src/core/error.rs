@@ -1,3 +1,4 @@
+use atlas_linalg::AtlasLinalgError;
 use atlas_ndarray::AtlasNdError;
 use thiserror::Error;
 
@@ -22,6 +23,9 @@ pub enum AtlasMlError {
 
     #[error(transparent)]
     NdArray(#[from] AtlasNdError),
+
+    #[error(transparent)]
+    Linalg(#[from] AtlasLinalgError),
 }
 
 #[cfg(test)]
