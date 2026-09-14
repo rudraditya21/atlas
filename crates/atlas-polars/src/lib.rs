@@ -108,10 +108,11 @@ pub fn from_polars_series<T: PolarsPrimitive>(series: &Series) -> AtlasPolarsRes
     Ok(NDArray::from_shape_vec([series.len()], values)?)
 }
 
-pub fn to_polars_dataframe<T: PolarsPrimitive>(
-    matrix: &NDArray<T>,
-    names: &[&str],
-) -> AtlasPolarsResult<DataFrame> {
+pub fn to_polars_dataframe<T, O>(matrix: &O, names: &[&str]) -> AtlasPolarsResult<DataFrame>
+where
+    T: PolarsPrimitive,
+    O: OperandMetadata<T> + ?Sized,
+{
     if matrix.ndim() != 2 {
         return Err(AtlasPolarsError::InvalidInputRank {
             op: "to_polars_dataframe",
@@ -132,7 +133,13 @@ pub fn to_polars_dataframe<T: PolarsPrimitive>(
                 names[column],
                 &NDArray::from_shape_vec(
                     [rows],
-                    (0..rows).map(|row| matrix.data()[row * columns + column]).collect(),
+                    (0..rows)
+                        .map(|row| {
+                            matrix.data()[matrix.offset()
+                                + row * matrix.strides()[0]
+                                + column * matrix.strides()[1]]
+                        })
+                        .collect(),
                 )?,
             )
             .map(Column::from)
@@ -213,5 +220,29 @@ mod tests {
         assert_eq!(frame.column("y").unwrap().dtype(), &DataType::Float64);
         assert_eq!(converted.shape(), &[2, 3]);
         assert_eq!(converted.data(), matrix.data());
+    }
+
+    #[test]
+    fn dataframe_conversion_uses_logical_matrix_view_values() {
+        let matrix = NDArray::from_shape_vec([2, 3], vec![1_i32, 2, 3, 4, 5, 6]).unwrap();
+        let transposed = matrix.view().transpose();
+        let sliced = matrix.view().slice([0, 1], [2, 2]).unwrap();
+        let empty = matrix.view().slice([0, 0], [0, 2]).unwrap();
+
+        let transposed_frame = to_polars_dataframe(&transposed, &["left", "right"]).unwrap();
+        let sliced_frame = to_polars_dataframe(&sliced, &["first", "second"]).unwrap();
+        let empty_frame = to_polars_dataframe(&empty, &["first", "second"]).unwrap();
+
+        assert_eq!(transposed_frame.shape(), (3, 2));
+        assert_eq!(transposed_frame.get_column_names()[0].as_str(), "left");
+        assert_eq!(transposed_frame.get_column_names()[1].as_str(), "right");
+        assert_eq!(transposed_frame.column("left").unwrap().dtype(), &DataType::Int32);
+        assert_eq!(
+            from_polars_dataframe::<i32>(&transposed_frame).unwrap().data(),
+            &[1, 4, 2, 5, 3, 6]
+        );
+        assert_eq!(from_polars_dataframe::<i32>(&sliced_frame).unwrap().data(), &[2, 3, 5, 6]);
+        assert_eq!(empty_frame.shape(), (0, 2));
+        assert_eq!(from_polars_dataframe::<i32>(&empty_frame).unwrap().shape(), &[0, 2]);
     }
 }
