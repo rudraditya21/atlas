@@ -24,6 +24,7 @@ pub struct LogisticRegressionConfig {
     learning_rate: f64,
     max_iterations: usize,
     convergence_tolerance: f64,
+    l2_regularization: f64,
 }
 
 impl LogisticRegressionConfig {
@@ -42,7 +43,7 @@ impl LogisticRegressionConfig {
         }
         validate_positive_finite(convergence_tolerance, "convergence tolerance must be positive")?;
 
-        Ok(Self { learning_rate, max_iterations, convergence_tolerance })
+        Ok(Self { learning_rate, max_iterations, convergence_tolerance, l2_regularization: 0.0 })
     }
 
     /// Returns the gradient-descent learning rate.
@@ -59,6 +60,18 @@ impl LogisticRegressionConfig {
     pub const fn convergence_tolerance(&self) -> f64 {
         self.convergence_tolerance
     }
+
+    /// Returns a configuration with a nonnegative L2 coefficient penalty.
+    pub fn with_l2_regularization(mut self, l2_regularization: f64) -> AtlasMlResult<Self> {
+        validate_nonnegative_finite(l2_regularization, "l2 regularization must be nonnegative")?;
+        self.l2_regularization = l2_regularization;
+        Ok(self)
+    }
+
+    /// Returns the L2 regularization strength applied to coefficients.
+    pub const fn l2_regularization(&self) -> f64 {
+        self.l2_regularization
+    }
 }
 
 impl Default for LogisticRegressionConfig {
@@ -67,6 +80,7 @@ impl Default for LogisticRegressionConfig {
             learning_rate: DEFAULT_LEARNING_RATE,
             max_iterations: DEFAULT_MAX_ITERATIONS,
             convergence_tolerance: DEFAULT_CONVERGENCE_TOLERANCE,
+            l2_regularization: 0.0,
         }
     }
 }
@@ -123,7 +137,10 @@ impl BinaryLogisticRegression {
             intercept -= intercept_update;
             let mut maximum_update = intercept_update.abs();
             for feature_index in 0..feature_count {
-                let update = scale * coefficient_gradients[feature_index];
+                let update = scale * coefficient_gradients[feature_index]
+                    + config.learning_rate()
+                        * config.l2_regularization()
+                        * coefficients[feature_index];
                 coefficients[feature_index] -= update;
                 maximum_update = maximum_update.max(update.abs());
             }
@@ -289,6 +306,17 @@ fn validate_positive_finite(value: f64, reason: &'static str) -> AtlasMlResult<(
     Ok(())
 }
 
+fn validate_nonnegative_finite(value: f64, reason: &'static str) -> AtlasMlResult<()> {
+    if !value.is_finite() {
+        return Err(AtlasMlError::NonFiniteInput { op: CONFIG_OP });
+    }
+    if value < 0.0 {
+        return Err(AtlasMlError::InvalidArgument { op: CONFIG_OP, reason });
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use atlas_ndarray::NDArray;
@@ -306,6 +334,7 @@ mod tests {
         assert_eq!(config.learning_rate(), DEFAULT_LEARNING_RATE);
         assert_eq!(config.max_iterations(), DEFAULT_MAX_ITERATIONS);
         assert_eq!(config.convergence_tolerance(), DEFAULT_CONVERGENCE_TOLERANCE);
+        assert_eq!(config.l2_regularization(), 0.0);
     }
 
     #[test]
@@ -349,6 +378,23 @@ mod tests {
         }
         assert_eq!(
             LogisticRegressionConfig::new(0.1, 1, f64::INFINITY),
+            Err(AtlasMlError::NonFiniteInput { op: "logistic_regression_config" })
+        );
+    }
+
+    #[test]
+    fn rejects_invalid_l2_regularization() {
+        let config = LogisticRegressionConfig::default();
+
+        assert_eq!(
+            config.with_l2_regularization(-0.1),
+            Err(AtlasMlError::InvalidArgument {
+                op: "logistic_regression_config",
+                reason: "l2 regularization must be nonnegative",
+            })
+        );
+        assert_eq!(
+            config.with_l2_regularization(f64::NAN),
             Err(AtlasMlError::NonFiniteInput { op: "logistic_regression_config" })
         );
     }
@@ -719,5 +765,59 @@ mod tests {
         .unwrap();
 
         assert_eq!(model.score(&features, &labels.view()).unwrap(), 1.0);
+    }
+
+    #[test]
+    fn l2_regularization_shrinks_coefficients() {
+        let features = NDArray::from_shape_vec([2, 1], vec![-1.0_f64, 1.0]).unwrap();
+        let labels = NDArray::from_shape_vec([2], vec![0_usize, 1]).unwrap();
+        let config = LogisticRegressionConfig::new(0.1, 500, 1e-12).unwrap();
+
+        let unregularized = BinaryLogisticRegression::fit(&features, &labels, config).unwrap();
+        let regularized = BinaryLogisticRegression::fit(
+            &features,
+            &labels,
+            config.with_l2_regularization(1.0).unwrap(),
+        )
+        .unwrap();
+
+        assert!(
+            regularized.coefficients().data()[0].abs()
+                < unregularized.coefficients().data()[0].abs()
+        );
+    }
+
+    #[test]
+    fn l2_regularization_does_not_penalize_the_intercept() {
+        let features = NDArray::from_shape_vec([2, 1], vec![0.0_f64, 0.0]).unwrap();
+        let labels = NDArray::from_shape_vec([2], vec![0_usize, 1]).unwrap();
+        let config = LogisticRegressionConfig::new(0.1, 100, 1e-12).unwrap();
+
+        let unregularized = BinaryLogisticRegression::fit(&features, &labels, config).unwrap();
+        let regularized = BinaryLogisticRegression::fit(
+            &features,
+            &labels,
+            config.with_l2_regularization(1.0).unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(regularized.intercept(), unregularized.intercept());
+    }
+
+    #[test]
+    fn l2_regularization_preserves_separable_predictions() {
+        let features = NDArray::from_shape_vec([4, 1], vec![-2.0_f64, -1.0, 1.0, 2.0]).unwrap();
+        let labels = NDArray::from_shape_vec([4], vec![0_usize, 0, 1, 1]).unwrap();
+        let model = BinaryLogisticRegression::fit(
+            &features,
+            &labels,
+            LogisticRegressionConfig::new(0.1, 1_000, 1e-6)
+                .unwrap()
+                .with_l2_regularization(0.01)
+                .unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(model.predict(&features).unwrap().data(), labels.data());
     }
 }
