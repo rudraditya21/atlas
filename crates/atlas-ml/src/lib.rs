@@ -13,8 +13,8 @@ pub use core::{
     k_fold::{KFold, k_fold_split},
     label_encoder::LabelEncoder,
     metrics::{
-        classification_accuracy, coefficient_of_determination, mean_absolute_error,
-        mean_squared_error,
+        binary_log_loss, classification_accuracy, coefficient_of_determination,
+        mean_absolute_error, mean_squared_error,
     },
     min_max_scaler::MinMaxScaler,
     standard_scaler::StandardScaler,

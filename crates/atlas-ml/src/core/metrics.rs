@@ -6,6 +6,7 @@ const ACCURACY_OP: &str = "classification_accuracy";
 const MAE_OP: &str = "mean_absolute_error";
 const MSE_OP: &str = "mean_squared_error";
 const R_SQUARED_OP: &str = "coefficient_of_determination";
+const BINARY_LOG_LOSS_OP: &str = "binary_log_loss";
 
 /// Returns the fraction of matching labels in two rank-1 label vectors.
 pub fn classification_accuracy<T, A, P>(actual: &A, predicted: &P) -> AtlasMlResult<f64>
@@ -21,6 +22,25 @@ where
         .count();
 
     Ok(matches as f64 / actual.shape()[0] as f64)
+}
+
+/// Returns mean binary cross-entropy for `0`/`1` labels and positive-class probabilities.
+///
+/// Correct boundary probabilities have zero loss; impossible observed outcomes have infinite loss.
+pub fn binary_log_loss<A, P>(actual: &A, probabilities: &P) -> AtlasMlResult<f64>
+where
+    A: OperandMetadata<usize> + ?Sized,
+    P: OperandMetadata<f64> + ?Sized,
+{
+    validate_binary_probability_vectors(actual, probabilities)?;
+
+    Ok((0..actual.shape()[0])
+        .map(|index| {
+            let probability = value(probabilities, index);
+            if label(actual, index) == 0 { -(-probability).ln_1p() } else { -probability.ln() }
+        })
+        .sum::<f64>()
+        / actual.shape()[0] as f64)
 }
 
 /// Returns the mean absolute error between two rank-1 target vectors.
@@ -122,6 +142,59 @@ where
     Ok(())
 }
 
+fn validate_binary_probability_vectors<A, P>(actual: &A, probabilities: &P) -> AtlasMlResult<()>
+where
+    A: OperandMetadata<usize> + ?Sized,
+    P: OperandMetadata<f64> + ?Sized,
+{
+    if actual.ndim() != 1 {
+        return Err(AtlasMlError::InvalidInputRank {
+            op: BINARY_LOG_LOSS_OP,
+            expected: "a rank-1 actual label vector",
+            rank: actual.ndim(),
+        });
+    }
+    if probabilities.ndim() != 1 {
+        return Err(AtlasMlError::InvalidInputRank {
+            op: BINARY_LOG_LOSS_OP,
+            expected: "a rank-1 probability vector",
+            rank: probabilities.ndim(),
+        });
+    }
+    if actual.shape() != probabilities.shape() {
+        return Err(AtlasMlError::ShapeMismatch {
+            op: BINARY_LOG_LOSS_OP,
+            left: actual.shape().to_vec(),
+            right: probabilities.shape().to_vec(),
+            reason: "label and probability counts must match",
+        });
+    }
+    if actual.shape()[0] == 0 {
+        return Err(AtlasMlError::EmptyInput { op: BINARY_LOG_LOSS_OP });
+    }
+
+    for index in 0..actual.shape()[0] {
+        if label(actual, index) > 1 {
+            return Err(AtlasMlError::InvalidArgument {
+                op: BINARY_LOG_LOSS_OP,
+                reason: "labels must be binary values 0 or 1",
+            });
+        }
+        let probability = value(probabilities, index);
+        if !probability.is_finite() {
+            return Err(AtlasMlError::NonFiniteInput { op: BINARY_LOG_LOSS_OP });
+        }
+        if !(0.0..=1.0).contains(&probability) {
+            return Err(AtlasMlError::InvalidArgument {
+                op: BINARY_LOG_LOSS_OP,
+                reason: "probabilities must be within [0, 1]",
+            });
+        }
+    }
+
+    Ok(())
+}
+
 fn label<T, O>(labels: &O, index: usize) -> T
 where
     T: ArrayElement,
@@ -181,8 +254,8 @@ mod tests {
     use atlas_ndarray::NDArray;
 
     use super::{
-        classification_accuracy, coefficient_of_determination, mean_absolute_error,
-        mean_squared_error,
+        binary_log_loss, classification_accuracy, coefficient_of_determination,
+        mean_absolute_error, mean_squared_error,
     };
     use crate::AtlasMlError;
 
@@ -194,6 +267,63 @@ mod tests {
 
         assert_eq!(classification_accuracy(&actual, &exact), Ok(1.0));
         assert_eq!(classification_accuracy(&actual, &partial), Ok(0.5));
+    }
+
+    #[test]
+    fn reports_known_binary_log_loss() {
+        let actual = NDArray::from_shape_vec([2], vec![0_usize, 1]).unwrap();
+        let probabilities = NDArray::from_shape_vec([2], vec![0.25_f64, 0.75]).unwrap();
+
+        assert_close(binary_log_loss(&actual, &probabilities).unwrap(), -0.75_f64.ln());
+    }
+
+    #[test]
+    fn handles_binary_log_loss_probability_boundaries() {
+        let actual = NDArray::from_shape_vec([2], vec![0_usize, 1]).unwrap();
+        let correct = NDArray::from_shape_vec([2], vec![0.0_f64, 1.0]).unwrap();
+        let incorrect = NDArray::from_shape_vec([2], vec![1.0_f64, 0.0]).unwrap();
+
+        assert_eq!(binary_log_loss(&actual, &correct), Ok(0.0));
+        assert!(binary_log_loss(&actual, &incorrect).unwrap().is_infinite());
+    }
+
+    #[test]
+    fn binary_log_loss_rejects_invalid_labels_and_probabilities() {
+        let invalid_labels = NDArray::from_shape_vec([1], vec![2_usize]).unwrap();
+        let finite_probability = NDArray::from_shape_vec([1], vec![0.5_f64]).unwrap();
+        let valid_labels = NDArray::from_shape_vec([1], vec![1_usize]).unwrap();
+        let non_finite_probability = NDArray::from_shape_vec([1], vec![f64::NAN]).unwrap();
+        let out_of_range_probability = NDArray::from_shape_vec([1], vec![1.1_f64]).unwrap();
+
+        assert_eq!(
+            binary_log_loss(&invalid_labels, &finite_probability),
+            Err(AtlasMlError::InvalidArgument {
+                op: "binary_log_loss",
+                reason: "labels must be binary values 0 or 1",
+            })
+        );
+        assert_eq!(
+            binary_log_loss(&valid_labels, &non_finite_probability),
+            Err(AtlasMlError::NonFiniteInput { op: "binary_log_loss" })
+        );
+        assert_eq!(
+            binary_log_loss(&valid_labels, &out_of_range_probability),
+            Err(AtlasMlError::InvalidArgument {
+                op: "binary_log_loss",
+                reason: "probabilities must be within [0, 1]",
+            })
+        );
+    }
+
+    #[test]
+    fn binary_log_loss_supports_logical_views() {
+        let actual = NDArray::from_shape_vec([2], vec![0_usize, 1]).unwrap();
+        let probabilities = NDArray::from_shape_vec([2], vec![0.25_f64, 0.75]).unwrap();
+
+        assert_close(
+            binary_log_loss(&actual.view(), &probabilities.view()).unwrap(),
+            -0.75_f64.ln(),
+        );
     }
 
     #[test]
@@ -326,5 +456,9 @@ mod tests {
                 reason: "target counts must match",
             })
         );
+    }
+
+    fn assert_close(actual: f64, expected: f64) {
+        assert!((actual - expected).abs() < 1e-12);
     }
 }
