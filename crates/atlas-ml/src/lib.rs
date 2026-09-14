@@ -27,6 +27,6 @@ pub use knn::{
     regressor::KnnRegressor,
 };
 pub use linear_regression::LinearRegression;
-pub use logistic_regression::LogisticRegressionConfig;
+pub use logistic_regression::{BinaryLogisticRegression, LogisticRegressionConfig};
 pub use nearest_centroid::NearestCentroidClassifier;
 pub use ridge_regression::{RidgeRegression, RidgeRegressionConfig};
