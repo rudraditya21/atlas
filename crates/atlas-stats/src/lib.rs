@@ -22,5 +22,5 @@ pub use descriptive::{
     skewness::skewness,
     stddev::{stddev, stddev_ddof},
     variance::{variance, variance_ddof},
-    weighted::{weighted_covariance, weighted_mean, weighted_variance},
+    weighted::{weighted_correlation, weighted_covariance, weighted_mean, weighted_variance},
 };
