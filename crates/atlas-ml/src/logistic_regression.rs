@@ -4,13 +4,15 @@ use crate::{
     AtlasMlError, AtlasMlResult,
     core::validation::{
         validate_finite_feature_values, validate_prediction_feature_inputs,
-        validate_supervised_training_inputs,
+        validate_prediction_feature_row, validate_supervised_training_inputs,
     },
 };
 
 const CONFIG_OP: &str = "logistic_regression_config";
 const FIT_OP: &str = "binary_logistic_regression_fit";
 const PREDICT_PROBA_OP: &str = "binary_logistic_regression_predict_proba";
+const PREDICT_PROBA_ONE_OP: &str = "binary_logistic_regression_predict_proba_one";
+const PREDICT_OP: &str = "binary_logistic_regression_predict";
 const DEFAULT_LEARNING_RATE: f64 = 0.1;
 const DEFAULT_MAX_ITERATIONS: usize = 1_000;
 const DEFAULT_CONVERGENCE_TOLERANCE: f64 = 1e-6;
@@ -163,17 +165,26 @@ impl BinaryLogisticRegression {
         validate_prediction_feature_inputs(queries, self.feature_count(), PREDICT_PROBA_OP)?;
         validate_finite_feature_values(queries, PREDICT_PROBA_OP)?;
 
+        let mut query = vec![0.0; self.feature_count()];
         let mut probabilities = Vec::with_capacity(queries.shape()[0]);
         for sample_index in 0..queries.shape()[0] {
-            let logit = (0..self.feature_count()).fold(self.intercept, |total, feature_index| {
-                total
-                    + feature(queries, sample_index, feature_index)
-                        * self.coefficients.data()[feature_index]
-            });
-            probabilities.push(sigmoid(logit));
+            copy_feature_row(queries, sample_index, &mut query);
+            probabilities.push(self.predict_proba_one(&query)?);
         }
 
         Ok(NDArray::from_shape_vec([queries.shape()[0]], probabilities)?)
+    }
+
+    /// Predicts the probability of label `1` for one feature row.
+    pub fn predict_proba_one(&self, query: &[f64]) -> AtlasMlResult<f64> {
+        validate_prediction_feature_row(query, self.feature_count(), PREDICT_PROBA_ONE_OP)?;
+
+        Ok(sigmoid(
+            query
+                .iter()
+                .zip(self.coefficients.data())
+                .fold(self.intercept, |total, (&value, &coefficient)| total + value * coefficient),
+        ))
     }
 
     /// Predicts label `1` for probabilities greater than or equal to `0.5`, otherwise `0`.
@@ -181,15 +192,22 @@ impl BinaryLogisticRegression {
     where
         Q: OperandMetadata<f64> + ?Sized,
     {
-        let probabilities = self.predict_proba(queries)?;
-        Ok(NDArray::from_shape_vec(
-            [probabilities.shape()[0]],
-            probabilities
-                .data()
-                .iter()
-                .map(|&probability| if probability >= 0.5 { 1 } else { 0 })
-                .collect(),
-        )?)
+        validate_prediction_feature_inputs(queries, self.feature_count(), PREDICT_OP)?;
+        validate_finite_feature_values(queries, PREDICT_OP)?;
+
+        let mut query = vec![0.0; self.feature_count()];
+        let mut predictions = Vec::with_capacity(queries.shape()[0]);
+        for sample_index in 0..queries.shape()[0] {
+            copy_feature_row(queries, sample_index, &mut query);
+            predictions.push(self.predict_one(&query)?);
+        }
+
+        Ok(NDArray::from_shape_vec([queries.shape()[0]], predictions)?)
+    }
+
+    /// Predicts label `1` when its probability is at least `0.5`, otherwise `0`.
+    pub fn predict_one(&self, query: &[f64]) -> AtlasMlResult<usize> {
+        Ok(if self.predict_proba_one(query)? >= 0.5 { 1 } else { 0 })
     }
 }
 
@@ -214,6 +232,15 @@ where
     features.data()[features.offset()
         + sample_index * features.strides()[0]
         + feature_index * features.strides()[1]]
+}
+
+fn copy_feature_row<F>(features: &F, sample_index: usize, destination: &mut [f64])
+where
+    F: OperandMetadata<f64> + ?Sized,
+{
+    for (feature_index, value) in destination.iter_mut().enumerate() {
+        *value = feature(features, sample_index, feature_index);
+    }
 }
 
 fn label<L>(labels: &L, sample_index: usize) -> usize
@@ -508,5 +535,64 @@ mod tests {
 
         assert_eq!(predictions.shape(), &[0]);
         assert!(predictions.data().is_empty());
+    }
+
+    #[test]
+    fn predicts_single_query_probabilities_and_classes() {
+        let model = BinaryLogisticRegression {
+            intercept: 0.0,
+            coefficients: NDArray::from_shape_vec([1], vec![1.0_f64]).unwrap(),
+            iterations: 0,
+        };
+
+        assert!(model.predict_proba_one(&[1.0]).unwrap() > 0.5);
+        assert_eq!(model.predict_one(&[-1.0]).unwrap(), 0);
+        assert_eq!(model.predict_one(&[1.0]).unwrap(), 1);
+    }
+
+    #[test]
+    fn rejects_single_query_width_mismatches() {
+        let model = BinaryLogisticRegression {
+            intercept: 0.0,
+            coefficients: NDArray::from_shape_vec([2], vec![1.0_f64, 1.0]).unwrap(),
+            iterations: 0,
+        };
+
+        assert_eq!(
+            model.predict_proba_one(&[1.0]).map(|_| ()),
+            Err(AtlasMlError::ShapeMismatch {
+                op: "binary_logistic_regression_predict_proba_one",
+                left: vec![1],
+                right: vec![2],
+                reason: "feature count must match training data",
+            })
+        );
+    }
+
+    #[test]
+    fn rejects_non_finite_single_queries() {
+        let model = BinaryLogisticRegression {
+            intercept: 0.0,
+            coefficients: NDArray::from_shape_vec([1], vec![1.0_f64]).unwrap(),
+            iterations: 0,
+        };
+
+        assert_eq!(
+            model.predict_proba_one(&[f64::NAN]).map(|_| ()),
+            Err(AtlasMlError::NonFiniteInput {
+                op: "binary_logistic_regression_predict_proba_one",
+            })
+        );
+    }
+
+    #[test]
+    fn predicts_the_positive_class_at_the_single_query_threshold() {
+        let model = BinaryLogisticRegression {
+            intercept: 0.0,
+            coefficients: NDArray::from_shape_vec([1], vec![0.0_f64]).unwrap(),
+            iterations: 0,
+        };
+
+        assert_eq!(model.predict_one(&[4.0]).unwrap(), 1);
     }
 }
