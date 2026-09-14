@@ -2,11 +2,15 @@ use atlas_ndarray::{NDArray, OperandMetadata};
 
 use crate::{
     AtlasMlError, AtlasMlResult,
-    core::validation::{validate_finite_feature_values, validate_supervised_training_inputs},
+    core::validation::{
+        validate_finite_feature_values, validate_prediction_feature_inputs,
+        validate_supervised_training_inputs,
+    },
 };
 
 const CONFIG_OP: &str = "logistic_regression_config";
 const FIT_OP: &str = "binary_logistic_regression_fit";
+const PREDICT_PROBA_OP: &str = "binary_logistic_regression_predict_proba";
 const DEFAULT_LEARNING_RATE: f64 = 0.1;
 const DEFAULT_MAX_ITERATIONS: usize = 1_000;
 const DEFAULT_CONVERGENCE_TOLERANCE: f64 = 1e-6;
@@ -141,9 +145,35 @@ impl BinaryLogisticRegression {
         &self.coefficients
     }
 
+    /// Returns the number of input features expected by this model.
+    pub fn feature_count(&self) -> usize {
+        self.coefficients.shape()[0]
+    }
+
     /// Returns the number of gradient-descent iterations performed during fitting.
     pub const fn iterations(&self) -> usize {
         self.iterations
+    }
+
+    /// Predicts the probability of label `1` for every query row.
+    pub fn predict_proba<Q>(&self, queries: &Q) -> AtlasMlResult<NDArray<f64>>
+    where
+        Q: OperandMetadata<f64> + ?Sized,
+    {
+        validate_prediction_feature_inputs(queries, self.feature_count(), PREDICT_PROBA_OP)?;
+        validate_finite_feature_values(queries, PREDICT_PROBA_OP)?;
+
+        let mut probabilities = Vec::with_capacity(queries.shape()[0]);
+        for sample_index in 0..queries.shape()[0] {
+            let logit = (0..self.feature_count()).fold(self.intercept, |total, feature_index| {
+                total
+                    + feature(queries, sample_index, feature_index)
+                        * self.coefficients.data()[feature_index]
+            });
+            probabilities.push(sigmoid(logit));
+        }
+
+        Ok(NDArray::from_shape_vec([queries.shape()[0]], probabilities)?)
     }
 }
 
@@ -321,5 +351,90 @@ mod tests {
         let model = BinaryLogisticRegression::fit(&features, &labels.view(), config).unwrap();
 
         assert!(model.coefficients().data()[0] > 0.0);
+    }
+
+    #[test]
+    fn predicts_probabilities_for_separable_queries() {
+        let features = NDArray::from_shape_vec([4, 1], vec![-2.0_f64, -1.0, 1.0, 2.0]).unwrap();
+        let labels = NDArray::from_shape_vec([4], vec![0_usize, 0, 1, 1]).unwrap();
+        let model = BinaryLogisticRegression::fit(
+            &features,
+            &labels,
+            LogisticRegressionConfig::new(0.5, 1_000, 1e-6).unwrap(),
+        )
+        .unwrap();
+        let queries = NDArray::from_shape_vec([2, 1], vec![-1.5_f64, 1.5]).unwrap();
+
+        let probabilities = model.predict_proba(&queries).unwrap();
+
+        assert!(probabilities.data()[0] < 0.5);
+        assert!(probabilities.data()[1] > 0.5);
+    }
+
+    #[test]
+    fn predicts_probabilities_for_logical_views() {
+        let features = NDArray::from_shape_vec([4, 1], vec![-2.0_f64, -1.0, 1.0, 2.0]).unwrap();
+        let labels = NDArray::from_shape_vec([4], vec![0_usize, 0, 1, 1]).unwrap();
+        let model = BinaryLogisticRegression::fit(
+            &features,
+            &labels,
+            LogisticRegressionConfig::new(0.5, 1_000, 1e-6).unwrap(),
+        )
+        .unwrap();
+        let queries = NDArray::from_shape_vec([1, 2], vec![-1.5_f64, 1.5]).unwrap();
+
+        let probabilities = model.predict_proba(&queries.view().transpose()).unwrap();
+
+        assert!(probabilities.data()[0] < 0.5);
+        assert!(probabilities.data()[1] > 0.5);
+    }
+
+    #[test]
+    fn predicts_empty_probability_batches() {
+        let features = NDArray::from_shape_vec([2, 1], vec![0.0_f64, 1.0]).unwrap();
+        let labels = NDArray::from_shape_vec([2], vec![0_usize, 1]).unwrap();
+        let model =
+            BinaryLogisticRegression::fit(&features, &labels, LogisticRegressionConfig::default())
+                .unwrap();
+
+        let probabilities = model.predict_proba(&NDArray::<f64>::zeros([0, 1]).unwrap()).unwrap();
+
+        assert_eq!(probabilities.shape(), &[0]);
+        assert!(probabilities.data().is_empty());
+    }
+
+    #[test]
+    fn rejects_non_finite_probability_queries() {
+        let model = BinaryLogisticRegression {
+            intercept: 0.0,
+            coefficients: NDArray::from_shape_vec([1], vec![1.0_f64]).unwrap(),
+            iterations: 0,
+        };
+        let queries = NDArray::from_shape_vec([1, 1], vec![f64::NAN]).unwrap();
+
+        assert_eq!(
+            model.predict_proba(&queries).map(|_| ()),
+            Err(AtlasMlError::NonFiniteInput { op: "binary_logistic_regression_predict_proba" })
+        );
+    }
+
+    #[test]
+    fn rejects_probability_query_width_mismatches() {
+        let model = BinaryLogisticRegression {
+            intercept: 0.0,
+            coefficients: NDArray::from_shape_vec([2], vec![1.0_f64, 1.0]).unwrap(),
+            iterations: 0,
+        };
+        let queries = NDArray::from_shape_vec([1, 1], vec![0.0_f64]).unwrap();
+
+        assert_eq!(
+            model.predict_proba(&queries).map(|_| ()),
+            Err(AtlasMlError::ShapeMismatch {
+                op: "binary_logistic_regression_predict_proba",
+                left: vec![1, 1],
+                right: vec![2],
+                reason: "feature count must match training data",
+            })
+        );
     }
 }
