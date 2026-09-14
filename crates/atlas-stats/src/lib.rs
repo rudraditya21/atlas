@@ -11,7 +11,7 @@ pub use descriptive::{
         stddev_axis, stddev_axis_ddof, stddev_axis_keepdims, stddev_axis_keepdims_ddof,
         variance_axis, variance_axis_ddof, variance_axis_keepdims, variance_axis_keepdims_ddof,
     },
-    correlation::correlation,
+    correlation::{correlation, correlation_axis},
     correlation_matrix::correlation_matrix,
     covariance::{covariance, covariance_axis, covariance_axis_ddof, covariance_ddof},
     covariance_matrix::{covariance_matrix, covariance_matrix_ddof},
