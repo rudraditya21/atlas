@@ -91,8 +91,33 @@ mod tests {
             AtlasRandomError::InvalidArgument { op: "categorical", .. }
         ));
         assert!(matches!(
+            categorical([1], &[1.0, f64::NAN], &mut rng).unwrap_err(),
+            AtlasRandomError::InvalidArgument { op: "categorical", .. }
+        ));
+        assert!(matches!(
             categorical([1], &[0.0, 0.0], &mut rng).unwrap_err(),
             AtlasRandomError::InvalidArgument { op: "categorical", .. }
         ));
+    }
+
+    #[test]
+    fn categorical_never_selects_zero_weight_categories() {
+        let mut rng = AtlasRng::seed_from_u64(67);
+        let samples = categorical([32], &[0.0, 1.0, 0.0], &mut rng).unwrap();
+
+        assert!(samples.data().iter().all(|&sample| sample == 1));
+    }
+
+    #[test]
+    fn categorical_respects_certain_probabilities() {
+        let mut rng = AtlasRng::seed_from_u64(71);
+
+        assert!(
+            categorical([16], &[1.0, 0.0], &mut rng)
+                .unwrap()
+                .data()
+                .iter()
+                .all(|&sample| sample == 0)
+        );
     }
 }
