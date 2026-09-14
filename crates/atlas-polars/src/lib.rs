@@ -175,6 +175,9 @@ pub fn from_polars_dataframe<T: PolarsPrimitive>(
 
 #[cfg(test)]
 mod tests {
+    use atlas_arrow::{
+        from_arrow_primitive, from_arrow_record_batch, to_arrow_primitive, to_arrow_record_batch,
+    };
     use atlas_ndarray::{NDArray, SliceRange};
     use polars::prelude::DataType;
 
@@ -244,5 +247,55 @@ mod tests {
         assert_eq!(from_polars_dataframe::<i32>(&sliced_frame).unwrap().data(), &[2, 3, 5, 6]);
         assert_eq!(empty_frame.shape(), (0, 2));
         assert_eq!(from_polars_dataframe::<i32>(&empty_frame).unwrap().shape(), &[0, 2]);
+    }
+
+    #[test]
+    fn arrow_and_polars_conversions_match_equivalent_logical_arrays() {
+        let vector_source = NDArray::from_shape_vec([5], vec![0_i32, 1, 2, 3, 4]).unwrap();
+        let vector_view =
+            vector_source.view().slice_ranges([SliceRange::new(Some(1), Some(5), 2)]).unwrap();
+        let vector = NDArray::from_shape_vec([2], vec![1_i32, 3]).unwrap();
+
+        assert_eq!(
+            from_arrow_primitive::<i32>(&to_arrow_primitive(&vector_view).unwrap()).unwrap().data(),
+            from_arrow_primitive::<i32>(&to_arrow_primitive(&vector).unwrap()).unwrap().data()
+        );
+        assert_eq!(
+            from_polars_series::<i32>(&to_polars_series("values", &vector_view).unwrap())
+                .unwrap()
+                .data(),
+            from_polars_series::<i32>(&to_polars_series("values", &vector).unwrap())
+                .unwrap()
+                .data()
+        );
+
+        let matrix_source = NDArray::from_shape_vec([2, 3], vec![1_i32, 2, 3, 4, 5, 6]).unwrap();
+        let matrix_view = matrix_source.view().transpose();
+        let matrix = NDArray::from_shape_vec([3, 2], vec![1_i32, 4, 2, 5, 3, 6]).unwrap();
+
+        assert_eq!(
+            from_arrow_record_batch::<i32>(
+                &to_arrow_record_batch(&matrix_view, &["left", "right"]).unwrap(),
+            )
+            .unwrap()
+            .data(),
+            from_arrow_record_batch::<i32>(
+                &to_arrow_record_batch(&matrix, &["left", "right"]).unwrap(),
+            )
+            .unwrap()
+            .data()
+        );
+        assert_eq!(
+            from_polars_dataframe::<i32>(
+                &to_polars_dataframe(&matrix_view, &["left", "right"]).unwrap(),
+            )
+            .unwrap()
+            .data(),
+            from_polars_dataframe::<i32>(
+                &to_polars_dataframe(&matrix, &["left", "right"]).unwrap(),
+            )
+            .unwrap()
+            .data()
+        );
     }
 }
