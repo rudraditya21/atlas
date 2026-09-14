@@ -2,7 +2,7 @@ use atlas_linalg::qr;
 use atlas_ndarray::{NDArray, OperandMetadata};
 
 use crate::{
-    AtlasMlResult,
+    AtlasMlResult, coefficient_of_determination,
     core::validation::{
         validate_finite_feature_values, validate_finite_target_values,
         validate_prediction_feature_inputs, validate_supervised_training_inputs,
@@ -77,6 +77,16 @@ impl LinearRegression {
         }
 
         Ok(NDArray::from_shape_vec([features.shape()[0]], predictions)?)
+    }
+
+    /// Returns the coefficient of determination (R²) for the provided samples.
+    pub fn score<F, T>(&self, features: &F, targets: &T) -> AtlasMlResult<f64>
+    where
+        F: OperandMetadata<f64> + ?Sized,
+        T: OperandMetadata<f64> + ?Sized,
+    {
+        let predictions = self.predict(features)?;
+        coefficient_of_determination(targets, &predictions)
     }
 }
 
@@ -191,6 +201,61 @@ mod tests {
                 left: vec![2, 1],
                 right: vec![1],
                 reason: "sample counts must match",
+            })
+        );
+    }
+
+    #[test]
+    fn scores_perfect_training_data() {
+        let features = NDArray::from_shape_vec([3, 1], vec![0.0_f64, 1.0, 2.0]).unwrap();
+        let targets = NDArray::from_shape_vec([3], vec![1.0_f64, 3.0, 5.0]).unwrap();
+        let model = LinearRegression::fit(&features, &targets).unwrap();
+
+        assert_close(model.score(&features, &targets).unwrap(), 1.0);
+    }
+
+    #[test]
+    fn scores_held_out_data() {
+        let features = NDArray::from_shape_vec([3, 1], vec![0.0_f64, 1.0, 2.0]).unwrap();
+        let targets = NDArray::from_shape_vec([3], vec![1.0_f64, 3.0, 5.0]).unwrap();
+        let model = LinearRegression::fit(&features, &targets).unwrap();
+        let held_out_features = NDArray::from_shape_vec([2, 1], vec![3.0_f64, 4.0]).unwrap();
+        let held_out_targets = NDArray::from_shape_vec([2], vec![7.0_f64, 10.0]).unwrap();
+
+        assert_close(model.score(&held_out_features, &held_out_targets).unwrap(), 7.0 / 9.0);
+    }
+
+    #[test]
+    fn scores_feature_and_target_views() {
+        let training_features = NDArray::from_shape_vec([3, 1], vec![0.0_f64, 1.0, 2.0]).unwrap();
+        let training_targets = NDArray::from_shape_vec([3], vec![1.0_f64, 3.0, 5.0]).unwrap();
+        let model = LinearRegression::fit(&training_features, &training_targets).unwrap();
+        let features = NDArray::from_shape_vec([1, 2], vec![3.0_f64, 4.0]).unwrap();
+        let targets = NDArray::from_shape_vec([2], vec![7.0_f64, 9.0]).unwrap();
+
+        assert_close(model.score(&features.view().transpose(), &targets.view()).unwrap(), 1.0);
+    }
+
+    #[test]
+    fn rejects_invalid_score_targets() {
+        let features = NDArray::from_shape_vec([2, 1], vec![0.0_f64, 1.0]).unwrap();
+        let targets = NDArray::from_shape_vec([2], vec![1.0_f64, 3.0]).unwrap();
+        let model = LinearRegression::fit(&features, &targets).unwrap();
+        let query = NDArray::from_shape_vec([1, 1], vec![2.0_f64]).unwrap();
+        let non_finite_targets = NDArray::from_shape_vec([1], vec![f64::NAN]).unwrap();
+        let mismatched_targets = NDArray::from_shape_vec([2], vec![5.0_f64, 7.0]).unwrap();
+
+        assert_eq!(
+            model.score(&query, &non_finite_targets).map(|_| ()),
+            Err(AtlasMlError::NonFiniteInput { op: "coefficient_of_determination" })
+        );
+        assert_eq!(
+            model.score(&query, &mismatched_targets).map(|_| ()),
+            Err(AtlasMlError::ShapeMismatch {
+                op: "coefficient_of_determination",
+                left: vec![2],
+                right: vec![1],
+                reason: "target counts must match",
             })
         );
     }
