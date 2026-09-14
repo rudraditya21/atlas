@@ -132,8 +132,11 @@ dependencies = [
 name = "atlas-benchmarks"
 version = "0.1.0"
 dependencies = [
+ "atlas-arrow",
  "atlas-linalg",
+ "atlas-ml",
  "atlas-ndarray",
+ "atlas-polars",
  "atlas-random",
  "atlas-stats",
  "criterion",

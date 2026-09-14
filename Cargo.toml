@@ -32,6 +32,7 @@ arrow-schema = "53"
 polars = { version = "0.50", default-features = false }
 polars-arrow = "0.50"
 atlas-ndarray = { path = "crates/atlas-ndarray" }
+atlas-polars = { path = "crates/atlas-polars" }
 atlas-random = { path = "crates/atlas-random" }
 atlas-stats = { path = "crates/atlas-stats" }
 criterion = "0.5"
@@ -57,9 +58,12 @@ unimplemented = "warn"
 atlas-ndarray.workspace = true
 
 [dev-dependencies]
+atlas-arrow.workspace = true
 atlas-linalg.workspace = true
+atlas-ml.workspace = true
 atlas-random.workspace = true
 atlas-stats.workspace = true
+atlas-polars.workspace = true
 criterion.workspace = true
 
 [lints]
