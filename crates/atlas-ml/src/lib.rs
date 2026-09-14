@@ -7,6 +7,7 @@ mod nearest_centroid;
 pub use core::{
     confusion_matrix::{ConfusionMatrix, confusion_matrix},
     error::{AtlasMlError, AtlasMlResult},
+    k_fold::{KFold, k_fold_split},
     label_encoder::LabelEncoder,
     metrics::{classification_accuracy, mean_absolute_error, mean_squared_error},
     min_max_scaler::MinMaxScaler,
