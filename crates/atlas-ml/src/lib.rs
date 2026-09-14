@@ -24,7 +24,7 @@ pub use core::{
     },
 };
 
-pub use gaussian_naive_bayes::GaussianNaiveBayesConfig;
+pub use gaussian_naive_bayes::{GaussianNaiveBayes, GaussianNaiveBayesConfig};
 pub use knn::{
     classifier::KnnClassifier,
     config::{AUTO_BRUTE_FORCE_MAX_SAMPLES, KnnConfig, KnnSearchAlgorithm, KnnWeighting},
