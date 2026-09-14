@@ -2,7 +2,7 @@ use atlas_linalg::qr;
 use atlas_ndarray::{NDArray, OperandMetadata};
 
 use crate::{
-    AtlasMlError, AtlasMlResult,
+    AtlasMlError, AtlasMlResult, coefficient_of_determination,
     core::validation::{
         validate_finite_feature_values, validate_finite_target_values,
         validate_prediction_feature_inputs, validate_supervised_training_inputs,
@@ -117,6 +117,16 @@ impl RidgeRegression {
         }
 
         Ok(NDArray::from_shape_vec([features.shape()[0]], predictions)?)
+    }
+
+    /// Returns the coefficient of determination (R²) for the provided samples.
+    pub fn score<F, T>(&self, features: &F, targets: &T) -> AtlasMlResult<f64>
+    where
+        F: OperandMetadata<f64> + ?Sized,
+        T: OperandMetadata<f64> + ?Sized,
+    {
+        let predictions = self.predict(features)?;
+        coefficient_of_determination(targets, &predictions)
     }
 }
 
@@ -254,6 +264,80 @@ mod tests {
         let queries = NDArray::from_shape_vec([1, 2], vec![3.0_f64, 4.0]).unwrap();
 
         assert_close_slice(model.predict(&queries.view().transpose()).unwrap().data(), &[7.0, 9.0]);
+    }
+
+    #[test]
+    fn scores_perfect_training_data() {
+        let features = NDArray::from_shape_vec([3, 1], vec![0.0_f64, 1.0, 2.0]).unwrap();
+        let targets = NDArray::from_shape_vec([3], vec![1.0_f64, 3.0, 5.0]).unwrap();
+        let model =
+            RidgeRegression::fit(&features, &targets, RidgeRegressionConfig::default()).unwrap();
+
+        assert_close(model.score(&features, &targets).unwrap(), 1.0);
+    }
+
+    #[test]
+    fn scores_held_out_data() {
+        let features = NDArray::from_shape_vec([3, 1], vec![0.0_f64, 1.0, 2.0]).unwrap();
+        let targets = NDArray::from_shape_vec([3], vec![1.0_f64, 3.0, 5.0]).unwrap();
+        let model =
+            RidgeRegression::fit(&features, &targets, RidgeRegressionConfig::default()).unwrap();
+        let held_out_features = NDArray::from_shape_vec([2, 1], vec![3.0_f64, 4.0]).unwrap();
+        let held_out_targets = NDArray::from_shape_vec([2], vec![7.0_f64, 10.0]).unwrap();
+
+        assert_close(model.score(&held_out_features, &held_out_targets).unwrap(), 7.0 / 9.0);
+    }
+
+    #[test]
+    fn scores_logical_feature_and_target_views() {
+        let training_features = NDArray::from_shape_vec([3, 1], vec![0.0_f64, 1.0, 2.0]).unwrap();
+        let training_targets = NDArray::from_shape_vec([3], vec![1.0_f64, 3.0, 5.0]).unwrap();
+        let model = RidgeRegression::fit(
+            &training_features,
+            &training_targets,
+            RidgeRegressionConfig::default(),
+        )
+        .unwrap();
+        let features = NDArray::from_shape_vec([1, 2], vec![3.0_f64, 4.0]).unwrap();
+        let targets = NDArray::from_shape_vec([2], vec![7.0_f64, 9.0]).unwrap();
+
+        assert_close(model.score(&features.view().transpose(), &targets.view()).unwrap(), 1.0);
+    }
+
+    #[test]
+    fn rejects_constant_score_targets() {
+        let features = NDArray::from_shape_vec([3, 1], vec![0.0_f64, 1.0, 2.0]).unwrap();
+        let targets = NDArray::from_shape_vec([3], vec![4.0_f64, 4.0, 4.0]).unwrap();
+        let model =
+            RidgeRegression::fit(&features, &targets, RidgeRegressionConfig::new(1.0).unwrap())
+                .unwrap();
+
+        assert_eq!(
+            model.score(&features, &targets).map(|_| ()),
+            Err(AtlasMlError::InvalidArgument {
+                op: "coefficient_of_determination",
+                reason: "actual targets must have non-zero variance",
+            })
+        );
+    }
+
+    #[test]
+    fn rejects_score_target_count_mismatches() {
+        let features = NDArray::from_shape_vec([2, 1], vec![0.0_f64, 1.0]).unwrap();
+        let targets = NDArray::from_shape_vec([2], vec![1.0_f64, 3.0]).unwrap();
+        let model =
+            RidgeRegression::fit(&features, &targets, RidgeRegressionConfig::default()).unwrap();
+        let mismatched_targets = NDArray::from_shape_vec([1], vec![1.0_f64]).unwrap();
+
+        assert_eq!(
+            model.score(&features, &mismatched_targets).map(|_| ()),
+            Err(AtlasMlError::ShapeMismatch {
+                op: "coefficient_of_determination",
+                left: vec![1],
+                right: vec![2],
+                reason: "target counts must match",
+            })
+        );
     }
 
     fn assert_close(actual: f64, expected: f64) {
