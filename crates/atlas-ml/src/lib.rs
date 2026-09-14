@@ -10,7 +10,7 @@ mod ridge_regression;
 pub use core::{
     confusion_matrix::{ConfusionMatrix, confusion_matrix},
     error::{AtlasMlError, AtlasMlResult},
-    k_fold::{KFold, k_fold_split},
+    k_fold::{KFold, k_fold_split, stratified_k_fold_split},
     label_encoder::LabelEncoder,
     metrics::{
         binary_log_loss, classification_accuracy, coefficient_of_determination,
