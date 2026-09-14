@@ -6,6 +6,7 @@ mod knn;
 mod linear_regression;
 mod logistic_regression;
 mod nearest_centroid;
+mod perceptron;
 mod ridge_regression;
 
 pub use core::{
@@ -33,4 +34,5 @@ pub use knn::{
 pub use linear_regression::LinearRegression;
 pub use logistic_regression::{BinaryLogisticRegression, LogisticRegressionConfig};
 pub use nearest_centroid::NearestCentroidClassifier;
+pub use perceptron::{PerceptronConfig, PerceptronShufflePolicy};
 pub use ridge_regression::{RidgeRegression, RidgeRegressionConfig};
