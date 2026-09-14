@@ -2,6 +2,7 @@
 
 mod core;
 mod knn;
+mod nearest_centroid;
 
 pub use core::{
     error::{AtlasMlError, AtlasMlResult},
@@ -15,3 +16,4 @@ pub use knn::{
     config::{AUTO_BRUTE_FORCE_MAX_SAMPLES, KnnConfig, KnnSearchAlgorithm, KnnWeighting},
     regressor::KnnRegressor,
 };
+pub use nearest_centroid::NearestCentroidClassifier;
