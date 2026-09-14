@@ -75,6 +75,7 @@ pub struct BinaryLogisticRegression {
     intercept: f64,
     coefficients: NDArray<f64>,
     iterations: usize,
+    converged: bool,
 }
 
 impl BinaryLogisticRegression {
@@ -97,6 +98,7 @@ impl BinaryLogisticRegression {
         let mut intercept = 0.0;
         let mut coefficients = vec![0.0; feature_count];
         let mut iterations = 0;
+        let mut converged = false;
 
         for iteration in 0..config.max_iterations() {
             let mut intercept_gradient = 0.0;
@@ -126,6 +128,7 @@ impl BinaryLogisticRegression {
             }
             iterations = iteration + 1;
             if maximum_update <= config.convergence_tolerance() {
+                converged = true;
                 break;
             }
         }
@@ -134,6 +137,7 @@ impl BinaryLogisticRegression {
             intercept,
             coefficients: NDArray::from_shape_vec([feature_count], coefficients)?,
             iterations,
+            converged,
         })
     }
 
@@ -155,6 +159,11 @@ impl BinaryLogisticRegression {
     /// Returns the number of gradient-descent iterations performed during fitting.
     pub const fn iterations(&self) -> usize {
         self.iterations
+    }
+
+    /// Returns whether fitting met the configured convergence tolerance.
+    pub const fn converged(&self) -> bool {
+        self.converged
     }
 
     /// Predicts the probability of label `1` for every query row.
@@ -355,6 +364,19 @@ mod tests {
         let model = BinaryLogisticRegression::fit(&features, &labels, config).unwrap();
 
         assert!(model.iterations() < config.max_iterations());
+        assert!(model.converged());
+    }
+
+    #[test]
+    fn reports_iteration_limit_termination() {
+        let features = NDArray::from_shape_vec([2, 1], vec![0.0_f64, 1.0]).unwrap();
+        let labels = NDArray::from_shape_vec([2], vec![0_usize, 1]).unwrap();
+        let config = LogisticRegressionConfig::new(0.1, 1, 1e-12).unwrap();
+
+        let model = BinaryLogisticRegression::fit(&features, &labels, config).unwrap();
+
+        assert_eq!(model.iterations(), config.max_iterations());
+        assert!(!model.converged());
     }
 
     #[test]
@@ -452,6 +474,7 @@ mod tests {
             intercept: 0.0,
             coefficients: NDArray::from_shape_vec([1], vec![1.0_f64]).unwrap(),
             iterations: 0,
+            converged: false,
         };
         let queries = NDArray::from_shape_vec([1, 1], vec![f64::NAN]).unwrap();
 
@@ -467,6 +490,7 @@ mod tests {
             intercept: 0.0,
             coefficients: NDArray::from_shape_vec([2], vec![1.0_f64, 1.0]).unwrap(),
             iterations: 0,
+            converged: false,
         };
         let queries = NDArray::from_shape_vec([1, 1], vec![0.0_f64]).unwrap();
 
@@ -502,6 +526,7 @@ mod tests {
             intercept: 0.0,
             coefficients: NDArray::from_shape_vec([1], vec![0.0_f64]).unwrap(),
             iterations: 0,
+            converged: false,
         };
         let query = NDArray::from_shape_vec([1, 1], vec![4.0_f64]).unwrap();
 
@@ -529,6 +554,7 @@ mod tests {
             intercept: 0.0,
             coefficients: NDArray::from_shape_vec([1], vec![1.0_f64]).unwrap(),
             iterations: 0,
+            converged: false,
         };
 
         let predictions = model.predict(&NDArray::<f64>::zeros([0, 1]).unwrap()).unwrap();
@@ -543,6 +569,7 @@ mod tests {
             intercept: 0.0,
             coefficients: NDArray::from_shape_vec([1], vec![1.0_f64]).unwrap(),
             iterations: 0,
+            converged: false,
         };
 
         assert!(model.predict_proba_one(&[1.0]).unwrap() > 0.5);
@@ -556,6 +583,7 @@ mod tests {
             intercept: 0.0,
             coefficients: NDArray::from_shape_vec([2], vec![1.0_f64, 1.0]).unwrap(),
             iterations: 0,
+            converged: false,
         };
 
         assert_eq!(
@@ -575,6 +603,7 @@ mod tests {
             intercept: 0.0,
             coefficients: NDArray::from_shape_vec([1], vec![1.0_f64]).unwrap(),
             iterations: 0,
+            converged: false,
         };
 
         assert_eq!(
@@ -591,6 +620,7 @@ mod tests {
             intercept: 0.0,
             coefficients: NDArray::from_shape_vec([1], vec![0.0_f64]).unwrap(),
             iterations: 0,
+            converged: false,
         };
 
         assert_eq!(model.predict_one(&[4.0]).unwrap(), 1);
