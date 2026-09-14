@@ -13,6 +13,8 @@ const FIT_OP: &str = "binary_logistic_regression_fit";
 const PREDICT_PROBA_OP: &str = "binary_logistic_regression_predict_proba";
 const PREDICT_PROBA_ONE_OP: &str = "binary_logistic_regression_predict_proba_one";
 const PREDICT_OP: &str = "binary_logistic_regression_predict";
+const PREDICT_WITH_THRESHOLD_OP: &str = "binary_logistic_regression_predict_with_threshold";
+const PREDICT_ONE_WITH_THRESHOLD_OP: &str = "binary_logistic_regression_predict_one_with_threshold";
 const SCORE_OP: &str = "binary_logistic_regression_score";
 const DEFAULT_LEARNING_RATE: f64 = 0.1;
 const DEFAULT_MAX_ITERATIONS: usize = 1_000;
@@ -238,22 +240,57 @@ impl BinaryLogisticRegression {
     where
         Q: OperandMetadata<f64> + ?Sized,
     {
-        validate_prediction_feature_inputs(queries, self.feature_count(), PREDICT_OP)?;
-        validate_finite_feature_values(queries, PREDICT_OP)?;
+        self.predict_with_threshold_inner(queries, 0.5, PREDICT_OP)
+    }
+
+    /// Predicts label `1` when its probability is at least `0.5`, otherwise `0`.
+    pub fn predict_one(&self, query: &[f64]) -> AtlasMlResult<usize> {
+        self.predict_one_with_threshold(query, 0.5)
+    }
+
+    /// Predicts classes using an inclusive positive-class probability threshold in `[0, 1]`.
+    pub fn predict_with_threshold<Q>(
+        &self,
+        queries: &Q,
+        threshold: f64,
+    ) -> AtlasMlResult<NDArray<usize>>
+    where
+        Q: OperandMetadata<f64> + ?Sized,
+    {
+        self.predict_with_threshold_inner(queries, threshold, PREDICT_WITH_THRESHOLD_OP)
+    }
+
+    /// Predicts one class using an inclusive positive-class probability threshold in `[0, 1]`.
+    pub fn predict_one_with_threshold(
+        &self,
+        query: &[f64],
+        threshold: f64,
+    ) -> AtlasMlResult<usize> {
+        validate_threshold(threshold, PREDICT_ONE_WITH_THRESHOLD_OP)?;
+        Ok(classify(self.predict_proba_one(query)?, threshold))
+    }
+
+    fn predict_with_threshold_inner<Q>(
+        &self,
+        queries: &Q,
+        threshold: f64,
+        op: &'static str,
+    ) -> AtlasMlResult<NDArray<usize>>
+    where
+        Q: OperandMetadata<f64> + ?Sized,
+    {
+        validate_threshold(threshold, op)?;
+        validate_prediction_feature_inputs(queries, self.feature_count(), op)?;
+        validate_finite_feature_values(queries, op)?;
 
         let mut query = vec![0.0; self.feature_count()];
         let mut predictions = Vec::with_capacity(queries.shape()[0]);
         for sample_index in 0..queries.shape()[0] {
             copy_feature_row(queries, sample_index, &mut query);
-            predictions.push(self.predict_one(&query)?);
+            predictions.push(self.predict_one_with_threshold(&query, threshold)?);
         }
 
         Ok(NDArray::from_shape_vec([queries.shape()[0]], predictions)?)
-    }
-
-    /// Predicts label `1` when its probability is at least `0.5`, otherwise `0`.
-    pub fn predict_one(&self, query: &[f64]) -> AtlasMlResult<usize> {
-        Ok(if self.predict_proba_one(query)? >= 0.5 { 1 } else { 0 })
     }
 
     /// Returns classification accuracy for binary labels encoded as `0` and `1`.
@@ -278,6 +315,20 @@ where
     } else {
         Err(AtlasMlError::InvalidArgument { op, reason: "labels must be binary values 0 or 1" })
     }
+}
+
+fn validate_threshold(threshold: f64, op: &'static str) -> AtlasMlResult<()> {
+    if !threshold.is_finite() {
+        return Err(AtlasMlError::NonFiniteInput { op });
+    }
+    if !(0.0..=1.0).contains(&threshold) {
+        return Err(AtlasMlError::InvalidArgument {
+            op,
+            reason: "threshold must be within [0, 1]",
+        });
+    }
+
+    Ok(())
 }
 
 fn feature<F>(features: &F, sample_index: usize, feature_index: usize) -> f64
@@ -312,6 +363,10 @@ fn sigmoid(value: f64) -> f64 {
         let exponent = value.exp();
         exponent / (1.0 + exponent)
     }
+}
+
+fn classify(probability: f64, threshold: f64) -> usize {
+    if probability >= threshold { 1 } else { 0 }
 }
 
 fn validate_positive_finite(value: f64, reason: &'static str) -> AtlasMlResult<()> {
@@ -852,5 +907,79 @@ mod tests {
         .unwrap();
 
         assert_eq!(model.predict(&features).unwrap().data(), labels.data());
+    }
+
+    #[test]
+    fn predicts_with_valid_class_thresholds() {
+        let model = BinaryLogisticRegression {
+            intercept: 0.0,
+            coefficients: NDArray::from_shape_vec([1], vec![1.0_f64]).unwrap(),
+            iterations: 0,
+            converged: false,
+            training_loss: 0.0,
+        };
+        let query = NDArray::from_shape_vec([1, 1], vec![0.2_f64]).unwrap();
+
+        assert_eq!(model.predict(&query).unwrap().data(), &[1]);
+        assert_eq!(model.predict_with_threshold(&query, 0.6).unwrap().data(), &[0]);
+        assert_eq!(model.predict_one_with_threshold(&[0.2], 0.5).unwrap(), 1);
+    }
+
+    #[test]
+    fn supports_boundary_class_thresholds() {
+        let model = BinaryLogisticRegression {
+            intercept: 0.0,
+            coefficients: NDArray::from_shape_vec([1], vec![1.0_f64]).unwrap(),
+            iterations: 0,
+            converged: false,
+            training_loss: 0.0,
+        };
+        let query = NDArray::from_shape_vec([1, 1], vec![-100.0_f64]).unwrap();
+
+        assert_eq!(model.predict_with_threshold(&query, 0.0).unwrap().data(), &[1]);
+        assert_eq!(model.predict_with_threshold(&query, 1.0).unwrap().data(), &[0]);
+    }
+
+    #[test]
+    fn rejects_invalid_class_thresholds() {
+        let model = BinaryLogisticRegression {
+            intercept: 0.0,
+            coefficients: NDArray::from_shape_vec([1], vec![1.0_f64]).unwrap(),
+            iterations: 0,
+            converged: false,
+            training_loss: 0.0,
+        };
+        let query = NDArray::from_shape_vec([1, 1], vec![0.0_f64]).unwrap();
+
+        assert_eq!(
+            model.predict_with_threshold(&query, -0.1).map(|_| ()),
+            Err(AtlasMlError::InvalidArgument {
+                op: "binary_logistic_regression_predict_with_threshold",
+                reason: "threshold must be within [0, 1]",
+            })
+        );
+        assert_eq!(
+            model.predict_with_threshold(&query, f64::NAN).map(|_| ()),
+            Err(AtlasMlError::NonFiniteInput {
+                op: "binary_logistic_regression_predict_with_threshold",
+            })
+        );
+    }
+
+    #[test]
+    fn predicts_with_thresholds_for_logical_views() {
+        let model = BinaryLogisticRegression {
+            intercept: 0.0,
+            coefficients: NDArray::from_shape_vec([1], vec![1.0_f64]).unwrap(),
+            iterations: 0,
+            converged: false,
+            training_loss: 0.0,
+        };
+        let queries = NDArray::from_shape_vec([1, 2], vec![-1.0_f64, 1.0]).unwrap();
+
+        assert_eq!(
+            model.predict_with_threshold(&queries.view().transpose(), 0.5).unwrap().data(),
+            &[0, 1]
+        );
     }
 }
