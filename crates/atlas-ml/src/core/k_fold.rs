@@ -90,7 +90,7 @@ where
             for &sample_index in &validation_indices {
                 is_validation[sample_index] = true;
             }
-            let train_indices =
+            let train_indices: Vec<usize> =
                 (0..sample_count).filter(|&sample_index| !is_validation[sample_index]).collect();
             KFold {
                 train_indices: train_indices.into(),
