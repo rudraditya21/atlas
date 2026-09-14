@@ -3,6 +3,7 @@
 mod core;
 mod knn;
 mod linear_regression;
+mod logistic_regression;
 mod nearest_centroid;
 mod ridge_regression;
 
@@ -26,5 +27,6 @@ pub use knn::{
     regressor::KnnRegressor,
 };
 pub use linear_regression::LinearRegression;
+pub use logistic_regression::LogisticRegressionConfig;
 pub use nearest_centroid::NearestCentroidClassifier;
 pub use ridge_regression::{RidgeRegression, RidgeRegressionConfig};
