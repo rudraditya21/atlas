@@ -27,4 +27,4 @@ pub use knn::{
 };
 pub use linear_regression::LinearRegression;
 pub use nearest_centroid::NearestCentroidClassifier;
-pub use ridge_regression::RidgeRegressionConfig;
+pub use ridge_regression::{RidgeRegression, RidgeRegressionConfig};
