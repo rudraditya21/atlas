@@ -68,6 +68,48 @@ where
     Ok(())
 }
 
+pub(crate) fn validate_sample_weights<W>(
+    weights: &W,
+    expected_sample_count: usize,
+    op: &'static str,
+) -> AtlasMlResult<()>
+where
+    W: OperandMetadata<f64> + ?Sized,
+{
+    if weights.ndim() != 1 {
+        return Err(AtlasMlError::InvalidInputRank {
+            op,
+            expected: "a rank-1 sample weight vector",
+            rank: weights.ndim(),
+        });
+    }
+    if weights.shape()[0] == 0 {
+        return Err(AtlasMlError::EmptyInput { op });
+    }
+    if weights.shape()[0] != expected_sample_count {
+        return Err(AtlasMlError::ShapeMismatch {
+            op,
+            left: weights.shape().to_vec(),
+            right: vec![expected_sample_count],
+            reason: "weight count must match sample count",
+        });
+    }
+    for index in 0..weights.shape()[0] {
+        let weight = weights.data()[weights.offset() + index * weights.strides()[0]];
+        if !weight.is_finite() {
+            return Err(AtlasMlError::NonFiniteInput { op });
+        }
+        if weight < 0.0 {
+            return Err(AtlasMlError::InvalidArgument {
+                op,
+                reason: "sample weights must be nonnegative",
+            });
+        }
+    }
+
+    Ok(())
+}
+
 pub(crate) fn validate_prediction_feature_inputs<F, T>(
     features: &F,
     expected_feature_count: usize,
@@ -161,7 +203,7 @@ mod tests {
 
     use super::{
         validate_binary_labels, validate_finite_feature_values, validate_prediction_feature_inputs,
-        validate_supervised_training_inputs,
+        validate_sample_weights, validate_supervised_training_inputs,
     };
     use crate::AtlasMlError;
 
@@ -204,6 +246,55 @@ mod tests {
                 op: OP,
                 reason: "labels must be binary values 0 or 1",
             })
+        );
+    }
+
+    #[test]
+    fn accepts_zero_and_positive_sample_weights() {
+        let weights = NDArray::from_shape_vec([2], vec![0.0_f64, 1.5]).unwrap();
+
+        assert_eq!(validate_sample_weights(&weights, 2, OP), Ok(()));
+    }
+
+    #[test]
+    fn rejects_invalid_sample_weight_vectors() {
+        let matrix = NDArray::from_shape_vec([1, 2], vec![0.0_f64, 1.0]).unwrap();
+        let empty = NDArray::from_shape_vec([0], Vec::<f64>::new()).unwrap();
+        let mismatched = NDArray::from_shape_vec([1], vec![1.0_f64]).unwrap();
+        let negative = NDArray::from_shape_vec([2], vec![1.0_f64, -1.0]).unwrap();
+        let non_finite = NDArray::from_shape_vec([2], vec![1.0_f64, f64::NAN]).unwrap();
+
+        assert_eq!(
+            validate_sample_weights(&matrix, 2, OP),
+            Err(AtlasMlError::InvalidInputRank {
+                op: OP,
+                expected: "a rank-1 sample weight vector",
+                rank: 2,
+            })
+        );
+        assert_eq!(
+            validate_sample_weights(&empty, 2, OP),
+            Err(AtlasMlError::EmptyInput { op: OP })
+        );
+        assert_eq!(
+            validate_sample_weights(&mismatched, 2, OP),
+            Err(AtlasMlError::ShapeMismatch {
+                op: OP,
+                left: vec![1],
+                right: vec![2],
+                reason: "weight count must match sample count",
+            })
+        );
+        assert_eq!(
+            validate_sample_weights(&negative, 2, OP),
+            Err(AtlasMlError::InvalidArgument {
+                op: OP,
+                reason: "sample weights must be nonnegative",
+            })
+        );
+        assert_eq!(
+            validate_sample_weights(&non_finite, 2, OP),
+            Err(AtlasMlError::NonFiniteInput { op: OP })
         );
     }
 
