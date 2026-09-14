@@ -2,18 +2,22 @@ use std::sync::Arc;
 
 use arrow_array::RecordBatch;
 use arrow_schema::{Field, Schema};
-use atlas_ndarray::NDArray;
+use atlas_ndarray::{NDArray, OperandMetadata};
 
 use crate::{ArrowPrimitive, AtlasArrowError, AtlasArrowResult};
 
-/// Converts a rank-2 Atlas matrix into an Arrow record batch.
+/// Converts a rank-2 Atlas matrix or view into an Arrow record batch.
 ///
 /// Atlas rows become record-batch rows; each Atlas column becomes one non-nullable Arrow column.
 /// Values are copied into independent Arrow buffers.
-pub fn to_arrow_record_batch<T: ArrowPrimitive>(
-    matrix: &NDArray<T>,
+pub fn to_arrow_record_batch<T, O>(
+    matrix: &O,
     column_names: &[&str],
-) -> AtlasArrowResult<RecordBatch> {
+) -> AtlasArrowResult<RecordBatch>
+where
+    T: ArrowPrimitive,
+    O: OperandMetadata<T> + ?Sized,
+{
     if matrix.ndim() != 2 {
         return Err(AtlasArrowError::InvalidInputRank {
             op: "to_arrow_record_batch",
@@ -34,7 +38,12 @@ pub fn to_arrow_record_batch<T: ArrowPrimitive>(
         column_names.iter().map(|name| Field::new(*name, T::ARROW_DATA_TYPE, false)).collect();
     let arrays = (0..columns)
         .map(|column| {
-            let values = (0..rows).map(|row| matrix.data()[row * columns + column]).collect();
+            let values = (0..rows)
+                .map(|row| {
+                    matrix.data()
+                        [matrix.offset() + row * matrix.strides()[0] + column * matrix.strides()[1]]
+                })
+                .collect();
             T::to_arrow_ref(values)
         })
         .collect();
@@ -120,6 +129,37 @@ mod tests {
                 actual: 1,
             }
         );
+    }
+
+    #[test]
+    fn record_batch_conversion_uses_logical_matrix_view_values() {
+        let matrix = NDArray::from_shape_vec([2, 3], vec![1_i32, 2, 3, 4, 5, 6]).unwrap();
+        let transposed = matrix.view().transpose();
+        let sliced = matrix.view().slice([0, 1], [2, 2]).unwrap();
+        let empty = matrix.view().slice([0, 0], [0, 2]).unwrap();
+
+        let transposed_batch = to_arrow_record_batch(&transposed, &["left", "right"]).unwrap();
+        let sliced_batch = to_arrow_record_batch(&sliced, &["first", "second"]).unwrap();
+        let empty_batch = to_arrow_record_batch(&empty, &["first", "second"]).unwrap();
+
+        assert_eq!(transposed_batch.num_rows(), 3);
+        assert_eq!(transposed_batch.schema().field(0).name(), "left");
+        assert_eq!(transposed_batch.schema().field(0).data_type(), &DataType::Int32);
+        assert_eq!(
+            transposed_batch.column(0).as_any().downcast_ref::<Int32Array>().unwrap().values(),
+            &[1, 2, 3]
+        );
+        assert_eq!(
+            sliced_batch.column(0).as_any().downcast_ref::<Int32Array>().unwrap().values(),
+            &[2, 5]
+        );
+        assert_eq!(
+            sliced_batch.column(1).as_any().downcast_ref::<Int32Array>().unwrap().values(),
+            &[3, 6]
+        );
+        assert_eq!(empty_batch.num_rows(), 0);
+        assert_eq!(empty_batch.schema().field(1).name(), "second");
+        assert_eq!(empty_batch.schema().field(1).data_type(), &DataType::Int32);
     }
 
     #[test]
