@@ -7,6 +7,38 @@ const MAE_OP: &str = "mean_absolute_error";
 const MSE_OP: &str = "mean_squared_error";
 const R_SQUARED_OP: &str = "coefficient_of_determination";
 const BINARY_LOG_LOSS_OP: &str = "binary_log_loss";
+const CLASSIFICATION_REPORT_OP: &str = "classification_report";
+
+/// Binary classification metrics using label `1` as the positive class.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ClassificationReport {
+    accuracy: f64,
+    precision: f64,
+    recall: f64,
+    f1_score: f64,
+}
+
+impl ClassificationReport {
+    /// Returns the fraction of correct predictions.
+    pub const fn accuracy(&self) -> f64 {
+        self.accuracy
+    }
+
+    /// Returns positive-class precision, or `0.0` when there are no positive predictions.
+    pub const fn precision(&self) -> f64 {
+        self.precision
+    }
+
+    /// Returns positive-class recall, or `0.0` when there are no actual positive labels.
+    pub const fn recall(&self) -> f64 {
+        self.recall
+    }
+
+    /// Returns the harmonic mean of precision and recall, or `0.0` when both are zero.
+    pub const fn f1_score(&self) -> f64 {
+        self.f1_score
+    }
+}
 
 /// Returns the fraction of matching labels in two rank-1 label vectors.
 pub fn classification_accuracy<T, A, P>(actual: &A, predicted: &P) -> AtlasMlResult<f64>
@@ -22,6 +54,38 @@ where
         .count();
 
     Ok(matches as f64 / actual.shape()[0] as f64)
+}
+
+/// Returns accuracy, precision, recall, and F1 for binary `0`/`1` label vectors.
+pub fn classification_report<A, P>(actual: &A, predicted: &P) -> AtlasMlResult<ClassificationReport>
+where
+    A: OperandMetadata<usize> + ?Sized,
+    P: OperandMetadata<usize> + ?Sized,
+{
+    let accuracy = classification_accuracy(actual, predicted)?;
+    validate_binary_labels(actual, predicted)?;
+
+    let mut true_positives = 0;
+    let mut false_positives = 0;
+    let mut false_negatives = 0;
+    for index in 0..actual.shape()[0] {
+        match (label(actual, index), label(predicted, index)) {
+            (1, 1) => true_positives += 1,
+            (0, 1) => false_positives += 1,
+            (1, 0) => false_negatives += 1,
+            _ => {}
+        }
+    }
+
+    let precision = ratio(true_positives, true_positives + false_positives);
+    let recall = ratio(true_positives, true_positives + false_negatives);
+    let f1_score = if precision + recall == 0.0 {
+        0.0
+    } else {
+        2.0 * precision * recall / (precision + recall)
+    };
+
+    Ok(ClassificationReport { accuracy, precision, recall, f1_score })
 }
 
 /// Returns mean binary cross-entropy for `0`/`1` labels and positive-class probabilities.
@@ -195,6 +259,21 @@ where
     Ok(())
 }
 
+fn validate_binary_labels<A, P>(actual: &A, predicted: &P) -> AtlasMlResult<()>
+where
+    A: OperandMetadata<usize> + ?Sized,
+    P: OperandMetadata<usize> + ?Sized,
+{
+    if (0..actual.shape()[0]).any(|index| label(actual, index) > 1 || label(predicted, index) > 1) {
+        return Err(AtlasMlError::InvalidArgument {
+            op: CLASSIFICATION_REPORT_OP,
+            reason: "labels must be binary values 0 or 1",
+        });
+    }
+
+    Ok(())
+}
+
 fn label<T, O>(labels: &O, index: usize) -> T
 where
     T: ArrayElement,
@@ -249,13 +328,17 @@ where
     values.data()[values.offset() + index * values.strides()[0]]
 }
 
+fn ratio(numerator: usize, denominator: usize) -> f64 {
+    if denominator == 0 { 0.0 } else { numerator as f64 / denominator as f64 }
+}
+
 #[cfg(test)]
 mod tests {
     use atlas_ndarray::NDArray;
 
     use super::{
-        binary_log_loss, classification_accuracy, coefficient_of_determination,
-        mean_absolute_error, mean_squared_error,
+        binary_log_loss, classification_accuracy, classification_report,
+        coefficient_of_determination, mean_absolute_error, mean_squared_error,
     };
     use crate::AtlasMlError;
 
@@ -332,6 +415,67 @@ mod tests {
         let predicted = NDArray::from_shape_vec([3], vec![0_usize, 0, 2]).unwrap();
 
         assert_eq!(classification_accuracy(&actual.view(), &predicted.view()), Ok(2.0 / 3.0));
+    }
+
+    #[test]
+    fn reports_binary_classification_metrics() {
+        let actual = NDArray::from_shape_vec([4], vec![0_usize, 0, 1, 1]).unwrap();
+        let predicted = NDArray::from_shape_vec([4], vec![0_usize, 1, 1, 1]).unwrap();
+
+        let report = classification_report(&actual, &predicted).unwrap();
+
+        assert_eq!(report.accuracy(), 0.75);
+        assert_close(report.precision(), 2.0 / 3.0);
+        assert_eq!(report.recall(), 1.0);
+        assert_close(report.f1_score(), 0.8);
+    }
+
+    #[test]
+    fn classification_report_rejects_non_binary_labels() {
+        let actual = NDArray::from_shape_vec([2], vec![0_usize, 2]).unwrap();
+        let predicted = NDArray::from_shape_vec([2], vec![0_usize, 1]).unwrap();
+
+        assert_eq!(
+            classification_report(&actual, &predicted),
+            Err(AtlasMlError::InvalidArgument {
+                op: "classification_report",
+                reason: "labels must be binary values 0 or 1",
+            })
+        );
+    }
+
+    #[test]
+    fn classification_report_handles_missing_positive_classes() {
+        let actual = NDArray::from_shape_vec([2], vec![0_usize, 1]).unwrap();
+        let predicted = NDArray::from_shape_vec([2], vec![0_usize, 0]).unwrap();
+
+        let report = classification_report(&actual, &predicted).unwrap();
+
+        assert_eq!(report.accuracy(), 0.5);
+        assert_eq!(report.precision(), 0.0);
+        assert_eq!(report.recall(), 0.0);
+        assert_eq!(report.f1_score(), 0.0);
+    }
+
+    #[test]
+    fn classification_report_supports_views_and_label_shape_errors() {
+        let actual = NDArray::from_shape_vec([2], vec![0_usize, 1]).unwrap();
+        let predicted = NDArray::from_shape_vec([2], vec![0_usize, 1]).unwrap();
+        let mismatched = NDArray::from_shape_vec([1], vec![0_usize]).unwrap();
+
+        assert_eq!(
+            classification_report(&actual.view(), &predicted.view()).unwrap().accuracy(),
+            1.0
+        );
+        assert_eq!(
+            classification_report(&actual, &mismatched),
+            Err(AtlasMlError::ShapeMismatch {
+                op: "classification_accuracy",
+                left: vec![2],
+                right: vec![1],
+                reason: "label counts must match",
+            })
+        );
     }
 
     #[test]
