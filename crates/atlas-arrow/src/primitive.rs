@@ -5,16 +5,20 @@ use arrow_array::{
     Int64Array, UInt8Array, UInt16Array, UInt32Array, UInt64Array,
 };
 use arrow_schema::DataType;
-use atlas_ndarray::NDArray;
+use atlas_ndarray::{NDArray, OperandMetadata};
 
 use crate::{AtlasArrowError, AtlasArrowResult, InterchangeDType};
 
-/// Converts a rank-1 Atlas array into a newly allocated Arrow primitive array.
+/// Converts a rank-1 Atlas array or view into a newly allocated Arrow primitive array.
 ///
 /// The conversion always copies values: Atlas retains ownership of its storage and the returned
 /// Arrow array owns an independent buffer. Platform-sized integers are intentionally excluded
 /// because Arrow interchange requires a fixed-width integer representation.
-pub fn to_arrow_primitive<T: ArrowPrimitive>(array: &NDArray<T>) -> AtlasArrowResult<T::Array> {
+pub fn to_arrow_primitive<T, O>(array: &O) -> AtlasArrowResult<T::Array>
+where
+    T: ArrowPrimitive,
+    O: OperandMetadata<T> + ?Sized,
+{
     if array.ndim() != 1 {
         return Err(AtlasArrowError::InvalidInputRank {
             op: "to_arrow_primitive",
@@ -23,7 +27,10 @@ pub fn to_arrow_primitive<T: ArrowPrimitive>(array: &NDArray<T>) -> AtlasArrowRe
         });
     }
 
-    Ok(T::to_arrow(array.data().to_vec()))
+    let values = (0..array.shape()[0])
+        .map(|index| array.data()[array.offset() + index * array.strides()[0]])
+        .collect();
+    Ok(T::to_arrow(values))
 }
 
 /// Converts an Arrow primitive array into a newly allocated rank-1 Atlas array.
@@ -98,7 +105,7 @@ impl_arrow_primitive!(
 #[cfg(test)]
 mod tests {
     use arrow_array::{Array, Int32Array};
-    use atlas_ndarray::NDArray;
+    use atlas_ndarray::{NDArray, SliceRange};
 
     use crate::{AtlasArrowError, from_arrow_primitive, to_arrow_primitive};
 
@@ -148,5 +155,34 @@ mod tests {
         assert!(arrow.is_empty());
         assert_eq!(converted.shape(), &[0]);
         assert!(converted.data().is_empty());
+    }
+
+    #[test]
+    fn primitive_conversion_uses_logical_rank_one_view_values() {
+        let values = NDArray::from_shape_vec([5], vec![0_i32, 1, 2, 3, 4]).unwrap();
+        let transposed = values.view().transpose();
+        let sliced = values.view().slice([1], [3]).unwrap();
+        let strided = values.view().slice_ranges([SliceRange::new(Some(0), Some(5), 2)]).unwrap();
+        let empty = values.view().slice([0], [0]).unwrap();
+
+        assert_eq!(to_arrow_primitive(&transposed).unwrap().values(), &[0, 1, 2, 3, 4]);
+        assert_eq!(to_arrow_primitive(&sliced).unwrap().values(), &[1, 2, 3]);
+        assert_eq!(to_arrow_primitive(&strided).unwrap().values(), &[0, 2, 4]);
+        assert!(to_arrow_primitive(&empty).unwrap().is_empty());
+    }
+
+    #[test]
+    fn primitive_view_conversion_rejects_non_vector_inputs() {
+        let values = NDArray::from_shape_vec([2, 2], vec![1_i32, 2, 3, 4]).unwrap();
+        let view = values.view().transpose();
+
+        assert_eq!(
+            to_arrow_primitive(&view).unwrap_err(),
+            AtlasArrowError::InvalidInputRank {
+                op: "to_arrow_primitive",
+                expected: "rank-1 vector",
+                rank: 2,
+            }
+        );
     }
 }
