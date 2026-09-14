@@ -4,7 +4,7 @@ use num_traits::Float;
 use crate::{
     core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand},
     internal::factorization::{
-        copy_matrix_row_major, dot_slice, validate_finite, validate_rank_two,
+        copy_matrix_row_major, dot_slice, tolerance, validate_finite, validate_rank_two,
         validate_upper_triangular, vector_norm, zero_matrix_data,
     },
 };
@@ -151,9 +151,42 @@ impl<T: Numeric + Float> QrFactorization<T> {
         }
 
         validate_upper_triangular(&self.r, op, "QR upper")?;
+        self.validate_orthonormal_columns(*rows, *columns, op)?;
 
         Ok((*rows, *columns))
     }
+
+    fn validate_orthonormal_columns(
+        &self,
+        rows: usize,
+        columns: usize,
+        op: &'static str,
+    ) -> AtlasLinalgResult<()> {
+        let tolerance = tolerance::<T>();
+        for left in 0..columns {
+            for right in left..columns {
+                let mut dot = T::zero();
+                for row in 0..rows {
+                    let left_value = self.q.data()[row * columns + left];
+                    let right_value = self.q.data()[row * columns + right];
+                    if !left_value.is_finite() || !right_value.is_finite() {
+                        return Err(invalid_q_error(op));
+                    }
+                    dot += left_value * right_value;
+                }
+                let expected = if left == right { T::one() } else { T::zero() };
+                if (dot - expected).abs() > tolerance {
+                    return Err(invalid_q_error(op));
+                }
+            }
+        }
+
+        Ok(())
+    }
+}
+
+fn invalid_q_error(op: &'static str) -> AtlasLinalgError {
+    AtlasLinalgError::InvalidFactor { op, factor: "QR Q", reason: "must have orthonormal columns" }
 }
 
 fn rhs_value<T: Numeric>(rhs: &LinalgOperand<'_, T>, row: usize, column: usize) -> T {
@@ -378,6 +411,28 @@ mod tests {
                 reason: "must be triangular",
             })
         ));
+    }
+
+    #[test]
+    fn qr_solve_paths_reject_non_orthonormal_q_factors() {
+        let factors = QrFactorization {
+            q: NDArray::from_shape_vec([2, 2], vec![1.0_f64, 1.0, 0.0, 1.0]).unwrap(),
+            r: NDArray::eye(2).unwrap(),
+        };
+        let rhs = NDArray::from_shape_vec([2], vec![1.0_f64, 2.0]).unwrap();
+
+        for result in
+            [factors.apply_q_transpose(&rhs), factors.least_squares(&rhs), factors.solve_r(&rhs)]
+        {
+            assert!(matches!(
+                result,
+                Err(AtlasLinalgError::InvalidFactor {
+                    factor: "QR Q",
+                    reason: "must have orthonormal columns",
+                    ..
+                })
+            ));
+        }
     }
 
     #[test]

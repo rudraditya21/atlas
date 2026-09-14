@@ -337,4 +337,17 @@ mod tests {
             })
         ));
     }
+
+    #[test]
+    fn cholesky_solve_rejects_non_positive_diagonal_factors() {
+        let factor = CholeskyFactorization {
+            l: NDArray::from_shape_vec([2, 2], vec![1.0_f64, 0.0, 0.0, 0.0]).unwrap(),
+        };
+        let rhs = NDArray::from_shape_vec([2], vec![1.0_f64, 2.0]).unwrap();
+
+        assert!(matches!(
+            factor.solve(&rhs),
+            Err(AtlasLinalgError::NotPositiveDefinite { op: "solve_spd", index: 1 })
+        ));
+    }
 }
