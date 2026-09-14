@@ -13,7 +13,7 @@ pub use descriptive::{
     },
     correlation::correlation,
     correlation_matrix::correlation_matrix,
-    covariance::{covariance, covariance_ddof},
+    covariance::{covariance, covariance_axis, covariance_axis_ddof, covariance_ddof},
     covariance_matrix::{covariance_matrix, covariance_matrix_ddof},
     kurtosis::kurtosis,
     quantile::{

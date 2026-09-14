@@ -186,7 +186,7 @@ where
     stddev_axis_impl(input.into(), axis, ddof, false, "stddev_axis_ddof")
 }
 
-fn normalize_axis<A: AxisIndex>(axis: A, ndim: usize) -> AtlasStatsResult<usize> {
+pub(crate) fn normalize_axis<A: AxisIndex>(axis: A, ndim: usize) -> AtlasStatsResult<usize> {
     let axis = axis.try_into_i64().ok_or(AtlasNdError::InvalidAxis { axis: i64::MAX, ndim })?;
     let normalized = if axis < 0 { ndim as i64 + axis } else { axis };
 
