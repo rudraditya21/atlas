@@ -18,7 +18,9 @@ pub use core::{
     },
     min_max_scaler::MinMaxScaler,
     standard_scaler::StandardScaler,
-    train_test_split::{TrainTestSplit, stratified_train_test_split, train_test_split},
+    train_test_split::{
+        TrainTestSplit, model_evaluation_split, stratified_train_test_split, train_test_split,
+    },
 };
 
 pub use knn::{

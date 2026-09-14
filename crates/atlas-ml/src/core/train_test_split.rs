@@ -6,6 +6,7 @@ use crate::{AtlasMlError, AtlasMlResult, core::validation::validate_supervised_t
 
 const OP: &str = "train_test_split";
 const STRATIFIED_OP: &str = "stratified_train_test_split";
+const MODEL_EVALUATION_OP: &str = "model_evaluation_split";
 
 /// Owned train and test partitions that preserve feature-target row alignment.
 pub struct TrainTestSplit<T: ArrayElement> {
@@ -31,6 +32,31 @@ impl<T: ArrayElement> TrainTestSplit<T> {
     pub fn test_targets(&self) -> &NDArray<T> {
         &self.test_targets
     }
+}
+
+/// Materializes aligned train and test partitions from explicit sample indices.
+pub fn model_evaluation_split<F, Targets, Y>(
+    features: &F,
+    targets: &Targets,
+    train_indices: &[usize],
+    test_indices: &[usize],
+) -> AtlasMlResult<TrainTestSplit<Y>>
+where
+    F: OperandMetadata<f64> + ?Sized,
+    Targets: OperandMetadata<Y> + ?Sized,
+    Y: ArrayElement,
+{
+    validate_supervised_training_inputs(features, targets, MODEL_EVALUATION_OP)?;
+    validate_row_indices(train_indices, features.shape()[0])?;
+    validate_row_indices(test_indices, features.shape()[0])?;
+
+    let feature_count = features.shape()[1];
+    Ok(TrainTestSplit {
+        train_features: select_feature_rows(features, train_indices, feature_count)?,
+        train_targets: select_target_rows(targets, train_indices)?,
+        test_features: select_feature_rows(features, test_indices, feature_count)?,
+        test_targets: select_target_rows(targets, test_indices)?,
+    })
 }
 
 /// Splits supervised data into deterministic seeded train and test partitions.
@@ -120,6 +146,17 @@ fn validate_test_ratio(test_ratio: f64, op: &'static str) -> AtlasMlResult<()> {
     Ok(())
 }
 
+fn validate_row_indices(indices: &[usize], sample_count: usize) -> AtlasMlResult<()> {
+    if indices.iter().any(|&index| index >= sample_count) {
+        return Err(AtlasMlError::InvalidArgument {
+            op: MODEL_EVALUATION_OP,
+            reason: "row indices must be within sample bounds",
+        });
+    }
+
+    Ok(())
+}
+
 fn select_feature_rows<F>(
     features: &F,
     indices: &[usize],
@@ -175,8 +212,77 @@ fn bounded_random(state: &mut u64, upper_bound: usize) -> usize {
 mod tests {
     use atlas_ndarray::NDArray;
 
-    use super::{stratified_train_test_split, train_test_split};
+    use super::{model_evaluation_split, stratified_train_test_split, train_test_split};
     use crate::AtlasMlError;
+
+    #[test]
+    fn materializes_indexed_partitions_without_breaking_row_alignment() {
+        let features =
+            NDArray::from_shape_vec([4, 2], vec![0.0_f64, 10.0, 1.0, 11.0, 2.0, 12.0, 3.0, 13.0])
+                .unwrap();
+        let targets = NDArray::from_shape_vec([4], vec![0_usize, 1, 2, 3]).unwrap();
+
+        let split = model_evaluation_split(&features, &targets, &[3, 1], &[2, 0]).unwrap();
+
+        assert_eq!(split.train_features().data(), &[3.0, 13.0, 1.0, 11.0]);
+        assert_eq!(split.train_targets().data(), &[3, 1]);
+        assert_eq!(split.test_features().data(), &[2.0, 12.0, 0.0, 10.0]);
+        assert_eq!(split.test_targets().data(), &[2, 0]);
+    }
+
+    #[test]
+    fn materializes_empty_indexed_partitions() {
+        let features = NDArray::from_shape_vec([2, 1], vec![0.0_f64, 1.0]).unwrap();
+        let targets = NDArray::from_shape_vec([2], vec![0_usize, 1]).unwrap();
+
+        let split = model_evaluation_split(&features, &targets, &[], &[]).unwrap();
+
+        assert_eq!(split.train_features().shape(), &[0, 1]);
+        assert_eq!(split.train_targets().shape(), &[0]);
+        assert_eq!(split.test_features().shape(), &[0, 1]);
+        assert_eq!(split.test_targets().shape(), &[0]);
+    }
+
+    #[test]
+    fn materializes_indexed_logical_views() {
+        let source =
+            NDArray::from_shape_vec([2, 3], vec![0.0_f64, 1.0, 2.0, 10.0, 11.0, 12.0]).unwrap();
+        let targets = NDArray::from_shape_vec([1, 3], vec![0_usize, 1, 2]).unwrap();
+
+        let split = model_evaluation_split(
+            &source.view().transpose(),
+            &targets.view().reshape([3]).unwrap(),
+            &[2],
+            &[0, 1],
+        )
+        .unwrap();
+
+        assert_eq!(split.train_features().data(), &[2.0, 12.0]);
+        assert_eq!(split.train_targets().data(), &[2]);
+        assert_eq!(split.test_features().data(), &[0.0, 10.0, 1.0, 11.0]);
+        assert_eq!(split.test_targets().data(), &[0, 1]);
+    }
+
+    #[test]
+    fn rejects_out_of_bounds_evaluation_indices() {
+        let features = NDArray::from_shape_vec([2, 1], vec![0.0_f64, 1.0]).unwrap();
+        let targets = NDArray::from_shape_vec([2], vec![0_usize, 1]).unwrap();
+
+        assert_eq!(
+            model_evaluation_split(&features, &targets, &[2], &[]).map(|_| ()),
+            Err(AtlasMlError::InvalidArgument {
+                op: "model_evaluation_split",
+                reason: "row indices must be within sample bounds",
+            })
+        );
+        assert_eq!(
+            model_evaluation_split(&features, &targets, &[], &[2]).map(|_| ()),
+            Err(AtlasMlError::InvalidArgument {
+                op: "model_evaluation_split",
+                reason: "row indices must be within sample bounds",
+            })
+        );
+    }
 
     #[test]
     fn splits_requested_sizes_without_breaking_row_alignment() {
