@@ -1,6 +1,7 @@
 //! Machine-learning algorithms built on Atlas arrays.
 
 mod core;
+mod gaussian_naive_bayes;
 mod knn;
 mod linear_regression;
 mod logistic_regression;
@@ -23,6 +24,7 @@ pub use core::{
     },
 };
 
+pub use gaussian_naive_bayes::GaussianNaiveBayesConfig;
 pub use knn::{
     classifier::KnnClassifier,
     config::{AUTO_BRUTE_FORCE_MAX_SAMPLES, KnnConfig, KnnSearchAlgorithm, KnnWeighting},
