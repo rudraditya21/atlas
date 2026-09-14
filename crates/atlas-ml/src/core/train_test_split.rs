@@ -1,8 +1,11 @@
+use std::collections::BTreeMap;
+
 use atlas_ndarray::{ArrayElement, NDArray, OperandMetadata};
 
 use crate::{AtlasMlError, AtlasMlResult, core::validation::validate_supervised_training_inputs};
 
 const OP: &str = "train_test_split";
+const STRATIFIED_OP: &str = "stratified_train_test_split";
 
 /// Owned train and test partitions that preserve feature-target row alignment.
 pub struct TrainTestSplit<T: ArrayElement> {
@@ -46,12 +49,7 @@ where
     Y: ArrayElement,
 {
     validate_supervised_training_inputs(features, targets, OP)?;
-    if !test_ratio.is_finite() || !(0.0..=1.0).contains(&test_ratio) {
-        return Err(AtlasMlError::InvalidArgument {
-            op: OP,
-            reason: "test ratio must be finite and between 0.0 and 1.0",
-        });
-    }
+    validate_test_ratio(test_ratio, OP)?;
 
     let sample_count = features.shape()[0];
     let feature_count = features.shape()[1];
@@ -66,6 +64,60 @@ where
         test_features: select_feature_rows(features, test_indices, feature_count)?,
         test_targets: select_target_rows(targets, test_indices)?,
     })
+}
+
+/// Splits labeled data with deterministic per-class train and test proportions.
+///
+/// Each class contributes its nearest integer `class_count * test_ratio` samples to the test set.
+pub fn stratified_train_test_split<F, Labels>(
+    features: &F,
+    labels: &Labels,
+    test_ratio: f64,
+    seed: u64,
+) -> AtlasMlResult<TrainTestSplit<usize>>
+where
+    F: OperandMetadata<f64> + ?Sized,
+    Labels: OperandMetadata<usize> + ?Sized,
+{
+    validate_supervised_training_inputs(features, labels, STRATIFIED_OP)?;
+    validate_test_ratio(test_ratio, STRATIFIED_OP)?;
+
+    let feature_count = features.shape()[1];
+    let mut class_indices = BTreeMap::<usize, Vec<usize>>::new();
+    for sample_index in 0..features.shape()[0] {
+        let label = labels.data()[labels.offset() + sample_index * labels.strides()[0]];
+        class_indices.entry(label).or_default().push(sample_index);
+    }
+
+    let mut train_indices = Vec::new();
+    let mut test_indices = Vec::new();
+    for (class_index, indices) in class_indices.values_mut().enumerate() {
+        shuffle(indices, seed.wrapping_add(class_index as u64));
+        let test_count = (indices.len() as f64 * test_ratio).round() as usize;
+        let (test, train) = indices.split_at(test_count);
+        test_indices.extend_from_slice(test);
+        train_indices.extend_from_slice(train);
+    }
+    shuffle(&mut train_indices, seed.wrapping_add(class_indices.len() as u64));
+    shuffle(&mut test_indices, seed.wrapping_add(class_indices.len() as u64).wrapping_add(1));
+
+    Ok(TrainTestSplit {
+        train_features: select_feature_rows(features, &train_indices, feature_count)?,
+        train_targets: select_target_rows(labels, &train_indices)?,
+        test_features: select_feature_rows(features, &test_indices, feature_count)?,
+        test_targets: select_target_rows(labels, &test_indices)?,
+    })
+}
+
+fn validate_test_ratio(test_ratio: f64, op: &'static str) -> AtlasMlResult<()> {
+    if !test_ratio.is_finite() || !(0.0..=1.0).contains(&test_ratio) {
+        return Err(AtlasMlError::InvalidArgument {
+            op,
+            reason: "test ratio must be finite and between 0.0 and 1.0",
+        });
+    }
+
+    Ok(())
 }
 
 fn select_feature_rows<F>(
@@ -123,7 +175,7 @@ fn bounded_random(state: &mut u64, upper_bound: usize) -> usize {
 mod tests {
     use atlas_ndarray::NDArray;
 
-    use super::train_test_split;
+    use super::{stratified_train_test_split, train_test_split};
     use crate::AtlasMlError;
 
     #[test]
@@ -197,10 +249,84 @@ mod tests {
         assert_aligned(split.test_features(), split.test_targets());
     }
 
+    #[test]
+    fn stratified_splits_are_reproducible() {
+        let features =
+            NDArray::from_shape_vec([6, 1], vec![0.0_f64, 1.0, 2.0, 3.0, 4.0, 5.0]).unwrap();
+        let labels = NDArray::from_shape_vec([6], vec![0_usize, 0, 0, 0, 1, 1]).unwrap();
+        let first = stratified_train_test_split(&features, &labels, 0.5, 42).unwrap();
+        let second = stratified_train_test_split(&features, &labels, 0.5, 42).unwrap();
+
+        assert_eq!(first.train_features().data(), second.train_features().data());
+        assert_eq!(first.train_targets().data(), second.train_targets().data());
+        assert_eq!(first.test_features().data(), second.test_features().data());
+        assert_eq!(first.test_targets().data(), second.test_targets().data());
+    }
+
+    #[test]
+    fn stratified_split_preserves_class_proportions_including_minority_classes() {
+        let features = NDArray::from_shape_vec(
+            [10, 2],
+            (0..10).flat_map(|index| [index as f64, (index >= 8) as u8 as f64]).collect(),
+        )
+        .unwrap();
+        let labels =
+            NDArray::from_shape_vec([10], vec![0_usize, 0, 0, 0, 0, 0, 0, 0, 1, 1]).unwrap();
+
+        let split = stratified_train_test_split(&features, &labels, 0.25, 7).unwrap();
+
+        assert_eq!(class_count(split.test_targets(), 0), 2);
+        assert_eq!(class_count(split.test_targets(), 1), 1);
+        assert_aligned_by_label(split.train_features(), split.train_targets());
+        assert_aligned_by_label(split.test_features(), split.test_targets());
+    }
+
+    #[test]
+    fn stratified_split_rejects_invalid_test_ratios() {
+        let features = NDArray::from_shape_vec([2, 1], vec![0.0_f64, 1.0]).unwrap();
+        let labels = NDArray::from_shape_vec([2], vec![0_usize, 1]).unwrap();
+
+        for ratio in [-0.1, 1.1, f64::NAN] {
+            assert_eq!(
+                stratified_train_test_split(&features, &labels, ratio, 0).map(|_| ()),
+                Err(AtlasMlError::InvalidArgument {
+                    op: "stratified_train_test_split",
+                    reason: "test ratio must be finite and between 0.0 and 1.0",
+                })
+            );
+        }
+    }
+
+    #[test]
+    fn stratified_split_preserves_logical_view_row_alignment() {
+        let features =
+            NDArray::from_shape_vec([2, 4], vec![0.0_f64, 1.0, 2.0, 3.0, 10.0, 11.0, 12.0, 13.0])
+                .unwrap();
+        let labels = NDArray::from_shape_vec([4], vec![0_usize, 1, 2, 3]).unwrap();
+
+        let split =
+            stratified_train_test_split(&features.view().transpose(), &labels.view(), 0.5, 5)
+                .unwrap();
+
+        assert_aligned(split.train_features(), split.train_targets());
+        assert_aligned(split.test_features(), split.test_targets());
+    }
+
     fn assert_aligned(features: &NDArray<f64>, targets: &NDArray<usize>) {
         for (row, &target) in features.data().chunks_exact(features.shape()[1]).zip(targets.data())
         {
             assert_eq!(row[0], target as f64);
         }
+    }
+
+    fn assert_aligned_by_label(features: &NDArray<f64>, targets: &NDArray<usize>) {
+        for (row, &target) in features.data().chunks_exact(features.shape()[1]).zip(targets.data())
+        {
+            assert_eq!(row[1], target as f64);
+        }
+    }
+
+    fn class_count(labels: &NDArray<usize>, class: usize) -> usize {
+        labels.data().iter().filter(|&&label| label == class).count()
     }
 }
