@@ -1,6 +1,6 @@
 use atlas_linalg::{
     AtlasLinalgError, DotOutput, batched_diag, batched_dot, batched_transpose, dot, matmul, norm,
-    trace,
+    solve_lower_triangular, solve_upper_triangular, trace,
 };
 use atlas_ndarray::NDArray;
 
@@ -75,6 +75,66 @@ fn batched_dot_rejects_mismatched_shapes() {
             left: vec![2, 3],
             right: vec![2, 2],
             reason: "vector lengths must match",
+        }
+    );
+}
+
+#[test]
+fn batched_triangular_solvers_handle_multiple_right_hand_sides_and_views() {
+    let lower_factors = NDArray::from_shape_vec(
+        [2, 2, 3],
+        vec![2.0_f64, 0.0, 9.0, 3.0, 1.0, 9.0, 1.0, 0.0, 9.0, 2.0, 2.0, 9.0],
+    )
+    .unwrap();
+    let lower_rhs = NDArray::from_shape_vec(
+        [2, 2, 3],
+        vec![4.0_f64, 2.0, 9.0, 5.0, 6.0, 9.0, 3.0, -1.0, 9.0, 14.0, 2.0, 9.0],
+    )
+    .unwrap();
+    let upper =
+        NDArray::from_shape_vec([2, 2, 2], vec![2.0_f64, 3.0, 0.0, 1.0, 1.0, 2.0, 0.0, 2.0])
+            .unwrap();
+    let upper_rhs =
+        NDArray::from_shape_vec([2, 2, 2], vec![1.0_f64, 11.0, -1.0, 3.0, -1.0, 6.0, -4.0, 2.0])
+            .unwrap();
+
+    let lower_solution = solve_lower_triangular(
+        lower_factors.view().slice([0, 0, 0], [2, 2, 2]).unwrap(),
+        lower_rhs.view().slice([0, 0, 0], [2, 2, 2]).unwrap(),
+    )
+    .unwrap();
+    let upper_solution = solve_upper_triangular(&upper, &upper_rhs).unwrap();
+
+    assert_eq!(lower_solution.shape(), &[2, 2, 2]);
+    assert_eq!(lower_solution.data(), &[2.0, 1.0, -1.0, 3.0, 3.0, -1.0, 4.0, 2.0]);
+    assert_eq!(upper_solution.shape(), &[2, 2, 2]);
+    assert_eq!(upper_solution.data(), &[2.0, 1.0, -1.0, 3.0, 3.0, 4.0, -2.0, 1.0]);
+}
+
+#[test]
+fn batched_triangular_solvers_reject_invalid_factors_and_rhs_batches() {
+    let non_square = NDArray::<f64>::zeros([2, 2, 3]).unwrap();
+    let singular =
+        NDArray::from_shape_vec([2, 2, 2], vec![1.0_f64, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0, 0.0])
+            .unwrap();
+    let rhs = NDArray::<f64>::zeros([2, 2]).unwrap();
+    let mismatched_batches = NDArray::<f64>::zeros([1, 2]).unwrap();
+
+    assert!(matches!(
+        solve_lower_triangular(&non_square, &rhs),
+        Err(AtlasLinalgError::InvalidInputShape { op: "solve_lower_triangular", .. })
+    ));
+    assert_eq!(
+        solve_upper_triangular(&singular, &rhs).unwrap_err(),
+        AtlasLinalgError::SingularMatrix { op: "solve_upper_triangular", pivot: 1 }
+    );
+    assert_eq!(
+        solve_lower_triangular(&singular, &mismatched_batches).unwrap_err(),
+        AtlasLinalgError::ShapeMismatch {
+            op: "solve_lower_triangular",
+            left: vec![2, 2, 2],
+            right: vec![1, 2],
+            reason: "batch dimensions must match",
         }
     );
 }
