@@ -7,6 +7,7 @@ use crate::{
 
 const FIT_OP: &str = "standard_scaler_fit";
 const TRANSFORM_OP: &str = "standard_scaler_transform";
+const INVERSE_TRANSFORM_OP: &str = "standard_scaler_inverse_transform";
 
 /// Per-feature population-standard-deviation scaling for rank-2 feature matrices.
 #[derive(Clone, Debug, PartialEq)]
@@ -84,6 +85,29 @@ impl StandardScaler {
 
         Ok(NDArray::from_shape_vec([sample_count, feature_count], transformed)?)
     }
+
+    /// Recovers original feature values from standardized values.
+    pub fn inverse_transform<F>(&self, features: &F) -> AtlasMlResult<NDArray<f64>>
+    where
+        F: OperandMetadata<f64> + ?Sized,
+    {
+        validate_prediction_feature_inputs(features, self.means.len(), INVERSE_TRANSFORM_OP)?;
+        validate_finite_feature_values(features, INVERSE_TRANSFORM_OP)?;
+
+        let sample_count = features.shape()[0];
+        let feature_count = features.shape()[1];
+        let mut restored = Vec::with_capacity(sample_count * feature_count);
+        for sample_index in 0..sample_count {
+            for feature_index in 0..feature_count {
+                restored.push(
+                    feature(features, sample_index, feature_index) * self.scales[feature_index]
+                        + self.means[feature_index],
+                );
+            }
+        }
+
+        Ok(NDArray::from_shape_vec([sample_count, feature_count], restored)?)
+    }
 }
 
 fn validate_fit_features<F>(features: &F) -> AtlasMlResult<()>
@@ -148,6 +172,19 @@ mod tests {
     }
 
     #[test]
+    fn inverse_transform_recovers_ordinary_and_constant_features() {
+        let ordinary = NDArray::from_shape_vec([2, 2], vec![1.0_f64, 2.0, 3.0, 4.0]).unwrap();
+        let constant = NDArray::from_shape_vec([2, 2], vec![1.0_f64, 5.0, 3.0, 5.0]).unwrap();
+
+        for features in [&ordinary, &constant] {
+            let scaler = StandardScaler::fit(features).unwrap();
+            let restored = scaler.inverse_transform(&scaler.transform(features).unwrap()).unwrap();
+
+            assert_close(restored.data(), features.data());
+        }
+    }
+
+    #[test]
     fn supports_logical_feature_views() {
         let features =
             NDArray::from_shape_vec([2, 3], vec![1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
@@ -159,6 +196,10 @@ mod tests {
         assert_close(
             scaler.transform(&view).unwrap().data(),
             &[-1.0 / scale, -1.0 / scale, 0.0, 0.0, 1.0 / scale, 1.0 / scale],
+        );
+        assert_close(
+            scaler.inverse_transform(&scaler.transform(&view).unwrap()).unwrap().data(),
+            &[1.0, 4.0, 2.0, 5.0, 3.0, 6.0],
         );
     }
 
@@ -172,6 +213,29 @@ mod tests {
 
         assert_eq!(transformed.shape(), &[0, 2]);
         assert!(transformed.data().is_empty());
+
+        let restored = scaler.inverse_transform(&transformed).unwrap();
+        assert_eq!(restored.shape(), &[0, 2]);
+        assert!(restored.data().is_empty());
+    }
+
+    #[test]
+    fn inverse_transform_rejects_wrong_feature_width() {
+        let scaler = StandardScaler::fit(
+            &NDArray::from_shape_vec([2, 2], vec![1.0_f64, 2.0, 3.0, 4.0]).unwrap(),
+        )
+        .unwrap();
+        let features = NDArray::from_shape_vec([1, 1], vec![0.0_f64]).unwrap();
+
+        assert_eq!(
+            scaler.inverse_transform(&features).map(|_| ()),
+            Err(AtlasMlError::ShapeMismatch {
+                op: "standard_scaler_inverse_transform",
+                left: vec![1, 1],
+                right: vec![2],
+                reason: "feature count must match training data",
+            })
+        );
     }
 
     #[test]
