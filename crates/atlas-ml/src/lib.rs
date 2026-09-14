@@ -6,6 +6,7 @@ mod knn;
 pub use core::{
     error::{AtlasMlError, AtlasMlResult},
     label_encoder::LabelEncoder,
+    standard_scaler::StandardScaler,
 };
 
 pub use knn::{
