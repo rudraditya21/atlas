@@ -7,6 +7,7 @@ use crate::{
 
 const FIT_OP: &str = "min_max_scaler_fit";
 const TRANSFORM_OP: &str = "min_max_scaler_transform";
+const INVERSE_TRANSFORM_OP: &str = "min_max_scaler_inverse_transform";
 
 /// Per-feature min-max normalization for rank-2 feature matrices.
 #[derive(Clone, Debug, PartialEq)]
@@ -75,6 +76,34 @@ impl MinMaxScaler {
         }
 
         Ok(NDArray::from_shape_vec([sample_count, feature_count], transformed)?)
+    }
+
+    /// Restores a rank-2 normalized feature matrix to the fitted feature ranges.
+    ///
+    /// Constant features restore to their fitted minimum.
+    pub fn inverse_transform<F>(&self, features: &F) -> AtlasMlResult<NDArray<f64>>
+    where
+        F: OperandMetadata<f64> + ?Sized,
+    {
+        validate_prediction_feature_inputs(features, self.minimums.len(), INVERSE_TRANSFORM_OP)?;
+        validate_finite_feature_values(features, INVERSE_TRANSFORM_OP)?;
+
+        let sample_count = features.shape()[0];
+        let feature_count = features.shape()[1];
+        let mut restored = Vec::with_capacity(sample_count * feature_count);
+        for sample_index in 0..sample_count {
+            for feature_index in 0..feature_count {
+                let range = self.maximums[feature_index] - self.minimums[feature_index];
+                restored.push(if range == 0.0 {
+                    self.minimums[feature_index]
+                } else {
+                    feature(features, sample_index, feature_index) * range
+                        + self.minimums[feature_index]
+                });
+            }
+        }
+
+        Ok(NDArray::from_shape_vec([sample_count, feature_count], restored)?)
     }
 }
 
@@ -156,6 +185,70 @@ mod tests {
 
         assert_eq!(transformed.shape(), &[0, 2]);
         assert!(transformed.data().is_empty());
+    }
+
+    #[test]
+    fn inverses_transformed_feature_ranges() {
+        let features =
+            NDArray::from_shape_vec([3, 2], vec![1.0_f64, 10.0, 3.0, 20.0, 5.0, 40.0]).unwrap();
+        let scaler = MinMaxScaler::fit(&features).unwrap();
+        let normalized = scaler.transform(&features).unwrap();
+
+        assert_close(scaler.inverse_transform(&normalized).unwrap().data(), features.data());
+    }
+
+    #[test]
+    fn inverses_constant_features_to_their_minimum() {
+        let features = NDArray::from_shape_vec([2, 2], vec![1.0_f64, 5.0, 3.0, 5.0]).unwrap();
+        let scaler = MinMaxScaler::fit(&features).unwrap();
+        let normalized = scaler.transform(&features).unwrap();
+
+        assert_eq!(scaler.inverse_transform(&normalized).unwrap().data(), features.data());
+    }
+
+    #[test]
+    fn inverses_logical_feature_views() {
+        let source =
+            NDArray::from_shape_vec([2, 3], vec![1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+        let view = source.view().transpose();
+        let scaler = MinMaxScaler::fit(&view).unwrap();
+        let normalized = scaler.transform(&view).unwrap();
+
+        assert_close(
+            scaler.inverse_transform(&normalized.view()).unwrap().data(),
+            &[1.0, 4.0, 2.0, 5.0, 3.0, 6.0],
+        );
+    }
+
+    #[test]
+    fn inverses_empty_feature_batches() {
+        let scaler = MinMaxScaler::fit(
+            &NDArray::from_shape_vec([2, 2], vec![1.0_f64, 2.0, 3.0, 4.0]).unwrap(),
+        )
+        .unwrap();
+        let restored = scaler.inverse_transform(&NDArray::<f64>::zeros([0, 2]).unwrap()).unwrap();
+
+        assert_eq!(restored.shape(), &[0, 2]);
+        assert!(restored.data().is_empty());
+    }
+
+    #[test]
+    fn rejects_inverse_transform_width_mismatches() {
+        let scaler = MinMaxScaler::fit(
+            &NDArray::from_shape_vec([2, 2], vec![1.0_f64, 2.0, 3.0, 4.0]).unwrap(),
+        )
+        .unwrap();
+        let features = NDArray::from_shape_vec([1, 1], vec![0.0_f64]).unwrap();
+
+        assert_eq!(
+            scaler.inverse_transform(&features).map(|_| ()),
+            Err(AtlasMlError::ShapeMismatch {
+                op: "min_max_scaler_inverse_transform",
+                left: vec![1, 1],
+                right: vec![2],
+                reason: "feature count must match training data",
+            })
+        );
     }
 
     #[test]
