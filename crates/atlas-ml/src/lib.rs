@@ -7,6 +7,7 @@ pub use core::{
     error::{AtlasMlError, AtlasMlResult},
     label_encoder::LabelEncoder,
     standard_scaler::StandardScaler,
+    train_test_split::{TrainTestSplit, train_test_split},
 };
 
 pub use knn::{
