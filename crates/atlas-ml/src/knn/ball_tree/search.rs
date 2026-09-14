@@ -3,9 +3,8 @@ use atlas_ndarray::OperandMetadata;
 use super::{node::BallTreeNode, tree::BallTree};
 use crate::{
     AtlasMlError, AtlasMlResult,
-    knn::{
-        metric::DistanceMetric, neighbor::Neighbor, neighbor_set::BoundedNeighborSet, row::copy_row,
-    },
+    core::row::copy_logical_row,
+    knn::{metric::DistanceMetric, neighbor::Neighbor, neighbor_set::BoundedNeighborSet},
 };
 
 const SEARCH_OP: &str = "ball_tree_search";
@@ -87,7 +86,7 @@ fn search_node<F, M>(
 {
     if let Some(indices) = node.leaf_indices() {
         for &index in indices {
-            copy_row(features, index, row);
+            copy_logical_row(features, index, row);
             candidates
                 .insert(Neighbor { index, distance: metric.distance_same_dimension(row, query) });
         }

@@ -2,7 +2,10 @@ use std::collections::BTreeMap;
 
 use atlas_ndarray::{ArrayElement, NDArray, OperandMetadata};
 
-use crate::{AtlasMlError, AtlasMlResult, core::validation::validate_supervised_training_inputs};
+use crate::{
+    AtlasMlError, AtlasMlResult,
+    core::{row::copy_logical_row, validation::validate_supervised_training_inputs},
+};
 
 const OP: &str = "train_test_split";
 const STRATIFIED_OP: &str = "stratified_train_test_split";
@@ -167,10 +170,9 @@ where
 {
     let mut data = Vec::with_capacity(indices.len() * feature_count);
     for &sample_index in indices {
-        let row_offset = features.offset() + sample_index * features.strides()[0];
-        for feature_index in 0..feature_count {
-            data.push(features.data()[row_offset + feature_index * features.strides()[1]]);
-        }
+        let row_start = data.len();
+        data.resize(row_start + feature_count, 0.0);
+        copy_logical_row(features, sample_index, &mut data[row_start..]);
     }
 
     Ok(NDArray::from_shape_vec([indices.len(), feature_count], data)?)

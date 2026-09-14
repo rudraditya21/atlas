@@ -1,9 +1,7 @@
 use atlas_ndarray::OperandMetadata;
 
-use super::{
-    metric::DistanceMetric, neighbor::Neighbor, neighbor_set::BoundedNeighborSet, row::copy_row,
-};
-use crate::{AtlasMlError, AtlasMlResult};
+use super::{metric::DistanceMetric, neighbor::Neighbor, neighbor_set::BoundedNeighborSet};
+use crate::{AtlasMlError, AtlasMlResult, core::row::copy_logical_row};
 
 const OP: &str = "brute_force_knn_search";
 
@@ -46,7 +44,7 @@ where
     let mut neighbors = BoundedNeighborSet::new(k);
     let mut row = vec![0.0; feature_count];
     for sample_index in 0..sample_count {
-        copy_row(training_features, sample_index, &mut row);
+        copy_logical_row(training_features, sample_index, &mut row);
         neighbors.insert(Neighbor {
             index: sample_index,
             distance: metric.distance_same_dimension(&row, query),

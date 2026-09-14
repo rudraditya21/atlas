@@ -6,13 +6,15 @@ use super::{
     config::{KnnConfig, KnnSearchAlgorithm, KnnWeighting},
     index::TrainingIndex,
     metric::SquaredEuclideanDistance,
-    row::copy_row,
 };
 use crate::{
     AtlasMlResult,
-    core::validation::{
-        validate_finite_feature_values, validate_prediction_feature_inputs,
-        validate_prediction_feature_row, validate_supervised_training_inputs,
+    core::{
+        row::copy_logical_row,
+        validation::{
+            validate_finite_feature_values, validate_prediction_feature_inputs,
+            validate_prediction_feature_row, validate_supervised_training_inputs,
+        },
     },
 };
 
@@ -98,7 +100,7 @@ impl KnnClassifier {
         let mut query = vec![0.0; self.feature_count()];
         let mut predictions = Vec::with_capacity(query_count);
         for query_index in 0..query_count {
-            copy_row(queries, query_index, &mut query);
+            copy_logical_row(queries, query_index, &mut query);
             predictions.push(self.predict_one(&query)?);
         }
 
@@ -119,7 +121,7 @@ impl KnnClassifier {
         let mut query = vec![0.0; self.feature_count()];
         let mut probabilities = Vec::with_capacity(query_count * self.classes.len());
         for query_index in 0..query_count {
-            copy_row(queries, query_index, &mut query);
+            copy_logical_row(queries, query_index, &mut query);
             probabilities.extend(self.probabilities_for(&query)?);
         }
 
