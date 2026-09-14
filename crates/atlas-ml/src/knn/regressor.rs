@@ -39,7 +39,11 @@ impl KnnRegressor {
 
         Ok(Self {
             config,
-            index: TrainingIndex::new(features, config.search_algorithm())?,
+            index: TrainingIndex::new(
+                features,
+                config.search_algorithm(),
+                config.tree_leaf_size(),
+            )?,
             targets,
         })
     }

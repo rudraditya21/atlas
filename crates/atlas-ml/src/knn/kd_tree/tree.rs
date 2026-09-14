@@ -12,10 +12,24 @@ pub(crate) struct KdTree {
 }
 
 impl KdTree {
+    #[cfg(test)]
     pub(crate) fn build<F>(features: &F) -> AtlasMlResult<Self>
     where
         F: OperandMetadata<f64> + ?Sized,
     {
+        Self::build_with_leaf_size(features, 1)
+    }
+
+    pub(crate) fn build_with_leaf_size<F>(features: &F, leaf_size: usize) -> AtlasMlResult<Self>
+    where
+        F: OperandMetadata<f64> + ?Sized,
+    {
+        if leaf_size == 0 {
+            return Err(AtlasMlError::InvalidArgument {
+                op: BUILD_OP,
+                reason: "leaf size must be positive",
+            });
+        }
         if features.ndim() != 2 {
             return Err(AtlasMlError::InvalidInputRank {
                 op: BUILD_OP,
@@ -30,10 +44,10 @@ impl KdTree {
         let sample_count = features.shape()[0];
         let feature_count = features.shape()[1];
         let indices = (0..sample_count).collect();
-        let root = if feature_count == 0 {
+        let root = if feature_count == 0 || sample_count <= leaf_size {
             KdTreeNode::leaf(indices)
         } else {
-            build_node(features, indices, 0)
+            build_node(features, indices, 0, leaf_size)
         };
 
         Ok(Self { root, sample_count, feature_count })
@@ -52,11 +66,16 @@ impl KdTree {
     }
 }
 
-fn build_node<F>(features: &F, mut indices: Vec<usize>, depth: usize) -> KdTreeNode
+fn build_node<F>(
+    features: &F,
+    mut indices: Vec<usize>,
+    depth: usize,
+    leaf_size: usize,
+) -> KdTreeNode
 where
     F: OperandMetadata<f64> + ?Sized,
 {
-    if indices.len() == 1 {
+    if indices.len() <= leaf_size {
         return KdTreeNode::leaf(indices);
     }
 
@@ -71,8 +90,8 @@ where
     let split_at = indices.len() / 2;
     let right_indices = indices.split_off(split_at);
     let pivot_index = right_indices[0];
-    let left = build_node(features, indices, depth + 1);
-    let right = build_node(features, right_indices, depth + 1);
+    let left = build_node(features, indices, depth + 1, leaf_size);
+    let right = build_node(features, right_indices, depth + 1, leaf_size);
 
     KdTreeNode::internal(split_axis, pivot_index, left, right)
 }

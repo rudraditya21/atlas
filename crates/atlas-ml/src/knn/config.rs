@@ -2,6 +2,7 @@ use crate::{AtlasMlError, AtlasMlResult};
 
 /// Largest training set for which [`KnnSearchAlgorithm::Auto`] uses brute-force search.
 pub const AUTO_BRUTE_FORCE_MAX_SAMPLES: usize = 64;
+const DEFAULT_TREE_LEAF_SIZE: usize = 1;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum KnnSearchAlgorithm {
@@ -25,6 +26,7 @@ pub struct KnnConfig {
     k: usize,
     search_algorithm: KnnSearchAlgorithm,
     weighting: KnnWeighting,
+    tree_leaf_size: usize,
 }
 
 impl KnnConfig {
@@ -40,6 +42,7 @@ impl KnnConfig {
             k,
             search_algorithm: KnnSearchAlgorithm::BruteForce,
             weighting: KnnWeighting::Uniform,
+            tree_leaf_size: DEFAULT_TREE_LEAF_SIZE,
         })
     }
 
@@ -69,6 +72,23 @@ impl KnnConfig {
         self.weighting
     }
 
+    /// Returns the maximum number of training samples stored in one tree leaf.
+    pub const fn tree_leaf_size(&self) -> usize {
+        self.tree_leaf_size
+    }
+
+    pub fn with_tree_leaf_size(mut self, tree_leaf_size: usize) -> AtlasMlResult<Self> {
+        if tree_leaf_size == 0 {
+            return Err(AtlasMlError::InvalidArgument {
+                op: "knn_config",
+                reason: "tree leaf size must be positive",
+            });
+        }
+
+        self.tree_leaf_size = tree_leaf_size;
+        Ok(self)
+    }
+
     pub fn validate(&self, training_samples: usize) -> AtlasMlResult<()> {
         validate_search_algorithm(self.search_algorithm)?;
         if self.k > training_samples {
@@ -93,7 +113,7 @@ fn validate_search_algorithm(algorithm: KnnSearchAlgorithm) -> AtlasMlResult<()>
 
 #[cfg(test)]
 mod tests {
-    use super::{KnnConfig, KnnSearchAlgorithm, KnnWeighting};
+    use super::{DEFAULT_TREE_LEAF_SIZE, KnnConfig, KnnSearchAlgorithm, KnnWeighting};
     use crate::AtlasMlError;
 
     #[test]
@@ -103,6 +123,7 @@ mod tests {
         assert_eq!(config.k(), 3);
         assert_eq!(config.search_algorithm(), KnnSearchAlgorithm::BruteForce);
         assert_eq!(config.weighting(), KnnWeighting::Uniform);
+        assert_eq!(config.tree_leaf_size(), DEFAULT_TREE_LEAF_SIZE);
     }
 
     #[test]
@@ -124,6 +145,18 @@ mod tests {
                 reason: "k must not exceed the number of training samples",
             })
         );
+    }
+
+    #[test]
+    fn validates_tree_leaf_size() {
+        assert_eq!(
+            KnnConfig::new(1).unwrap().with_tree_leaf_size(0),
+            Err(AtlasMlError::InvalidArgument {
+                op: "knn_config",
+                reason: "tree leaf size must be positive",
+            })
+        );
+        assert_eq!(KnnConfig::new(1).unwrap().with_tree_leaf_size(3).unwrap().tree_leaf_size(), 3);
     }
 
     #[test]

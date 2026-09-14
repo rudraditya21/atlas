@@ -23,18 +23,29 @@ pub(crate) trait NeighborSearchBackend: Send + Sync {
     ) -> AtlasMlResult<Vec<Neighbor>>;
 }
 
+#[cfg(test)]
 pub(crate) fn build_search_backend(
     features: Arc<NDArray<f64>>,
     algorithm: KnnSearchAlgorithm,
 ) -> AtlasMlResult<Box<dyn NeighborSearchBackend>> {
+    build_search_backend_with_leaf_size(features, algorithm, 1)
+}
+
+pub(crate) fn build_search_backend_with_leaf_size(
+    features: Arc<NDArray<f64>>,
+    algorithm: KnnSearchAlgorithm,
+    tree_leaf_size: usize,
+) -> AtlasMlResult<Box<dyn NeighborSearchBackend>> {
     match algorithm {
         KnnSearchAlgorithm::BruteForce => Ok(Box::new(BruteForceBackend { features })),
-        KnnSearchAlgorithm::KdTree => Ok(Box::new(KdTreeBackend::new(features)?)),
-        KnnSearchAlgorithm::BallTree => Ok(Box::new(BallTreeBackend::new(features)?)),
+        KnnSearchAlgorithm::KdTree => Ok(Box::new(KdTreeBackend::new(features, tree_leaf_size)?)),
+        KnnSearchAlgorithm::BallTree => {
+            Ok(Box::new(BallTreeBackend::new(features, tree_leaf_size)?))
+        }
         KnnSearchAlgorithm::Auto if features.shape()[0] <= AUTO_BRUTE_FORCE_MAX_SAMPLES => {
             Ok(Box::new(BruteForceBackend { features }))
         }
-        KnnSearchAlgorithm::Auto => Ok(Box::new(KdTreeBackend::new(features)?)),
+        KnnSearchAlgorithm::Auto => Ok(Box::new(KdTreeBackend::new(features, tree_leaf_size)?)),
     }
 }
 
@@ -63,8 +74,8 @@ struct KdTreeBackend {
 }
 
 impl KdTreeBackend {
-    fn new(features: Arc<NDArray<f64>>) -> AtlasMlResult<Self> {
-        let tree = KdTree::build(features.as_ref())?;
+    fn new(features: Arc<NDArray<f64>>, tree_leaf_size: usize) -> AtlasMlResult<Self> {
+        let tree = KdTree::build_with_leaf_size(features.as_ref(), tree_leaf_size)?;
 
         Ok(Self { features, tree })
     }
@@ -91,8 +102,8 @@ struct BallTreeBackend {
 }
 
 impl BallTreeBackend {
-    fn new(features: Arc<NDArray<f64>>) -> AtlasMlResult<Self> {
-        let tree = BallTree::build(features.as_ref())?;
+    fn new(features: Arc<NDArray<f64>>, tree_leaf_size: usize) -> AtlasMlResult<Self> {
+        let tree = BallTree::build_with_leaf_size(features.as_ref(), tree_leaf_size)?;
 
         Ok(Self { features, tree })
     }
@@ -139,7 +150,9 @@ mod tests {
 
     use atlas_ndarray::NDArray;
 
-    use super::{assert_backend_equivalence, build_search_backend};
+    use super::{
+        assert_backend_equivalence, build_search_backend, build_search_backend_with_leaf_size,
+    };
     use crate::knn::config::{AUTO_BRUTE_FORCE_MAX_SAMPLES, KnnSearchAlgorithm};
 
     fn assert_all_backends_equivalent(features: Arc<NDArray<f64>>, queries: &[&[f64]]) {
@@ -149,6 +162,23 @@ mod tests {
             KnnSearchAlgorithm::BallTree,
         ] {
             let backend = build_search_backend(Arc::clone(&features), algorithm).unwrap();
+
+            assert_backend_equivalence(backend.as_ref(), features.as_ref(), queries);
+        }
+    }
+
+    fn assert_tree_backends_equivalent(
+        features: Arc<NDArray<f64>>,
+        queries: &[&[f64]],
+        tree_leaf_size: usize,
+    ) {
+        for algorithm in [KnnSearchAlgorithm::KdTree, KnnSearchAlgorithm::BallTree] {
+            let backend = build_search_backend_with_leaf_size(
+                Arc::clone(&features),
+                algorithm,
+                tree_leaf_size,
+            )
+            .unwrap();
 
             assert_backend_equivalence(backend.as_ref(), features.as_ref(), queries);
         }
@@ -262,5 +292,21 @@ mod tests {
         let duplicate_points =
             Arc::new(NDArray::from_shape_vec([3, 1], vec![0.0_f64, 0.0, 2.0]).unwrap());
         assert_all_backends_equivalent(duplicate_points, &[&[0.0_f64]]);
+    }
+
+    #[test]
+    fn tree_leaf_sizes_match_brute_force_for_duplicate_points() {
+        let features = Arc::new(
+            NDArray::from_shape_vec(
+                [5, 2],
+                vec![0.0_f64, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 2.0, 0.0],
+            )
+            .unwrap(),
+        );
+        let queries = [&[0.0_f64, 0.0][..], &[0.5_f64, 0.0][..], &[2.0_f64, 0.0][..]];
+
+        for tree_leaf_size in 1..=features.shape()[0] + 1 {
+            assert_tree_backends_equivalent(Arc::clone(&features), &queries, tree_leaf_size);
+        }
     }
 }

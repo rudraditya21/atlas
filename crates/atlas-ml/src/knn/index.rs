@@ -3,7 +3,7 @@ use std::sync::Arc;
 use atlas_ndarray::NDArray;
 
 use super::{
-    backend::{NeighborSearchBackend, build_search_backend},
+    backend::{NeighborSearchBackend, build_search_backend_with_leaf_size},
     config::KnnSearchAlgorithm,
     metric::DistanceMetric,
     neighbor::Neighbor,
@@ -19,9 +19,11 @@ impl TrainingIndex {
     pub(crate) fn new(
         features: NDArray<f64>,
         algorithm: KnnSearchAlgorithm,
+        tree_leaf_size: usize,
     ) -> AtlasMlResult<Self> {
         let features = Arc::new(features);
-        let backend = build_search_backend(Arc::clone(&features), algorithm)?;
+        let backend =
+            build_search_backend_with_leaf_size(Arc::clone(&features), algorithm, tree_leaf_size)?;
 
         Ok(Self { features, backend })
     }
@@ -60,6 +62,7 @@ mod tests {
         let index = TrainingIndex::new(
             NDArray::from_shape_vec([2, 3], vec![0.0_f64, 1.0, 2.0, 3.0, 4.0, 5.0]).unwrap(),
             KnnSearchAlgorithm::BruteForce,
+            1,
         )
         .unwrap();
 
@@ -73,6 +76,7 @@ mod tests {
         let index = TrainingIndex::new(
             NDArray::from_shape_vec([2, 1], vec![0.0_f64, 2.0]).unwrap(),
             KnnSearchAlgorithm::BruteForce,
+            1,
         )
         .unwrap();
 

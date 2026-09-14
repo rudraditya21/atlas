@@ -12,10 +12,24 @@ pub(crate) struct BallTree {
 }
 
 impl BallTree {
+    #[cfg(test)]
     pub(crate) fn build<F>(features: &F) -> AtlasMlResult<Self>
     where
         F: OperandMetadata<f64> + ?Sized,
     {
+        Self::build_with_leaf_size(features, 1)
+    }
+
+    pub(crate) fn build_with_leaf_size<F>(features: &F, leaf_size: usize) -> AtlasMlResult<Self>
+    where
+        F: OperandMetadata<f64> + ?Sized,
+    {
+        if leaf_size == 0 {
+            return Err(AtlasMlError::InvalidArgument {
+                op: BUILD_OP,
+                reason: "leaf size must be positive",
+            });
+        }
         if features.ndim() != 2 {
             return Err(AtlasMlError::InvalidInputRank {
                 op: BUILD_OP,
@@ -28,7 +42,7 @@ impl BallTree {
         }
 
         Ok(Self {
-            root: build_node(features, (0..features.shape()[0]).collect()),
+            root: build_node(features, (0..features.shape()[0]).collect(), leaf_size),
             sample_count: features.shape()[0],
             feature_count: features.shape()[1],
         })
@@ -47,20 +61,20 @@ impl BallTree {
     }
 }
 
-fn build_node<F>(features: &F, mut indices: Vec<usize>) -> BallTreeNode
+fn build_node<F>(features: &F, mut indices: Vec<usize>, leaf_size: usize) -> BallTreeNode
 where
     F: OperandMetadata<f64> + ?Sized,
 {
     indices.sort_unstable();
     let center = center(features, &indices);
     let radius = radius(features, &indices, &center);
-    if indices.len() == 1 {
+    if indices.len() <= leaf_size {
         return BallTreeNode::leaf(center, radius, indices);
     }
 
     let (left_indices, right_indices) = farthest_point_partition(features, indices);
-    let left = build_node(features, left_indices);
-    let right = build_node(features, right_indices);
+    let left = build_node(features, left_indices, leaf_size);
+    let right = build_node(features, right_indices, leaf_size);
 
     BallTreeNode::internal(center, radius, left, right)
 }
