@@ -17,7 +17,9 @@ pub use descriptive::{
     covariance_matrix::{covariance_matrix, covariance_matrix_ddof},
     kurtosis::kurtosis,
     quantile::{
-        median, median_axis, median_axis_keepdims, quantile, quantile_axis, quantile_axis_keepdims,
+        QuantileInterpolation, median, median_axis, median_axis_keepdims, quantile, quantile_axis,
+        quantile_axis_keepdims, quantile_axis_keepdims_with_interpolation,
+        quantile_axis_with_interpolation, quantile_with_interpolation,
     },
     skewness::skewness,
     stddev::{stddev, stddev_ddof},
