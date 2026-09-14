@@ -5,12 +5,14 @@ use crate::{
     AtlasMlError, AtlasMlResult, coefficient_of_determination,
     core::validation::{
         validate_finite_feature_values, validate_finite_target_values,
-        validate_prediction_feature_inputs, validate_supervised_training_inputs,
+        validate_prediction_feature_inputs, validate_sample_weights,
+        validate_supervised_training_inputs,
     },
 };
 
 const CONFIG_OP: &str = "ridge_regression_config";
 const FIT_OP: &str = "ridge_regression_fit";
+const WEIGHTED_FIT_OP: &str = "ridge_regression_fit_weighted";
 const PREDICT_OP: &str = "ridge_regression_predict";
 
 /// Configuration for ridge regression.
@@ -64,12 +66,49 @@ impl RidgeRegression {
         F: OperandMetadata<f64> + ?Sized,
         T: OperandMetadata<f64> + ?Sized,
     {
-        validate_supervised_training_inputs(features, targets, FIT_OP)?;
-        validate_finite_feature_values(features, FIT_OP)?;
+        validate_training_inputs(features, targets, FIT_OP)?;
+        let weights = vec![1.0; features.shape()[0]];
 
-        let target_values = target_values(targets);
-        validate_finite_target_values(&target_values, FIT_OP)?;
-        let (design, augmented_targets) = regularized_system(features, target_values, config)?;
+        Self::fit_with_validated_weights(features, targets, &weights, config)
+    }
+
+    /// Fits a ridge-regression model with nonnegative per-sample least-squares weights.
+    pub fn fit_weighted<F, T, W>(
+        features: &F,
+        targets: &T,
+        sample_weights: &W,
+        config: RidgeRegressionConfig,
+    ) -> AtlasMlResult<Self>
+    where
+        F: OperandMetadata<f64> + ?Sized,
+        T: OperandMetadata<f64> + ?Sized,
+        W: OperandMetadata<f64> + ?Sized,
+    {
+        validate_training_inputs(features, targets, WEIGHTED_FIT_OP)?;
+        validate_sample_weights(sample_weights, features.shape()[0], WEIGHTED_FIT_OP)?;
+        let weights = sample_weight_values(sample_weights);
+        if weights.iter().all(|&weight| weight == 0.0) {
+            return Err(AtlasMlError::InvalidArgument {
+                op: WEIGHTED_FIT_OP,
+                reason: "sample weights must have positive total",
+            });
+        }
+
+        Self::fit_with_validated_weights(features, targets, &weights, config)
+    }
+
+    fn fit_with_validated_weights<F, T>(
+        features: &F,
+        targets: &T,
+        sample_weights: &[f64],
+        config: RidgeRegressionConfig,
+    ) -> AtlasMlResult<Self>
+    where
+        F: OperandMetadata<f64> + ?Sized,
+        T: OperandMetadata<f64> + ?Sized,
+    {
+        let (design, augmented_targets) =
+            regularized_system(features, target_values(targets), sample_weights, config)?;
         let targets = NDArray::from_shape_vec([augmented_targets.len()], augmented_targets)?;
         let solution = qr(&design)?.least_squares(&targets)?;
 
@@ -133,6 +172,7 @@ impl RidgeRegression {
 fn regularized_system<F>(
     features: &F,
     mut targets: Vec<f64>,
+    sample_weights: &[f64],
     config: RidgeRegressionConfig,
 ) -> AtlasMlResult<(NDArray<f64>, Vec<f64>)>
 where
@@ -142,10 +182,12 @@ where
     let feature_count = features.shape()[1];
     let mut design = Vec::with_capacity((sample_count + feature_count) * (feature_count + 1));
     for sample_index in 0..sample_count {
-        design.push(1.0);
+        let weight = sample_weights[sample_index].sqrt();
+        design.push(weight);
         for feature_index in 0..feature_count {
-            design.push(feature(features, sample_index, feature_index));
+            design.push(weight * feature(features, sample_index, feature_index));
         }
+        targets[sample_index] *= weight;
     }
 
     let penalty = config.l2_regularization().sqrt();
@@ -178,6 +220,27 @@ where
 {
     (0..targets.shape()[0])
         .map(|sample_index| targets.data()[targets.offset() + sample_index * targets.strides()[0]])
+        .collect()
+}
+
+fn validate_training_inputs<F, T>(features: &F, targets: &T, op: &'static str) -> AtlasMlResult<()>
+where
+    F: OperandMetadata<f64> + ?Sized,
+    T: OperandMetadata<f64> + ?Sized,
+{
+    validate_supervised_training_inputs(features, targets, op)?;
+    validate_finite_feature_values(features, op)?;
+    validate_finite_target_values(&target_values(targets), op)
+}
+
+fn sample_weight_values<W>(sample_weights: &W) -> Vec<f64>
+where
+    W: OperandMetadata<f64> + ?Sized,
+{
+    (0..sample_weights.shape()[0])
+        .map(|index| {
+            sample_weights.data()[sample_weights.offset() + index * sample_weights.strides()[0]]
+        })
         .collect()
 }
 
@@ -239,6 +302,99 @@ mod tests {
 
         assert_close(model.intercept(), 2.0);
         assert_close(model.coefficients().data()[0], 0.0);
+    }
+
+    #[test]
+    fn fits_weighted_known_solution() {
+        let features = NDArray::from_shape_vec([3, 1], vec![0.0_f64, 1.0, 2.0]).unwrap();
+        let targets = NDArray::from_shape_vec([3], vec![1.0_f64, 3.0, 5.0]).unwrap();
+        let weights = NDArray::from_shape_vec([3], vec![1.0_f64, 1.0, 3.0]).unwrap();
+
+        let model = RidgeRegression::fit_weighted(
+            &features,
+            &targets,
+            &weights,
+            RidgeRegressionConfig::new(1.0).unwrap(),
+        )
+        .unwrap();
+
+        assert_close(model.intercept(), 5.0 / 3.0);
+        assert_close(model.coefficients().data()[0], 32.0 / 21.0);
+    }
+
+    #[test]
+    fn weighted_fitting_ignores_zero_weight_rows() {
+        let features = NDArray::from_shape_vec([3, 1], vec![0.0_f64, 1.0, 100.0]).unwrap();
+        let targets = NDArray::from_shape_vec([3], vec![1.0_f64, 3.0, 1_000.0]).unwrap();
+        let weights = NDArray::from_shape_vec([3], vec![1.0_f64, 1.0, 0.0]).unwrap();
+        let reference_features = NDArray::from_shape_vec([2, 1], vec![0.0_f64, 1.0]).unwrap();
+        let reference_targets = NDArray::from_shape_vec([2], vec![1.0_f64, 3.0]).unwrap();
+        let config = RidgeRegressionConfig::new(1.0).unwrap();
+
+        let weighted =
+            RidgeRegression::fit_weighted(&features, &targets, &weights, config).unwrap();
+        let reference =
+            RidgeRegression::fit(&reference_features, &reference_targets, config).unwrap();
+
+        assert_close(weighted.intercept(), reference.intercept());
+        assert_close(weighted.coefficients().data()[0], reference.coefficients().data()[0]);
+    }
+
+    #[test]
+    fn rejects_all_zero_weighted_fits() {
+        let features = NDArray::from_shape_vec([2, 1], vec![0.0_f64, 1.0]).unwrap();
+        let targets = NDArray::from_shape_vec([2], vec![1.0_f64, 3.0]).unwrap();
+        let weights = NDArray::from_shape_vec([2], vec![0.0_f64, 0.0]).unwrap();
+
+        assert_eq!(
+            RidgeRegression::fit_weighted(
+                &features,
+                &targets,
+                &weights,
+                RidgeRegressionConfig::default(),
+            )
+            .map(|_| ()),
+            Err(AtlasMlError::InvalidArgument {
+                op: "ridge_regression_fit_weighted",
+                reason: "sample weights must have positive total",
+            })
+        );
+    }
+
+    #[test]
+    fn weighted_fitting_handles_rank_deficient_features() {
+        let features =
+            NDArray::from_shape_vec([3, 2], vec![0.0_f64, 0.0, 1.0, 1.0, 2.0, 2.0]).unwrap();
+        let targets = NDArray::from_shape_vec([3], vec![1.0_f64, 3.0, 5.0]).unwrap();
+        let weights = NDArray::from_shape_vec([3], vec![1.0_f64, 2.0, 1.0]).unwrap();
+
+        let model = RidgeRegression::fit_weighted(
+            &features,
+            &targets,
+            &weights,
+            RidgeRegressionConfig::new(1.0).unwrap(),
+        )
+        .unwrap();
+
+        assert_close_slice(model.predict(&features).unwrap().data(), &[1.4, 3.0, 4.6]);
+        assert_close(model.coefficients().data()[0], model.coefficients().data()[1]);
+    }
+
+    #[test]
+    fn weighted_fitting_supports_logical_views() {
+        let feature_source = NDArray::from_shape_vec([1, 3], vec![0.0_f64, 1.0, 2.0]).unwrap();
+        let target_source = NDArray::from_shape_vec([1, 3], vec![1.0_f64, 3.0, 5.0]).unwrap();
+        let weight_source = NDArray::from_shape_vec([1, 3], vec![1.0_f64, 2.0, 1.0]).unwrap();
+        let model = RidgeRegression::fit_weighted(
+            &feature_source.view().transpose(),
+            &target_source.view().reshape([3]).unwrap(),
+            &weight_source.view().reshape([3]).unwrap(),
+            RidgeRegressionConfig::default(),
+        )
+        .unwrap();
+        let queries = NDArray::from_shape_vec([1, 2], vec![3.0_f64, 4.0]).unwrap();
+
+        assert_close_slice(model.predict(&queries.view().transpose()).unwrap().data(), &[7.0, 9.0]);
     }
 
     #[test]
