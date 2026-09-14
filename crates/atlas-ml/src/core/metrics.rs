@@ -1,6 +1,9 @@
 use atlas_ndarray::{ArrayElement, OperandMetadata};
 
-use crate::{AtlasMlError, AtlasMlResult, core::validation::validate_finite_feature_values};
+use crate::{
+    AtlasMlError, AtlasMlResult,
+    core::validation::{validate_binary_labels, validate_finite_feature_values},
+};
 
 const ACCURACY_OP: &str = "classification_accuracy";
 const MAE_OP: &str = "mean_absolute_error";
@@ -63,7 +66,8 @@ where
     P: OperandMetadata<usize> + ?Sized,
 {
     let accuracy = classification_accuracy(actual, predicted)?;
-    validate_binary_labels(actual, predicted)?;
+    validate_binary_labels(actual, CLASSIFICATION_REPORT_OP)?;
+    validate_binary_labels(predicted, CLASSIFICATION_REPORT_OP)?;
 
     let mut true_positives = 0;
     let mut false_positives = 0;
@@ -237,13 +241,8 @@ where
         return Err(AtlasMlError::EmptyInput { op: BINARY_LOG_LOSS_OP });
     }
 
+    validate_binary_labels(actual, BINARY_LOG_LOSS_OP)?;
     for index in 0..actual.shape()[0] {
-        if label(actual, index) > 1 {
-            return Err(AtlasMlError::InvalidArgument {
-                op: BINARY_LOG_LOSS_OP,
-                reason: "labels must be binary values 0 or 1",
-            });
-        }
         let probability = value(probabilities, index);
         if !probability.is_finite() {
             return Err(AtlasMlError::NonFiniteInput { op: BINARY_LOG_LOSS_OP });
@@ -254,21 +253,6 @@ where
                 reason: "probabilities must be within [0, 1]",
             });
         }
-    }
-
-    Ok(())
-}
-
-fn validate_binary_labels<A, P>(actual: &A, predicted: &P) -> AtlasMlResult<()>
-where
-    A: OperandMetadata<usize> + ?Sized,
-    P: OperandMetadata<usize> + ?Sized,
-{
-    if (0..actual.shape()[0]).any(|index| label(actual, index) > 1 || label(predicted, index) > 1) {
-        return Err(AtlasMlError::InvalidArgument {
-            op: CLASSIFICATION_REPORT_OP,
-            reason: "labels must be binary values 0 or 1",
-        });
     }
 
     Ok(())

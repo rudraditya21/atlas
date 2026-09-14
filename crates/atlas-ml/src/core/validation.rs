@@ -42,6 +42,32 @@ where
     Ok(())
 }
 
+pub(crate) fn validate_binary_labels<L>(labels: &L, op: &'static str) -> AtlasMlResult<()>
+where
+    L: OperandMetadata<usize> + ?Sized,
+{
+    if labels.ndim() != 1 {
+        return Err(AtlasMlError::InvalidInputRank {
+            op,
+            expected: "a rank-1 binary label vector",
+            rank: labels.ndim(),
+        });
+    }
+    if labels.shape()[0] == 0 {
+        return Err(AtlasMlError::EmptyInput { op });
+    }
+    if (0..labels.shape()[0])
+        .any(|index| labels.data()[labels.offset() + index * labels.strides()[0]] > 1)
+    {
+        return Err(AtlasMlError::InvalidArgument {
+            op,
+            reason: "labels must be binary values 0 or 1",
+        });
+    }
+
+    Ok(())
+}
+
 pub(crate) fn validate_prediction_feature_inputs<F, T>(
     features: &F,
     expected_feature_count: usize,
@@ -134,7 +160,7 @@ mod tests {
     use atlas_ndarray::NDArray;
 
     use super::{
-        validate_finite_feature_values, validate_prediction_feature_inputs,
+        validate_binary_labels, validate_finite_feature_values, validate_prediction_feature_inputs,
         validate_supervised_training_inputs,
     };
     use crate::AtlasMlError;
@@ -147,6 +173,38 @@ mod tests {
         let targets = NDArray::from_shape_vec([2], vec![0_usize, 1]).unwrap();
 
         assert_eq!(validate_supervised_training_inputs(&features, &targets, OP), Ok(()));
+    }
+
+    #[test]
+    fn validates_binary_label_vectors_and_views() {
+        let labels = NDArray::from_shape_vec([2], vec![0_usize, 1]).unwrap();
+
+        assert_eq!(validate_binary_labels(&labels, OP), Ok(()));
+        assert_eq!(validate_binary_labels(&labels.view(), OP), Ok(()));
+    }
+
+    #[test]
+    fn rejects_invalid_binary_label_vectors() {
+        let matrix = NDArray::from_shape_vec([1, 2], vec![0_usize, 1]).unwrap();
+        let empty = NDArray::from_shape_vec([0], Vec::<usize>::new()).unwrap();
+        let invalid = NDArray::from_shape_vec([1], vec![2_usize]).unwrap();
+
+        assert_eq!(
+            validate_binary_labels(&matrix, OP),
+            Err(AtlasMlError::InvalidInputRank {
+                op: OP,
+                expected: "a rank-1 binary label vector",
+                rank: 2,
+            })
+        );
+        assert_eq!(validate_binary_labels(&empty, OP), Err(AtlasMlError::EmptyInput { op: OP }));
+        assert_eq!(
+            validate_binary_labels(&invalid, OP),
+            Err(AtlasMlError::InvalidArgument {
+                op: OP,
+                reason: "labels must be binary values 0 or 1",
+            })
+        );
     }
 
     #[test]

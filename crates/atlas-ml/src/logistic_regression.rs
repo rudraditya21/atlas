@@ -3,7 +3,7 @@ use atlas_ndarray::{NDArray, OperandMetadata};
 use crate::{
     AtlasMlError, AtlasMlResult, binary_log_loss, classification_accuracy,
     core::validation::{
-        validate_finite_feature_values, validate_prediction_feature_inputs,
+        validate_binary_labels, validate_finite_feature_values, validate_prediction_feature_inputs,
         validate_prediction_feature_row, validate_supervised_training_inputs,
     },
 };
@@ -300,20 +300,8 @@ impl BinaryLogisticRegression {
         L: OperandMetadata<usize> + ?Sized,
     {
         let predictions = self.predict(features)?;
-        let accuracy = classification_accuracy(labels, &predictions)?;
         validate_binary_labels(labels, SCORE_OP)?;
-        Ok(accuracy)
-    }
-}
-
-fn validate_binary_labels<L>(labels: &L, op: &'static str) -> AtlasMlResult<()>
-where
-    L: OperandMetadata<usize> + ?Sized,
-{
-    if (0..labels.shape()[0]).all(|sample_index| label(labels, sample_index) <= 1) {
-        Ok(())
-    } else {
-        Err(AtlasMlError::InvalidArgument { op, reason: "labels must be binary values 0 or 1" })
+        classification_accuracy(labels, &predictions)
     }
 }
 
