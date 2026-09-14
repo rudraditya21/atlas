@@ -34,5 +34,5 @@ pub use knn::{
 pub use linear_regression::LinearRegression;
 pub use logistic_regression::{BinaryLogisticRegression, LogisticRegressionConfig};
 pub use nearest_centroid::NearestCentroidClassifier;
-pub use perceptron::{PerceptronConfig, PerceptronShufflePolicy};
+pub use perceptron::{BinaryPerceptron, PerceptronConfig, PerceptronShufflePolicy};
 pub use ridge_regression::{RidgeRegression, RidgeRegressionConfig};
