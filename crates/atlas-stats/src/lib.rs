@@ -15,6 +15,7 @@ pub use descriptive::{
     correlation_matrix::correlation_matrix,
     covariance::{covariance, covariance_ddof},
     covariance_matrix::{covariance_matrix, covariance_matrix_ddof},
+    kurtosis::kurtosis,
     quantile::{
         median, median_axis, median_axis_keepdims, quantile, quantile_axis, quantile_axis_keepdims,
     },

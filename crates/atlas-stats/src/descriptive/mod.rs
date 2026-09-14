@@ -3,6 +3,7 @@ pub(crate) mod correlation;
 pub(crate) mod correlation_matrix;
 pub(crate) mod covariance;
 pub(crate) mod covariance_matrix;
+pub(crate) mod kurtosis;
 pub(crate) mod quantile;
 pub(crate) mod skewness;
 pub(crate) mod stddev;
