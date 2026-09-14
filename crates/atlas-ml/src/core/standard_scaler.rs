@@ -51,6 +51,16 @@ impl StandardScaler {
         Ok(Self { means: means.into(), scales })
     }
 
+    /// Fits this scaler and transforms the same feature matrix.
+    pub fn fit_transform<F>(features: &F) -> AtlasMlResult<(Self, NDArray<f64>)>
+    where
+        F: OperandMetadata<f64> + ?Sized,
+    {
+        let scaler = Self::fit(features)?;
+        let transformed = scaler.transform(features)?;
+        Ok((scaler, transformed))
+    }
+
     /// Returns the fitted per-feature means.
     pub fn means(&self) -> &[f64] {
         &self.means
@@ -169,6 +179,26 @@ mod tests {
 
         assert_eq!(scaler.scales(), &[1.0, 1.0]);
         assert_eq!(scaler.transform(&features).unwrap().data(), &[-1.0, 0.0, 1.0, 0.0]);
+    }
+
+    #[test]
+    fn fit_transform_matches_separate_operations_for_views_and_constants() {
+        let source =
+            NDArray::from_shape_vec([2, 3], vec![1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+        let view = source.view().transpose();
+        let constant = NDArray::from_shape_vec([2, 2], vec![3.0_f64, 5.0, 3.0, 5.0]).unwrap();
+
+        let separate = StandardScaler::fit(&view).unwrap();
+        let (fitted, transformed) = StandardScaler::fit_transform(&view).unwrap();
+        assert_eq!(fitted.means(), separate.means());
+        assert_eq!(fitted.scales(), separate.scales());
+        assert_close(transformed.data(), separate.transform(&view).unwrap().data());
+
+        let separate = StandardScaler::fit(&constant).unwrap();
+        let (fitted, transformed) = StandardScaler::fit_transform(&constant).unwrap();
+        assert_eq!(fitted.means(), separate.means());
+        assert_eq!(fitted.scales(), separate.scales());
+        assert_eq!(transformed.data(), separate.transform(&constant).unwrap().data());
     }
 
     #[test]

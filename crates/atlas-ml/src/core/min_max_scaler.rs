@@ -39,6 +39,16 @@ impl MinMaxScaler {
         Ok(Self { minimums: minimums.into(), maximums: maximums.into() })
     }
 
+    /// Fits this scaler and transforms the same feature matrix.
+    pub fn fit_transform<F>(features: &F) -> AtlasMlResult<(Self, NDArray<f64>)>
+    where
+        F: OperandMetadata<f64> + ?Sized,
+    {
+        let scaler = Self::fit(features)?;
+        let transformed = scaler.transform(features)?;
+        Ok((scaler, transformed))
+    }
+
     /// Returns the fitted per-feature minimums.
     pub fn minimums(&self) -> &[f64] {
         &self.minimums
@@ -161,6 +171,26 @@ mod tests {
         let scaler = MinMaxScaler::fit(&features).unwrap();
 
         assert_eq!(scaler.transform(&features).unwrap().data(), &[0.0, 0.0, 1.0, 0.0]);
+    }
+
+    #[test]
+    fn fit_transform_matches_separate_operations_for_views_and_constants() {
+        let source =
+            NDArray::from_shape_vec([2, 3], vec![1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+        let view = source.view().transpose();
+        let constant = NDArray::from_shape_vec([2, 2], vec![3.0_f64, 5.0, 3.0, 5.0]).unwrap();
+
+        let separate = MinMaxScaler::fit(&view).unwrap();
+        let (fitted, transformed) = MinMaxScaler::fit_transform(&view).unwrap();
+        assert_eq!(fitted.minimums(), separate.minimums());
+        assert_eq!(fitted.maximums(), separate.maximums());
+        assert_close(transformed.data(), separate.transform(&view).unwrap().data());
+
+        let separate = MinMaxScaler::fit(&constant).unwrap();
+        let (fitted, transformed) = MinMaxScaler::fit_transform(&constant).unwrap();
+        assert_eq!(fitted.minimums(), separate.minimums());
+        assert_eq!(fitted.maximums(), separate.maximums());
+        assert_eq!(transformed.data(), separate.transform(&constant).unwrap().data());
     }
 
     #[test]
