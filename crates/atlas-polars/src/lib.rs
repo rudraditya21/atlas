@@ -5,7 +5,7 @@
 
 #![forbid(unsafe_code)]
 
-use atlas_ndarray::{AtlasNdError, NDArray};
+use atlas_ndarray::{AtlasNdError, NDArray, OperandMetadata};
 use polars::prelude::{Column, DataFrame, Series};
 use polars_arrow::array::{
     Array, ArrayRef, BooleanArray, Float32Array, Float64Array, Int8Array, Int16Array, Int32Array,
@@ -77,10 +77,11 @@ impl PolarsPrimitive for bool {
     }
 }
 
-pub fn to_polars_series<T: PolarsPrimitive>(
-    name: &str,
-    array: &NDArray<T>,
-) -> AtlasPolarsResult<Series> {
+pub fn to_polars_series<T, O>(name: &str, array: &O) -> AtlasPolarsResult<Series>
+where
+    T: PolarsPrimitive,
+    O: OperandMetadata<T> + ?Sized,
+{
     if array.ndim() != 1 {
         return Err(AtlasPolarsError::InvalidInputRank {
             op: "to_polars_series",
@@ -88,7 +89,10 @@ pub fn to_polars_series<T: PolarsPrimitive>(
             rank: array.ndim(),
         });
     }
-    Series::from_arrow(name.into(), T::to_polars_arrow(array.data().to_vec()))
+    let values = (0..array.shape()[0])
+        .map(|index| array.data()[array.offset() + index * array.strides()[0]])
+        .collect();
+    Series::from_arrow(name.into(), T::to_polars_arrow(values))
         .map_err(|error| AtlasPolarsError::Polars(error.to_string()))
 }
 
@@ -164,7 +168,7 @@ pub fn from_polars_dataframe<T: PolarsPrimitive>(
 
 #[cfg(test)]
 mod tests {
-    use atlas_ndarray::NDArray;
+    use atlas_ndarray::{NDArray, SliceRange};
     use polars::prelude::DataType;
 
     use crate::{from_polars_dataframe, from_polars_series, to_polars_dataframe, to_polars_series};
@@ -179,6 +183,24 @@ mod tests {
         assert_eq!(series.dtype(), &DataType::Int32);
         assert_eq!(converted.shape(), &[3]);
         assert_eq!(converted.data(), values.data());
+    }
+
+    #[test]
+    fn series_conversion_uses_logical_view_values() {
+        let values = NDArray::from_shape_vec([5], vec![0_i32, 1, 2, 3, 4]).unwrap();
+        let offset = values.view().slice([1], [3]).unwrap();
+        let strided = values.view().slice_ranges([SliceRange::new(Some(0), Some(5), 2)]).unwrap();
+        let empty = values.view().slice([0], [0]).unwrap();
+
+        let offset_series = to_polars_series("offset", &offset).unwrap();
+        let strided_series = to_polars_series("strided", &strided).unwrap();
+        let empty_series = to_polars_series("empty", &empty).unwrap();
+
+        assert_eq!(offset_series.dtype(), &DataType::Int32);
+        assert_eq!(from_polars_series::<i32>(&offset_series).unwrap().data(), &[1, 2, 3]);
+        assert_eq!(from_polars_series::<i32>(&strided_series).unwrap().data(), &[0, 2, 4]);
+        assert_eq!(empty_series.len(), 0);
+        assert_eq!(empty_series.dtype(), &DataType::Int32);
     }
 
     #[test]
