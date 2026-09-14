@@ -1,7 +1,7 @@
 use atlas_ndarray::{NDArray, OperandMetadata};
 
 use crate::{
-    AtlasMlError, AtlasMlResult,
+    AtlasMlError, AtlasMlResult, classification_accuracy,
     core::validation::{
         validate_finite_feature_values, validate_prediction_feature_inputs,
         validate_prediction_feature_row, validate_supervised_training_inputs,
@@ -13,6 +13,7 @@ const FIT_OP: &str = "binary_logistic_regression_fit";
 const PREDICT_PROBA_OP: &str = "binary_logistic_regression_predict_proba";
 const PREDICT_PROBA_ONE_OP: &str = "binary_logistic_regression_predict_proba_one";
 const PREDICT_OP: &str = "binary_logistic_regression_predict";
+const SCORE_OP: &str = "binary_logistic_regression_score";
 const DEFAULT_LEARNING_RATE: f64 = 0.1;
 const DEFAULT_MAX_ITERATIONS: usize = 1_000;
 const DEFAULT_CONVERGENCE_TOLERANCE: f64 = 1e-6;
@@ -91,7 +92,7 @@ impl BinaryLogisticRegression {
     {
         validate_supervised_training_inputs(features, labels, FIT_OP)?;
         validate_finite_feature_values(features, FIT_OP)?;
-        validate_binary_labels(labels)?;
+        validate_binary_labels(labels, FIT_OP)?;
 
         let sample_count = features.shape()[0];
         let feature_count = features.shape()[1];
@@ -218,19 +219,28 @@ impl BinaryLogisticRegression {
     pub fn predict_one(&self, query: &[f64]) -> AtlasMlResult<usize> {
         Ok(if self.predict_proba_one(query)? >= 0.5 { 1 } else { 0 })
     }
+
+    /// Returns classification accuracy for binary labels encoded as `0` and `1`.
+    pub fn score<F, L>(&self, features: &F, labels: &L) -> AtlasMlResult<f64>
+    where
+        F: OperandMetadata<f64> + ?Sized,
+        L: OperandMetadata<usize> + ?Sized,
+    {
+        let predictions = self.predict(features)?;
+        let accuracy = classification_accuracy(labels, &predictions)?;
+        validate_binary_labels(labels, SCORE_OP)?;
+        Ok(accuracy)
+    }
 }
 
-fn validate_binary_labels<L>(labels: &L) -> AtlasMlResult<()>
+fn validate_binary_labels<L>(labels: &L, op: &'static str) -> AtlasMlResult<()>
 where
     L: OperandMetadata<usize> + ?Sized,
 {
     if (0..labels.shape()[0]).all(|sample_index| label(labels, sample_index) <= 1) {
         Ok(())
     } else {
-        Err(AtlasMlError::InvalidArgument {
-            op: FIT_OP,
-            reason: "labels must be binary values 0 or 1",
-        })
+        Err(AtlasMlError::InvalidArgument { op, reason: "labels must be binary values 0 or 1" })
     }
 }
 
@@ -624,5 +634,90 @@ mod tests {
         };
 
         assert_eq!(model.predict_one(&[4.0]).unwrap(), 1);
+    }
+
+    #[test]
+    fn scores_perfect_binary_predictions() {
+        let features = NDArray::from_shape_vec([4, 1], vec![-2.0_f64, -1.0, 1.0, 2.0]).unwrap();
+        let labels = NDArray::from_shape_vec([4], vec![0_usize, 0, 1, 1]).unwrap();
+        let model = BinaryLogisticRegression::fit(
+            &features,
+            &labels,
+            LogisticRegressionConfig::new(0.5, 1_000, 1e-6).unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(model.score(&features, &labels).unwrap(), 1.0);
+    }
+
+    #[test]
+    fn scores_partial_binary_predictions() {
+        let model = BinaryLogisticRegression {
+            intercept: 0.0,
+            coefficients: NDArray::from_shape_vec([1], vec![1.0_f64]).unwrap(),
+            iterations: 0,
+            converged: false,
+        };
+        let features = NDArray::from_shape_vec([2, 1], vec![-1.0_f64, 1.0]).unwrap();
+        let labels = NDArray::from_shape_vec([2], vec![0_usize, 0]).unwrap();
+
+        assert_eq!(model.score(&features, &labels).unwrap(), 0.5);
+    }
+
+    #[test]
+    fn rejects_invalid_score_labels() {
+        let model = BinaryLogisticRegression {
+            intercept: 0.0,
+            coefficients: NDArray::from_shape_vec([1], vec![1.0_f64]).unwrap(),
+            iterations: 0,
+            converged: false,
+        };
+        let features = NDArray::from_shape_vec([2, 1], vec![-1.0_f64, 1.0]).unwrap();
+        let labels = NDArray::from_shape_vec([2], vec![0_usize, 2]).unwrap();
+
+        assert_eq!(
+            model.score(&features, &labels).map(|_| ()),
+            Err(AtlasMlError::InvalidArgument {
+                op: "binary_logistic_regression_score",
+                reason: "labels must be binary values 0 or 1",
+            })
+        );
+    }
+
+    #[test]
+    fn rejects_score_label_count_mismatches() {
+        let model = BinaryLogisticRegression {
+            intercept: 0.0,
+            coefficients: NDArray::from_shape_vec([1], vec![1.0_f64]).unwrap(),
+            iterations: 0,
+            converged: false,
+        };
+        let features = NDArray::from_shape_vec([2, 1], vec![-1.0_f64, 1.0]).unwrap();
+        let labels = NDArray::from_shape_vec([1], vec![0_usize]).unwrap();
+
+        assert_eq!(
+            model.score(&features, &labels).map(|_| ()),
+            Err(AtlasMlError::ShapeMismatch {
+                op: "classification_accuracy",
+                left: vec![1],
+                right: vec![2],
+                reason: "label counts must match",
+            })
+        );
+    }
+
+    #[test]
+    fn scores_logical_feature_and_label_views() {
+        let source = NDArray::from_shape_vec([1, 4], vec![-2.0_f64, -1.0, 1.0, 2.0]).unwrap();
+        let features = source.view().transpose();
+        let labels = NDArray::from_shape_vec([4], vec![0_usize, 0, 1, 1]).unwrap();
+        let model = BinaryLogisticRegression::fit(
+            &features,
+            &labels,
+            LogisticRegressionConfig::new(0.5, 1_000, 1e-6).unwrap(),
+        )
+        .unwrap();
+
+        assert_eq!(model.score(&features, &labels.view()).unwrap(), 1.0);
     }
 }
