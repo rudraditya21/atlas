@@ -7,6 +7,7 @@ pub use core::error::{AtlasRandomError, AtlasRandomResult};
 pub use distributions::{
     bernoulli::bernoulli,
     categorical::categorical,
+    choice::{choice, choice_indices},
     normal::normal,
     permutation::permutation,
     rand::rand,
