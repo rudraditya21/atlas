@@ -29,6 +29,12 @@ impl<'a, T: Numeric> From<&'a ArrayView<'a, T>> for LinalgOperand<'a, T> {
     }
 }
 
+impl<'a, T: Numeric> From<&LinalgOperand<'a, T>> for LinalgOperand<'a, T> {
+    fn from(value: &LinalgOperand<'a, T>) -> Self {
+        value.clone()
+    }
+}
+
 impl<'a, T: Numeric> LinalgOperand<'a, T> {
     fn as_ref<'operand>(&'operand self) -> OperandRef<'operand, 'a, T> {
         match self {

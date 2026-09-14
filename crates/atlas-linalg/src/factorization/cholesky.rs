@@ -28,8 +28,12 @@ impl<T: Numeric + Float> CholeskyFactorization<T> {
         T: 'a,
         R: Into<LinalgOperand<'a, T>>,
     {
-        let order = self.order()?;
         let rhs = rhs.into();
+        self.solve_operand(&rhs)
+    }
+
+    fn solve_operand(&self, rhs: &LinalgOperand<'_, T>) -> AtlasLinalgResult<NDArray<T>> {
+        let order = self.order()?;
         match rhs.shape() {
             [rows] if *rows == order => {}
             [rows, _] if *rows == order => {}
@@ -90,7 +94,14 @@ where
     M: Into<LinalgOperand<'a, T>>,
 {
     let matrix = matrix.into();
-    let (rows, cols) = validate_rank_two(&matrix, "cholesky")?;
+    cholesky_operand(&matrix)
+}
+
+fn cholesky_operand<T>(matrix: &LinalgOperand<'_, T>) -> AtlasLinalgResult<CholeskyFactorization<T>>
+where
+    T: Numeric + Float,
+{
+    let (rows, cols) = validate_rank_two(matrix, "cholesky")?;
 
     if rows != cols {
         return Err(AtlasLinalgError::InvalidInputShape {
@@ -102,7 +113,7 @@ where
 
     let n = rows;
     let tolerance = tolerance::<T>();
-    let a = copy_matrix_row_major(&matrix);
+    let a = copy_matrix_row_major(matrix);
     validate_finite(&a, "cholesky")?;
 
     if !is_symmetric(&a, n, tolerance) {
@@ -139,13 +150,134 @@ where
     Ok(CholeskyFactorization { l: NDArray::from_shape_vec([n, n], l)? })
 }
 
+/// Solves a rank-2 SPD system or matching rank-3 batches of SPD systems.
 pub fn solve_spd<'a, 'b, T, M, R>(matrix: M, rhs: R) -> AtlasLinalgResult<NDArray<T>>
 where
     T: Numeric + Float + 'a + 'b,
     M: Into<LinalgOperand<'a, T>>,
     R: Into<LinalgOperand<'b, T>>,
 {
-    cholesky(matrix)?.solve(rhs)
+    let matrix = matrix.into();
+    let rhs = rhs.into();
+
+    if matrix.ndim() == 3 {
+        solve_batched_spd(&matrix, &rhs)
+    } else {
+        cholesky_operand(&matrix)?.solve_operand(&rhs)
+    }
+}
+
+fn solve_batched_spd<T>(
+    matrix: &LinalgOperand<'_, T>,
+    rhs: &LinalgOperand<'_, T>,
+) -> AtlasLinalgResult<NDArray<T>>
+where
+    T: Numeric + Float,
+{
+    let [batch_count, rows, columns] = matrix.shape() else {
+        unreachable!("batched SPD solve requires a rank-3 coefficient matrix");
+    };
+    let (batch_count, rows, columns) = (*batch_count, *rows, *columns);
+    if rows != columns {
+        return Err(AtlasLinalgError::InvalidInputShape {
+            op: "cholesky",
+            shape: matrix.shape().to_vec(),
+            reason: "Cholesky requires a square matrix",
+        });
+    }
+
+    let (rhs_columns, vector_rhs) = match rhs.shape() {
+        [rhs_batches, rhs_rows] if *rhs_batches == batch_count && *rhs_rows == rows => (1, true),
+        [rhs_batches, rhs_rows, rhs_columns]
+            if *rhs_batches == batch_count && *rhs_rows == rows =>
+        {
+            (*rhs_columns, false)
+        }
+        [rhs_batches, ..]
+            if (rhs.ndim() == 2 || rhs.ndim() == 3) && *rhs_batches != batch_count =>
+        {
+            return Err(AtlasLinalgError::ShapeMismatch {
+                op: "solve_spd",
+                left: matrix.shape().to_vec(),
+                right: rhs.shape().to_vec(),
+                reason: "batch dimensions must match",
+            });
+        }
+        [..] if rhs.ndim() == 2 || rhs.ndim() == 3 => {
+            return Err(AtlasLinalgError::ShapeMismatch {
+                op: "solve_spd",
+                left: matrix.shape().to_vec(),
+                right: rhs.shape().to_vec(),
+                reason: "right-hand side row count must match coefficient matrix row count",
+            });
+        }
+        _ => {
+            return Err(AtlasLinalgError::InvalidInputRank {
+                op: "solve_spd",
+                expected: "a rank-2 batched vector or rank-3 batched matrix",
+                rank: rhs.ndim(),
+            });
+        }
+    };
+    let mut solutions = Vec::with_capacity(batch_count * rows * rhs_columns);
+
+    for batch in 0..batch_count {
+        let matrix = batched_matrix(matrix, batch, rows)?;
+        let rhs = batched_rhs(rhs, batch, rows, rhs_columns, vector_rhs)?;
+        let factor = cholesky_operand(&LinalgOperand::from(&matrix))?;
+        let solution = factor.solve_operand(&LinalgOperand::from(&rhs))?;
+        solutions.extend_from_slice(solution.data());
+    }
+
+    if vector_rhs {
+        NDArray::from_shape_vec([batch_count, rows], solutions).map_err(Into::into)
+    } else {
+        NDArray::from_shape_vec([batch_count, rows, rhs_columns], solutions).map_err(Into::into)
+    }
+}
+
+fn batched_matrix<T: Numeric>(
+    matrix: &LinalgOperand<'_, T>,
+    batch: usize,
+    rows: usize,
+) -> AtlasLinalgResult<NDArray<T>> {
+    let mut values = Vec::with_capacity(rows * rows);
+    for row in 0..rows {
+        for column in 0..rows {
+            values.push(
+                matrix.data()[matrix.offset()
+                    + batch * matrix.strides()[0]
+                    + row * matrix.strides()[1]
+                    + column * matrix.strides()[2]],
+            );
+        }
+    }
+    NDArray::from_shape_vec([rows, rows], values).map_err(Into::into)
+}
+
+fn batched_rhs<T: Numeric>(
+    rhs: &LinalgOperand<'_, T>,
+    batch: usize,
+    rows: usize,
+    columns: usize,
+    vector_rhs: bool,
+) -> AtlasLinalgResult<NDArray<T>> {
+    let mut values = Vec::with_capacity(rows * columns);
+    for row in 0..rows {
+        for column in 0..columns {
+            let offset = rhs.offset() + batch * rhs.strides()[0] + row * rhs.strides()[1];
+            values.push(if vector_rhs {
+                rhs.data()[offset]
+            } else {
+                rhs.data()[offset + column * rhs.strides()[2]]
+            });
+        }
+    }
+    if vector_rhs {
+        NDArray::from_shape_vec([rows], values).map_err(Into::into)
+    } else {
+        NDArray::from_shape_vec([rows, columns], values).map_err(Into::into)
+    }
 }
 
 #[cfg(test)]

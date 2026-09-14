@@ -1,6 +1,6 @@
 use atlas_linalg::{
     AtlasLinalgError, DotOutput, batched_diag, batched_dot, batched_transpose, dot, matmul, norm,
-    solve_lower_triangular, solve_upper_triangular, trace,
+    solve_lower_triangular, solve_spd, solve_upper_triangular, trace,
 };
 use atlas_ndarray::NDArray;
 
@@ -135,6 +135,66 @@ fn batched_triangular_solvers_reject_invalid_factors_and_rhs_batches() {
             left: vec![2, 2, 2],
             right: vec![1, 2],
             reason: "batch dimensions must match",
+        }
+    );
+}
+
+#[test]
+fn batched_spd_solve_handles_multiple_right_hand_sides_and_views() {
+    let matrices = NDArray::from_shape_vec(
+        [2, 2, 3],
+        vec![4.0_f64, 2.0, 9.0, 2.0, 3.0, 9.0, 2.0, 0.0, 9.0, 0.0, 5.0, 9.0],
+    )
+    .unwrap();
+    let rhs = NDArray::from_shape_vec(
+        [2, 2, 3],
+        vec![8.0_f64, 2.0, 9.0, 8.0, 3.0, 9.0, 6.0, 8.0, 9.0, -5.0, 10.0, 9.0],
+    )
+    .unwrap();
+
+    let solution = solve_spd(
+        matrices.view().slice([0, 0, 0], [2, 2, 2]).unwrap(),
+        rhs.view().slice([0, 0, 0], [2, 2, 2]).unwrap(),
+    )
+    .unwrap();
+
+    assert_eq!(solution.shape(), &[2, 2, 2]);
+    for (actual, expected) in solution.data().iter().zip([1.0, 0.0, 2.0, 1.0, 3.0, 4.0, -1.0, 2.0])
+    {
+        assert!((actual - expected).abs() < 1e-12);
+    }
+}
+
+#[test]
+fn batched_spd_solve_rejects_non_spd_batches_and_mismatched_shapes() {
+    let valid =
+        NDArray::from_shape_vec([2, 2, 2], vec![4.0_f64, 2.0, 2.0, 3.0, 2.0, 0.0, 0.0, 5.0])
+            .unwrap();
+    let non_spd =
+        NDArray::from_shape_vec([2, 2, 2], vec![4.0_f64, 2.0, 2.0, 3.0, 1.0, 2.0, 2.0, 1.0])
+            .unwrap();
+    let rhs = NDArray::<f64>::zeros([2, 2]).unwrap();
+
+    assert_eq!(
+        solve_spd(&non_spd, &rhs).unwrap_err(),
+        AtlasLinalgError::NotPositiveDefinite { op: "cholesky", index: 1 }
+    );
+    assert_eq!(
+        solve_spd(&valid, &NDArray::<f64>::zeros([1, 2]).unwrap()).unwrap_err(),
+        AtlasLinalgError::ShapeMismatch {
+            op: "solve_spd",
+            left: vec![2, 2, 2],
+            right: vec![1, 2],
+            reason: "batch dimensions must match",
+        }
+    );
+    assert_eq!(
+        solve_spd(&valid, &NDArray::<f64>::zeros([2, 1]).unwrap()).unwrap_err(),
+        AtlasLinalgError::ShapeMismatch {
+            op: "solve_spd",
+            left: vec![2, 2, 2],
+            right: vec![2, 1],
+            reason: "right-hand side row count must match coefficient matrix row count",
         }
     );
 }
