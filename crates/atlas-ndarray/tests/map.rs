@@ -1,4 +1,4 @@
-use atlas_ndarray::NDArray;
+use atlas_ndarray::{AtlasNdError, NDArray, SliceRange};
 
 #[test]
 fn map_preserves_contiguous_array_shape_and_values() {
@@ -40,6 +40,34 @@ fn map_materializes_sliced_views_in_logical_order() {
     assert_eq!(mapped.shape(), &[2, 2]);
     assert_eq!(mapped.data(), &[false, false, true, true]);
     assert!(mapped.is_contiguous());
+}
+
+#[test]
+fn strided_map_matches_scalar_logical_traversal() {
+    let source = NDArray::from_shape_vec([2, 4], (0_i32..8).collect()).unwrap();
+    let row_strided = source.view().slice([0, 0], [2, 3]).unwrap();
+    let transposed = source.view().transpose();
+    let stepped = source
+        .view()
+        .slice_ranges([SliceRange::full(), SliceRange::new(Some(0), Some(4), 2)])
+        .unwrap();
+
+    for view in [&row_strided, &transposed, &stepped] {
+        let expected: Vec<_> = view.iter().copied().map(|value| value * 2 + 1).collect();
+        let mapped = view.map(|value| value * 2 + 1);
+
+        assert_eq!(mapped.data(), expected.as_slice());
+    }
+}
+
+#[test]
+fn reverse_slices_remain_rejected_until_negative_steps_are_supported() {
+    let array = NDArray::from_shape_vec([4], vec![0_i32, 1, 2, 3]).unwrap();
+
+    assert_eq!(
+        array.view().slice_ranges([SliceRange::new(None, None, -1)]).unwrap_err(),
+        AtlasNdError::InvalidArgument { op: "slice", reason: "negative step is not supported" }
+    );
 }
 
 #[test]
