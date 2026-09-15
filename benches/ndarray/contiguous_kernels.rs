@@ -2,7 +2,7 @@
 mod common;
 
 use atlas_ndarray::NDArray;
-use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
+use criterion::{BatchSize, BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 
 fn filled_vector(len: usize, value: f64) -> NDArray<f64> {
     NDArray::from_vec(vec![len], vec![value; len]).unwrap()
@@ -110,6 +110,41 @@ fn bench_scalar_mul(c: &mut Criterion) {
 
         group.bench_with_input(BenchmarkId::from_parameter(size), &size, |b, _| {
             b.iter(|| black_box(array.mul(black_box(2.0_f64))))
+        });
+    }
+
+    group.finish();
+}
+
+fn bench_masked_fill(c: &mut Criterion) {
+    let mut group = c.benchmark_group("ndarray/masked_fill");
+
+    for size in common::VECTOR_SIZES {
+        common::configure_group(&mut group, size);
+        let source = filled_vector(size, 1.0_f64);
+        let mask = NDArray::from_vec(vec![size], (0..size).map(|index| index % 3 == 0).collect())
+            .unwrap();
+
+        group.bench_with_input(
+            BenchmarkId::new("allocation_inclusive", size),
+            &size,
+            |b, _| {
+                b.iter(|| {
+                    let mut output = source.clone();
+                    output.masked_fill(&mask, 0.0).unwrap();
+                    black_box(output)
+                })
+            },
+        );
+        group.bench_with_input(BenchmarkId::new("kernel_only", size), &size, |b, _| {
+            b.iter_batched_ref(
+                || source.clone(),
+                |output| {
+                    output.masked_fill(&mask, 0.0).unwrap();
+                    black_box(output.data()[0])
+                },
+                BatchSize::SmallInput,
+            )
         });
     }
 
@@ -247,6 +282,7 @@ criterion_group!(
     bench_contiguous_mul,
     bench_broadcast_mul,
     bench_scalar_mul,
+    bench_masked_fill,
     bench_sum_layouts,
     bench_sum_axis_layouts,
     bench_mean_layouts,
