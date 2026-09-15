@@ -85,6 +85,11 @@ harness = false
 path = "benches/linalg/dense_kernels.rs"
 
 [[bench]]
+name = "linalg_batched_kernels"
+harness = false
+path = "benches/linalg/batched_kernels.rs"
+
+[[bench]]
 name = "linalg_factorization_kernels"
 harness = false
 path = "benches/linalg/factorization_kernels.rs"
