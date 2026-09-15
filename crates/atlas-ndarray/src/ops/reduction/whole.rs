@@ -7,7 +7,7 @@ use super::{
 };
 use crate::{
     AtlasNdError, AtlasNdResult, ElementwiseArithmetic, Numeric,
-    internal::{for_each_value, layout::dense_storage_slice, simd},
+    internal::{layout::dense_storage_slice, logical_span_iter, simd},
 };
 
 pub(super) fn sum_contiguous<T: ElementwiseArithmetic>(values: &[T]) -> T {
@@ -115,10 +115,8 @@ pub(super) fn sum_all<T: ElementwiseArithmetic>(
         )));
     }
 
-    let mut total = T::zero();
-    for_each_value(data, offset, shape, strides, |value| {
-        total = total.elementwise_add(*value);
-    });
+    let total = logical_span_iter(data, offset, shape, strides)
+        .fold(T::zero(), |total, span| total.elementwise_add(sum_contiguous(span)));
     Ok(total)
 }
 
@@ -135,10 +133,8 @@ pub(super) fn prod_all<T: ElementwiseArithmetic>(
         return Ok(prod_contiguous(values));
     }
 
-    let mut total = T::one();
-    for_each_value(data, offset, shape, strides, |value| {
-        total = total.elementwise_mul(*value);
-    });
+    let total = logical_span_iter(data, offset, shape, strides)
+        .fold(T::one(), |total, span| total.elementwise_mul(prod_contiguous(span)));
     Ok(total)
 }
 
@@ -160,9 +156,10 @@ where
 
     let mut minimum = None;
 
-    for_each_value(data, offset, shape, strides, |value| {
-        minimum = Some(minimum.map_or(*value, |current| simd::min_propagating(current, *value)));
-    });
+    for span in logical_span_iter(data, offset, shape, strides) {
+        let value = min_contiguous(span, "min")?;
+        minimum = Some(minimum.map_or(value, |current| simd::min_propagating(current, value)));
+    }
 
     minimum.ok_or(AtlasNdError::EmptyReduction { op: "min" })
 }
@@ -185,9 +182,10 @@ where
 
     let mut maximum = None;
 
-    for_each_value(data, offset, shape, strides, |value| {
-        maximum = Some(maximum.map_or(*value, |current| simd::max_propagating(current, *value)));
-    });
+    for span in logical_span_iter(data, offset, shape, strides) {
+        let value = max_contiguous(span, "max")?;
+        maximum = Some(maximum.map_or(value, |current| simd::max_propagating(current, value)));
+    }
 
     maximum.ok_or(AtlasNdError::EmptyReduction { op: "max" })
 }
@@ -235,9 +233,9 @@ where
 fn sum_all_f32(data: &[f32], offset: usize, shape: &[usize], strides: &[usize]) -> f32 {
     let mut total = simd::CompensatedSum::new();
 
-    for_each_value(data, offset, shape, strides, |value| {
-        total.add(f64::from(*value));
-    });
+    for span in logical_span_iter(data, offset, shape, strides) {
+        total.add(f64::from(sum_contiguous(span)));
+    }
 
     total.finish() as f32
 }
@@ -245,9 +243,9 @@ fn sum_all_f32(data: &[f32], offset: usize, shape: &[usize], strides: &[usize]) 
 fn sum_all_f64(data: &[f64], offset: usize, shape: &[usize], strides: &[usize]) -> f64 {
     let mut total = simd::CompensatedSum::new();
 
-    for_each_value(data, offset, shape, strides, |value| {
-        total.add(*value);
-    });
+    for span in logical_span_iter(data, offset, shape, strides) {
+        total.add(sum_contiguous(span));
+    }
 
     total.finish()
 }

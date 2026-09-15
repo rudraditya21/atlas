@@ -92,23 +92,6 @@ pub(crate) fn offset_iter<'a>(
     OffsetIter::Strided(StridedOffsetIter { shape, strides, base_offset, linear_index: 0, len })
 }
 
-pub(crate) fn try_for_each_value<T, E, F>(
-    data: &[T],
-    base_offset: usize,
-    shape: &[usize],
-    strides: &[usize],
-    mut f: F,
-) -> Result<(), E>
-where
-    F: FnMut(&T) -> Result<(), E>,
-{
-    for value in value_iter(data, base_offset, shape, strides) {
-        f(value)?;
-    }
-
-    Ok(())
-}
-
 #[cfg(test)]
 pub(crate) fn lane_value_iter<'a, T>(
     data: &'a [T],

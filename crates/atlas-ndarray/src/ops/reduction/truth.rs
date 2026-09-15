@@ -8,9 +8,8 @@ use super::{
 use crate::{
     AtlasNdResult, AxisIndex, NDArray,
     internal::{
-        for_each_value,
         layout::{LayoutKind, dense_storage_slice},
-        offset_iter,
+        logical_span_iter, offset_iter,
     },
 };
 
@@ -24,11 +23,7 @@ pub(super) fn all_all(data: &[bool], offset: usize, shape: &[usize], strides: &[
         return all_contiguous(values);
     }
 
-    let mut all = true;
-    for_each_value(data, offset, shape, strides, |value| {
-        all &= *value;
-    });
-    all
+    logical_span_iter(data, offset, shape, strides).all(all_contiguous)
 }
 
 pub(super) fn any_all(data: &[bool], offset: usize, shape: &[usize], strides: &[usize]) -> bool {
@@ -41,11 +36,7 @@ pub(super) fn any_all(data: &[bool], offset: usize, shape: &[usize], strides: &[
         return any_contiguous(values);
     }
 
-    let mut any = false;
-    for_each_value(data, offset, shape, strides, |value| {
-        any |= *value;
-    });
-    any
+    logical_span_iter(data, offset, shape, strides).any(any_contiguous)
 }
 
 pub(super) fn count_true_all(
@@ -58,11 +49,9 @@ pub(super) fn count_true_all(
         return values.iter().filter(|&&value| value).count();
     }
 
-    let mut count = 0;
-    for_each_value(data, offset, shape, strides, |value| {
-        count += usize::from(*value);
-    });
-    count
+    logical_span_iter(data, offset, shape, strides)
+        .map(|span| span.iter().filter(|&&value| value).count())
+        .sum()
 }
 
 pub(super) fn all_axis_impl(

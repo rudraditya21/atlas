@@ -8,7 +8,7 @@ use super::{
 };
 use crate::{
     AtlasNdError, AtlasNdResult, NDArray, Numeric,
-    internal::{offset_iter, simd, try_for_each_value},
+    internal::{logical_span_iter, offset_iter, simd},
 };
 
 pub(super) fn mean_contiguous<T>(values: &[T], op: &'static str) -> AtlasNdResult<f64>
@@ -102,10 +102,9 @@ where
     }
 
     let mut total = simd::CompensatedSum::new();
-    try_for_each_value(data, offset, shape, strides, |value| {
-        total.add(value.to_f64().ok_or(AtlasNdError::NumericConversionFailed { op: "mean" })?);
-        Ok(())
-    })?;
+    for span in logical_span_iter(data, offset, shape, strides) {
+        total.add(sum_chunk_as_f64(span, "mean")?);
+    }
 
     Ok(total.finish() / metadata.len as f64)
 }
@@ -315,10 +314,9 @@ fn mean_all_f32(
     len: usize,
 ) -> AtlasNdResult<f64> {
     let mut total = simd::CompensatedSum::new();
-    try_for_each_value(data, offset, shape, strides, |value| {
-        total.add(f64::from(*value));
-        Ok::<(), AtlasNdError>(())
-    })?;
+    for span in logical_span_iter(data, offset, shape, strides) {
+        total.add(mean_contiguous(span, "mean")? * span.len() as f64);
+    }
     Ok(total.finish() / len as f64)
 }
 
@@ -330,10 +328,9 @@ fn mean_all_f64(
     len: usize,
 ) -> AtlasNdResult<f64> {
     let mut total = simd::CompensatedSum::new();
-    try_for_each_value(data, offset, shape, strides, |value| {
-        total.add(*value);
-        Ok::<(), AtlasNdError>(())
-    })?;
+    for span in logical_span_iter(data, offset, shape, strides) {
+        total.add(mean_contiguous(span, "mean")? * span.len() as f64);
+    }
     Ok(total.finish() / len as f64)
 }
 
