@@ -44,7 +44,9 @@ fn tall_matrix(rows: usize, cols: usize) -> NDArray<f64> {
 
     for row in 0..rows {
         for col in 0..cols {
-            data.push(((row * cols + col) as f64 + 1.0) / cols as f64);
+            let noise = ((row * 37 + col * 19) % 17) as f64 / 17.0 / cols as f64
+                - 0.5 / cols as f64;
+            data.push(if row == col { 1.0 + noise } else { noise });
         }
     }
 
