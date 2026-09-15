@@ -75,6 +75,11 @@ harness = false
 path = "benches/ndarray/contiguous_kernels.rs"
 
 [[bench]]
+name = "ndarray_view_kernels"
+harness = false
+path = "benches/ndarray/view_kernels.rs"
+
+[[bench]]
 name = "linalg_dense_kernels"
 harness = false
 path = "benches/linalg/dense_kernels.rs"
