@@ -82,9 +82,9 @@ fn dispatch_all_axis(
     metadata: AxisReductionMetadata,
 ) -> AtlasNdResult<NDArray<bool>> {
     match (metadata.source_layout, metadata.axis_layout) {
-        (LayoutKind::Contiguous, _) => all_axis_dense_contiguous(data, base_offset, metadata),
-        (LayoutKind::Strided, LayoutKind::Contiguous) => {
-            all_axis_contiguous(data, base_offset, metadata)
+        (_, LayoutKind::Contiguous) => all_axis_contiguous(data, base_offset, metadata),
+        (LayoutKind::Contiguous, LayoutKind::Strided) => {
+            all_axis_dense_contiguous(data, base_offset, metadata)
         }
         (LayoutKind::Strided, LayoutKind::Strided) => all_axis_strided(data, base_offset, metadata),
     }
@@ -118,9 +118,9 @@ fn dispatch_any_axis(
     metadata: AxisReductionMetadata,
 ) -> AtlasNdResult<NDArray<bool>> {
     match (metadata.source_layout, metadata.axis_layout) {
-        (LayoutKind::Contiguous, _) => any_axis_dense_contiguous(data, base_offset, metadata),
-        (LayoutKind::Strided, LayoutKind::Contiguous) => {
-            any_axis_contiguous(data, base_offset, metadata)
+        (_, LayoutKind::Contiguous) => any_axis_contiguous(data, base_offset, metadata),
+        (LayoutKind::Contiguous, LayoutKind::Strided) => {
+            any_axis_dense_contiguous(data, base_offset, metadata)
         }
         (LayoutKind::Strided, LayoutKind::Strided) => any_axis_strided(data, base_offset, metadata),
     }

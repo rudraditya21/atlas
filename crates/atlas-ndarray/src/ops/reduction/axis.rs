@@ -42,9 +42,9 @@ fn dispatch_sum_axis<T: ElementwiseArithmetic>(
     metadata.require_non_empty("sum")?;
 
     match (metadata.source_layout, metadata.axis_layout) {
-        (LayoutKind::Contiguous, _) => sum_axis_dense_contiguous(data, base_offset, metadata),
-        (LayoutKind::Strided, LayoutKind::Contiguous) => {
-            sum_axis_contiguous(data, base_offset, metadata)
+        (_, LayoutKind::Contiguous) => sum_axis_contiguous(data, base_offset, metadata),
+        (LayoutKind::Contiguous, LayoutKind::Strided) => {
+            sum_axis_dense_contiguous(data, base_offset, metadata)
         }
         (LayoutKind::Strided, LayoutKind::Strided) => sum_axis_strided(data, base_offset, metadata),
     }
@@ -80,9 +80,9 @@ fn dispatch_prod_axis<T: ElementwiseArithmetic>(
     metadata.require_non_empty("prod")?;
 
     match (metadata.source_layout, metadata.axis_layout) {
-        (LayoutKind::Contiguous, _) => prod_axis_dense_contiguous(data, base_offset, metadata),
-        (LayoutKind::Strided, LayoutKind::Contiguous) => {
-            prod_axis_contiguous(data, base_offset, metadata)
+        (_, LayoutKind::Contiguous) => prod_axis_contiguous(data, base_offset, metadata),
+        (LayoutKind::Contiguous, LayoutKind::Strided) => {
+            prod_axis_dense_contiguous(data, base_offset, metadata)
         }
         (LayoutKind::Strided, LayoutKind::Strided) => {
             prod_axis_strided(data, base_offset, metadata)
@@ -129,9 +129,9 @@ where
     metadata.require_non_empty("min")?;
 
     match (metadata.source_layout, metadata.axis_layout) {
-        (LayoutKind::Contiguous, _) => min_axis_dense_contiguous(data, base_offset, metadata),
-        (LayoutKind::Strided, LayoutKind::Contiguous) => {
-            min_axis_contiguous(data, base_offset, metadata)
+        (_, LayoutKind::Contiguous) => min_axis_contiguous(data, base_offset, metadata),
+        (LayoutKind::Contiguous, LayoutKind::Strided) => {
+            min_axis_dense_contiguous(data, base_offset, metadata)
         }
         (LayoutKind::Strided, LayoutKind::Strided) => min_axis_strided(data, base_offset, metadata),
     }
@@ -176,9 +176,9 @@ where
     metadata.require_non_empty("max")?;
 
     match (metadata.source_layout, metadata.axis_layout) {
-        (LayoutKind::Contiguous, _) => max_axis_dense_contiguous(data, base_offset, metadata),
-        (LayoutKind::Strided, LayoutKind::Contiguous) => {
-            max_axis_contiguous(data, base_offset, metadata)
+        (_, LayoutKind::Contiguous) => max_axis_contiguous(data, base_offset, metadata),
+        (LayoutKind::Contiguous, LayoutKind::Strided) => {
+            max_axis_dense_contiguous(data, base_offset, metadata)
         }
         (LayoutKind::Strided, LayoutKind::Strided) => max_axis_strided(data, base_offset, metadata),
     }
@@ -223,9 +223,9 @@ where
     metadata.require_non_empty("mean")?;
 
     match (metadata.source_layout, metadata.axis_layout) {
-        (LayoutKind::Contiguous, _) => mean_axis_dense_contiguous(data, base_offset, metadata),
-        (LayoutKind::Strided, LayoutKind::Contiguous) => {
-            mean_axis_contiguous(data, base_offset, metadata)
+        (_, LayoutKind::Contiguous) => mean_axis_contiguous(data, base_offset, metadata),
+        (LayoutKind::Contiguous, LayoutKind::Strided) => {
+            mean_axis_dense_contiguous(data, base_offset, metadata)
         }
         (LayoutKind::Strided, LayoutKind::Strided) => {
             mean_axis_strided(data, base_offset, metadata)
