@@ -1,5 +1,6 @@
 use crate::{
-    ArrayElement, AtlasNdError, AtlasNdResult, NDArray, OperandMetadata, internal::value_iter,
+    ArrayElement, AtlasNdError, AtlasNdResult, NDArray, OperandMetadata,
+    internal::{layout::is_contiguous_layout, value_iter},
     view::ArrayView,
 };
 
@@ -62,11 +63,28 @@ where
 {
     validate_matching_shapes(lhs, rhs, "zip_map")?;
 
-    let data = value_iter(lhs.data(), lhs.offset(), lhs.shape(), lhs.strides())
-        .copied()
-        .zip(value_iter(rhs.data(), rhs.offset(), rhs.shape(), rhs.strides()).copied())
-        .map(|(left, right)| op(left, right))
-        .collect();
+    let data = if is_contiguous_layout(lhs.shape(), lhs.strides())
+        && is_contiguous_layout(rhs.shape(), rhs.strides())
+    {
+        lhs.dense_slice()
+            .expect("contiguous operands always expose dense storage slices")
+            .iter()
+            .copied()
+            .zip(
+                rhs.dense_slice()
+                    .expect("contiguous operands always expose dense storage slices")
+                    .iter()
+                    .copied(),
+            )
+            .map(|(left, right)| op(left, right))
+            .collect()
+    } else {
+        value_iter(lhs.data(), lhs.offset(), lhs.shape(), lhs.strides())
+            .copied()
+            .zip(value_iter(rhs.data(), rhs.offset(), rhs.shape(), rhs.strides()).copied())
+            .map(|(left, right)| op(left, right))
+            .collect()
+    };
 
     Ok(NDArray::from_row_major_parts(lhs.shape().to_vec(), data)
         .expect("zip mapping preserves ndarray invariants"))

@@ -13,6 +13,19 @@ fn zip_map_combines_contiguous_arrays() {
 }
 
 #[test]
+fn contiguous_zip_map_handles_scalars_empty_arrays_and_aliases() {
+    let values = NDArray::from_shape_vec([2], vec![2_i32, 3]).unwrap();
+    let scalar_lhs = NDArray::from_shape_vec([], vec![2_i32]).unwrap();
+    let scalar_rhs = NDArray::from_shape_vec([], vec![3_i32]).unwrap();
+    let empty_lhs = NDArray::<i32>::zeros([0]).unwrap();
+    let empty_rhs = NDArray::<i32>::zeros([0]).unwrap();
+
+    assert_eq!(values.zip_map(&values, |left, right| left * right).unwrap().data(), &[4, 9]);
+    assert_eq!(scalar_lhs.zip_map(&scalar_rhs, |left, right| left + right).unwrap().data(), &[5]);
+    assert!(empty_lhs.zip_map(&empty_rhs, |left, right| left + right).unwrap().is_empty());
+}
+
+#[test]
 fn zip_map_materializes_transposed_views_in_logical_order() {
     let lhs = NDArray::from_shape_vec([2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
     let rhs = NDArray::from_shape_vec([2, 3], vec![10_i32, 11, 12, 13, 14, 15]).unwrap();
