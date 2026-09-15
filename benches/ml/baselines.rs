@@ -58,15 +58,13 @@ fn bench_linear_and_ridge_fitting(c: &mut Criterion) {
     group.finish();
 }
 
-fn bench_logistic_fitting_and_prediction(c: &mut Criterion) {
+fn bench_logistic_fitting(c: &mut Criterion) {
     let mut fit_group = c.benchmark_group("ml/logistic/fit");
-    let mut prediction_group = c.benchmark_group("ml/logistic/predict");
     let config = LogisticRegressionConfig::new(0.25, 250, 1e-6).unwrap();
 
     for sample_count in SAMPLE_COUNTS {
         let features = features(sample_count);
         let labels = classification_labels(sample_count);
-        let model = BinaryLogisticRegression::fit(&features, &labels, config).unwrap();
 
         common::configure_timing(
             &mut fit_group,
@@ -81,6 +79,20 @@ fn bench_logistic_fitting_and_prediction(c: &mut Criterion) {
                 })
             },
         );
+    }
+
+    fit_group.finish();
+}
+
+fn bench_logistic_prediction(c: &mut Criterion) {
+    let mut prediction_group = c.benchmark_group("ml/logistic/predict");
+    let config = LogisticRegressionConfig::new(0.25, 250, 1e-6).unwrap();
+
+    for sample_count in SAMPLE_COUNTS {
+        let features = features(sample_count);
+        let labels = classification_labels(sample_count);
+        let model = BinaryLogisticRegression::fit(&features, &labels, config).unwrap();
+
         common::configure_timing(&mut prediction_group, sample_count * FEATURE_COUNT);
         prediction_group.bench_with_input(
             BenchmarkId::from_parameter(sample_count),
@@ -89,7 +101,6 @@ fn bench_logistic_fitting_and_prediction(c: &mut Criterion) {
         );
     }
 
-    fit_group.finish();
     prediction_group.finish();
 }
 
@@ -97,6 +108,7 @@ criterion_group!(
     ml_baselines,
     bench_knn_backend_selection,
     bench_linear_and_ridge_fitting,
-    bench_logistic_fitting_and_prediction
+    bench_logistic_fitting,
+    bench_logistic_prediction
 );
 criterion_main!(ml_baselines);

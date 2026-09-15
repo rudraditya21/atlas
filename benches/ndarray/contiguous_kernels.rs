@@ -1,6 +1,7 @@
 #[path = "../support/mod.rs"]
 mod common;
 
+use atlas_benchmarks::ndarray_benchmark_fixtures::{MASKED_FILL_SIZES, masked_fill_inputs};
 use atlas_ndarray::NDArray;
 use criterion::{BatchSize, BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 
@@ -119,11 +120,9 @@ fn bench_scalar_mul(c: &mut Criterion) {
 fn bench_masked_fill(c: &mut Criterion) {
     let mut group = c.benchmark_group("ndarray/masked_fill");
 
-    for size in common::VECTOR_SIZES {
+    for size in MASKED_FILL_SIZES {
         common::configure_group(&mut group, size);
-        let source = filled_vector(size, 1.0_f64);
-        let mask =
-            NDArray::from_vec(vec![size], (0..size).map(|index| index % 3 == 0).collect()).unwrap();
+        let (source, mask) = masked_fill_inputs(size);
 
         group.bench_with_input(BenchmarkId::new("allocation_inclusive", size), &size, |b, _| {
             b.iter(|| {
