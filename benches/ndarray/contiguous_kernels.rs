@@ -122,20 +122,16 @@ fn bench_masked_fill(c: &mut Criterion) {
     for size in common::VECTOR_SIZES {
         common::configure_group(&mut group, size);
         let source = filled_vector(size, 1.0_f64);
-        let mask = NDArray::from_vec(vec![size], (0..size).map(|index| index % 3 == 0).collect())
-            .unwrap();
+        let mask =
+            NDArray::from_vec(vec![size], (0..size).map(|index| index % 3 == 0).collect()).unwrap();
 
-        group.bench_with_input(
-            BenchmarkId::new("allocation_inclusive", size),
-            &size,
-            |b, _| {
-                b.iter(|| {
-                    let mut output = source.clone();
-                    output.masked_fill(&mask, 0.0).unwrap();
-                    black_box(output)
-                })
-            },
-        );
+        group.bench_with_input(BenchmarkId::new("allocation_inclusive", size), &size, |b, _| {
+            b.iter(|| {
+                let mut output = source.clone();
+                output.masked_fill(&mask, 0.0).unwrap();
+                black_box(output)
+            })
+        });
         group.bench_with_input(BenchmarkId::new("kernel_only", size), &size, |b, _| {
             b.iter_batched_ref(
                 || source.clone(),
