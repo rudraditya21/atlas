@@ -9,7 +9,10 @@ use std::ops::{Add, Div, Mul, Rem, Sub};
 
 pub use self::minmax::ElementwiseMinMax;
 use self::{
-    contiguous::{elementwise_add_contiguous, elementwise_mul_contiguous},
+    contiguous::{
+        elementwise_add_contiguous, elementwise_div_contiguous, elementwise_mul_contiguous,
+        elementwise_sub_contiguous,
+    },
     dispatch::{BinaryOperand, dispatch_elementwise_binary, dispatch_elementwise_binary_with},
     scalar::{
         add_scalar_lhs, add_scalar_rhs, div_scalar_rhs, mul_scalar_lhs, mul_scalar_rhs,
@@ -227,13 +230,7 @@ impl<T: Numeric> NDArray<T> {
                     ElementwiseArithmetic::elementwise_sub,
                 )
             },
-            |lhs, rhs| {
-                contiguous::elementwise_binary_contiguous(
-                    lhs,
-                    rhs,
-                    ElementwiseArithmetic::elementwise_sub,
-                )
-            },
+            elementwise_sub_contiguous,
             ElementwiseArithmetic::elementwise_sub,
         )
         .expect("scalar rhs dispatch must not fail")
@@ -268,13 +265,7 @@ impl<T: Numeric> NDArray<T> {
             |scalar, array| {
                 scalar::elementwise_scalar_lhs(scalar, array, ElementwiseDivision::elementwise_div)
             },
-            |lhs, rhs| {
-                contiguous::elementwise_binary_contiguous(
-                    lhs,
-                    rhs,
-                    ElementwiseDivision::elementwise_div,
-                )
-            },
+            elementwise_div_contiguous,
             ElementwiseDivision::elementwise_div,
         )
     }
@@ -341,13 +332,7 @@ impl<T: Numeric> NDArray<T> {
                     ElementwiseArithmetic::elementwise_sub,
                 )
             },
-            |lhs, rhs| {
-                contiguous::elementwise_binary_contiguous(
-                    lhs,
-                    rhs,
-                    ElementwiseArithmetic::elementwise_sub,
-                )
-            },
+            elementwise_sub_contiguous,
             ElementwiseArithmetic::elementwise_sub,
         )
     }
@@ -378,13 +363,7 @@ impl<T: Numeric> NDArray<T> {
             |scalar, array| {
                 scalar::elementwise_scalar_lhs(scalar, array, ElementwiseDivision::elementwise_div)
             },
-            |lhs, rhs| {
-                contiguous::elementwise_binary_contiguous(
-                    lhs,
-                    rhs,
-                    ElementwiseDivision::elementwise_div,
-                )
-            },
+            elementwise_div_contiguous,
             ElementwiseDivision::elementwise_div,
         )
     }

@@ -61,6 +61,58 @@ pub(crate) fn mul_contiguous<T: ElementwiseArithmetic>(lhs: &[T], rhs: &[T], out
     map_binary_scalar(lhs, rhs, out, ElementwiseArithmetic::elementwise_mul);
 }
 
+pub(crate) fn sub_contiguous<T: ElementwiseArithmetic>(lhs: &[T], rhs: &[T], out: &mut [T]) {
+    debug_assert_eq!(lhs.len(), rhs.len());
+    debug_assert_eq!(lhs.len(), out.len());
+
+    #[cfg(target_arch = "x86_64")]
+    {
+        if is_f32::<T>() && std::is_x86_feature_detected!("avx") {
+            // SAFETY: The type check guarantees exact element layout.
+            unsafe {
+                x86_64::sub_f32(cast_slice(lhs), cast_slice(rhs), cast_mut_slice(out));
+            }
+            return;
+        }
+
+        if is_f64::<T>() && std::is_x86_feature_detected!("avx") {
+            // SAFETY: The type check guarantees exact element layout.
+            unsafe {
+                x86_64::sub_f64(cast_slice(lhs), cast_slice(rhs), cast_mut_slice(out));
+            }
+            return;
+        }
+    }
+
+    map_binary_scalar(lhs, rhs, out, ElementwiseArithmetic::elementwise_sub);
+}
+
+pub(crate) fn div_contiguous<T: ElementwiseDivision>(lhs: &[T], rhs: &[T], out: &mut [T]) {
+    debug_assert_eq!(lhs.len(), rhs.len());
+    debug_assert_eq!(lhs.len(), out.len());
+
+    #[cfg(target_arch = "x86_64")]
+    {
+        if is_f32::<T>() && std::is_x86_feature_detected!("avx") {
+            // SAFETY: The type check guarantees exact element layout.
+            unsafe {
+                x86_64::div_f32(cast_slice(lhs), cast_slice(rhs), cast_mut_slice(out));
+            }
+            return;
+        }
+
+        if is_f64::<T>() && std::is_x86_feature_detected!("avx") {
+            // SAFETY: The type check guarantees exact element layout.
+            unsafe {
+                x86_64::div_f64(cast_slice(lhs), cast_slice(rhs), cast_mut_slice(out));
+            }
+            return;
+        }
+    }
+
+    map_binary_scalar(lhs, rhs, out, ElementwiseDivision::elementwise_div);
+}
+
 pub(crate) fn add_scalar_contiguous<T: ElementwiseArithmetic>(
     input: &[T],
     scalar: T,
@@ -663,6 +715,18 @@ mod x86_64 {
     }
 
     #[target_feature(enable = "avx")]
+    pub(super) unsafe fn sub_f32(lhs: &[f32], rhs: &[f32], out: &mut [f32]) {
+        // SAFETY: The caller verifies AVX support before invoking this kernel.
+        unsafe { map_f32(lhs, rhs, out, _mm256_sub_ps) };
+    }
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn div_f32(lhs: &[f32], rhs: &[f32], out: &mut [f32]) {
+        // SAFETY: The caller verifies AVX support before invoking this kernel.
+        unsafe { map_f32(lhs, rhs, out, _mm256_div_ps) };
+    }
+
+    #[target_feature(enable = "avx")]
     pub(super) unsafe fn add_scalar_f32(input: &[f32], scalar: f32, out: &mut [f32]) {
         // SAFETY: The caller verifies AVX support before invoking this kernel.
         unsafe { map_scalar_f32(input, scalar, out, _mm256_add_ps) };
@@ -696,6 +760,18 @@ mod x86_64 {
     pub(super) unsafe fn mul_f64(lhs: &[f64], rhs: &[f64], out: &mut [f64]) {
         // SAFETY: The caller verifies AVX support before invoking this kernel.
         unsafe { map_f64(lhs, rhs, out, _mm256_mul_pd) };
+    }
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn sub_f64(lhs: &[f64], rhs: &[f64], out: &mut [f64]) {
+        // SAFETY: The caller verifies AVX support before invoking this kernel.
+        unsafe { map_f64(lhs, rhs, out, _mm256_sub_pd) };
+    }
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn div_f64(lhs: &[f64], rhs: &[f64], out: &mut [f64]) {
+        // SAFETY: The caller verifies AVX support before invoking this kernel.
+        unsafe { map_f64(lhs, rhs, out, _mm256_div_pd) };
     }
 
     #[target_feature(enable = "avx")]

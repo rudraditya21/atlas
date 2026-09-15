@@ -119,6 +119,32 @@ fn scalar_arithmetic_fast_paths_preserve_empty_arrays() {
     assert!(f64_values.div(2.0).unwrap().is_empty());
 }
 
+#[test]
+fn binary_arithmetic_fast_paths_match_f32_scalar_reference_with_a_tail() {
+    let lhs_values = [-4.0_f32, -3.0, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0, 4.0];
+    let rhs_values = [2.0_f32, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0, 2.0];
+    let lhs = NDArray::from_shape_vec([3, 3], lhs_values.to_vec()).unwrap();
+    let rhs = NDArray::from_shape_vec([3, 3], rhs_values.to_vec()).unwrap();
+
+    assert_eq!(lhs.add(&rhs).unwrap().data(), &lhs_values.map(|value| value + 2.0_f32));
+    assert_eq!(lhs.sub(&rhs).unwrap().data(), &lhs_values.map(|value| value - 2.0_f32));
+    assert_eq!(lhs.mul(&rhs).unwrap().data(), &lhs_values.map(|value| value * 2.0_f32));
+    assert_eq!(lhs.div(&rhs).unwrap().data(), &lhs_values.map(|value| value / 2.0_f32));
+}
+
+#[test]
+fn binary_arithmetic_fast_paths_match_f64_scalar_reference_with_a_tail() {
+    let lhs_values = [-2.0_f64, -1.0, 0.0, 1.0, 2.0];
+    let rhs_values = [0.5_f64, 0.5, 0.5, 0.5, 0.5];
+    let lhs = NDArray::from_shape_vec([5], lhs_values.to_vec()).unwrap();
+    let rhs = NDArray::from_shape_vec([5], rhs_values.to_vec()).unwrap();
+
+    assert_eq!(lhs.add(&rhs).unwrap().data(), &lhs_values.map(|value| value + 0.5_f64));
+    assert_eq!(lhs.sub(&rhs).unwrap().data(), &lhs_values.map(|value| value - 0.5_f64));
+    assert_eq!(lhs.mul(&rhs).unwrap().data(), &lhs_values.map(|value| value * 0.5_f64));
+    assert_eq!(lhs.div(&rhs).unwrap().data(), &lhs_values.map(|value| value / 0.5_f64));
+}
+
 fn assert_f32_results(actual: &[f32], expected: &[f32]) {
     for (&actual, &expected) in actual.iter().zip(expected) {
         assert_eq!(actual.is_nan(), expected.is_nan());

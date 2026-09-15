@@ -1,4 +1,4 @@
-use super::{ElementwiseArithmetic, from_owned_parts};
+use super::{ElementwiseArithmetic, ElementwiseDivision, from_owned_parts};
 use crate::{NDArray, Numeric, internal::simd};
 
 pub(super) fn elementwise_binary_contiguous<T, F>(
@@ -35,6 +35,28 @@ pub(super) fn elementwise_mul_contiguous<T: ElementwiseArithmetic>(
     let len = lhs.data().len();
     let mut data = vec![T::zero(); len];
     simd::mul_contiguous(lhs.data(), rhs.data(), &mut data);
+
+    from_owned_parts(lhs.shape().to_vec(), data)
+}
+
+pub(super) fn elementwise_sub_contiguous<T: ElementwiseArithmetic>(
+    lhs: &NDArray<T>,
+    rhs: &NDArray<T>,
+) -> NDArray<T> {
+    let len = lhs.data().len();
+    let mut data = vec![T::zero(); len];
+    simd::sub_contiguous(lhs.data(), rhs.data(), &mut data);
+
+    from_owned_parts(lhs.shape().to_vec(), data)
+}
+
+pub(super) fn elementwise_div_contiguous<T: ElementwiseDivision>(
+    lhs: &NDArray<T>,
+    rhs: &NDArray<T>,
+) -> NDArray<T> {
+    let len = lhs.data().len();
+    let mut data = vec![T::zero(); len];
+    simd::div_contiguous(lhs.data(), rhs.data(), &mut data);
 
     from_owned_parts(lhs.shape().to_vec(), data)
 }
