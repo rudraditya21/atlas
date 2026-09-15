@@ -1,6 +1,6 @@
 use crate::{
     ArrayElement, AtlasNdError, AtlasNdResult, NDArray, OperandMetadata,
-    internal::{layout::is_contiguous_layout, value_iter},
+    internal::{layout::is_contiguous_layout, logical_span_iter, shape::element_count, value_iter},
     view::ArrayView,
 };
 
@@ -78,6 +78,22 @@ where
             )
             .map(|(left, right)| op(left, right))
             .collect()
+    } else if lhs.strides() == rhs.strides() {
+        let mut data = Vec::with_capacity(element_count(lhs.shape()));
+        for (left_span, right_span) in
+            logical_span_iter(lhs.data(), lhs.offset(), lhs.shape(), lhs.strides())
+                .zip(logical_span_iter(rhs.data(), rhs.offset(), rhs.shape(), rhs.strides()))
+        {
+            debug_assert_eq!(left_span.len(), right_span.len());
+            data.extend(
+                left_span
+                    .iter()
+                    .copied()
+                    .zip(right_span.iter().copied())
+                    .map(|(left, right)| op(left, right)),
+            );
+        }
+        data
     } else {
         value_iter(lhs.data(), lhs.offset(), lhs.shape(), lhs.strides())
             .copied()

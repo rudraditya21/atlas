@@ -56,6 +56,26 @@ fn zip_map_materializes_sliced_views_in_logical_order() {
 }
 
 #[test]
+fn zip_map_matches_scalar_traversal_for_transposed_slices() {
+    let lhs_source = NDArray::from_shape_vec([3, 4], (0_i32..12).collect()).unwrap();
+    let rhs_source = NDArray::from_shape_vec([3, 4], (100_i32..112).collect()).unwrap();
+    let lhs = lhs_source.view().transpose().slice([0, 1], [4, 2]).unwrap();
+    let rhs = rhs_source.view().transpose().slice([0, 1], [4, 2]).unwrap();
+    let expected: Vec<_> = lhs
+        .iter()
+        .copied()
+        .zip(rhs.iter().copied())
+        .map(|(left, right)| left * 2 + right)
+        .collect();
+
+    let mapped = lhs.zip_map(&rhs, |left, right| left * 2 + right).unwrap();
+
+    assert_eq!(mapped.shape(), &[4, 2]);
+    assert_eq!(mapped.data(), expected);
+    assert!(mapped.is_contiguous());
+}
+
+#[test]
 fn zip_map_preserves_scalar_and_empty_shapes() {
     let scalar_lhs = NDArray::from_shape_vec([], vec![2_i32]).unwrap();
     let scalar_rhs = NDArray::from_shape_vec([], vec![3_i32]).unwrap();
@@ -76,6 +96,18 @@ fn zip_map_preserves_scalar_and_empty_shapes() {
 fn zip_map_rejects_different_shapes() {
     let lhs = NDArray::from_shape_vec([2, 2], vec![0_i32, 1, 2, 3]).unwrap();
     let rhs = NDArray::from_shape_vec([4], vec![0_i32, 1, 2, 3]).unwrap();
+
+    assert_eq!(
+        lhs.zip_map(&rhs, |left, right| left + right).unwrap_err(),
+        AtlasNdError::InvalidArgument { op: "zip_map", reason: "array shapes must match" }
+    );
+}
+
+#[test]
+fn zip_map_rejects_different_view_shapes() {
+    let source = NDArray::from_shape_vec([3, 4], (0_i32..12).collect()).unwrap();
+    let lhs = source.view().transpose().slice([0, 0], [4, 2]).unwrap();
+    let rhs = source.view().transpose().slice([0, 0], [3, 2]).unwrap();
 
     assert_eq!(
         lhs.zip_map(&rhs, |left, right| left + right).unwrap_err(),
