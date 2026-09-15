@@ -173,13 +173,13 @@ pub(crate) fn broadcast_offset_pair_iter<'a>(
     rhs_strides: &'a [usize],
 ) -> BroadcastOffsetPairIter<'a> {
     BroadcastOffsetPairIter {
-        lhs_base_offset,
-        rhs_base_offset,
         shape,
         lhs_strides,
         rhs_strides,
-        linear_index: 0,
-        len: element_count(shape),
+        coordinates: vec![0; shape.len()],
+        lhs_offset: lhs_base_offset,
+        rhs_offset: rhs_base_offset,
+        remaining: element_count(shape),
     }
 }
 
@@ -433,53 +433,46 @@ impl Iterator for StridedOffsetPairIter<'_> {
 }
 
 pub(crate) struct BroadcastOffsetPairIter<'a> {
-    lhs_base_offset: usize,
-    rhs_base_offset: usize,
     shape: &'a [usize],
     lhs_strides: &'a [usize],
     rhs_strides: &'a [usize],
-    linear_index: usize,
-    len: usize,
+    coordinates: Vec<usize>,
+    lhs_offset: usize,
+    rhs_offset: usize,
+    remaining: usize,
 }
 
 impl<'a> Iterator for BroadcastOffsetPairIter<'a> {
     type Item = (usize, usize);
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.linear_index >= self.len {
+        if self.remaining == 0 {
             return None;
         }
 
-        let current = self.linear_index;
-        self.linear_index += 1;
-        Some(broadcast_offsets(
-            current,
-            self.lhs_base_offset,
-            self.rhs_base_offset,
-            self.shape,
-            self.lhs_strides,
-            self.rhs_strides,
-        ))
+        let current = (self.lhs_offset, self.rhs_offset);
+        self.remaining -= 1;
+        self.advance();
+        Some(current)
     }
 }
 
-fn broadcast_offsets(
-    linear_index: usize,
-    lhs_base_offset: usize,
-    rhs_base_offset: usize,
-    shape: &[usize],
-    lhs_strides: &[usize],
-    rhs_strides: &[usize],
-) -> (usize, usize) {
-    let mut lhs_offset = lhs_base_offset;
-    let mut rhs_offset = rhs_base_offset;
+impl BroadcastOffsetPairIter<'_> {
+    fn advance(&mut self) {
+        for axis in (0..self.shape.len()).rev() {
+            let coordinate = &mut self.coordinates[axis];
+            if *coordinate + 1 < self.shape[axis] {
+                *coordinate += 1;
+                self.lhs_offset += self.lhs_strides[axis];
+                self.rhs_offset += self.rhs_strides[axis];
+                return;
+            }
 
-    for_each_coordinate(linear_index, shape, |axis, coordinate| {
-        lhs_offset += coordinate * lhs_strides[axis];
-        rhs_offset += coordinate * rhs_strides[axis];
-    });
-
-    (lhs_offset, rhs_offset)
+            self.lhs_offset -= *coordinate * self.lhs_strides[axis];
+            self.rhs_offset -= *coordinate * self.rhs_strides[axis];
+            *coordinate = 0;
+        }
+    }
 }
 
 fn offset_from_linear_index(
