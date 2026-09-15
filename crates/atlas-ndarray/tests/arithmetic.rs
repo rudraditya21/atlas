@@ -83,6 +83,65 @@ fn scalar_and_scalar_shaped_array_paths_match_for_empty_outputs() {
 }
 
 #[test]
+fn scalar_arithmetic_fast_paths_preserve_f32_special_values_and_tails() {
+    let values = [f32::NAN, f32::INFINITY, f32::NEG_INFINITY, -2.0, -1.0, 0.0, 1.0, 2.0, 3.0];
+    let array = NDArray::from_shape_vec([3, 3], values.to_vec()).unwrap();
+
+    assert_f32_results(array.add(1.0_f32).data(), &values.map(|value| value + 1.0_f32));
+    assert_f32_results(array.sub(1.0_f32).data(), &values.map(|value| value - 1.0_f32));
+    assert_f32_results(array.mul(f32::INFINITY).data(), &values.map(|value| value * f32::INFINITY));
+    assert_f32_results(array.div(0.0_f32).unwrap().data(), &values.map(|value| value / 0.0_f32));
+}
+
+#[test]
+fn scalar_arithmetic_fast_paths_preserve_f64_special_values_and_tails() {
+    let values = [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, -2.0, -1.0];
+    let array = NDArray::from_shape_vec([5], values.to_vec()).unwrap();
+
+    assert_f64_results(array.add(1.0).data(), &values.map(|value| value + 1.0));
+    assert_f64_results(array.sub(1.0).data(), &values.map(|value| value - 1.0));
+    assert_f64_results(array.mul(f64::INFINITY).data(), &values.map(|value| value * f64::INFINITY));
+    assert_f64_results(array.div(0.0).unwrap().data(), &values.map(|value| value / 0.0));
+}
+
+#[test]
+fn scalar_arithmetic_fast_paths_preserve_empty_arrays() {
+    let f32_values = NDArray::<f32>::zeros([0, 3]).unwrap();
+    let f64_values = NDArray::<f64>::zeros([0]).unwrap();
+
+    assert!(f32_values.add(1.0).is_empty());
+    assert!(f32_values.sub(1.0).is_empty());
+    assert!(f32_values.mul(2.0).is_empty());
+    assert!(f32_values.div(2.0).unwrap().is_empty());
+    assert!(f64_values.add(1.0).is_empty());
+    assert!(f64_values.sub(1.0).is_empty());
+    assert!(f64_values.mul(2.0).is_empty());
+    assert!(f64_values.div(2.0).unwrap().is_empty());
+}
+
+fn assert_f32_results(actual: &[f32], expected: &[f32]) {
+    for (&actual, &expected) in actual.iter().zip(expected) {
+        assert_eq!(actual.is_nan(), expected.is_nan());
+        assert_eq!(actual.is_infinite(), expected.is_infinite());
+        assert_eq!(actual.is_sign_negative(), expected.is_sign_negative());
+        if actual.is_finite() {
+            assert_eq!(actual, expected);
+        }
+    }
+}
+
+fn assert_f64_results(actual: &[f64], expected: &[f64]) {
+    for (&actual, &expected) in actual.iter().zip(expected) {
+        assert_eq!(actual.is_nan(), expected.is_nan());
+        assert_eq!(actual.is_infinite(), expected.is_infinite());
+        assert_eq!(actual.is_sign_negative(), expected.is_sign_negative());
+        if actual.is_finite() {
+            assert_eq!(actual, expected);
+        }
+    }
+}
+
+#[test]
 fn mixed_scalar_arithmetic_promotes_results_before_dispatch() {
     let array = NDArray::from_vec([2], vec![2_i32, 4]).unwrap();
 

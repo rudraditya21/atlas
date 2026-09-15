@@ -11,7 +11,10 @@ pub use self::minmax::ElementwiseMinMax;
 use self::{
     contiguous::{elementwise_add_contiguous, elementwise_mul_contiguous},
     dispatch::{BinaryOperand, dispatch_elementwise_binary, dispatch_elementwise_binary_with},
-    scalar::{add_scalar_lhs, add_scalar_rhs, mul_scalar_lhs, mul_scalar_rhs},
+    scalar::{
+        add_scalar_lhs, add_scalar_rhs, div_scalar_rhs, mul_scalar_lhs, mul_scalar_rhs,
+        sub_scalar_rhs,
+    },
 };
 use crate::{
     AtlasNdError, AtlasNdResult, NDArray, Numeric, RuntimeScalar,
@@ -213,9 +216,24 @@ impl<T: Numeric> NDArray<T> {
     where
         T: ElementwiseArithmetic,
     {
-        dispatch_elementwise_binary(
+        dispatch_elementwise_binary_with(
             self,
             BinaryOperand::Scalar(scalar),
+            sub_scalar_rhs,
+            |scalar, array| {
+                scalar::elementwise_scalar_lhs(
+                    scalar,
+                    array,
+                    ElementwiseArithmetic::elementwise_sub,
+                )
+            },
+            |lhs, rhs| {
+                contiguous::elementwise_binary_contiguous(
+                    lhs,
+                    rhs,
+                    ElementwiseArithmetic::elementwise_sub,
+                )
+            },
             ElementwiseArithmetic::elementwise_sub,
         )
         .expect("scalar rhs dispatch must not fail")
@@ -243,9 +261,20 @@ impl<T: Numeric> NDArray<T> {
         T: ElementwiseDivision,
     {
         scalar.validate_divisor("division")?;
-        dispatch_elementwise_binary(
+        dispatch_elementwise_binary_with(
             self,
             BinaryOperand::Scalar(scalar),
+            div_scalar_rhs,
+            |scalar, array| {
+                scalar::elementwise_scalar_lhs(scalar, array, ElementwiseDivision::elementwise_div)
+            },
+            |lhs, rhs| {
+                contiguous::elementwise_binary_contiguous(
+                    lhs,
+                    rhs,
+                    ElementwiseDivision::elementwise_div,
+                )
+            },
             ElementwiseDivision::elementwise_div,
         )
     }
@@ -301,9 +330,24 @@ impl<T: Numeric> NDArray<T> {
     where
         T: ElementwiseArithmetic,
     {
-        dispatch_elementwise_binary(
+        dispatch_elementwise_binary_with(
             self,
             BinaryOperand::Array(rhs),
+            sub_scalar_rhs,
+            |scalar, array| {
+                scalar::elementwise_scalar_lhs(
+                    scalar,
+                    array,
+                    ElementwiseArithmetic::elementwise_sub,
+                )
+            },
+            |lhs, rhs| {
+                contiguous::elementwise_binary_contiguous(
+                    lhs,
+                    rhs,
+                    ElementwiseArithmetic::elementwise_sub,
+                )
+            },
             ElementwiseArithmetic::elementwise_sub,
         )
     }
@@ -327,9 +371,20 @@ impl<T: Numeric> NDArray<T> {
         T: ElementwiseDivision,
     {
         validate_divisors(rhs.data(), "division")?;
-        dispatch_elementwise_binary(
+        dispatch_elementwise_binary_with(
             self,
             BinaryOperand::Array(rhs),
+            div_scalar_rhs,
+            |scalar, array| {
+                scalar::elementwise_scalar_lhs(scalar, array, ElementwiseDivision::elementwise_div)
+            },
+            |lhs, rhs| {
+                contiguous::elementwise_binary_contiguous(
+                    lhs,
+                    rhs,
+                    ElementwiseDivision::elementwise_div,
+                )
+            },
             ElementwiseDivision::elementwise_div,
         )
     }

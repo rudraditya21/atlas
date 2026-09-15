@@ -2,7 +2,7 @@ use num_traits::ToPrimitive;
 
 pub(crate) use crate::simd_support::{cast_slice, is_f32, is_f64};
 use crate::{
-    AtlasNdError, AtlasNdResult, ElementwiseArithmetic, Numeric,
+    AtlasNdError, AtlasNdResult, ElementwiseArithmetic, ElementwiseDivision, Numeric,
     simd_support::{cast_mut_slice, cast_value},
 };
 
@@ -117,6 +117,60 @@ pub(crate) fn mul_scalar_contiguous<T: ElementwiseArithmetic>(
     }
 
     map_scalar_scalar(input, scalar, out, ElementwiseArithmetic::elementwise_mul);
+}
+
+pub(crate) fn sub_scalar_contiguous<T: ElementwiseArithmetic>(
+    input: &[T],
+    scalar: T,
+    out: &mut [T],
+) {
+    debug_assert_eq!(input.len(), out.len());
+
+    #[cfg(target_arch = "x86_64")]
+    {
+        if is_f32::<T>() && std::is_x86_feature_detected!("avx") {
+            // SAFETY: The type check guarantees exact element layout.
+            unsafe {
+                x86_64::sub_scalar_f32(cast_slice(input), to_f32(scalar), cast_mut_slice(out));
+            }
+            return;
+        }
+
+        if is_f64::<T>() && std::is_x86_feature_detected!("avx") {
+            // SAFETY: The type check guarantees exact element layout.
+            unsafe {
+                x86_64::sub_scalar_f64(cast_slice(input), to_f64(scalar), cast_mut_slice(out));
+            }
+            return;
+        }
+    }
+
+    map_scalar_scalar(input, scalar, out, ElementwiseArithmetic::elementwise_sub);
+}
+
+pub(crate) fn div_scalar_contiguous<T: ElementwiseDivision>(input: &[T], scalar: T, out: &mut [T]) {
+    debug_assert_eq!(input.len(), out.len());
+
+    #[cfg(target_arch = "x86_64")]
+    {
+        if is_f32::<T>() && std::is_x86_feature_detected!("avx") {
+            // SAFETY: The type check guarantees exact element layout.
+            unsafe {
+                x86_64::div_scalar_f32(cast_slice(input), to_f32(scalar), cast_mut_slice(out));
+            }
+            return;
+        }
+
+        if is_f64::<T>() && std::is_x86_feature_detected!("avx") {
+            // SAFETY: The type check guarantees exact element layout.
+            unsafe {
+                x86_64::div_scalar_f64(cast_slice(input), to_f64(scalar), cast_mut_slice(out));
+            }
+            return;
+        }
+    }
+
+    map_scalar_scalar(input, scalar, out, ElementwiseDivision::elementwise_div);
 }
 
 pub(crate) fn map_binary_contiguous<T, F>(lhs: &[T], rhs: &[T], out: &mut [T], op: F)
@@ -621,6 +675,18 @@ mod x86_64 {
     }
 
     #[target_feature(enable = "avx")]
+    pub(super) unsafe fn sub_scalar_f32(input: &[f32], scalar: f32, out: &mut [f32]) {
+        // SAFETY: The caller verifies AVX support before invoking this kernel.
+        unsafe { map_scalar_f32(input, scalar, out, _mm256_sub_ps) };
+    }
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn div_scalar_f32(input: &[f32], scalar: f32, out: &mut [f32]) {
+        // SAFETY: The caller verifies AVX support before invoking this kernel.
+        unsafe { map_scalar_f32(input, scalar, out, _mm256_div_ps) };
+    }
+
+    #[target_feature(enable = "avx")]
     pub(super) unsafe fn add_f64(lhs: &[f64], rhs: &[f64], out: &mut [f64]) {
         // SAFETY: The caller verifies AVX support before invoking this kernel.
         unsafe { map_f64(lhs, rhs, out, _mm256_add_pd) };
@@ -642,6 +708,18 @@ mod x86_64 {
     pub(super) unsafe fn mul_scalar_f64(input: &[f64], scalar: f64, out: &mut [f64]) {
         // SAFETY: The caller verifies AVX support before invoking this kernel.
         unsafe { map_scalar_f64(input, scalar, out, _mm256_mul_pd) };
+    }
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn sub_scalar_f64(input: &[f64], scalar: f64, out: &mut [f64]) {
+        // SAFETY: The caller verifies AVX support before invoking this kernel.
+        unsafe { map_scalar_f64(input, scalar, out, _mm256_sub_pd) };
+    }
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn div_scalar_f64(input: &[f64], scalar: f64, out: &mut [f64]) {
+        // SAFETY: The caller verifies AVX support before invoking this kernel.
+        unsafe { map_scalar_f64(input, scalar, out, _mm256_div_pd) };
     }
 
     #[target_feature(enable = "avx")]
@@ -991,19 +1069,29 @@ mod x86_64 {
     #[inline]
     fn op_scalar_f32(lhs: f32, rhs: f32, op: unsafe fn(__m256, __m256) -> __m256) -> f32 {
         if std::ptr::fn_addr_eq(op, _mm256_add_ps as unsafe fn(__m256, __m256) -> __m256) {
-            lhs + rhs
-        } else {
-            lhs * rhs
+            return lhs + rhs;
         }
+        if std::ptr::fn_addr_eq(op, _mm256_sub_ps as unsafe fn(__m256, __m256) -> __m256) {
+            return lhs - rhs;
+        }
+        if std::ptr::fn_addr_eq(op, _mm256_mul_ps as unsafe fn(__m256, __m256) -> __m256) {
+            return lhs * rhs;
+        }
+        lhs / rhs
     }
 
     #[inline]
     fn op_scalar_f64(lhs: f64, rhs: f64, op: unsafe fn(__m256d, __m256d) -> __m256d) -> f64 {
         if std::ptr::fn_addr_eq(op, _mm256_add_pd as unsafe fn(__m256d, __m256d) -> __m256d) {
-            lhs + rhs
-        } else {
-            lhs * rhs
+            return lhs + rhs;
         }
+        if std::ptr::fn_addr_eq(op, _mm256_sub_pd as unsafe fn(__m256d, __m256d) -> __m256d) {
+            return lhs - rhs;
+        }
+        if std::ptr::fn_addr_eq(op, _mm256_mul_pd as unsafe fn(__m256d, __m256d) -> __m256d) {
+            return lhs * rhs;
+        }
+        lhs / rhs
     }
 }
 
