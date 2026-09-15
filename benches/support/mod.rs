@@ -16,11 +16,15 @@ const LARGE_INPUT_THRESHOLD: usize = 1 << 18;
 const DEFAULT_SAMPLE_SIZE: usize = 100;
 const LARGE_INPUT_SAMPLE_SIZE: usize = 50;
 const DEFAULT_MEASUREMENT_SECS: u64 = 5;
-const LARGE_INPUT_MEASUREMENT_SECS: u64 = 10;
+const LARGE_INPUT_MEASUREMENT_SECS: u64 = 20;
 const DEFAULT_WARM_UP_SECS: u64 = 3;
 
 pub(crate) fn configure_group(group: &mut BenchmarkGroup<'_, WallTime>, work_items: usize) {
     group.throughput(Throughput::Elements(work_items as u64));
+    configure_timing(group, work_items);
+}
+
+pub(crate) fn configure_timing(group: &mut BenchmarkGroup<'_, WallTime>, work_items: usize) {
     group.warm_up_time(Duration::from_secs(DEFAULT_WARM_UP_SECS));
 
     if work_items >= LARGE_INPUT_THRESHOLD {
