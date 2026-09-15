@@ -1,4 +1,8 @@
-use crate::{ArrayElement, NDArray, OperandMetadata, internal::value_iter, view::ArrayView};
+use crate::{
+    ArrayElement, NDArray, OperandMetadata,
+    internal::{layout::is_contiguous_layout, value_iter},
+    view::ArrayView,
+};
 
 impl<T: ArrayElement> NDArray<T> {
     /// Maps each value into a new contiguous array with the same shape.
@@ -47,10 +51,20 @@ where
     O: OperandMetadata<T> + ?Sized,
     F: FnMut(T) -> U,
 {
-    let data = value_iter(operand.data(), operand.offset(), operand.shape(), operand.strides())
-        .copied()
-        .map(op)
-        .collect();
+    let data = if is_contiguous_layout(operand.shape(), operand.strides()) {
+        operand
+            .dense_slice()
+            .expect("contiguous operands always expose a dense storage slice")
+            .iter()
+            .copied()
+            .map(op)
+            .collect()
+    } else {
+        value_iter(operand.data(), operand.offset(), operand.shape(), operand.strides())
+            .copied()
+            .map(op)
+            .collect()
+    };
 
     NDArray::from_row_major_parts(operand.shape().to_vec(), data)
         .expect("mapping preserves ndarray invariants")

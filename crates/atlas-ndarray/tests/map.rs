@@ -11,6 +11,18 @@ fn map_preserves_contiguous_array_shape_and_values() {
 }
 
 #[test]
+fn contiguous_map_matches_scalar_logical_traversal() {
+    let array = NDArray::from_shape_vec([2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+    let view = array.view().slice([1, 0], [1, 3]).unwrap();
+
+    let expected_array: Vec<_> = array.view().iter().copied().map(|value| value * 3 - 1).collect();
+    let expected_view: Vec<_> = view.iter().copied().map(|value| value * 3 - 1).collect();
+
+    assert_eq!(array.map(|value| value * 3 - 1).data(), expected_array.as_slice());
+    assert_eq!(view.map(|value| value * 3 - 1).data(), expected_view.as_slice());
+}
+
+#[test]
 fn map_materializes_transposed_views_in_logical_order() {
     let array = NDArray::from_shape_vec([2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
     let mapped = array.view().transpose().map(|value| value * 2);
