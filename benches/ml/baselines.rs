@@ -1,55 +1,11 @@
+use atlas_benchmarks::ml_benchmark_fixtures::{
+    SAMPLE_COUNTS, classification_labels, features, regression_targets,
+};
 use atlas_ml::{
     BinaryLogisticRegression, KnnClassifier, KnnConfig, KnnSearchAlgorithm, LinearRegression,
     LogisticRegressionConfig, RidgeRegression, RidgeRegressionConfig,
 };
-use atlas_ndarray::NDArray;
 use criterion::{BatchSize, BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
-
-const SAMPLE_COUNTS: [usize; 3] = [64, 256, 1_024];
-const FEATURE_COUNT: usize = 8;
-
-fn features(sample_count: usize) -> NDArray<f64> {
-    NDArray::from_shape_vec(
-        [sample_count, FEATURE_COUNT],
-        (0..sample_count * FEATURE_COUNT)
-            .map(|index| {
-                let sample = index / FEATURE_COUNT;
-                let feature = index % FEATURE_COUNT;
-                let class_offset = if sample < sample_count / 2 { -1.0 } else { 1.0 };
-                if feature == 0 {
-                    class_offset
-                } else {
-                    ((sample * (feature * 7 + 3)) % 31) as f64 / 31.0 - 0.5
-                }
-            })
-            .collect(),
-    )
-    .unwrap()
-}
-
-fn classification_labels(sample_count: usize) -> NDArray<usize> {
-    NDArray::from_shape_vec(
-        [sample_count],
-        (0..sample_count).map(|sample| usize::from(sample >= sample_count / 2)).collect(),
-    )
-    .unwrap()
-}
-
-fn regression_targets(features: &NDArray<f64>) -> NDArray<f64> {
-    NDArray::from_shape_vec(
-        [features.shape()[0]],
-        (0..features.shape()[0])
-            .map(|sample| {
-                0.5 + (0..FEATURE_COUNT)
-                    .map(|feature| {
-                        features.data()[sample * FEATURE_COUNT + feature] * (feature + 1) as f64
-                    })
-                    .sum::<f64>()
-            })
-            .collect(),
-    )
-    .unwrap()
-}
 
 fn bench_knn_backend_selection(c: &mut Criterion) {
     let mut group = c.benchmark_group("ml/knn/backend_selection");
