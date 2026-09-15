@@ -11,9 +11,15 @@ where
             .expect("contiguous operands always expose a dense storage slice")
             .to_vec()
     } else {
-        super::value_iter(operand.data(), operand.offset(), operand.shape(), operand.strides())
-            .copied()
-            .collect()
+        super::logical_span_iter(
+            operand.data(),
+            operand.offset(),
+            operand.shape(),
+            operand.strides(),
+        )
+        .flatten()
+        .copied()
+        .collect()
     };
 
     NDArray::from_row_major_parts(operand.shape().to_vec(), data)

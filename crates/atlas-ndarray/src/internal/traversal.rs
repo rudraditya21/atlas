@@ -24,6 +24,42 @@ pub(crate) fn value_iter<'a, T>(
     ValueIter::Strided(StridedIter { data, shape, strides, base_offset, linear_index: 0, len })
 }
 
+/// Iterates maximal contiguous storage runs in logical row-major order.
+pub(crate) fn logical_span_iter<'a, T>(
+    data: &'a [T],
+    base_offset: usize,
+    shape: &'a [usize],
+    strides: &'a [usize],
+) -> LogicalSpanIter<'a, T> {
+    debug_assert_eq!(shape.len(), strides.len());
+
+    let len = element_count(shape);
+    if len == 0 {
+        return LogicalSpanIter {
+            data,
+            base_offset,
+            shape,
+            strides,
+            outer_rank: 0,
+            span_len: 0,
+            next_span: 0,
+            span_count: 0,
+        };
+    }
+
+    let (outer_rank, span_len) = logical_span_shape(shape, strides);
+    LogicalSpanIter {
+        data,
+        base_offset,
+        shape,
+        strides,
+        outer_rank,
+        span_len,
+        next_span: 0,
+        span_count: len / span_len,
+    }
+}
+
 pub(crate) fn for_each_value<T, F>(
     data: &[T],
     base_offset: usize,
@@ -169,6 +205,37 @@ pub(crate) enum ValueIter<'a, T> {
     Empty,
     Contiguous(Iter<'a, T>),
     Strided(StridedIter<'a, T>),
+}
+
+pub(crate) struct LogicalSpanIter<'a, T> {
+    data: &'a [T],
+    base_offset: usize,
+    shape: &'a [usize],
+    strides: &'a [usize],
+    outer_rank: usize,
+    span_len: usize,
+    next_span: usize,
+    span_count: usize,
+}
+
+impl<'a, T> Iterator for LogicalSpanIter<'a, T> {
+    type Item = &'a [T];
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.next_span >= self.span_count {
+            return None;
+        }
+
+        let offset = offset_from_linear_index(
+            self.next_span,
+            self.base_offset,
+            &self.shape[..self.outer_rank],
+            &self.strides[..self.outer_rank],
+        );
+        self.next_span += 1;
+
+        Some(&self.data[offset..offset + self.span_len])
+    }
 }
 
 impl<'a, T> Iterator for ValueIter<'a, T> {
@@ -455,6 +522,28 @@ fn contiguous_values<T>(data: &[T], base_offset: usize, len: usize) -> &[T] {
     &data[base_offset..base_offset + len]
 }
 
+fn logical_span_shape(shape: &[usize], strides: &[usize]) -> (usize, usize) {
+    let mut outer_rank = shape.len();
+    let mut span_len = 1usize;
+    let mut expected_stride = 1usize;
+
+    for axis in (0..shape.len()).rev() {
+        if shape[axis] <= 1 {
+            outer_rank = axis;
+            continue;
+        }
+        if strides[axis] != expected_stride {
+            break;
+        }
+
+        outer_rank = axis;
+        span_len *= shape[axis];
+        expected_stride *= shape[axis];
+    }
+
+    (outer_rank, span_len)
+}
+
 fn for_each_coordinate<F>(mut linear_index: usize, shape: &[usize], mut f: F)
 where
     F: FnMut(usize, usize),
@@ -469,7 +558,39 @@ where
 
 #[cfg(test)]
 mod tests {
-    use super::{lane_value_iter, offset_iter, offset_pair_iter, value_iter};
+    use super::{lane_value_iter, logical_span_iter, offset_iter, offset_pair_iter, value_iter};
+    use crate::{NDArray, OperandMetadata, SliceRange};
+
+    fn spans<O: OperandMetadata<i32> + ?Sized>(operand: &O) -> Vec<Vec<i32>> {
+        logical_span_iter(operand.data(), operand.offset(), operand.shape(), operand.strides())
+            .map(|span| span.to_vec())
+            .collect()
+    }
+
+    #[test]
+    fn logical_span_iter_preserves_logical_order_for_array_layouts() {
+        let contiguous = NDArray::from_shape_vec([2, 3], vec![0_i32, 1, 2, 3, 4, 5]).unwrap();
+        let transposed = contiguous.view().transpose();
+        let padded_source =
+            NDArray::from_shape_vec([2, 4], vec![0_i32, 1, 2, 3, 4, 5, 6, 7]).unwrap();
+        let padded = padded_source.view().slice([0, 0], [2, 3]).unwrap();
+        let sliced = contiguous.view().slice([1, 0], [1, 3]).unwrap();
+        let stepped_source = NDArray::from_shape_vec([2, 6], (0_i32..12).collect()).unwrap();
+        let stepped = stepped_source
+            .view()
+            .slice_ranges([SliceRange::full(), SliceRange::new(Some(0), Some(6), 2)])
+            .unwrap();
+        let scalar = NDArray::from_shape_vec([], vec![7_i32]).unwrap();
+        let empty = NDArray::<i32>::from_shape_vec([2, 0, 3], Vec::new()).unwrap();
+
+        assert_eq!(spans(&contiguous), vec![vec![0, 1, 2, 3, 4, 5]]);
+        assert_eq!(spans(&transposed), vec![vec![0], vec![3], vec![1], vec![4], vec![2], vec![5]]);
+        assert_eq!(spans(&padded), vec![vec![0, 1, 2], vec![4, 5, 6]]);
+        assert_eq!(spans(&sliced), vec![vec![3, 4, 5]]);
+        assert_eq!(spans(&stepped), vec![vec![0], vec![2], vec![4], vec![6], vec![8], vec![10]]);
+        assert_eq!(spans(&scalar), vec![vec![7]]);
+        assert!(spans(&empty).is_empty());
+    }
 
     #[test]
     fn value_iter_uses_contiguous_path_when_layout_is_row_major() {

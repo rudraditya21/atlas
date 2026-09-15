@@ -8,8 +8,8 @@ use self::shape::{validate_row_major_shape_and_strides, validate_view_shape_and_
 pub(crate) use self::{
     materialize::materialize_contiguous_array,
     traversal::{
-        ValueIter, broadcast_offset_pair_iter, for_each_value, offset_iter, offset_pair_iter,
-        try_for_each_value, value_iter,
+        ValueIter, broadcast_offset_pair_iter, for_each_value, logical_span_iter, offset_iter,
+        offset_pair_iter, try_for_each_value, value_iter,
     },
 };
 use crate::{AtlasNdError, AtlasNdResult};
