@@ -14,7 +14,9 @@ pub fn features(sample_count: usize) -> NDArray<f64> {
                 if feature == 0 {
                     class_offset
                 } else {
-                    ((sample * (feature * 7 + 3)) % 31) as f64 / 31.0 - 0.5
+                    let phase =
+                        ((sample + 1) * (feature * 17 + 3)) as f64 * 0.618_033_988_749_894_9;
+                    phase.sin()
                 }
             })
             .collect(),
