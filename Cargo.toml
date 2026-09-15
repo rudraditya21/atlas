@@ -95,6 +95,11 @@ harness = false
 path = "benches/linalg/factorization_kernels.rs"
 
 [[bench]]
+name = "ml_baselines"
+harness = false
+path = "benches/ml/baselines.rs"
+
+[[bench]]
 name = "stats_descriptive_kernels"
 harness = false
 path = "benches/stats/descriptive_kernels.rs"
