@@ -70,9 +70,7 @@ where
     if contains_nan {
         return Ok(f64::NAN);
     }
-    values.sort_unstable_by(f64::total_cmp);
-
-    Ok(interpolate_quantile(&values, q, interpolation))
+    Ok(select_quantile(&mut values, q, interpolation))
 }
 
 /// Returns the median using the same linear interpolation and NaN policy as [`quantile`].
@@ -212,8 +210,7 @@ where
             result.push(f64::NAN);
             continue;
         }
-        lane.sort_unstable_by(f64::total_cmp);
-        result.push(interpolate_quantile(&lane, q, interpolation));
+        result.push(select_quantile(&mut lane, q, interpolation));
     }
     if keepdims {
         output_shape.insert(axis, 1);
@@ -231,20 +228,38 @@ fn validate_quantile(q: f64) -> AtlasStatsResult<()> {
     Ok(())
 }
 
-fn interpolate_quantile(values: &[f64], q: f64, interpolation: QuantileInterpolation) -> f64 {
+fn select_quantile(values: &mut [f64], q: f64, interpolation: QuantileInterpolation) -> f64 {
     let rank = q * (values.len() - 1) as f64;
     let lower = rank.floor() as usize;
     let upper = rank.ceil() as usize;
 
     match interpolation {
         QuantileInterpolation::Linear => {
-            values[lower] + (values[upper] - values[lower]) * (rank - lower as f64)
+            let lower_value = select_rank(values, lower);
+            let upper_value = select_upper_rank(values, lower, upper);
+            lower_value + (upper_value - lower_value) * (rank - lower as f64)
         }
-        QuantileInterpolation::Lower => values[lower],
-        QuantileInterpolation::Higher => values[upper],
-        QuantileInterpolation::Nearest => values[rank.round() as usize],
-        QuantileInterpolation::Midpoint => (values[lower] + values[upper]) / 2.0,
+        QuantileInterpolation::Lower => select_rank(values, lower),
+        QuantileInterpolation::Higher => select_rank(values, upper),
+        QuantileInterpolation::Nearest => select_rank(values, rank.round() as usize),
+        QuantileInterpolation::Midpoint => {
+            let lower_value = select_rank(values, lower);
+            let upper_value = select_upper_rank(values, lower, upper);
+            (lower_value + upper_value) / 2.0
+        }
     }
+}
+
+fn select_rank(values: &mut [f64], rank: usize) -> f64 {
+    *values.select_nth_unstable_by(rank, f64::total_cmp).1
+}
+
+fn select_upper_rank(values: &mut [f64], lower: usize, upper: usize) -> f64 {
+    if lower == upper {
+        return values[lower];
+    }
+
+    select_rank(&mut values[lower + 1..], upper - lower - 1)
 }
 
 #[cfg(test)]
@@ -313,6 +328,26 @@ mod tests {
             quantile_with_interpolation(&values, 1.0, QuantileInterpolation::Lower).unwrap(),
             30.0,
         );
+    }
+
+    #[test]
+    fn quantile_selection_preserves_all_interpolations_and_edges() {
+        let values = NDArray::from_shape_vec([4], vec![30.0_f64, 0.0, 20.0, 10.0]).unwrap();
+
+        for (interpolation, expected) in [
+            (QuantileInterpolation::Linear, 7.5),
+            (QuantileInterpolation::Lower, 0.0),
+            (QuantileInterpolation::Higher, 10.0),
+            (QuantileInterpolation::Nearest, 10.0),
+            (QuantileInterpolation::Midpoint, 5.0),
+        ] {
+            assert_close(
+                quantile_with_interpolation(&values, 0.25, interpolation).unwrap(),
+                expected,
+            );
+            assert_close(quantile_with_interpolation(&values, 0.0, interpolation).unwrap(), 0.0);
+            assert_close(quantile_with_interpolation(&values, 1.0, interpolation).unwrap(), 30.0);
+        }
     }
 
     #[test]
