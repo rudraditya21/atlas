@@ -1,7 +1,7 @@
 use atlas_ndarray::{AxisIndex, NDArray, Numeric, checked_element_count};
 use num_traits::ToPrimitive;
 
-use super::axis::normalize_axis;
+use super::axis::{axis_output_shape, normalize_axis, try_for_each_axis_pair};
 use crate::core::{
     AtlasStatsError, AtlasStatsResult, StatsOperand, try_for_each_vector_pair_f64,
     validate_non_empty_vector_pair,
@@ -94,8 +94,7 @@ where
 
     let shape = lhs.shape();
     let axis = normalize_axis(axis, shape.len())?;
-    let mut output_shape = shape.to_vec();
-    output_shape.remove(axis);
+    let output_shape = axis_output_shape(shape, axis, false);
     let output_len = checked_element_count(&output_shape)?;
     if output_len == 0 {
         return NDArray::from_shape_vec(output_shape, Vec::new()).map_err(Into::into);
@@ -106,19 +105,21 @@ where
         return Err(AtlasStatsError::EmptyInput { op: OP });
     }
 
-    let inner_len = shape[axis + 1..].iter().product::<usize>();
-    let block_len = observations * inner_len;
     let mut correlations =
         (0..output_len).map(|_| RunningCorrelation::default()).collect::<Vec<_>>();
 
-    for (linear_index, (lhs_value, rhs_value)) in lhs.iter().zip(rhs.iter()).enumerate() {
-        let outer = linear_index / block_len;
-        let inner = linear_index % inner_len;
-        correlations[outer * inner_len + inner].add(
-            lhs_value.to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op: OP })?,
-            rhs_value.to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op: OP })?,
-        );
-    }
+    try_for_each_axis_pair(
+        &lhs,
+        &rhs,
+        axis,
+        |lane, lhs_value, rhs_value| -> AtlasStatsResult<()> {
+            correlations[lane].add(
+                lhs_value.to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op: OP })?,
+                rhs_value.to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op: OP })?,
+            );
+            Ok(())
+        },
+    )?;
 
     let mut values = Vec::with_capacity(output_len);
     for correlation in correlations {

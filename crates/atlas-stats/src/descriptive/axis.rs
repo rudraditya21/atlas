@@ -82,13 +82,9 @@ where
 {
     let shape = input.shape();
     let axis = normalize_axis(axis, shape.len())?;
-    let mut output_shape = shape.to_vec();
-    output_shape.remove(axis);
+    let output_shape = axis_output_shape(shape, axis, keepdims);
     let output_len = checked_element_count(&output_shape)?;
     if output_len == 0 {
-        if keepdims {
-            output_shape.insert(axis, 1);
-        }
         return NDArray::from_shape_vec(output_shape, Vec::new()).map_err(Into::into);
     }
 
@@ -100,25 +96,131 @@ where
         return Err(AtlasStatsError::InvalidDegreesOfFreedom { op, ddof, count: axis_len });
     }
 
-    let inner_len = shape[axis + 1..].iter().product::<usize>();
-    let block_len = axis_len * inner_len;
     let mut variances = (0..output_len).map(|_| RunningVariance::default()).collect::<Vec<_>>();
 
-    for (linear_index, value) in input.iter().enumerate() {
-        let outer = linear_index / block_len;
-        let inner = linear_index % inner_len;
-        variances[outer * inner_len + inner]
-            .add(value.to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op })?);
-    }
+    try_for_each_axis_value(&input, axis, |lane, value| -> AtlasStatsResult<()> {
+        variances[lane].add(value.to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op })?);
+        Ok(())
+    })?;
 
-    if keepdims {
-        output_shape.insert(axis, 1);
-    }
     NDArray::from_shape_vec(
         output_shape,
         variances.into_iter().map(|variance| variance.variance(ddof)).collect(),
     )
     .map_err(Into::into)
+}
+
+pub(super) fn axis_output_shape(shape: &[usize], axis: usize, keepdims: bool) -> Vec<usize> {
+    if keepdims {
+        let mut output_shape = shape.to_vec();
+        output_shape[axis] = 1;
+        output_shape
+    } else {
+        let mut output_shape = shape.to_vec();
+        output_shape.remove(axis);
+        output_shape
+    }
+}
+
+pub(super) fn try_for_each_axis_value<T, F>(
+    input: &StatsOperand<'_, T>,
+    axis: usize,
+    mut f: F,
+) -> AtlasStatsResult<()>
+where
+    T: Numeric,
+    F: FnMut(usize, &T) -> AtlasStatsResult<()>,
+{
+    let shape = input.shape();
+    let axis_len = shape[axis];
+    let inner_len = shape[axis + 1..].iter().product::<usize>();
+    let block_len = axis_len * inner_len;
+
+    if let Some(values) = input.row_major_slice() {
+        if axis + 1 == shape.len() {
+            for (lane, values) in values.chunks_exact(axis_len).enumerate() {
+                for value in values {
+                    f(lane, value)?;
+                }
+            }
+            return Ok(());
+        }
+
+        if axis == 0 {
+            for values in values.chunks_exact(inner_len) {
+                for (lane, value) in values.iter().enumerate() {
+                    f(lane, value)?;
+                }
+            }
+            return Ok(());
+        }
+
+        for (linear_index, value) in values.iter().enumerate() {
+            f(axis_lane(linear_index, inner_len, block_len), value)?;
+        }
+        return Ok(());
+    }
+
+    for (linear_index, value) in input.iter().enumerate() {
+        f(axis_lane(linear_index, inner_len, block_len), value)?;
+    }
+    Ok(())
+}
+
+pub(super) fn try_for_each_axis_pair<T, F>(
+    lhs: &StatsOperand<'_, T>,
+    rhs: &StatsOperand<'_, T>,
+    axis: usize,
+    mut f: F,
+) -> AtlasStatsResult<()>
+where
+    T: Numeric,
+    F: FnMut(usize, &T, &T) -> AtlasStatsResult<()>,
+{
+    let shape = lhs.shape();
+    let axis_len = shape[axis];
+    let inner_len = shape[axis + 1..].iter().product::<usize>();
+    let block_len = axis_len * inner_len;
+
+    if let (Some(lhs_values), Some(rhs_values)) = (lhs.row_major_slice(), rhs.row_major_slice()) {
+        if axis + 1 == shape.len() {
+            for (lane, (lhs_lane, rhs_lane)) in
+                lhs_values.chunks_exact(axis_len).zip(rhs_values.chunks_exact(axis_len)).enumerate()
+            {
+                for (lhs_value, rhs_value) in lhs_lane.iter().zip(rhs_lane) {
+                    f(lane, lhs_value, rhs_value)?;
+                }
+            }
+            return Ok(());
+        }
+
+        if axis == 0 {
+            for (lhs_values, rhs_values) in
+                lhs_values.chunks_exact(inner_len).zip(rhs_values.chunks_exact(inner_len))
+            {
+                for (lane, (lhs_value, rhs_value)) in lhs_values.iter().zip(rhs_values).enumerate()
+                {
+                    f(lane, lhs_value, rhs_value)?;
+                }
+            }
+            return Ok(());
+        }
+
+        for (linear_index, (lhs_value, rhs_value)) in lhs_values.iter().zip(rhs_values).enumerate()
+        {
+            f(axis_lane(linear_index, inner_len, block_len), lhs_value, rhs_value)?;
+        }
+        return Ok(());
+    }
+
+    for (linear_index, (lhs_value, rhs_value)) in lhs.iter().zip(rhs.iter()).enumerate() {
+        f(axis_lane(linear_index, inner_len, block_len), lhs_value, rhs_value)?;
+    }
+    Ok(())
+}
+
+fn axis_lane(linear_index: usize, inner_len: usize, block_len: usize) -> usize {
+    linear_index / block_len * inner_len + linear_index % inner_len
 }
 
 pub fn stddev_axis<'a, T, I, A>(input: I, axis: A) -> AtlasStatsResult<NDArray<f64>>

@@ -2,7 +2,7 @@ use std::slice::Iter;
 
 use atlas_ndarray::{
     ArrayView, ArrayViewIter, NDArray, Numeric, OperandMetadata, checked_element_count,
-    try_for_each_logical_span, try_for_each_logical_span_pair,
+    compute_strides, try_for_each_logical_span, try_for_each_logical_span_pair,
 };
 
 use crate::core::error::AtlasStatsResult;
@@ -96,6 +96,13 @@ impl<'a, T: Numeric> StatsOperand<'a, T> {
             (Self::View(lhs), Self::Array(rhs)) => try_for_each_logical_span_pair(lhs, *rhs, f),
             (Self::View(lhs), Self::View(rhs)) => try_for_each_logical_span_pair(lhs, rhs, f),
         }
+    }
+
+    pub(crate) fn row_major_slice(&self) -> Option<&[T]> {
+        let operand = self.as_ref().metadata();
+        (operand.strides() == compute_strides(operand.shape()))
+            .then(|| operand.dense_slice())
+            .flatten()
     }
 }
 

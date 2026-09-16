@@ -1,11 +1,11 @@
 use atlas_ndarray::{ArrayView, NDArray, SliceRange};
 use atlas_stats::{
-    AtlasStatsError, correlation, correlation_matrix, covariance, covariance_ddof,
-    covariance_matrix, covariance_matrix_ddof, kurtosis, median, quantile, skewness, stddev,
-    stddev_axis, stddev_axis_ddof, stddev_axis_keepdims, stddev_axis_keepdims_ddof, stddev_ddof,
-    variance, variance_axis, variance_axis_ddof, variance_axis_keepdims,
-    variance_axis_keepdims_ddof, variance_ddof, weighted_correlation, weighted_covariance,
-    weighted_mean, weighted_variance,
+    AtlasStatsError, correlation, correlation_axis, correlation_matrix, covariance,
+    covariance_axis, covariance_ddof, covariance_matrix, covariance_matrix_ddof, kurtosis, median,
+    quantile, skewness, stddev, stddev_axis, stddev_axis_ddof, stddev_axis_keepdims,
+    stddev_axis_keepdims_ddof, stddev_ddof, variance, variance_axis, variance_axis_ddof,
+    variance_axis_keepdims, variance_axis_keepdims_ddof, variance_ddof, weighted_correlation,
+    weighted_covariance, weighted_mean, weighted_variance,
 };
 
 fn assert_close(actual: f64, expected: f64) {
@@ -226,6 +226,49 @@ fn axiswise_variance_and_stddev_support_transposed_and_sliced_views() {
 
     assert_eq!(variance_axis(view.clone(), 1).unwrap().data(), &[6.0, 6.0]);
     assert_eq!(stddev_axis(view, 1).unwrap().data(), &[6.0_f64.sqrt(); 2]);
+}
+
+#[test]
+fn axis_statistics_preserve_views_axes_and_empty_lane_contracts() {
+    let lhs = NDArray::from_shape_vec([2, 3], vec![1.0_f64, 2.0, 3.0, 4.0, 5.0, 6.0]).unwrap();
+    let rhs = NDArray::from_shape_vec([2, 3], vec![2.0_f64, 4.0, 6.0, 8.0, 10.0, 12.0]).unwrap();
+    let lhs_view = lhs.view().transpose();
+    let rhs_view = rhs.view().transpose();
+    let lhs_materialized = lhs_view.to_owned();
+    let rhs_materialized = rhs_view.to_owned();
+    let singleton = NDArray::from_shape_vec([2, 1], vec![1.0_f64, 2.0]).unwrap();
+    let empty = NDArray::<f64>::zeros([2, 0]).unwrap();
+
+    assert_eq!(
+        variance_axis(lhs_view.clone(), -1).unwrap().data(),
+        variance_axis(&lhs_materialized, -1).unwrap().data()
+    );
+    assert_eq!(variance_axis_keepdims(lhs_view.clone(), -1).unwrap().shape(), &[3, 1]);
+    assert_eq!(
+        covariance_axis(lhs_view.clone(), rhs_view.clone(), -1).unwrap().data(),
+        covariance_axis(&lhs_materialized, &rhs_materialized, -1).unwrap().data()
+    );
+    for value in correlation_axis(lhs_view, rhs_view, -1).unwrap().data() {
+        assert_close(*value, 1.0);
+    }
+    assert_eq!(variance_axis(&singleton, -1).unwrap().data(), &[0.0; 2]);
+    assert_eq!(covariance_axis(&singleton, &singleton, -1).unwrap().data(), &[0.0; 2]);
+    assert_eq!(
+        correlation_axis(&singleton, &singleton, -1).unwrap_err(),
+        AtlasStatsError::ZeroVariance { op: "correlation_axis" }
+    );
+    assert_eq!(
+        variance_axis(&empty, -1).unwrap_err(),
+        AtlasStatsError::EmptyInput { op: "variance_axis" }
+    );
+    assert_eq!(
+        covariance_axis(&empty, &empty, -1).unwrap_err(),
+        AtlasStatsError::EmptyInput { op: "covariance_axis" }
+    );
+    assert_eq!(
+        correlation_axis(&empty, &empty, -1).unwrap_err(),
+        AtlasStatsError::EmptyInput { op: "correlation_axis" }
+    );
 }
 
 #[test]
