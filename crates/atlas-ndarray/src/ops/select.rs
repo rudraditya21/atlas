@@ -1,5 +1,6 @@
 use crate::{
-    ArrayElement, AtlasNdError, AtlasNdResult, NDArray, OperandMetadata, internal::value_iter,
+    ArrayElement, AtlasNdError, AtlasNdResult, NDArray, OperandMetadata,
+    internal::{logical_span_iter, value_iter},
     view::ArrayView,
 };
 
@@ -36,11 +37,36 @@ where
         });
     }
 
-    let data = value_iter(operand.data(), operand.offset(), operand.shape(), operand.strides())
-        .copied()
-        .zip(value_iter(mask.data(), mask.offset(), mask.shape(), mask.strides()).copied())
-        .filter_map(|(value, selected)| selected.then_some(value))
-        .collect::<Vec<_>>();
+    let mut data = Vec::with_capacity(count_selected(mask));
+
+    if operand.strides() == mask.strides() {
+        for (values, selections) in
+            logical_span_iter(operand.data(), operand.offset(), operand.shape(), operand.strides())
+                .zip(logical_span_iter(mask.data(), mask.offset(), mask.shape(), mask.strides()))
+        {
+            debug_assert_eq!(values.len(), selections.len());
+            data.extend(
+                values
+                    .iter()
+                    .copied()
+                    .zip(selections.iter().copied())
+                    .filter_map(|(value, selected)| selected.then_some(value)),
+            );
+        }
+    } else {
+        data.extend(
+            value_iter(operand.data(), operand.offset(), operand.shape(), operand.strides())
+                .copied()
+                .zip(value_iter(mask.data(), mask.offset(), mask.shape(), mask.strides()).copied())
+                .filter_map(|(value, selected)| selected.then_some(value)),
+        );
+    }
 
     Ok(NDArray::from_shape_vec([data.len()], data)?)
+}
+
+fn count_selected<M: OperandMetadata<bool> + ?Sized>(mask: &M) -> usize {
+    logical_span_iter(mask.data(), mask.offset(), mask.shape(), mask.strides())
+        .map(|span| span.iter().filter(|&&selected| selected).count())
+        .sum()
 }

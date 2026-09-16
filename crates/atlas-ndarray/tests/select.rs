@@ -42,6 +42,29 @@ fn select_uses_sliced_view_logical_order() {
 }
 
 #[test]
+fn select_fast_path_matches_transposed_sliced_logical_reference() {
+    let values = NDArray::from_shape_vec([3, 4], (0_i32..12).collect()).unwrap();
+    let mask = NDArray::from_shape_vec(
+        [3, 4],
+        vec![true, false, true, false, false, true, false, true, true, false, false, true],
+    )
+    .unwrap();
+    let values = values.view().transpose().slice([0, 1], [4, 2]).unwrap();
+    let mask = mask.view().transpose().slice([0, 1], [4, 2]).unwrap();
+    let expected: Vec<_> = values
+        .iter()
+        .copied()
+        .zip(mask.iter().copied())
+        .filter_map(|(value, selected)| selected.then_some(value))
+        .collect();
+
+    let selected = values.select(&mask).unwrap();
+
+    assert_eq!(selected.data(), expected.as_slice());
+    assert!(selected.is_contiguous());
+}
+
+#[test]
 fn select_handles_scalar_and_empty_inputs() {
     let scalar = NDArray::from_shape_vec([], vec![7_i32]).unwrap();
     let scalar_mask = NDArray::from_shape_vec([], vec![true]).unwrap();
