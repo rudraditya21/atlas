@@ -2,7 +2,8 @@ use num_traits::ToPrimitive;
 
 pub(crate) use crate::simd_support::{cast_slice, is_f32, is_f64};
 use crate::{
-    AtlasNdError, AtlasNdResult, ElementwiseArithmetic, ElementwiseDivision, Numeric,
+    AtlasNdError, AtlasNdResult, ElementwiseArithmetic, ElementwiseDivision, Numeric, UnaryAbs,
+    UnaryNeg,
     simd_support::{cast_mut_slice, cast_value},
 };
 
@@ -223,6 +224,44 @@ pub(crate) fn div_scalar_contiguous<T: ElementwiseDivision>(input: &[T], scalar:
     }
 
     map_scalar_scalar(input, scalar, out, ElementwiseDivision::elementwise_div);
+}
+
+pub(crate) fn neg_contiguous<T: UnaryNeg>(input: &[T], out: &mut [T]) {
+    debug_assert_eq!(input.len(), out.len());
+
+    #[cfg(target_arch = "x86_64")]
+    {
+        if is_f32::<T>() && std::is_x86_feature_detected!("avx") {
+            // SAFETY: The type check guarantees exact element layout.
+            unsafe {
+                x86_64::neg_f32(cast_slice(input), cast_mut_slice(out));
+            }
+            return;
+        }
+    }
+
+    for (output, &value) in out.iter_mut().zip(input) {
+        *output = value.unary_neg();
+    }
+}
+
+pub(crate) fn abs_contiguous<T: UnaryAbs>(input: &[T], out: &mut [T]) {
+    debug_assert_eq!(input.len(), out.len());
+
+    #[cfg(target_arch = "x86_64")]
+    {
+        if is_f32::<T>() && std::is_x86_feature_detected!("avx") {
+            // SAFETY: The type check guarantees exact element layout.
+            unsafe {
+                x86_64::abs_f32(cast_slice(input), cast_mut_slice(out));
+            }
+            return;
+        }
+    }
+
+    for (output, &value) in out.iter_mut().zip(input) {
+        *output = value.unary_abs();
+    }
 }
 
 pub(crate) fn map_binary_contiguous<T, F>(lhs: &[T], rhs: &[T], out: &mut [T], op: F)
@@ -748,6 +787,48 @@ mod x86_64 {
     pub(super) unsafe fn div_scalar_f32(input: &[f32], scalar: f32, out: &mut [f32]) {
         // SAFETY: The caller verifies AVX support before invoking this kernel.
         unsafe { map_scalar_f32(input, scalar, out, _mm256_div_ps) };
+    }
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn neg_f32(input: &[f32], out: &mut [f32]) {
+        let sign = _mm256_set1_ps(-0.0);
+        let body_len = input.len() / 8 * 8;
+        let mut index = 0;
+
+        while index < body_len {
+            // SAFETY: `index < body_len` guarantees eight readable inputs and writable outputs.
+            unsafe {
+                let values = _mm256_loadu_ps(input.as_ptr().add(index));
+                _mm256_storeu_ps(out.as_mut_ptr().add(index), _mm256_xor_ps(values, sign));
+            }
+            index += 8;
+        }
+
+        while index < input.len() {
+            out[index] = -input[index];
+            index += 1;
+        }
+    }
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn abs_f32(input: &[f32], out: &mut [f32]) {
+        let sign = _mm256_set1_ps(f32::from_bits(0x7fff_ffff));
+        let body_len = input.len() / 8 * 8;
+        let mut index = 0;
+
+        while index < body_len {
+            // SAFETY: `index < body_len` guarantees eight readable inputs and writable outputs.
+            unsafe {
+                let values = _mm256_loadu_ps(input.as_ptr().add(index));
+                _mm256_storeu_ps(out.as_mut_ptr().add(index), _mm256_and_ps(values, sign));
+            }
+            index += 8;
+        }
+
+        while index < input.len() {
+            out[index] = input[index].abs();
+            index += 1;
+        }
     }
 
     #[target_feature(enable = "avx")]

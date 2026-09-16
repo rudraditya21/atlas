@@ -1,6 +1,6 @@
 use crate::{
     ArrayElement, NDArray, Numeric, OperandMetadata,
-    internal::{layout::is_contiguous_layout, value_iter},
+    internal::{layout::is_contiguous_layout, simd, value_iter},
     view::ArrayView,
 };
 
@@ -164,6 +164,30 @@ where
         .expect("unary operations preserve ndarray invariants")
 }
 
+fn map_unary_numeric<T, O, F, C>(operand: &O, op: F, contiguous_op: C) -> NDArray<T>
+where
+    T: Numeric,
+    O: OperandMetadata<T> + ?Sized,
+    F: Fn(T) -> T,
+    C: Fn(&[T], &mut [T]),
+{
+    let data = if is_contiguous_layout(operand.shape(), operand.strides()) {
+        let values =
+            operand.dense_slice().expect("contiguous operands always expose a dense storage slice");
+        let mut data = vec![T::zero(); values.len()];
+        contiguous_op(values, &mut data);
+        data
+    } else {
+        value_iter(operand.data(), operand.offset(), operand.shape(), operand.strides())
+            .copied()
+            .map(op)
+            .collect()
+    };
+
+    NDArray::from_row_major_parts(operand.shape().to_vec(), data)
+        .expect("unary operations preserve ndarray invariants")
+}
+
 fn map_unary_bool<T, O, F>(operand: &O, op: F) -> NDArray<bool>
 where
     T: ArrayElement,
@@ -194,14 +218,14 @@ macro_rules! impl_unary_operations {
         impl<T: UnaryNeg> $operand {
             /// Returns the elementwise additive inverse; signed integer minima wrap unchanged.
             pub fn neg(&self) -> NDArray<T> {
-                map_unary(self, UnaryNeg::unary_neg)
+                map_unary_numeric(self, UnaryNeg::unary_neg, simd::neg_contiguous)
             }
         }
 
         impl<T: UnaryAbs> $operand {
             /// Returns elementwise magnitudes; unsigned integers are unchanged and signed minima wrap unchanged.
             pub fn abs(&self) -> NDArray<T> {
-                map_unary(self, UnaryAbs::unary_abs)
+                map_unary_numeric(self, UnaryAbs::unary_abs, simd::abs_contiguous)
             }
         }
 
