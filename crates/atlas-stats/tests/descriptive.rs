@@ -1,10 +1,11 @@
-use atlas_ndarray::NDArray;
+use atlas_ndarray::{ArrayView, NDArray, SliceRange};
 use atlas_stats::{
     AtlasStatsError, correlation, correlation_matrix, covariance, covariance_ddof,
-    covariance_matrix, covariance_matrix_ddof, median, quantile, stddev, stddev_axis,
-    stddev_axis_ddof, stddev_axis_keepdims, stddev_axis_keepdims_ddof, stddev_ddof, variance,
-    variance_axis, variance_axis_ddof, variance_axis_keepdims, variance_axis_keepdims_ddof,
-    variance_ddof, weighted_covariance, weighted_mean, weighted_variance,
+    covariance_matrix, covariance_matrix_ddof, kurtosis, median, quantile, skewness, stddev,
+    stddev_axis, stddev_axis_ddof, stddev_axis_keepdims, stddev_axis_keepdims_ddof, stddev_ddof,
+    variance, variance_axis, variance_axis_ddof, variance_axis_keepdims,
+    variance_axis_keepdims_ddof, variance_ddof, weighted_covariance, weighted_mean,
+    weighted_variance,
 };
 
 fn assert_close(actual: f64, expected: f64) {
@@ -20,6 +21,17 @@ fn assert_result_close(
         (Err(actual), Err(expected)) => assert_eq!(actual, expected),
         (actual, expected) => panic!("result mismatch: actual={actual:?}, expected={expected:?}"),
     }
+}
+
+fn assert_descriptive_layout_equivalence(view: ArrayView<'_, f64>) {
+    let materialized = view.to_owned();
+
+    assert_close(variance(view.clone()).unwrap(), variance(&materialized).unwrap());
+    assert_close(stddev(view.clone()).unwrap(), stddev(&materialized).unwrap());
+    assert_close(skewness(view.clone()).unwrap(), skewness(&materialized).unwrap());
+    assert_close(kurtosis(view.clone()).unwrap(), kurtosis(&materialized).unwrap());
+    assert_close(quantile(view.clone(), 0.25).unwrap(), quantile(&materialized, 0.25).unwrap());
+    assert_close(median(view).unwrap(), median(&materialized).unwrap());
 }
 
 #[test]
@@ -61,6 +73,33 @@ fn variance_and_stddev_support_strided_views() {
 
     assert_close(variance(view.clone()).unwrap(), 35.0 / 12.0);
     assert_close(stddev(view).unwrap(), (35.0_f64 / 12.0).sqrt());
+}
+
+#[test]
+fn scalar_descriptive_reductions_match_contiguous_materializations() {
+    let source = NDArray::from_shape_vec([4, 4], (1..=16).map(f64::from).collect()).unwrap();
+
+    assert_descriptive_layout_equivalence(source.view().slice([1, 1], [2, 3]).unwrap());
+    assert_descriptive_layout_equivalence(source.view().transpose().slice([1, 0], [3, 2]).unwrap());
+}
+
+#[test]
+fn scalar_pair_reductions_match_contiguous_materializations() {
+    let lhs = NDArray::from_shape_vec([4], vec![1.0_f64, 2.0, 3.0, 4.0]).unwrap();
+    let rhs_source =
+        NDArray::from_shape_vec([8], vec![2.0_f64, 0.0, 6.0, 0.0, 10.0, 0.0, 14.0, 0.0]).unwrap();
+    let rhs = rhs_source.view().slice_ranges([SliceRange::new(Some(0), Some(8), 2)]).unwrap();
+    let lhs_materialized = lhs.view().to_owned();
+    let rhs_materialized = rhs.to_owned();
+
+    assert_close(
+        covariance(lhs.view(), rhs.clone()).unwrap(),
+        covariance(&lhs_materialized, &rhs_materialized).unwrap(),
+    );
+    assert_close(
+        correlation(lhs.view(), rhs).unwrap(),
+        correlation(&lhs_materialized, &rhs_materialized).unwrap(),
+    );
 }
 
 #[test]

@@ -2,6 +2,7 @@ use std::slice::Iter;
 
 use atlas_ndarray::{
     ArrayView, ArrayViewIter, NDArray, Numeric, OperandMetadata, checked_element_count,
+    try_for_each_logical_span, try_for_each_logical_span_pair,
 };
 
 use crate::core::error::AtlasStatsResult;
@@ -71,12 +72,30 @@ impl<'a, T: Numeric> StatsOperand<'a, T> {
         Ok(checked_element_count(self.shape())?)
     }
 
-    pub(crate) fn dense_slice(&self) -> Option<&[T]> {
-        self.as_ref().dense_slice()
-    }
-
     pub(crate) fn iter<'operand>(&'operand self) -> StatsOperandIter<'operand, T> {
         self.as_ref().iter()
+    }
+
+    pub(crate) fn try_for_each_span<E, F>(&self, f: F) -> Result<(), E>
+    where
+        F: FnMut(&[T]) -> Result<(), E>,
+    {
+        match self {
+            Self::Array(array) => try_for_each_logical_span(*array, f),
+            Self::View(view) => try_for_each_logical_span(view, f),
+        }
+    }
+
+    pub(crate) fn try_for_each_span_pair<E, F>(&self, other: &Self, f: F) -> Result<(), E>
+    where
+        F: FnMut(&[T], &[T]) -> Result<(), E>,
+    {
+        match (self, other) {
+            (Self::Array(lhs), Self::Array(rhs)) => try_for_each_logical_span_pair(*lhs, *rhs, f),
+            (Self::Array(lhs), Self::View(rhs)) => try_for_each_logical_span_pair(*lhs, rhs, f),
+            (Self::View(lhs), Self::Array(rhs)) => try_for_each_logical_span_pair(lhs, *rhs, f),
+            (Self::View(lhs), Self::View(rhs)) => try_for_each_logical_span_pair(lhs, rhs, f),
+        }
     }
 }
 
@@ -94,10 +113,6 @@ impl<'operand, 'data, T: Numeric> OperandRef<'operand, 'data, T> {
 
     fn ndim(self) -> usize {
         self.metadata().ndim()
-    }
-
-    fn dense_slice(self) -> Option<&'operand [T]> {
-        self.metadata().dense_slice()
     }
 
     fn iter(self) -> StatsOperandIter<'operand, T> {

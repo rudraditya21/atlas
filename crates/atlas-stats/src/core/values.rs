@@ -102,21 +102,14 @@ where
         return Ok(());
     }
 
-    if let Some(values) = operand.dense_slice() {
+    operand.try_for_each_span(|values| {
         for value in values {
             let value = value.to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op })?;
             f(value)?;
         }
 
-        return Ok(());
-    }
-
-    for value in operand.iter() {
-        let value = value.to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op })?;
-        f(value)?;
-    }
-
-    Ok(())
+        Ok(())
+    })
 }
 
 pub(crate) fn try_for_each_vector_pair_f64<T, F>(
@@ -129,11 +122,13 @@ where
     T: Numeric + ToPrimitive,
     F: FnMut(f64, f64) -> AtlasStatsResult<()>,
 {
-    for (left, right) in lhs.iter().zip(rhs.iter()) {
-        let left = left.to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op })?;
-        let right = right.to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op })?;
-        f(left, right)?;
-    }
+    lhs.try_for_each_span_pair(rhs, |lhs_values, rhs_values| {
+        for (left, right) in lhs_values.iter().zip(rhs_values) {
+            let left = left.to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op })?;
+            let right = right.to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op })?;
+            f(left, right)?;
+        }
 
-    Ok(())
+        Ok(())
+    })
 }

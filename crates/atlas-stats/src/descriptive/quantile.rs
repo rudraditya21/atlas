@@ -48,13 +48,27 @@ where
     }
 
     let mut values = Vec::with_capacity(input.len()?);
-    for value in input.iter() {
-        let value =
-            value.to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op: "quantile" })?;
-        if value.is_nan() {
-            return Ok(f64::NAN);
+    let mut contains_nan = false;
+    input.try_for_each_span(|span| -> AtlasStatsResult<()> {
+        if contains_nan {
+            return Ok(());
         }
-        values.push(value);
+
+        for value in span {
+            let value = value
+                .to_f64()
+                .ok_or(AtlasStatsError::NumericConversionFailed { op: "quantile" })?;
+            if value.is_nan() {
+                contains_nan = true;
+                break;
+            }
+            values.push(value);
+        }
+
+        Ok(())
+    })?;
+    if contains_nan {
+        return Ok(f64::NAN);
     }
     values.sort_unstable_by(f64::total_cmp);
 

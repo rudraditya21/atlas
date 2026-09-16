@@ -57,3 +57,75 @@ pub use ops::{
     where_::{IntoWhereOperand, WhereOperand},
 };
 pub use view::{iter::ArrayViewIter, slicing::SliceRange, view::ArrayView};
+
+/// Visits maximal contiguous storage spans in an operand's logical row-major order.
+///
+/// This is primarily useful to downstream Atlas crates that need to process logical views
+/// without resolving a multidimensional coordinate for every value.
+#[doc(hidden)]
+pub fn try_for_each_logical_span<T, O, E, F>(operand: &O, mut f: F) -> Result<(), E>
+where
+    T: ArrayElement,
+    O: OperandMetadata<T> + ?Sized,
+    F: FnMut(&[T]) -> Result<(), E>,
+{
+    for span in internal::traversal::logical_span_iter(
+        operand.data(),
+        operand.offset(),
+        operand.shape(),
+        operand.strides(),
+    ) {
+        f(span)?;
+    }
+
+    Ok(())
+}
+
+/// Visits paired contiguous spans from operands with the same logical element count.
+#[doc(hidden)]
+pub fn try_for_each_logical_span_pair<T, L, R, E, F>(lhs: &L, rhs: &R, mut f: F) -> Result<(), E>
+where
+    T: ArrayElement,
+    L: OperandMetadata<T> + ?Sized,
+    R: OperandMetadata<T> + ?Sized,
+    F: FnMut(&[T], &[T]) -> Result<(), E>,
+{
+    let mut lhs_spans = internal::traversal::logical_span_iter(
+        lhs.data(),
+        lhs.offset(),
+        lhs.shape(),
+        lhs.strides(),
+    );
+    let mut rhs_spans = internal::traversal::logical_span_iter(
+        rhs.data(),
+        rhs.offset(),
+        rhs.shape(),
+        rhs.strides(),
+    );
+    let mut lhs_span = lhs_spans.next();
+    let mut rhs_span = rhs_spans.next();
+    let mut lhs_index = 0;
+    let mut rhs_index = 0;
+
+    while let (Some(lhs_span_values), Some(rhs_span_values)) = (lhs_span, rhs_span) {
+        let span_len = (lhs_span_values.len() - lhs_index).min(rhs_span_values.len() - rhs_index);
+        f(
+            &lhs_span_values[lhs_index..lhs_index + span_len],
+            &rhs_span_values[rhs_index..rhs_index + span_len],
+        )?;
+
+        lhs_index += span_len;
+        rhs_index += span_len;
+        if lhs_index == lhs_span_values.len() {
+            lhs_span = lhs_spans.next();
+            lhs_index = 0;
+        }
+        if rhs_index == rhs_span_values.len() {
+            rhs_span = rhs_spans.next();
+            rhs_index = 0;
+        }
+    }
+
+    debug_assert!(lhs_span.is_none() && rhs_span.is_none());
+    Ok(())
+}
