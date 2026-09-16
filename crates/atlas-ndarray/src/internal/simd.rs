@@ -238,6 +238,14 @@ pub(crate) fn neg_contiguous<T: UnaryNeg>(input: &[T], out: &mut [T]) {
             }
             return;
         }
+
+        if is_f64::<T>() && std::is_x86_feature_detected!("avx") {
+            // SAFETY: The type check guarantees exact element layout.
+            unsafe {
+                x86_64::neg_f64(cast_slice(input), cast_mut_slice(out));
+            }
+            return;
+        }
     }
 
     for (output, &value) in out.iter_mut().zip(input) {
@@ -254,6 +262,14 @@ pub(crate) fn abs_contiguous<T: UnaryAbs>(input: &[T], out: &mut [T]) {
             // SAFETY: The type check guarantees exact element layout.
             unsafe {
                 x86_64::abs_f32(cast_slice(input), cast_mut_slice(out));
+            }
+            return;
+        }
+
+        if is_f64::<T>() && std::is_x86_feature_detected!("avx") {
+            // SAFETY: The type check guarantees exact element layout.
+            unsafe {
+                x86_64::abs_f64(cast_slice(input), cast_mut_slice(out));
             }
             return;
         }
@@ -823,6 +839,48 @@ mod x86_64 {
                 _mm256_storeu_ps(out.as_mut_ptr().add(index), _mm256_and_ps(values, sign));
             }
             index += 8;
+        }
+
+        while index < input.len() {
+            out[index] = input[index].abs();
+            index += 1;
+        }
+    }
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn neg_f64(input: &[f64], out: &mut [f64]) {
+        let sign = _mm256_set1_pd(-0.0);
+        let body_len = input.len() / 4 * 4;
+        let mut index = 0;
+
+        while index < body_len {
+            // SAFETY: `index < body_len` guarantees four readable inputs and writable outputs.
+            unsafe {
+                let values = _mm256_loadu_pd(input.as_ptr().add(index));
+                _mm256_storeu_pd(out.as_mut_ptr().add(index), _mm256_xor_pd(values, sign));
+            }
+            index += 4;
+        }
+
+        while index < input.len() {
+            out[index] = -input[index];
+            index += 1;
+        }
+    }
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn abs_f64(input: &[f64], out: &mut [f64]) {
+        let sign = _mm256_set1_pd(f64::from_bits(0x7fff_ffff_ffff_ffff));
+        let body_len = input.len() / 4 * 4;
+        let mut index = 0;
+
+        while index < body_len {
+            // SAFETY: `index < body_len` guarantees four readable inputs and writable outputs.
+            unsafe {
+                let values = _mm256_loadu_pd(input.as_ptr().add(index));
+                _mm256_storeu_pd(out.as_mut_ptr().add(index), _mm256_and_pd(values, sign));
+            }
+            index += 4;
         }
 
         while index < input.len() {
