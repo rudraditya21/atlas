@@ -23,6 +23,28 @@ fn masked_fill_supports_strided_mask_views() {
 }
 
 #[test]
+fn masked_fill_matches_transposed_sliced_mask_logical_values() {
+    let mask_source = NDArray::from_shape_vec(
+        [3, 4],
+        vec![true, false, true, false, false, true, false, true, true, false, false, true],
+    )
+    .unwrap();
+    let mask = mask_source.view().transpose().slice([0, 1], [4, 2]).unwrap();
+    let mut values = NDArray::from_shape_vec([4, 2], (0_i32..8).collect()).unwrap();
+    let expected: Vec<_> = values
+        .data()
+        .iter()
+        .copied()
+        .zip(mask.iter().copied())
+        .map(|(value, selected)| if selected { -1 } else { value })
+        .collect();
+
+    values.masked_fill(&mask, -1).unwrap();
+
+    assert_eq!(values.data(), expected.as_slice());
+}
+
+#[test]
 fn masked_fill_handles_scalar_and_empty_arrays() {
     let mut scalar = NDArray::from_shape_vec([], vec![7_i32]).unwrap();
     let scalar_mask = NDArray::from_shape_vec([], vec![true]).unwrap();

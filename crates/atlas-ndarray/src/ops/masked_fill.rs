@@ -1,5 +1,6 @@
 use crate::{
-    ArrayElement, AtlasNdError, AtlasNdResult, NDArray, OperandMetadata, internal::offset_iter,
+    ArrayElement, AtlasNdError, AtlasNdResult, NDArray, OperandMetadata,
+    internal::logical_span_iter,
 };
 
 impl<T: ArrayElement> NDArray<T> {
@@ -15,13 +16,19 @@ impl<T: ArrayElement> NDArray<T> {
             });
         }
 
-        for (slot, mask_offset) in
-            self.data.iter_mut().zip(offset_iter(mask.offset(), mask.shape(), mask.strides()))
+        let mut remaining = self.data.as_mut_slice();
+        for selections in
+            logical_span_iter(mask.data(), mask.offset(), mask.shape(), mask.strides())
         {
-            if mask.data()[mask_offset] {
-                *slot = value;
+            let (values, next) = remaining.split_at_mut(selections.len());
+            for (slot, &selected) in values.iter_mut().zip(selections) {
+                if selected {
+                    *slot = value;
+                }
             }
+            remaining = next;
         }
+        debug_assert!(remaining.is_empty());
 
         Ok(())
     }
