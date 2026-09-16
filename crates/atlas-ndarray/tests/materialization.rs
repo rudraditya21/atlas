@@ -1,4 +1,4 @@
-use atlas_ndarray::{AsArray, AtlasNdError, NDArray};
+use atlas_ndarray::{AsArray, AtlasNdError, NDArray, SliceRange};
 
 #[test]
 fn contiguous_arrays_reshape_and_ravel_without_materializing() {
@@ -82,4 +82,33 @@ fn scalar_and_zero_sized_inputs_preserve_materialization_contracts() {
     assert!(matches!(&empty_raveled, AsArray::Borrowed(_)));
     assert_eq!(empty_flattened.shape(), &[0]);
     assert!(empty_flattened.is_owned());
+}
+
+#[test]
+fn materialization_preserves_offsets_strides_transposes_and_empty_views() {
+    let values = NDArray::from_shape_vec([3, 4], (0_i32..12).collect()).unwrap();
+    let offset = values.view().slice([1, 1], [2, 3]).unwrap();
+    let stepped = values
+        .view()
+        .slice_ranges([SliceRange::full(), SliceRange::new(Some(0), Some(4), 2)])
+        .unwrap();
+    let empty = values.view().slice([3, 0], [0, 4]).unwrap();
+
+    assert_eq!(offset.to_owned().data(), &[5, 6, 7, 9, 10, 11]);
+    assert_eq!(stepped.to_owned().data(), &[0, 2, 4, 6, 8, 10]);
+    assert_eq!(
+        values.view().transpose().to_owned().data(),
+        &[0, 4, 8, 1, 5, 9, 2, 6, 10, 3, 7, 11]
+    );
+    assert!(empty.to_owned().is_empty());
+}
+
+#[test]
+fn materialization_preserves_reverse_slice_rejection_until_reverse_views_exist() {
+    let values = NDArray::from_shape_vec([3], vec![0_i32, 1, 2]).unwrap();
+
+    assert_eq!(
+        values.view().slice_ranges([SliceRange::new(None, None, -1)]).unwrap_err(),
+        AtlasNdError::InvalidArgument { op: "slice", reason: "negative step is not supported" }
+    );
 }

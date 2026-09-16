@@ -1,4 +1,7 @@
-use crate::{ArrayElement, NDArray, OperandMetadata, internal::layout::is_contiguous_layout};
+use crate::{
+    ArrayElement, NDArray, OperandMetadata,
+    internal::{layout::is_contiguous_layout, shape::element_count},
+};
 
 pub(crate) fn materialize_contiguous_array<T, O>(operand: &O) -> NDArray<T>
 where
@@ -11,15 +14,16 @@ where
             .expect("contiguous operands always expose a dense storage slice")
             .to_vec()
     } else {
-        super::logical_span_iter(
+        let mut data = Vec::with_capacity(element_count(operand.shape()));
+        for span in super::logical_span_iter(
             operand.data(),
             operand.offset(),
             operand.shape(),
             operand.strides(),
-        )
-        .flatten()
-        .copied()
-        .collect()
+        ) {
+            data.extend_from_slice(span);
+        }
+        data
     };
 
     NDArray::from_row_major_parts(operand.shape().to_vec(), data)
