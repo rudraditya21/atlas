@@ -3,8 +3,8 @@ use num_traits::ToPrimitive;
 
 use super::axis::normalize_axis;
 use crate::core::{
-    AtlasStatsError, AtlasStatsResult, StatsOperand, means, try_for_each_vector_pair_f64,
-    validate_vector_pair,
+    AtlasStatsError, AtlasStatsResult, StatsOperand, try_for_each_vector_pair_f64,
+    validate_non_empty_vector_pair,
 };
 
 #[derive(Default)]
@@ -60,34 +60,15 @@ where
     let lhs = lhs.into();
     let rhs = rhs.into();
 
-    validate_vector_pair(&lhs, &rhs, "correlation")?;
-
-    let (lhs_mean, rhs_mean, _) = means(&lhs, &rhs, "correlation")?;
-    let mut covariance_total = 0.0_f64;
-    let mut lhs_variance_total = 0.0_f64;
-    let mut rhs_variance_total = 0.0_f64;
-    let mut lhs_scale = 0.0_f64;
-    let mut rhs_scale = 0.0_f64;
+    validate_non_empty_vector_pair(&lhs, &rhs, "correlation")?;
+    let mut running = RunningCorrelation::default();
 
     try_for_each_vector_pair_f64(&lhs, &rhs, "correlation", |left, right| {
-        let lhs_delta = left - lhs_mean;
-        let rhs_delta = right - rhs_mean;
-        lhs_scale = lhs_scale.max(left.abs());
-        rhs_scale = rhs_scale.max(right.abs());
-
-        covariance_total += lhs_delta * rhs_delta;
-        lhs_variance_total += lhs_delta * lhs_delta;
-        rhs_variance_total += rhs_delta * rhs_delta;
+        running.add(left, right);
         Ok(())
     })?;
 
-    if variance_total_is_effectively_zero(lhs_variance_total, lhs_mean, lhs_scale)
-        || variance_total_is_effectively_zero(rhs_variance_total, rhs_mean, rhs_scale)
-    {
-        return Err(AtlasStatsError::ZeroVariance { op: "correlation" });
-    }
-
-    Ok(covariance_total / (lhs_variance_total.sqrt() * rhs_variance_total.sqrt()))
+    running.correlation("correlation")
 }
 
 /// Returns Pearson correlations after reducing `axis` from identically shaped inputs.

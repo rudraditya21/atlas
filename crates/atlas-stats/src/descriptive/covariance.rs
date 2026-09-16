@@ -3,8 +3,8 @@ use num_traits::ToPrimitive;
 
 use super::axis::normalize_axis;
 use crate::core::{
-    AtlasStatsError, AtlasStatsResult, StatsOperand, means, try_for_each_vector_pair_f64,
-    validate_non_empty, validate_vector_pair,
+    AtlasStatsError, AtlasStatsResult, StatsOperand, try_for_each_vector_pair_f64,
+    validate_non_empty_vector_pair,
 };
 
 #[derive(Default)]
@@ -141,21 +141,19 @@ fn covariance_with_ddof<T>(
 where
     T: Numeric + ToPrimitive,
 {
-    validate_vector_pair(&lhs, &rhs, op)?;
-    let len = validate_non_empty(&lhs, op)?;
+    let len = validate_non_empty_vector_pair(&lhs, &rhs, op)?;
     if ddof >= len {
         return Err(AtlasStatsError::InvalidDegreesOfFreedom { op, ddof, count: len });
     }
 
-    let (lhs_mean, rhs_mean, _) = means(&lhs, &rhs, op)?;
-    let mut total = 0.0_f64;
+    let mut running = RunningCovariance::default();
 
     try_for_each_vector_pair_f64(&lhs, &rhs, op, |left, right| {
-        total += (left - lhs_mean) * (right - rhs_mean);
+        running.add(left, right);
         Ok(())
     })?;
 
-    Ok(total / (len - ddof) as f64)
+    Ok(running.covariance(ddof))
 }
 
 #[cfg(test)]

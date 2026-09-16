@@ -52,6 +52,18 @@ where
     Ok(len)
 }
 
+pub(crate) fn validate_non_empty_vector_pair<T>(
+    lhs: &StatsOperand<'_, T>,
+    rhs: &StatsOperand<'_, T>,
+    op: &'static str,
+) -> AtlasStatsResult<usize>
+where
+    T: Numeric,
+{
+    validate_vector_pair(lhs, rhs, op)?;
+    validate_non_empty(lhs, op)
+}
+
 pub(crate) fn mean<T>(operand: &StatsOperand<'_, T>, op: &'static str) -> AtlasStatsResult<f64>
 where
     T: Numeric + ToPrimitive,
@@ -65,27 +77,6 @@ where
     })?;
 
     Ok(total / len as f64)
-}
-
-pub(crate) fn means<T>(
-    lhs: &StatsOperand<'_, T>,
-    rhs: &StatsOperand<'_, T>,
-    op: &'static str,
-) -> AtlasStatsResult<(f64, f64, usize)>
-where
-    T: Numeric + ToPrimitive,
-{
-    let len = validate_non_empty(lhs, op)?;
-    let mut lhs_total = 0.0_f64;
-    let mut rhs_total = 0.0_f64;
-
-    try_for_each_vector_pair_f64(lhs, rhs, op, |left, right| {
-        lhs_total += left;
-        rhs_total += right;
-        Ok(())
-    })?;
-
-    Ok((lhs_total / len as f64, rhs_total / len as f64, len))
 }
 
 pub(crate) fn try_for_each_f64<T, F>(

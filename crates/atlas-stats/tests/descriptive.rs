@@ -4,8 +4,8 @@ use atlas_stats::{
     covariance_matrix, covariance_matrix_ddof, kurtosis, median, quantile, skewness, stddev,
     stddev_axis, stddev_axis_ddof, stddev_axis_keepdims, stddev_axis_keepdims_ddof, stddev_ddof,
     variance, variance_axis, variance_axis_ddof, variance_axis_keepdims,
-    variance_axis_keepdims_ddof, variance_ddof, weighted_covariance, weighted_mean,
-    weighted_variance,
+    variance_axis_keepdims_ddof, variance_ddof, weighted_correlation, weighted_covariance,
+    weighted_mean, weighted_variance,
 };
 
 fn assert_close(actual: f64, expected: f64) {
@@ -99,6 +99,37 @@ fn scalar_pair_reductions_match_contiguous_materializations() {
     assert_close(
         correlation(lhs.view(), rhs).unwrap(),
         correlation(&lhs_materialized, &rhs_materialized).unwrap(),
+    );
+}
+
+#[test]
+fn scalar_pair_reductions_preserve_ddof_weights_zero_variance_and_views() {
+    let lhs_source =
+        NDArray::from_shape_vec([8], vec![1.0_f64, 0.0, 2.0, 0.0, 3.0, 0.0, 4.0, 0.0]).unwrap();
+    let rhs_source =
+        NDArray::from_shape_vec([8], vec![2.0_f64, 0.0, 4.0, 0.0, 6.0, 0.0, 8.0, 0.0]).unwrap();
+    let lhs = lhs_source.view().slice_ranges([SliceRange::new(Some(0), Some(8), 2)]).unwrap();
+    let rhs = rhs_source.view().slice_ranges([SliceRange::new(Some(0), Some(8), 2)]).unwrap();
+    let weights = NDArray::from_shape_vec([4], vec![1.0_f64, 2.0, 0.0, 1.0]).unwrap();
+    let lhs_materialized = lhs.to_owned();
+    let rhs_materialized = rhs.to_owned();
+    let constant = NDArray::from_shape_vec([4], vec![5.0_f64; 4]).unwrap();
+
+    let sample_covariance = covariance_ddof(lhs.clone(), rhs.clone(), 1).unwrap();
+    assert_close(sample_covariance, 10.0 / 3.0);
+    assert_close(
+        sample_covariance,
+        covariance_ddof(&lhs_materialized, &rhs_materialized, 1).unwrap(),
+    );
+    assert_close(
+        correlation(lhs.clone(), rhs.clone()).unwrap(),
+        correlation(&lhs_materialized, &rhs_materialized).unwrap(),
+    );
+    assert_close(weighted_covariance(lhs.clone(), rhs.clone(), &weights).unwrap(), 2.375);
+    assert_close(weighted_correlation(lhs.clone(), rhs.clone(), &weights).unwrap(), 1.0);
+    assert_eq!(
+        correlation(&constant, rhs).unwrap_err(),
+        AtlasStatsError::ZeroVariance { op: "correlation" }
     );
 }
 
