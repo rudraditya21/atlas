@@ -1,7 +1,7 @@
 use super::metadata::{AxisReductionMetadata, ReductionOperand, WholeReductionMetadata};
 use crate::{
     AtlasNdError, AtlasNdResult, AxisIndex, NDArray, Numeric, OperandMetadata,
-    internal::{for_each_value, offset_iter},
+    internal::{for_each_value, layout::LayoutKind, offset_iter},
 };
 
 pub(super) fn argmin_all<T: Numeric + PartialOrd>(
@@ -70,6 +70,11 @@ fn arg_axis<T: Numeric + PartialOrd>(
 ) -> AtlasNdResult<NDArray<usize>> {
     let metadata = AxisReductionMetadata::new(operand.shape, operand.strides, axis, keepdims)?;
     metadata.require_non_empty(op)?;
+
+    if metadata.source_layout == LayoutKind::Contiguous {
+        return arg_axis_dense_contiguous(operand.data, operand.offset, metadata, replaces);
+    }
+
     let mut indices = Vec::with_capacity(metadata.output.len);
 
     for lane_offset in
@@ -87,6 +92,37 @@ fn arg_axis<T: Numeric + PartialOrd>(
         }
 
         indices.push(best_index);
+    }
+
+    NDArray::from_shape_vec(metadata.output.shape, indices)
+}
+
+fn arg_axis_dense_contiguous<T: Numeric + PartialOrd>(
+    data: &[T],
+    base_offset: usize,
+    metadata: AxisReductionMetadata,
+    replaces: fn(T, T) -> bool,
+) -> AtlasNdResult<NDArray<usize>> {
+    let values = &data[base_offset..base_offset + metadata.output.len * metadata.axis_len];
+    let mut indices = Vec::with_capacity(metadata.output.len);
+
+    for outer in 0..metadata.contiguous_outer_len {
+        let block_start = outer * metadata.axis_len * metadata.contiguous_inner_len;
+
+        for inner in 0..metadata.contiguous_inner_len {
+            let mut best_index = 0;
+            let mut best = values[block_start + inner];
+
+            for index in 1..metadata.axis_len {
+                let value = values[block_start + index * metadata.contiguous_inner_len + inner];
+                if replaces(best, value) {
+                    best = value;
+                    best_index = index;
+                }
+            }
+
+            indices.push(best_index);
+        }
     }
 
     NDArray::from_shape_vec(metadata.output.shape, indices)
