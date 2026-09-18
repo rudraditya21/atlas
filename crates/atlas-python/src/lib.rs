@@ -11,6 +11,7 @@ mod constructors;
 mod error;
 #[cfg(feature = "test-support")]
 mod gil;
+mod metadata;
 #[cfg(feature = "test-support")]
 mod scalar;
 #[cfg(feature = "test-support")]
@@ -29,6 +30,10 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(ones, module)?)?;
     module.add_function(wrap_pyfunction!(full, module)?)?;
     module.add_function(wrap_pyfunction!(arange, module)?)?;
+    module.add_function(wrap_pyfunction!(shape, module)?)?;
+    module.add_function(wrap_pyfunction!(ndim, module)?)?;
+    module.add_function(wrap_pyfunction!(size, module)?)?;
+    module.add_function(wrap_pyfunction!(dtype, module)?)?;
 
     #[cfg(feature = "test-support")]
     test_support::register(module)?;
@@ -70,4 +75,24 @@ fn arange(
     dtype: Option<&str>,
 ) -> PyResult<Py<PyAny>> {
     constructors::arange(py, start, stop, step, dtype)
+}
+
+#[pyfunction]
+fn shape(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    metadata::shape(py, value)
+}
+
+#[pyfunction]
+fn ndim(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<usize> {
+    metadata::ndim(py, value)
+}
+
+#[pyfunction]
+fn size(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<usize> {
+    metadata::size(py, value)
+}
+
+#[pyfunction]
+fn dtype(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    metadata::dtype(py, value)
 }

@@ -44,10 +44,7 @@ fn validate_dtype<T>(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<()>
 where
     T: Element,
 {
-    let numpy = PyModule::import(py, "numpy")?;
-    if !value.is_instance(&numpy.getattr("ndarray")?)? {
-        return Err(PyTypeError::new_err("expected a NumPy ndarray"));
-    }
+    require_numpy_array(py, value)?;
 
     let actual = value.getattr("dtype")?.cast_into::<PyArrayDescr>()?;
     if actual.is_equiv_to(&dtype::<T>(py)) {
@@ -64,4 +61,13 @@ where
     };
 
     Err(PyTypeError::new_err(format!("unsupported NumPy {reason} dtype")))
+}
+
+pub(crate) fn require_numpy_array(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<()> {
+    let numpy = PyModule::import(py, "numpy")?;
+    if !value.is_instance(&numpy.getattr("ndarray")?)? {
+        return Err(PyTypeError::new_err("expected a NumPy ndarray"));
+    }
+
+    Ok(())
 }
