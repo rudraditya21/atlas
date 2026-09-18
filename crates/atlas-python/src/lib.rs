@@ -6,6 +6,8 @@
 use pyo3::prelude::*;
 
 #[cfg(feature = "test-support")]
+mod array;
+#[cfg(feature = "test-support")]
 mod error;
 #[cfg(feature = "test-support")]
 mod scalar;

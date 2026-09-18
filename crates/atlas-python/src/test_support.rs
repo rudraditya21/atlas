@@ -3,9 +3,10 @@ use atlas_ml::AtlasMlError;
 use atlas_ndarray::AtlasNdError;
 use atlas_random::AtlasRandomError;
 use atlas_stats::AtlasStatsError;
+use numpy::PyReadonlyArrayDyn;
 use pyo3::prelude::*;
 
-use crate::{error, scalar};
+use crate::{array, error, scalar};
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(raise_ndarray_error, module)?)?;
@@ -13,7 +14,8 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(raise_linalg_error, module)?)?;
     module.add_function(wrap_pyfunction!(raise_random_error, module)?)?;
     module.add_function(wrap_pyfunction!(raise_ml_error, module)?)?;
-    module.add_function(wrap_pyfunction!(scalar_kind, module)?)
+    module.add_function(wrap_pyfunction!(scalar_kind, module)?)?;
+    module.add_function(wrap_pyfunction!(array_f64_parts, module)?)
 }
 
 #[pyfunction(name = "_raise_ndarray_error")]
@@ -58,4 +60,11 @@ fn raise_ml_error(py: Python<'_>) -> PyResult<()> {
 #[pyfunction(name = "_scalar_kind")]
 fn scalar_kind(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<&'static str> {
     scalar::from_python(py, value).map(scalar::kind)
+}
+
+#[pyfunction(name = "_array_f64_parts")]
+fn array_f64_parts(array: PyReadonlyArrayDyn<'_, f64>) -> PyResult<(Vec<usize>, Vec<f64>)> {
+    let array = array::from_numpy(array)?;
+
+    Ok((array.shape().to_vec(), array.data().to_vec()))
 }
