@@ -13,6 +13,7 @@ members = [
     "crates/atlas-linalg",
     "crates/atlas-ml",
     "crates/atlas-ndarray",
+    "crates/atlas-python",
     "crates/atlas-polars",
     "crates/atlas-random",
     "crates/atlas-stats",
@@ -31,6 +32,7 @@ arrow-array = "53"
 arrow-schema = "53"
 polars = { version = "0.50", default-features = false }
 polars-arrow = "0.50"
+pyo3 = { version = "0.29", features = ["extension-module"] }
 atlas-ndarray = { path = "crates/atlas-ndarray" }
 atlas-polars = { path = "crates/atlas-polars" }
 atlas-random = { path = "crates/atlas-random" }

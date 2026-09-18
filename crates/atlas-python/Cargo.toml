@@ -1,0 +1,15 @@
+[package]
+name = "atlas-python"
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[lib]
+name = "atlas_native"
+crate-type = ["cdylib"]
+
+[dependencies]
+pyo3.workspace = true
+
+[lints]
+workspace = true
