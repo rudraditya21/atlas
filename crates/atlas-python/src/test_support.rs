@@ -5,14 +5,15 @@ use atlas_random::AtlasRandomError;
 use atlas_stats::AtlasStatsError;
 use pyo3::prelude::*;
 
-use crate::error;
+use crate::{error, scalar};
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(raise_ndarray_error, module)?)?;
     module.add_function(wrap_pyfunction!(raise_stats_error, module)?)?;
     module.add_function(wrap_pyfunction!(raise_linalg_error, module)?)?;
     module.add_function(wrap_pyfunction!(raise_random_error, module)?)?;
-    module.add_function(wrap_pyfunction!(raise_ml_error, module)?)
+    module.add_function(wrap_pyfunction!(raise_ml_error, module)?)?;
+    module.add_function(wrap_pyfunction!(scalar_kind, module)?)
 }
 
 #[pyfunction(name = "_raise_ndarray_error")]
@@ -52,4 +53,9 @@ fn raise_ml_error(py: Python<'_>) -> PyResult<()> {
         py,
         AtlasMlError::InvalidArgument { op: "knn_fit", reason: "k must be positive" },
     ))
+}
+
+#[pyfunction(name = "_scalar_kind")]
+fn scalar_kind(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<&'static str> {
+    scalar::from_python(py, value).map(scalar::kind)
 }
