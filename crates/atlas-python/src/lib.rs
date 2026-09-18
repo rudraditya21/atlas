@@ -12,6 +12,7 @@ mod constructors;
 mod error;
 #[cfg(feature = "test-support")]
 mod gil;
+mod logical;
 mod metadata;
 #[cfg(feature = "test-support")]
 mod scalar;
@@ -39,6 +40,16 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(subtract, module)?)?;
     module.add_function(wrap_pyfunction!(multiply, module)?)?;
     module.add_function(wrap_pyfunction!(divide, module)?)?;
+    module.add_function(wrap_pyfunction!(equal, module)?)?;
+    module.add_function(wrap_pyfunction!(not_equal, module)?)?;
+    module.add_function(wrap_pyfunction!(less, module)?)?;
+    module.add_function(wrap_pyfunction!(less_equal, module)?)?;
+    module.add_function(wrap_pyfunction!(greater, module)?)?;
+    module.add_function(wrap_pyfunction!(greater_equal, module)?)?;
+    module.add_function(wrap_pyfunction!(select, module)?)?;
+    module.add_function(wrap_pyfunction!(count_true, module)?)?;
+    module.add_function(wrap_pyfunction!(nonzero, module)?)?;
+    module.add_function(wrap_pyfunction!(masked_fill, module)?)?;
 
     #[cfg(feature = "test-support")]
     test_support::register(module)?;
@@ -120,4 +131,75 @@ fn multiply(py: Python<'_>, lhs: &Bound<'_, PyAny>, rhs: &Bound<'_, PyAny>) -> P
 #[pyfunction]
 fn divide(py: Python<'_>, lhs: &Bound<'_, PyAny>, rhs: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     arithmetic::divide(py, lhs, rhs)
+}
+
+#[pyfunction]
+fn equal(py: Python<'_>, lhs: &Bound<'_, PyAny>, rhs: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    logical::equal(py, lhs, rhs)
+}
+
+#[pyfunction]
+fn not_equal(
+    py: Python<'_>,
+    lhs: &Bound<'_, PyAny>,
+    rhs: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyAny>> {
+    logical::not_equal(py, lhs, rhs)
+}
+
+#[pyfunction]
+fn less(py: Python<'_>, lhs: &Bound<'_, PyAny>, rhs: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    logical::less(py, lhs, rhs)
+}
+
+#[pyfunction]
+fn less_equal(
+    py: Python<'_>,
+    lhs: &Bound<'_, PyAny>,
+    rhs: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyAny>> {
+    logical::less_equal(py, lhs, rhs)
+}
+
+#[pyfunction]
+fn greater(py: Python<'_>, lhs: &Bound<'_, PyAny>, rhs: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    logical::greater(py, lhs, rhs)
+}
+
+#[pyfunction]
+fn greater_equal(
+    py: Python<'_>,
+    lhs: &Bound<'_, PyAny>,
+    rhs: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyAny>> {
+    logical::greater_equal(py, lhs, rhs)
+}
+
+#[pyfunction]
+fn select(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    mask: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyAny>> {
+    logical::select(py, value, mask)
+}
+
+#[pyfunction]
+fn count_true(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<usize> {
+    logical::count_true(py, value)
+}
+
+#[pyfunction]
+fn nonzero(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    logical::nonzero(py, value)
+}
+
+#[pyfunction]
+fn masked_fill(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    mask: &Bound<'_, PyAny>,
+    fill: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyAny>> {
+    logical::masked_fill(py, value, mask, fill)
 }
