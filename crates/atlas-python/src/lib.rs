@@ -5,6 +5,7 @@
 
 use pyo3::prelude::*;
 
+mod arithmetic;
 mod array;
 mod constructors;
 #[cfg(feature = "test-support")]
@@ -34,6 +35,10 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(ndim, module)?)?;
     module.add_function(wrap_pyfunction!(size, module)?)?;
     module.add_function(wrap_pyfunction!(dtype, module)?)?;
+    module.add_function(wrap_pyfunction!(add, module)?)?;
+    module.add_function(wrap_pyfunction!(subtract, module)?)?;
+    module.add_function(wrap_pyfunction!(multiply, module)?)?;
+    module.add_function(wrap_pyfunction!(divide, module)?)?;
 
     #[cfg(feature = "test-support")]
     test_support::register(module)?;
@@ -95,4 +100,24 @@ fn size(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<usize> {
 #[pyfunction]
 fn dtype(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     metadata::dtype(py, value)
+}
+
+#[pyfunction]
+fn add(py: Python<'_>, lhs: &Bound<'_, PyAny>, rhs: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    arithmetic::add(py, lhs, rhs)
+}
+
+#[pyfunction]
+fn subtract(py: Python<'_>, lhs: &Bound<'_, PyAny>, rhs: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    arithmetic::subtract(py, lhs, rhs)
+}
+
+#[pyfunction]
+fn multiply(py: Python<'_>, lhs: &Bound<'_, PyAny>, rhs: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    arithmetic::multiply(py, lhs, rhs)
+}
+
+#[pyfunction]
+fn divide(py: Python<'_>, lhs: &Bound<'_, PyAny>, rhs: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    arithmetic::divide(py, lhs, rhs)
 }

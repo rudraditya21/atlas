@@ -20,10 +20,15 @@ shape = _native.shape
 ndim = _native.ndim
 size = _native.size
 dtype = _native.dtype
+add = _native.add
+subtract = _native.subtract
+multiply = _native.multiply
+divide = _native.divide
 
 __all__ = [
     "__version__",
     "arange",
+    "add",
     "asarray",
     "AtlasError",
     "AxisError",
@@ -33,9 +38,12 @@ __all__ = [
     "SliceError",
     "full",
     "dtype",
+    "divide",
     "ndim",
+    "multiply",
     "ones",
     "shape",
     "size",
+    "subtract",
     "zeros",
 ]

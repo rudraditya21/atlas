@@ -64,10 +64,13 @@ where
 }
 
 pub(crate) fn require_numpy_array(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<()> {
-    let numpy = PyModule::import(py, "numpy")?;
-    if !value.is_instance(&numpy.getattr("ndarray")?)? {
+    if !is_numpy_array(py, value)? {
         return Err(PyTypeError::new_err("expected a NumPy ndarray"));
     }
 
     Ok(())
+}
+
+pub(crate) fn is_numpy_array(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<bool> {
+    Ok(value.is_instance(&PyModule::import(py, "numpy")?.getattr("ndarray")?)?)
 }
