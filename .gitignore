@@ -24,3 +24,20 @@ rustc-ice-*.txt
 #.idea/
 
 .DS_Store
+
+# Python environments, bytecode, test artifacts, and package builds
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+*.egg-info/
+build/
+dist/
+python/atlas/_native.*.so
+python/atlas/_native.*.pyd
+python/atlas/_native.*.dll
