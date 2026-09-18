@@ -1,3 +1,5 @@
+use std::time::{Duration, Instant};
+
 use atlas_linalg::AtlasLinalgError;
 use atlas_ml::AtlasMlError;
 use atlas_ndarray::{AtlasNdError, NDArray};
@@ -6,7 +8,7 @@ use atlas_stats::AtlasStatsError;
 use numpy::PyArrayDyn;
 use pyo3::{exceptions::PyValueError, prelude::*};
 
-use crate::{array, error, scalar};
+use crate::{array, error, gil, scalar};
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(raise_ndarray_error, module)?)?;
@@ -16,7 +18,8 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(raise_ml_error, module)?)?;
     module.add_function(wrap_pyfunction!(scalar_kind, module)?)?;
     module.add_function(wrap_pyfunction!(array_f64_parts, module)?)?;
-    module.add_function(wrap_pyfunction!(array_f64_output, module)?)
+    module.add_function(wrap_pyfunction!(array_f64_output, module)?)?;
+    module.add_function(wrap_pyfunction!(gil_free_spin, module)?)
 }
 
 #[pyfunction(name = "_raise_ndarray_error")]
@@ -80,4 +83,20 @@ fn array_f64_output<'py>(
         .map_err(|error| PyValueError::new_err(error.to_string()))?;
 
     array::to_numpy(py, &array)
+}
+
+#[pyfunction(name = "_gil_free_spin")]
+fn gil_free_spin(py: Python<'_>, duration_millis: u64) -> u64 {
+    let duration = Duration::from_millis(duration_millis);
+
+    gil::without_gil(py, move || {
+        let deadline = Instant::now() + duration;
+        let mut state = 0_u64;
+
+        while Instant::now() < deadline {
+            state = state.wrapping_mul(6364136223846793005).wrapping_add(1);
+        }
+
+        state
+    })
 }

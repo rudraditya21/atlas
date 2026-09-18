@@ -10,6 +10,8 @@ mod array;
 #[cfg(feature = "test-support")]
 mod error;
 #[cfg(feature = "test-support")]
+mod gil;
+#[cfg(feature = "test-support")]
 mod scalar;
 #[cfg(feature = "test-support")]
 mod test_support;
