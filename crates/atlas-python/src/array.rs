@@ -1,5 +1,8 @@
 use atlas_ndarray::{ArrayElement, NDArray};
-use numpy::{Element, PyArrayDescr, PyArrayDescrMethods, PyReadonlyArrayDyn, dtype};
+use numpy::{
+    Element, PyArray1, PyArrayDescr, PyArrayDescrMethods, PyArrayDyn, PyArrayMethods,
+    PyReadonlyArrayDyn, dtype,
+};
 use pyo3::{
     exceptions::{PyTypeError, PyValueError},
     prelude::*,
@@ -25,6 +28,16 @@ where
     let data = array.iter().copied().collect();
 
     NDArray::from_shape_vec(shape, data).map_err(|error| PyValueError::new_err(error.to_string()))
+}
+
+pub(crate) fn to_numpy<'py, T>(
+    py: Python<'py>,
+    array: &NDArray<T>,
+) -> PyResult<Bound<'py, PyArrayDyn<T>>>
+where
+    T: ArrayElement + Element,
+{
+    PyArray1::from_vec(py, array.data().to_vec()).reshape(array.shape().to_vec())
 }
 
 fn validate_dtype<T>(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<()>
