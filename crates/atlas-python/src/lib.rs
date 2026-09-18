@@ -5,6 +5,10 @@
 
 use pyo3::prelude::*;
 
+mod error;
+#[cfg(feature = "test-support")]
+mod test_support;
+
 #[pyfunction]
 fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
@@ -12,5 +16,10 @@ fn version() -> &'static str {
 
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add_function(wrap_pyfunction!(version, module)?)
+    module.add_function(wrap_pyfunction!(version, module)?)?;
+
+    #[cfg(feature = "test-support")]
+    test_support::register(module)?;
+
+    Ok(())
 }

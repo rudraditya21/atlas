@@ -8,7 +8,15 @@ version.workspace = true
 name = "atlas_native"
 crate-type = ["cdylib"]
 
+[features]
+test-support = []
+
 [dependencies]
+atlas-linalg.workspace = true
+atlas-ml.workspace = true
+atlas-ndarray.workspace = true
+atlas-random.workspace = true
+atlas-stats.workspace = true
 pyo3.workspace = true
 
 [lints]
