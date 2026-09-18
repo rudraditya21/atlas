@@ -1,7 +1,14 @@
 """Python bindings for Atlas."""
 
 from . import _native
-from .errors import AtlasError, AxisError, ModelError, NumericError, ShapeError, SliceError
+from .errors import (
+    AtlasError,
+    AxisError,
+    ModelError,
+    NumericError,
+    ShapeError,
+    SliceError,
+)
 
 __version__ = _native.version()
 

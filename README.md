@@ -41,22 +41,35 @@ cargo test --workspace --locked
 cargo bench --bench ndarray_contiguous_kernels
 ```
 
+### Formatting
+
+Atlas uses nightly `rustfmt` to group Rust imports. Install it once before using `make format`:
+
+```sh
+rustup toolchain install nightly --component rustfmt
+make format
+```
+
 ### Python extension
 
 The Python extension requires Python 3.10 or newer, Rust 1.85 or newer, and
 [uv](https://docs.astral.sh/uv/).
 
 ```sh
+make python-dev
+make python-test
+```
+
+`make python-dev` installs the complete default extension; it never enables test-only features.
+`make python-test` enables the private `test-support` feature solely for native error-translation
+tests, then runs pytest.
+
+Equivalent manual test workflow:
+
+```sh
 uv sync --extra test
 uv run --with maturin maturin develop --features test-support
 uv run pytest python/tests
-```
-
-The `test-support` feature exposes private native error triggers used only by the Python
-translation tests. Omit it when developing or building a normal extension wheel:
-
-```sh
-uv run --with maturin maturin develop
 ```
 
 ## Status

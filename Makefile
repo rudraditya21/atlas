@@ -1,11 +1,12 @@
 SHELL := /bin/sh
 
 CARGO ?= cargo
+UV ?= uv
 WORKSPACE_FLAGS := --workspace --locked
 ROOT_PACKAGE := atlas-benchmarks
 BENCH_TARGETS := linalg_dense_kernels linalg_factorization_kernels ndarray_contiguous_kernels random_sampling_kernels stats_descriptive_kernels
 
-.PHONY: help build check test bench bench-one clean
+.PHONY: help build check test bench bench-one python-dev python-test format clean
 
 help:
 	@printf "Available targets:\n"
@@ -14,6 +15,9 @@ help:
 	@printf "  make test            Run the full workspace test suite with a locked dependency graph\n"
 	@printf "  make bench           Run all registered root benchmark targets in stable order\n"
 	@printf "  make bench-one BENCH=<name>  Run a specific benchmark target\n"
+	@printf "  make python-dev      Install the default Python extension into the uv environment\n"
+	@printf "  make python-test     Build test support and run the Python test suite\n"
+	@printf "  make format          Format Rust imports and Python sources\n"
 	@printf "  make clean           Remove build artifacts\n"
 
 build:
@@ -42,6 +46,20 @@ bench-one:
 		*) printf "Unknown bench target: %s\nAvailable targets: $(BENCH_TARGETS)\n" "$(BENCH)"; exit 1 ;; \
 	esac
 	$(CARGO) bench --locked --package $(ROOT_PACKAGE) --bench $(BENCH)
+
+python-dev:
+	$(UV) sync
+	$(UV) run --with maturin maturin develop
+
+python-test:
+	$(UV) sync --extra test
+	$(UV) run --with maturin maturin develop --features test-support
+	$(UV) run pytest python/tests
+
+format:
+	$(CARGO) fmt
+	rustup run nightly cargo fmt -- --config group_imports=StdExternalCrate,imports_granularity=Crate
+	$(UV) run --with ruff ruff format python
 
 clean:
 	$(CARGO) clean
