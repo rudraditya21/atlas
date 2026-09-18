@@ -17,6 +17,7 @@ atlas-ml.workspace = true
 atlas-ndarray.workspace = true
 atlas-random.workspace = true
 atlas-stats.workspace = true
+numpy.workspace = true
 pyo3.workspace = true
 
 [lints]
