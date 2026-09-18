@@ -3,7 +3,6 @@ use atlas_ml::AtlasMlError;
 use atlas_ndarray::AtlasNdError;
 use atlas_random::AtlasRandomError;
 use atlas_stats::AtlasStatsError;
-use numpy::PyReadonlyArrayDyn;
 use pyo3::prelude::*;
 
 use crate::{array, error, scalar};
@@ -63,8 +62,8 @@ fn scalar_kind(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<&'static st
 }
 
 #[pyfunction(name = "_array_f64_parts")]
-fn array_f64_parts(array: PyReadonlyArrayDyn<'_, f64>) -> PyResult<(Vec<usize>, Vec<f64>)> {
-    let array = array::from_numpy(array)?;
+fn array_f64_parts(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<(Vec<usize>, Vec<f64>)> {
+    let array = array::from_numpy(array::readonly_from_python::<f64>(py, value)?)?;
 
     Ok((array.shape().to_vec(), array.data().to_vec()))
 }
