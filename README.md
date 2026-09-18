@@ -41,6 +41,24 @@ cargo test --workspace --locked
 cargo bench --bench ndarray_contiguous_kernels
 ```
 
+### Python extension
+
+The Python extension requires Python 3.10 or newer, Rust 1.85 or newer, and
+[uv](https://docs.astral.sh/uv/).
+
+```sh
+uv sync --extra test
+uv run --with maturin maturin develop --features test-support
+uv run pytest python/tests
+```
+
+The `test-support` feature exposes private native error triggers used only by the Python
+translation tests. Omit it when developing or building a normal extension wheel:
+
+```sh
+uv run --with maturin maturin develop
+```
+
 ## Status
 
 Atlas is pre-1.0 software. APIs, performance characteristics, and crate publication status may
