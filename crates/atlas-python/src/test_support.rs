@@ -15,17 +15,17 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(raise_ml_error, module)?)
 }
 
-#[pyfunction]
+#[pyfunction(name = "_raise_ndarray_error")]
 fn raise_ndarray_error(py: Python<'_>) -> PyResult<()> {
     Err(error::ndarray(py, AtlasNdError::InvalidAxis { axis: 1, ndim: 1 }))
 }
 
-#[pyfunction]
+#[pyfunction(name = "_raise_stats_error")]
 fn raise_stats_error(py: Python<'_>) -> PyResult<()> {
     Err(error::stats(py, AtlasStatsError::InvalidQuantile { reason: "must be within [0, 1]" }))
 }
 
-#[pyfunction]
+#[pyfunction(name = "_raise_linalg_error")]
 fn raise_linalg_error(py: Python<'_>) -> PyResult<()> {
     Err(error::linalg(
         py,
@@ -38,7 +38,7 @@ fn raise_linalg_error(py: Python<'_>) -> PyResult<()> {
     ))
 }
 
-#[pyfunction]
+#[pyfunction(name = "_raise_random_error")]
 fn raise_random_error(py: Python<'_>) -> PyResult<()> {
     Err(error::random(
         py,
@@ -46,7 +46,7 @@ fn raise_random_error(py: Python<'_>) -> PyResult<()> {
     ))
 }
 
-#[pyfunction]
+#[pyfunction(name = "_raise_ml_error")]
 fn raise_ml_error(py: Python<'_>) -> PyResult<()> {
     Err(error::ml(
         py,
