@@ -55,3 +55,28 @@ def test_arithmetic_reports_shape_and_integer_division_errors() -> None:
 
     with pytest.raises(atlas.NumericError, match="division by zero"):
         atlas.divide(np.array([1], dtype=np.int64), 0)
+
+
+@pytest.mark.parametrize(
+    ("dtype", "values"),
+    [
+        ("int8", [-2, 3]),
+        ("uint8", [2, 3]),
+        ("int32", [-2, 3]),
+        ("uint64", [2, 3]),
+    ],
+)
+def test_integer_dtypes_preserve_construction_arithmetic_and_comparison_output(
+    dtype: str, values: list[int]
+) -> None:
+    source = np.array(values, dtype=dtype)
+
+    constructed = atlas.ones([2], dtype=dtype)
+    added = atlas.add(source, 1)
+    comparison = atlas.greater(source, 0)
+
+    assert constructed.dtype == np.dtype(dtype)
+    assert added.dtype == np.dtype(dtype)
+    assert added.tolist() == (source + 1).tolist()
+    assert comparison.dtype == np.dtype(bool)
+    assert comparison.tolist() == (source > 0).tolist()
