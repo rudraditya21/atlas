@@ -13,6 +13,8 @@ enum Reduction {
     Max,
     Variance,
     Stddev,
+    Argmin,
+    Argmax,
 }
 
 #[derive(Clone, Copy)]
@@ -45,6 +47,14 @@ pub(crate) fn variance(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<
 
 pub(crate) fn stddev(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     reduce(py, value, Reduction::Stddev)
+}
+
+pub(crate) fn argmin(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    reduce(py, value, Reduction::Argmin)
+}
+
+pub(crate) fn argmax(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    reduce(py, value, Reduction::Argmax)
 }
 
 pub(crate) fn sum_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
@@ -81,6 +91,8 @@ fn reduce(py: Python<'_>, value: &Bound<'_, PyAny>, reduction: Reduction) -> PyR
                 Reduction::Max => reduce_max(py, array),
                 Reduction::Variance => reduce_variance(py, array),
                 Reduction::Stddev => reduce_stddev(py, array),
+                Reduction::Argmin => reduce_argmin(py, array),
+                Reduction::Argmax => reduce_argmax(py, array),
             }
         }};
     }
@@ -179,6 +191,20 @@ where
     T: Numeric + ToPrimitive + Element,
 {
     scalar(py, gil::without_gil(py, move || array.stddev()))
+}
+
+fn reduce_argmin<T>(py: Python<'_>, array: NDArray<T>) -> PyResult<Py<PyAny>>
+where
+    T: Numeric + PartialOrd + Element,
+{
+    scalar(py, gil::without_gil(py, move || array.argmin()))
+}
+
+fn reduce_argmax<T>(py: Python<'_>, array: NDArray<T>) -> PyResult<Py<PyAny>>
+where
+    T: Numeric + PartialOrd + Element,
+{
+    scalar(py, gil::without_gil(py, move || array.argmax()))
 }
 
 fn reduce_sum_axis<T>(py: Python<'_>, array: NDArray<T>, axis: i64) -> PyResult<Py<PyAny>>

@@ -51,6 +51,8 @@ min = _native.min
 max = _native.max
 variance = _native.variance
 stddev = _native.stddev
+argmin = _native.argmin
+argmax = _native.argmax
 sum_axis = _native.sum_axis
 mean_axis = _native.mean_axis
 min_axis = _native.min_axis
@@ -69,6 +71,8 @@ __all__ = [
     "add",
     "abs",
     "allclose",
+    "argmax",
+    "argmin",
     "arange",
     "astype",
     "asarray",
