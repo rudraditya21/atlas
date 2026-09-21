@@ -3,7 +3,7 @@ use pyo3::{
     prelude::*,
 };
 
-use crate::array;
+use crate::{array, gil};
 
 #[derive(Clone, Copy)]
 enum Comparison {
@@ -90,7 +90,8 @@ pub(crate) fn greater_equal(
 }
 
 pub(crate) fn count_true(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<usize> {
-    Ok(boolean_array(py, value)?.count_true())
+    let value = boolean_array(py, value)?;
+    Ok(gil::without_gil(py, move || value.count_true()))
 }
 
 pub(crate) fn select(
@@ -100,12 +101,15 @@ pub(crate) fn select(
 ) -> PyResult<Py<PyAny>> {
     with_dtype!(py, value, |array| {
         let mask = boolean_array(py, mask)?;
-        output(py, array.select(&mask))
+        output(py, gil::without_gil(py, move || array.select(&mask)))
     })
 }
 
 pub(crate) fn nonzero(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    with_dtype!(py, value, |array| output(py, array.nonzero_indices()))
+    with_dtype!(py, value, |array| output(
+        py,
+        gil::without_gil(py, move || array.nonzero_indices())
+    ))
 }
 
 pub(crate) fn masked_fill(
@@ -115,11 +119,14 @@ pub(crate) fn masked_fill(
     fill: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyAny>> {
     with_dtype!(py, value, |array| {
-        let mut array = array;
         let mask = boolean_array(py, mask)?;
-        array
-            .masked_fill(&mask, fill.extract()?)
-            .map_err(|error| PyValueError::new_err(error.to_string()))?;
+        let fill = fill.extract()?;
+        let array = gil::without_gil(py, move || {
+            let mut array = array;
+            array.masked_fill(&mask, fill)?;
+            Ok::<_, atlas_ndarray::AtlasNdError>(array)
+        })
+        .map_err(|error| PyValueError::new_err(error.to_string()))?;
         output_owned(py, array)
     })
 }
@@ -160,23 +167,25 @@ macro_rules! impl_compare {
             let lhs = array::from_numpy(array::readonly_from_python::<$ty>(py, lhs)?)?;
             let result = if array::is_numpy_array(py, rhs)? {
                 let rhs = array::from_numpy(array::readonly_from_python::<$ty>(py, rhs)?)?;
-                match comparison {
+                gil::without_gil(py, move || match comparison {
                     Comparison::Equal => lhs.eq(&rhs),
                     Comparison::NotEqual => lhs.ne(&rhs),
                     Comparison::Less => lhs.lt(&rhs),
                     Comparison::LessEqual => lhs.le(&rhs),
                     Comparison::Greater => lhs.gt(&rhs),
                     Comparison::GreaterEqual => lhs.ge(&rhs),
-                }
+                })
             } else {
                 let rhs = rhs.extract::<$ty>()?;
-                Ok(match comparison {
-                    Comparison::Equal => lhs.eq(rhs),
-                    Comparison::NotEqual => lhs.ne(rhs),
-                    Comparison::Less => lhs.lt(rhs),
-                    Comparison::LessEqual => lhs.le(rhs),
-                    Comparison::Greater => lhs.gt(rhs),
-                    Comparison::GreaterEqual => lhs.ge(rhs),
+                gil::without_gil(py, move || {
+                    Ok(match comparison {
+                        Comparison::Equal => lhs.eq(rhs),
+                        Comparison::NotEqual => lhs.ne(rhs),
+                        Comparison::Less => lhs.lt(rhs),
+                        Comparison::LessEqual => lhs.le(rhs),
+                        Comparison::Greater => lhs.gt(rhs),
+                        Comparison::GreaterEqual => lhs.ge(rhs),
+                    })
                 })
             };
 

@@ -3,7 +3,7 @@ use pyo3::{
     prelude::*,
 };
 
-use crate::array;
+use crate::{array, gil};
 
 #[derive(Clone, Copy)]
 enum Operation {
@@ -76,33 +76,37 @@ macro_rules! impl_apply {
                 Operation::Add => {
                     if array::is_numpy_array(py, rhs)? {
                         let rhs = array::from_numpy(array::readonly_from_python::<$ty>(py, rhs)?)?;
-                        &lhs + &rhs
+                        gil::without_gil(py, move || &lhs + &rhs)
                     } else {
-                        Ok(&lhs + rhs.extract::<$ty>()?)
+                        let rhs = rhs.extract::<$ty>()?;
+                        gil::without_gil(py, move || Ok(&lhs + rhs))
                     }
                 }
                 Operation::Subtract => {
                     if array::is_numpy_array(py, rhs)? {
                         let rhs = array::from_numpy(array::readonly_from_python::<$ty>(py, rhs)?)?;
-                        &lhs - &rhs
+                        gil::without_gil(py, move || &lhs - &rhs)
                     } else {
-                        Ok(&lhs - rhs.extract::<$ty>()?)
+                        let rhs = rhs.extract::<$ty>()?;
+                        gil::without_gil(py, move || Ok(&lhs - rhs))
                     }
                 }
                 Operation::Multiply => {
                     if array::is_numpy_array(py, rhs)? {
                         let rhs = array::from_numpy(array::readonly_from_python::<$ty>(py, rhs)?)?;
-                        &lhs * &rhs
+                        gil::without_gil(py, move || &lhs * &rhs)
                     } else {
-                        Ok(&lhs * rhs.extract::<$ty>()?)
+                        let rhs = rhs.extract::<$ty>()?;
+                        gil::without_gil(py, move || Ok(&lhs * rhs))
                     }
                 }
                 Operation::Divide => {
                     if array::is_numpy_array(py, rhs)? {
                         let rhs = array::from_numpy(array::readonly_from_python::<$ty>(py, rhs)?)?;
-                        &lhs / &rhs
+                        gil::without_gil(py, move || &lhs / &rhs)
                     } else {
-                        &lhs / rhs.extract::<$ty>()?
+                        let rhs = rhs.extract::<$ty>()?;
+                        gil::without_gil(py, move || &lhs / rhs)
                     }
                 }
             };

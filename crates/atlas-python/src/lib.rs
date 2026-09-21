@@ -10,7 +10,6 @@ mod array;
 mod constructors;
 #[cfg(feature = "test-support")]
 mod error;
-#[cfg(feature = "test-support")]
 mod gil;
 mod logical;
 mod metadata;
