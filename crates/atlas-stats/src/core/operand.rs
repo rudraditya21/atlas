@@ -1,8 +1,9 @@
 use std::slice::Iter;
 
 use atlas_ndarray::{
-    ArrayView, ArrayViewIter, NDArray, Numeric, OperandMetadata, checked_element_count,
-    compute_strides, try_for_each_logical_span, try_for_each_logical_span_pair,
+    ArrayView, ArrayViewIter, AtlasNdError, NDArray, Numeric, OperandMetadata,
+    checked_element_count, compute_strides, try_for_each_logical_span,
+    try_for_each_logical_span_pair,
 };
 
 use crate::core::error::AtlasStatsResult;
@@ -88,6 +89,7 @@ impl<'a, T: Numeric> StatsOperand<'a, T> {
 
     pub(crate) fn try_for_each_span_pair<E, F>(&self, other: &Self, f: F) -> Result<(), E>
     where
+        E: From<AtlasNdError>,
         F: FnMut(&[T], &[T]) -> Result<(), E>,
     {
         match (self, other) {

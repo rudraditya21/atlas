@@ -88,8 +88,15 @@ where
     T: ArrayElement,
     L: OperandMetadata<T> + ?Sized,
     R: OperandMetadata<T> + ?Sized,
+    E: From<AtlasNdError>,
     F: FnMut(&[T], &[T]) -> Result<(), E>,
 {
+    let lhs_len = checked_element_count(lhs.shape()).map_err(E::from)?;
+    let rhs_len = checked_element_count(rhs.shape()).map_err(E::from)?;
+    if lhs_len != rhs_len {
+        return Err(E::from(AtlasNdError::ShapeMismatch { expected: lhs_len, actual: rhs_len }));
+    }
+
     let mut lhs_spans = internal::traversal::logical_span_iter(
         lhs.data(),
         lhs.offset(),
