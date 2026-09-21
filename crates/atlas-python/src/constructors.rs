@@ -130,19 +130,43 @@ pub(crate) fn arange(
     let (start, stop) = stop.map_or((0.0, start), |stop| (start, stop));
     let step = step.unwrap_or(1.0);
 
+    macro_rules! integer_arange {
+        ($ty:ty, $min:expr, $max:expr) => {{
+            let start = checked_integer_arange_value(start, "start", $min, $max)? as $ty;
+            let stop = checked_integer_arange_value(stop, "stop", $min, $max)? as $ty;
+            let step = checked_integer_arange_value(step, "step", $min, $max)? as $ty;
+            output(py, NDArray::arange(start, stop, step))
+        }};
+    }
+
     match DType::parse(dtype)? {
         DType::Bool => Err(PyValueError::new_err("arange does not support bool dtype")),
-        DType::Int8 => output(py, NDArray::arange(start as i8, stop as i8, step as i8)),
-        DType::Int16 => output(py, NDArray::arange(start as i16, stop as i16, step as i16)),
-        DType::Int32 => output(py, NDArray::arange(start as i32, stop as i32, step as i32)),
-        DType::Int64 => output(py, NDArray::arange(start as i64, stop as i64, step as i64)),
-        DType::UInt8 => output(py, NDArray::arange(start as u8, stop as u8, step as u8)),
-        DType::UInt16 => output(py, NDArray::arange(start as u16, stop as u16, step as u16)),
-        DType::UInt32 => output(py, NDArray::arange(start as u32, stop as u32, step as u32)),
-        DType::UInt64 => output(py, NDArray::arange(start as u64, stop as u64, step as u64)),
+        DType::Int8 => integer_arange!(i8, i8::MIN as f64, i8::MAX as f64 + 1.0),
+        DType::Int16 => integer_arange!(i16, i16::MIN as f64, i16::MAX as f64 + 1.0),
+        DType::Int32 => integer_arange!(i32, i32::MIN as f64, i32::MAX as f64 + 1.0),
+        DType::Int64 => integer_arange!(i64, i64::MIN as f64, i64::MAX as f64),
+        DType::UInt8 => integer_arange!(u8, 0.0, u8::MAX as f64 + 1.0),
+        DType::UInt16 => integer_arange!(u16, 0.0, u16::MAX as f64 + 1.0),
+        DType::UInt32 => integer_arange!(u32, 0.0, u32::MAX as f64 + 1.0),
+        DType::UInt64 => integer_arange!(u64, 0.0, u64::MAX as f64),
         DType::Float32 => output(py, NDArray::arange(start as f32, stop as f32, step as f32)),
         DType::Float64 => output(py, NDArray::arange(start, stop, step)),
     }
+}
+
+fn checked_integer_arange_value(
+    value: f64,
+    name: &str,
+    minimum: f64,
+    maximum_exclusive: f64,
+) -> PyResult<f64> {
+    if !value.is_finite() || value.fract() != 0.0 || value < minimum || value >= maximum_exclusive {
+        return Err(PyValueError::new_err(format!(
+            "integer arange {name} must be a finite integral value within the target dtype range"
+        )));
+    }
+
+    Ok(value)
 }
 
 fn asarray_typed<T>(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>>
