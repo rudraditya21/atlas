@@ -61,6 +61,10 @@ cumsum = _native.cumsum
 cumprod = _native.cumprod
 cumsum_axis = _native.cumsum_axis
 cumprod_axis = _native.cumprod_axis
+nanmin = _native.nanmin
+nanmax = _native.nanmax
+nanmean = _native.nanmean
+nanstd = _native.nanstd
 sum_axis = _native.sum_axis
 mean_axis = _native.mean_axis
 min_axis = _native.min_axis
@@ -110,6 +114,10 @@ __all__ = [
     "mean_axis",
     "min",
     "min_axis",
+    "nanmax",
+    "nanmean",
+    "nanmin",
+    "nanstd",
     "multiply",
     "neg",
     "ndim",

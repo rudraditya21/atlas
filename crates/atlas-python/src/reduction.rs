@@ -1,5 +1,5 @@
 use atlas_ndarray::{ElementwiseArithmetic, NDArray, Numeric, RuntimeScalar};
-use num_traits::ToPrimitive;
+use num_traits::{Float, ToPrimitive};
 use numpy::Element;
 use pyo3::{IntoPyObject, IntoPyObjectExt, exceptions::PyTypeError, prelude::*};
 
@@ -29,6 +29,14 @@ enum AxisReduction {
 enum CumulativeReduction {
     Sum,
     Product,
+}
+
+#[derive(Clone, Copy)]
+enum NanReduction {
+    Min,
+    Max,
+    Mean,
+    Stddev,
 }
 
 pub(crate) fn sum(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
@@ -85,6 +93,22 @@ pub(crate) fn cumprod_axis(
     axis: i64,
 ) -> PyResult<Py<PyAny>> {
     cumulative_axis(py, value, axis, CumulativeReduction::Product)
+}
+
+pub(crate) fn nanmin(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    nan_reduce(py, value, NanReduction::Min)
+}
+
+pub(crate) fn nanmax(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    nan_reduce(py, value, NanReduction::Max)
+}
+
+pub(crate) fn nanmean(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    nan_reduce(py, value, NanReduction::Mean)
+}
+
+pub(crate) fn nanstd(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    nan_reduce(py, value, NanReduction::Stddev)
 }
 
 pub(crate) fn sum_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
@@ -247,6 +271,35 @@ fn cumulative_axis(
     }
 }
 
+fn nan_reduce(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    reduction: NanReduction,
+) -> PyResult<Py<PyAny>> {
+    array::require_numpy_array(py, value)?;
+    let dtype: String = value.getattr("dtype")?.getattr("name")?.extract()?;
+
+    macro_rules! apply {
+        ($ty:ty) => {{
+            let array = array::from_numpy(array::readonly_from_python::<$ty>(py, value)?)?;
+            match reduction {
+                NanReduction::Min => reduce_nanmin(py, array),
+                NanReduction::Max => reduce_nanmax(py, array),
+                NanReduction::Mean => reduce_nanmean(py, array),
+                NanReduction::Stddev => reduce_nanstd(py, array),
+            }
+        }};
+    }
+
+    match dtype.as_str() {
+        "float32" => apply!(f32),
+        "float64" => apply!(f64),
+        _ => Err(PyTypeError::new_err(
+            "NaN-aware reductions require a float32 or float64 NumPy array",
+        )),
+    }
+}
+
 fn reduce_sum<T>(py: Python<'_>, array: NDArray<T>) -> PyResult<Py<PyAny>>
 where
     T: Numeric + ElementwiseArithmetic + RuntimeScalar + Element,
@@ -304,6 +357,36 @@ where
     T: Numeric + PartialOrd + Element,
 {
     scalar(py, gil::without_gil(py, move || array.argmax()))
+}
+
+fn reduce_nanmin<T>(py: Python<'_>, array: NDArray<T>) -> PyResult<Py<PyAny>>
+where
+    T: Numeric + Float + Element,
+    for<'py> T: IntoPyObject<'py>,
+{
+    scalar(py, gil::without_gil(py, move || array.nanmin()))
+}
+
+fn reduce_nanmax<T>(py: Python<'_>, array: NDArray<T>) -> PyResult<Py<PyAny>>
+where
+    T: Numeric + Float + Element,
+    for<'py> T: IntoPyObject<'py>,
+{
+    scalar(py, gil::without_gil(py, move || array.nanmax()))
+}
+
+fn reduce_nanmean<T>(py: Python<'_>, array: NDArray<T>) -> PyResult<Py<PyAny>>
+where
+    T: Numeric + Float + ToPrimitive + Element,
+{
+    scalar(py, gil::without_gil(py, move || array.nanmean()))
+}
+
+fn reduce_nanstd<T>(py: Python<'_>, array: NDArray<T>) -> PyResult<Py<PyAny>>
+where
+    T: Numeric + Float + ToPrimitive + Element,
+{
+    scalar(py, gil::without_gil(py, move || array.nanstd()))
 }
 
 fn reduce_sum_axis<T>(py: Python<'_>, array: NDArray<T>, axis: i64) -> PyResult<Py<PyAny>>

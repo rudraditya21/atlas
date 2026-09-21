@@ -76,6 +76,10 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(cumprod, module)?)?;
     module.add_function(wrap_pyfunction!(cumsum_axis, module)?)?;
     module.add_function(wrap_pyfunction!(cumprod_axis, module)?)?;
+    module.add_function(wrap_pyfunction!(nanmin, module)?)?;
+    module.add_function(wrap_pyfunction!(nanmax, module)?)?;
+    module.add_function(wrap_pyfunction!(nanmean, module)?)?;
+    module.add_function(wrap_pyfunction!(nanstd, module)?)?;
     module.add_function(wrap_pyfunction!(sum_axis, module)?)?;
     module.add_function(wrap_pyfunction!(mean_axis, module)?)?;
     module.add_function(wrap_pyfunction!(min_axis, module)?)?;
@@ -329,6 +333,26 @@ fn cumsum_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<
 #[pyfunction]
 fn cumprod_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
     reduction::cumprod_axis(py, value, axis)
+}
+
+#[pyfunction]
+fn nanmin(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    reduction::nanmin(py, value)
+}
+
+#[pyfunction]
+fn nanmax(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    reduction::nanmax(py, value)
+}
+
+#[pyfunction]
+fn nanmean(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    reduction::nanmean(py, value)
+}
+
+#[pyfunction]
+fn nanstd(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    reduction::nanstd(py, value)
 }
 
 #[pyfunction]
