@@ -74,6 +74,14 @@ pub(crate) fn transpose(
     with_array!(py, value, |array| transpose_array(py, array, axes))
 }
 
+pub(crate) fn squeeze(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axis: Option<i64>,
+) -> PyResult<Py<PyAny>> {
+    with_array!(py, value, |array| squeeze_array(py, array, axis))
+}
+
 fn reshape_array<T>(py: Python<'_>, array: NDArray<T>, shape: Vec<usize>) -> PyResult<Py<PyAny>>
 where
     T: ArrayElement + Element,
@@ -95,6 +103,19 @@ where
     let array = gil::without_gil(py, move || match axes {
         Some(axes) => array.permute_axes(axes).map(|view| view.to_owned()),
         None => Ok(array.view().transpose().to_owned()),
+    })
+    .map_err(|error| crate::error::ndarray(py, error))?;
+
+    Ok(array::to_numpy_owned(py, array)?.into_any().unbind())
+}
+
+fn squeeze_array<T>(py: Python<'_>, array: NDArray<T>, axis: Option<i64>) -> PyResult<Py<PyAny>>
+where
+    T: ArrayElement + Element,
+{
+    let array = gil::without_gil(py, move || match axis {
+        Some(axis) => array.squeeze_axis(axis).map(|view| view.to_owned()),
+        None => Ok(array.squeeze().to_owned()),
     })
     .map_err(|error| crate::error::ndarray(py, error))?;
 

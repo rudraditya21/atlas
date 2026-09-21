@@ -31,6 +31,7 @@ take = _native.take
 dot = _native.dot
 norm = _native.norm
 trace = _native.trace
+squeeze = _native.squeeze
 clip = _native.clip
 matmul = _native.matmul
 neg = _native.neg
@@ -149,6 +150,7 @@ __all__ = [
     "subtract",
     "sum",
     "sum_axis",
+    "squeeze",
     "stddev",
     "take",
     "reshape",
