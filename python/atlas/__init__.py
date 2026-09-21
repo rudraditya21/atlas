@@ -34,6 +34,7 @@ trace = _native.trace
 squeeze = _native.squeeze
 expand_dims = _native.expand_dims
 concatenate = _native.concatenate
+stack = _native.stack
 clip = _native.clip
 matmul = _native.matmul
 neg = _native.neg
@@ -156,6 +157,7 @@ __all__ = [
     "sum_axis",
     "squeeze",
     "stddev",
+    "stack",
     "take",
     "reshape",
     "round",
