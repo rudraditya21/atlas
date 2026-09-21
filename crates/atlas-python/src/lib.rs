@@ -33,6 +33,8 @@ mod shape_ops;
 mod take_ops;
 #[cfg(feature = "test-support")]
 mod test_support;
+#[path = "trace.rs"]
+mod trace_ops;
 mod unary;
 mod where_ops;
 
@@ -78,6 +80,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(take, module)?)?;
     module.add_function(wrap_pyfunction!(dot, module)?)?;
     module.add_function(wrap_pyfunction!(norm, module)?)?;
+    module.add_function(wrap_pyfunction!(trace, module)?)?;
     module.add_function(wrap_pyfunction!(nonzero, module)?)?;
     module.add_function(wrap_pyfunction!(masked_fill, module)?)?;
     module.add_function(wrap_pyfunction!(sum, module)?)?;
@@ -338,6 +341,11 @@ fn dot(py: Python<'_>, lhs: &Bound<'_, PyAny>, rhs: &Bound<'_, PyAny>) -> PyResu
 #[pyfunction]
 fn norm(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<f64> {
     norm_ops::norm(py, value)
+}
+
+#[pyfunction]
+fn trace(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    trace_ops::trace(py, value)
 }
 
 #[pyfunction]

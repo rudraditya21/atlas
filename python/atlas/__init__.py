@@ -30,6 +30,7 @@ bitwise_not = _native.bitwise_not
 take = _native.take
 dot = _native.dot
 norm = _native.norm
+trace = _native.trace
 clip = _native.clip
 matmul = _native.matmul
 neg = _native.neg
@@ -157,6 +158,7 @@ __all__ = [
     "isinf",
     "isfinite",
     "transpose",
+    "trace",
     "variance",
     "where",
     "zeros",
