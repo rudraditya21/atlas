@@ -27,6 +27,7 @@ bitwise_and = _native.bitwise_and
 bitwise_or = _native.bitwise_or
 bitwise_xor = _native.bitwise_xor
 bitwise_not = _native.bitwise_not
+take = _native.take
 clip = _native.clip
 matmul = _native.matmul
 neg = _native.neg
@@ -144,6 +145,7 @@ __all__ = [
     "sum",
     "sum_axis",
     "stddev",
+    "take",
     "reshape",
     "round",
     "sign",

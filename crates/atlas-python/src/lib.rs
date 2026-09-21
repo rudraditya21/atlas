@@ -25,6 +25,8 @@ mod reduction;
 #[cfg(feature = "test-support")]
 mod scalar;
 mod shape_ops;
+#[path = "take.rs"]
+mod take_ops;
 #[cfg(feature = "test-support")]
 mod test_support;
 mod unary;
@@ -69,6 +71,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(bitwise_or, module)?)?;
     module.add_function(wrap_pyfunction!(bitwise_xor, module)?)?;
     module.add_function(wrap_pyfunction!(bitwise_not, module)?)?;
+    module.add_function(wrap_pyfunction!(take, module)?)?;
     module.add_function(wrap_pyfunction!(nonzero, module)?)?;
     module.add_function(wrap_pyfunction!(masked_fill, module)?)?;
     module.add_function(wrap_pyfunction!(sum, module)?)?;
@@ -309,6 +312,16 @@ fn bitwise_xor(
 #[pyfunction]
 fn bitwise_not(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     bitwise::bitwise_not(py, value)
+}
+
+#[pyfunction]
+fn take(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    indices: Vec<i64>,
+    axis: i64,
+) -> PyResult<Py<PyAny>> {
+    take_ops::take(py, value, indices, axis)
 }
 
 #[pyfunction]
