@@ -23,6 +23,10 @@ any = _native.any
 all_axis = _native.all_axis
 any_axis = _native.any_axis
 where = _native.where
+bitwise_and = _native.bitwise_and
+bitwise_or = _native.bitwise_or
+bitwise_xor = _native.bitwise_xor
+bitwise_not = _native.bitwise_not
 clip = _native.clip
 matmul = _native.matmul
 neg = _native.neg
@@ -94,6 +98,10 @@ __all__ = [
     "argmin_axis",
     "any",
     "any_axis",
+    "bitwise_and",
+    "bitwise_not",
+    "bitwise_or",
+    "bitwise_xor",
     "arange",
     "astype",
     "asarray",

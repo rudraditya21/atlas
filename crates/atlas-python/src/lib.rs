@@ -7,6 +7,7 @@ use pyo3::prelude::*;
 
 mod arithmetic;
 mod array;
+mod bitwise;
 mod casting;
 #[path = "clip.rs"]
 mod clip_ops;
@@ -64,6 +65,10 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(all_axis, module)?)?;
     module.add_function(wrap_pyfunction!(any_axis, module)?)?;
     module.add_function(wrap_pyfunction!(where_, module)?)?;
+    module.add_function(wrap_pyfunction!(bitwise_and, module)?)?;
+    module.add_function(wrap_pyfunction!(bitwise_or, module)?)?;
+    module.add_function(wrap_pyfunction!(bitwise_xor, module)?)?;
+    module.add_function(wrap_pyfunction!(bitwise_not, module)?)?;
     module.add_function(wrap_pyfunction!(nonzero, module)?)?;
     module.add_function(wrap_pyfunction!(masked_fill, module)?)?;
     module.add_function(wrap_pyfunction!(sum, module)?)?;
@@ -272,6 +277,38 @@ fn where_(
     y: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyAny>> {
     where_ops::where_(py, condition, x, y)
+}
+
+#[pyfunction]
+fn bitwise_and(
+    py: Python<'_>,
+    lhs: &Bound<'_, PyAny>,
+    rhs: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyAny>> {
+    bitwise::bitwise_and(py, lhs, rhs)
+}
+
+#[pyfunction]
+fn bitwise_or(
+    py: Python<'_>,
+    lhs: &Bound<'_, PyAny>,
+    rhs: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyAny>> {
+    bitwise::bitwise_or(py, lhs, rhs)
+}
+
+#[pyfunction]
+fn bitwise_xor(
+    py: Python<'_>,
+    lhs: &Bound<'_, PyAny>,
+    rhs: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyAny>> {
+    bitwise::bitwise_xor(py, lhs, rhs)
+}
+
+#[pyfunction]
+fn bitwise_not(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    bitwise::bitwise_not(py, value)
 }
 
 #[pyfunction]
