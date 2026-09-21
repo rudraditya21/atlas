@@ -18,6 +18,8 @@ full = _native.full
 arange = _native.arange
 astype = _native.astype
 allclose = _native.allclose
+all = _native.all
+any = _native.any
 clip = _native.clip
 matmul = _native.matmul
 neg = _native.neg
@@ -75,8 +77,10 @@ __all__ = [
     "add",
     "abs",
     "allclose",
+    "all",
     "argmax",
     "argmin",
+    "any",
     "arange",
     "astype",
     "asarray",

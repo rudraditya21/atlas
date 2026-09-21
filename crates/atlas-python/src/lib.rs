@@ -58,6 +58,8 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(greater_equal, module)?)?;
     module.add_function(wrap_pyfunction!(select, module)?)?;
     module.add_function(wrap_pyfunction!(count_true, module)?)?;
+    module.add_function(wrap_pyfunction!(all, module)?)?;
+    module.add_function(wrap_pyfunction!(any, module)?)?;
     module.add_function(wrap_pyfunction!(nonzero, module)?)?;
     module.add_function(wrap_pyfunction!(masked_fill, module)?)?;
     module.add_function(wrap_pyfunction!(sum, module)?)?;
@@ -230,6 +232,16 @@ fn select(
 #[pyfunction]
 fn count_true(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<usize> {
     logical::count_true(py, value)
+}
+
+#[pyfunction]
+fn all(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<bool> {
+    logical::all(py, value)
+}
+
+#[pyfunction]
+fn any(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<bool> {
+    logical::any(py, value)
 }
 
 #[pyfunction]

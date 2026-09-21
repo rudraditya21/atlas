@@ -119,6 +119,16 @@ pub(crate) fn count_true(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<u
     Ok(gil::without_gil(py, move || value.count_true()))
 }
 
+pub(crate) fn all(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<bool> {
+    let value = boolean_array(py, value)?;
+    Ok(gil::without_gil(py, move || value.all()))
+}
+
+pub(crate) fn any(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<bool> {
+    let value = boolean_array(py, value)?;
+    Ok(gil::without_gil(py, move || value.any()))
+}
+
 pub(crate) fn select(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
