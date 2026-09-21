@@ -57,6 +57,8 @@ variance = _native.variance
 stddev = _native.stddev
 argmin = _native.argmin
 argmax = _native.argmax
+argmin_axis = _native.argmin_axis
+argmax_axis = _native.argmax_axis
 cumsum = _native.cumsum
 cumprod = _native.cumprod
 cumsum_axis = _native.cumsum_axis
@@ -86,7 +88,9 @@ __all__ = [
     "all",
     "all_axis",
     "argmax",
+    "argmax_axis",
     "argmin",
+    "argmin_axis",
     "any",
     "any_axis",
     "arange",

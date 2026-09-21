@@ -39,6 +39,12 @@ enum NanReduction {
     Stddev,
 }
 
+#[derive(Clone, Copy)]
+enum AxisIndexReduction {
+    Min,
+    Max,
+}
+
 pub(crate) fn sum(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     reduce(py, value, Reduction::Sum)
 }
@@ -109,6 +115,22 @@ pub(crate) fn nanmean(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<P
 
 pub(crate) fn nanstd(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     nan_reduce(py, value, NanReduction::Stddev)
+}
+
+pub(crate) fn argmin_axis(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axis: i64,
+) -> PyResult<Py<PyAny>> {
+    index_reduce_axis(py, value, axis, AxisIndexReduction::Min)
+}
+
+pub(crate) fn argmax_axis(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axis: i64,
+) -> PyResult<Py<PyAny>> {
+    index_reduce_axis(py, value, axis, AxisIndexReduction::Max)
 }
 
 pub(crate) fn sum_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
@@ -297,6 +319,41 @@ fn nan_reduce(
         _ => Err(PyTypeError::new_err(
             "NaN-aware reductions require a float32 or float64 NumPy array",
         )),
+    }
+}
+
+fn index_reduce_axis(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axis: i64,
+    reduction: AxisIndexReduction,
+) -> PyResult<Py<PyAny>> {
+    array::require_numpy_array(py, value)?;
+    let dtype: String = value.getattr("dtype")?.getattr("name")?.extract()?;
+
+    macro_rules! apply {
+        ($ty:ty) => {{
+            let array = array::from_numpy(array::readonly_from_python::<$ty>(py, value)?)?;
+            let result = gil::without_gil(py, move || match reduction {
+                AxisIndexReduction::Min => array.argmin_axis(axis),
+                AxisIndexReduction::Max => array.argmax_axis(axis),
+            });
+            array_output(py, result)
+        }};
+    }
+
+    match dtype.as_str() {
+        "int8" => apply!(i8),
+        "int16" => apply!(i16),
+        "int32" => apply!(i32),
+        "int64" => apply!(i64),
+        "uint8" => apply!(u8),
+        "uint16" => apply!(u16),
+        "uint32" => apply!(u32),
+        "uint64" => apply!(u64),
+        "float32" => apply!(f32),
+        "float64" => apply!(f64),
+        _ => Err(PyTypeError::new_err("index reductions require a supported numeric NumPy dtype")),
     }
 }
 

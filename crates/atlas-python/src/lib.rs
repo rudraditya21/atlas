@@ -80,6 +80,8 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(nanmax, module)?)?;
     module.add_function(wrap_pyfunction!(nanmean, module)?)?;
     module.add_function(wrap_pyfunction!(nanstd, module)?)?;
+    module.add_function(wrap_pyfunction!(argmin_axis, module)?)?;
+    module.add_function(wrap_pyfunction!(argmax_axis, module)?)?;
     module.add_function(wrap_pyfunction!(sum_axis, module)?)?;
     module.add_function(wrap_pyfunction!(mean_axis, module)?)?;
     module.add_function(wrap_pyfunction!(min_axis, module)?)?;
@@ -353,6 +355,16 @@ fn nanmean(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
 #[pyfunction]
 fn nanstd(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     reduction::nanstd(py, value)
+}
+
+#[pyfunction]
+fn argmin_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
+    reduction::argmin_axis(py, value, axis)
+}
+
+#[pyfunction]
+fn argmax_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
+    reduction::argmax_axis(py, value, axis)
 }
 
 #[pyfunction]
