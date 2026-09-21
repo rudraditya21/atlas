@@ -42,6 +42,23 @@ def test_arange_supports_default_and_selected_dtypes() -> None:
     assert atlas.arange(1, 5, 2, dtype="int64").tolist() == [1, 3]
 
 
+@pytest.mark.parametrize(
+    ("args", "dtype"),
+    [
+        ((0.5, 3.0, 1.0), "int32"),
+        ((-1.0, 3.0, 1.0), "uint8"),
+        ((0.0, float("inf"), 1.0), "int16"),
+        ((0.0, 3.0, float("nan")), "uint16"),
+        ((128.0, 129.0, 1.0), "int8"),
+    ],
+)
+def test_integer_arange_rejects_values_outside_the_target_dtype(
+    args: tuple[float, float, float], dtype: str
+) -> None:
+    with pytest.raises(ValueError, match="integer arange"):
+        atlas.arange(*args, dtype=dtype)
+
+
 @pytest.mark.parametrize("shape", [[2**64], [2, 2**64]])
 def test_constructors_reject_invalid_dimensions(shape: list[int]) -> None:
     with pytest.raises((OverflowError, ValueError)):
