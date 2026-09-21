@@ -50,8 +50,8 @@ def test_float_arithmetic_preserves_nan_and_infinity() -> None:
 
 
 def test_arithmetic_reports_shape_and_integer_division_errors() -> None:
-    with pytest.raises(ValueError, match="invalid broadcast"):
+    with pytest.raises(atlas.ShapeError, match="invalid broadcast"):
         atlas.add(np.zeros((2, 3)), np.zeros((4, 2)))
 
-    with pytest.raises(ValueError, match="division by zero"):
+    with pytest.raises(atlas.NumericError, match="division by zero"):
         atlas.divide(np.array([1], dtype=np.int64), 0)

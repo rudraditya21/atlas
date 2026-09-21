@@ -1,7 +1,4 @@
-use pyo3::{
-    exceptions::{PyTypeError, PyValueError},
-    prelude::*,
-};
+use pyo3::{exceptions::PyTypeError, prelude::*};
 
 use crate::{array, gil};
 
@@ -154,7 +151,7 @@ pub(crate) fn masked_fill(
             array.masked_fill(&mask, fill)?;
             Ok::<_, atlas_ndarray::AtlasNdError>(array)
         })
-        .map_err(|error| PyValueError::new_err(error.to_string()))?;
+        .map_err(|error| crate::error::ndarray(py, error))?;
         output_owned(py, array)
     })
 }
@@ -248,7 +245,7 @@ fn output<T>(
 where
     T: atlas_ndarray::ArrayElement + numpy::Element,
 {
-    output_owned(py, array.map_err(|error| PyValueError::new_err(error.to_string()))?)
+    output_owned(py, array.map_err(|error| crate::error::ndarray(py, error))?)
 }
 
 fn output_owned<T>(py: Python<'_>, array: atlas_ndarray::NDArray<T>) -> PyResult<Py<PyAny>>

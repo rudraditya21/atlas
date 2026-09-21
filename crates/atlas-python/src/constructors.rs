@@ -156,7 +156,7 @@ fn output<T>(py: Python<'_>, array: atlas_ndarray::AtlasNdResult<NDArray<T>>) ->
 where
     T: atlas_ndarray::ArrayElement + numpy::Element,
 {
-    let array = array.map_err(|error| PyValueError::new_err(error.to_string()))?;
+    let array = array.map_err(|error| crate::error::ndarray(py, error))?;
 
     output_owned(py, array)
 }

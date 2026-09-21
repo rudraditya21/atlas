@@ -1,7 +1,4 @@
-use pyo3::{
-    exceptions::{PyTypeError, PyValueError},
-    prelude::*,
-};
+use pyo3::{exceptions::PyTypeError, prelude::*};
 
 use crate::{array, gil};
 
@@ -118,7 +115,7 @@ macro_rules! impl_apply {
                 }
             };
 
-            let result = result.map_err(|error| PyValueError::new_err(error.to_string()))?;
+            let result = result.map_err(|error| crate::error::ndarray(py, error))?;
             Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
         }
     };

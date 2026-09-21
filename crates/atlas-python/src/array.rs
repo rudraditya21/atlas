@@ -3,10 +3,7 @@ use numpy::{
     Element, PyArray1, PyArrayDescr, PyArrayDescrMethods, PyArrayDyn, PyArrayMethods,
     PyReadonlyArrayDyn, dtype,
 };
-use pyo3::{
-    exceptions::{PyTypeError, PyValueError},
-    prelude::*,
-};
+use pyo3::{exceptions::PyTypeError, prelude::*};
 
 pub(crate) fn readonly_from_python<'py, T>(
     py: Python<'py>,
@@ -27,7 +24,8 @@ where
     let shape = array.shape().to_vec();
     let data = array.iter().copied().collect();
 
-    NDArray::from_shape_vec(shape, data).map_err(|error| PyValueError::new_err(error.to_string()))
+    NDArray::from_shape_vec(shape, data)
+        .map_err(|error| Python::attach(|py| crate::error::ndarray(py, error)))
 }
 
 pub(crate) fn to_numpy<'py, T>(

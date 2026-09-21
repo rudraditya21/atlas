@@ -8,7 +8,6 @@ use pyo3::prelude::*;
 mod arithmetic;
 mod array;
 mod constructors;
-#[cfg(feature = "test-support")]
 mod error;
 mod gil;
 mod logical;
