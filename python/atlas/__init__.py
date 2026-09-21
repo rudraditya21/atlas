@@ -17,6 +17,7 @@ ones = _native.ones
 full = _native.full
 arange = _native.arange
 astype = _native.astype
+allclose = _native.allclose
 shape = _native.shape
 ndim = _native.ndim
 size = _native.size
@@ -51,6 +52,7 @@ __all__ = [
     "SliceError",
     "__version__",
     "add",
+    "allclose",
     "arange",
     "astype",
     "asarray",

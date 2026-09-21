@@ -8,6 +8,7 @@ use pyo3::prelude::*;
 mod arithmetic;
 mod array;
 mod casting;
+mod close;
 mod constructors;
 mod error;
 mod gil;
@@ -60,6 +61,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(max, module)?)?;
     module.add_function(wrap_pyfunction!(reshape, module)?)?;
     module.add_function(wrap_pyfunction!(transpose, module)?)?;
+    module.add_function(wrap_pyfunction!(allclose, module)?)?;
 
     #[cfg(feature = "test-support")]
     test_support::register(module)?;
@@ -247,4 +249,16 @@ fn reshape(py: Python<'_>, value: &Bound<'_, PyAny>, shape: Vec<usize>) -> PyRes
 #[pyfunction]
 fn transpose(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     shape_ops::transpose(py, value)
+}
+
+#[pyfunction(signature = (lhs, rhs, rtol = 1e-5, atol = 1e-8, equal_nan = false))]
+fn allclose(
+    py: Python<'_>,
+    lhs: &Bound<'_, PyAny>,
+    rhs: &Bound<'_, PyAny>,
+    rtol: f64,
+    atol: f64,
+    equal_nan: bool,
+) -> PyResult<bool> {
+    close::allclose(py, lhs, rhs, rtol, atol, equal_nan)
 }
