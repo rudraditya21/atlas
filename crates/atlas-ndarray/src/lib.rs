@@ -136,3 +136,24 @@ where
     debug_assert!(lhs_span.is_none() && rhs_span.is_none());
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{AtlasNdError, NDArray, try_for_each_logical_span_pair};
+
+    #[test]
+    fn paired_span_traversal_rejects_mismatched_logical_lengths() {
+        let lhs = NDArray::from_shape_vec([2], vec![1_i32, 2]).unwrap();
+        let rhs = NDArray::from_shape_vec([3], vec![3_i32, 4, 5]).unwrap();
+        let mut called = false;
+
+        let error = try_for_each_logical_span_pair(&lhs, &rhs, |_, _| {
+            called = true;
+            Ok::<_, AtlasNdError>(())
+        })
+        .unwrap_err();
+
+        assert!(!called);
+        assert_eq!(error, AtlasNdError::ShapeMismatch { expected: 2, actual: 3 });
+    }
+}
