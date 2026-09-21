@@ -21,6 +21,8 @@ mod logical;
 #[path = "matmul.rs"]
 mod matmul_ops;
 mod metadata;
+#[path = "norm.rs"]
+mod norm_ops;
 #[path = "dtype.rs"]
 mod python_dtype;
 mod reduction;
@@ -75,6 +77,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(bitwise_not, module)?)?;
     module.add_function(wrap_pyfunction!(take, module)?)?;
     module.add_function(wrap_pyfunction!(dot, module)?)?;
+    module.add_function(wrap_pyfunction!(norm, module)?)?;
     module.add_function(wrap_pyfunction!(nonzero, module)?)?;
     module.add_function(wrap_pyfunction!(masked_fill, module)?)?;
     module.add_function(wrap_pyfunction!(sum, module)?)?;
@@ -330,6 +333,11 @@ fn take(
 #[pyfunction]
 fn dot(py: Python<'_>, lhs: &Bound<'_, PyAny>, rhs: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     dot_ops::dot(py, lhs, rhs)
+}
+
+#[pyfunction]
+fn norm(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<f64> {
+    norm_ops::norm(py, value)
 }
 
 #[pyfunction]

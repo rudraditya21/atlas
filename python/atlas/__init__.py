@@ -29,6 +29,7 @@ bitwise_xor = _native.bitwise_xor
 bitwise_not = _native.bitwise_not
 take = _native.take
 dot = _native.dot
+norm = _native.norm
 clip = _native.clip
 matmul = _native.matmul
 neg = _native.neg
@@ -134,6 +135,7 @@ __all__ = [
     "nanmean",
     "nanmin",
     "nanstd",
+    "norm",
     "multiply",
     "neg",
     "ndim",
