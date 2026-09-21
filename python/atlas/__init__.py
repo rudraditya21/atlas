@@ -19,6 +19,7 @@ arange = _native.arange
 astype = _native.astype
 allclose = _native.allclose
 clip = _native.clip
+matmul = _native.matmul
 neg = _native.neg
 abs = _native.abs
 sign = _native.sign
@@ -78,6 +79,7 @@ __all__ = [
     "less",
     "less_equal",
     "masked_fill",
+    "matmul",
     "max",
     "mean",
     "min",

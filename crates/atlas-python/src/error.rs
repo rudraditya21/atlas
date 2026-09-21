@@ -1,12 +1,10 @@
 use std::fmt::Display;
 
+use atlas_linalg::AtlasLinalgError;
 use atlas_ndarray::AtlasNdError;
 use pyo3::{exceptions::PyRuntimeError, prelude::*, types::PyModule};
 #[cfg(feature = "test-support")]
-use {
-    atlas_linalg::AtlasLinalgError, atlas_ml::AtlasMlError, atlas_random::AtlasRandomError,
-    atlas_stats::AtlasStatsError,
-};
+use {atlas_ml::AtlasMlError, atlas_random::AtlasRandomError, atlas_stats::AtlasStatsError};
 
 pub(crate) fn ndarray(py: Python<'_>, error: AtlasNdError) -> PyErr {
     let exception = match &error {
@@ -46,7 +44,6 @@ pub(crate) fn stats(py: Python<'_>, error: AtlasStatsError) -> PyErr {
     }
 }
 
-#[cfg(feature = "test-support")]
 pub(crate) fn linalg(py: Python<'_>, error: AtlasLinalgError) -> PyErr {
     match &error {
         AtlasLinalgError::NdArray(error) => ndarray(py, error.clone()),

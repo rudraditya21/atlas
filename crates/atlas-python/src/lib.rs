@@ -15,6 +15,8 @@ mod constructors;
 mod error;
 mod gil;
 mod logical;
+#[path = "matmul.rs"]
+mod matmul_ops;
 mod metadata;
 #[path = "dtype.rs"]
 mod python_dtype;
@@ -68,6 +70,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(transpose, module)?)?;
     module.add_function(wrap_pyfunction!(allclose, module)?)?;
     module.add_function(wrap_pyfunction!(clip, module)?)?;
+    module.add_function(wrap_pyfunction!(matmul, module)?)?;
     module.add_function(wrap_pyfunction!(neg, module)?)?;
     module.add_function(wrap_pyfunction!(abs, module)?)?;
     module.add_function(wrap_pyfunction!(sign, module)?)?;
@@ -294,6 +297,11 @@ fn clip(
     maximum: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyAny>> {
     clip_ops::clip(py, value, minimum, maximum)
+}
+
+#[pyfunction]
+fn matmul(py: Python<'_>, lhs: &Bound<'_, PyAny>, rhs: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    matmul_ops::matmul(py, lhs, rhs)
 }
 
 #[pyfunction]
