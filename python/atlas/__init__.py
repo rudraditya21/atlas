@@ -35,6 +35,7 @@ squeeze = _native.squeeze
 expand_dims = _native.expand_dims
 concatenate = _native.concatenate
 stack = _native.stack
+diag = _native.diag
 clip = _native.clip
 matmul = _native.matmul
 neg = _native.neg
@@ -121,6 +122,7 @@ __all__ = [
     "clip",
     "concatenate",
     "divide",
+    "diag",
     "dot",
     "dtype",
     "equal",

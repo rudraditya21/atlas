@@ -15,6 +15,8 @@ mod close;
 #[path = "concat.rs"]
 mod concat_ops;
 mod constructors;
+#[path = "diag.rs"]
+mod diag_ops;
 #[path = "dot.rs"]
 mod dot_ops;
 mod error;
@@ -87,6 +89,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(trace, module)?)?;
     module.add_function(wrap_pyfunction!(concatenate, module)?)?;
     module.add_function(wrap_pyfunction!(stack, module)?)?;
+    module.add_function(wrap_pyfunction!(diag, module)?)?;
     module.add_function(wrap_pyfunction!(nonzero, module)?)?;
     module.add_function(wrap_pyfunction!(masked_fill, module)?)?;
     module.add_function(wrap_pyfunction!(sum, module)?)?;
@@ -364,6 +367,11 @@ fn concatenate(py: Python<'_>, arrays: Vec<Py<PyAny>>, axis: i64) -> PyResult<Py
 #[pyfunction]
 fn stack(py: Python<'_>, arrays: Vec<Py<PyAny>>, axis: i64) -> PyResult<Py<PyAny>> {
     stack_ops::stack(py, arrays, axis)
+}
+
+#[pyfunction]
+fn diag(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    diag_ops::diag(py, value)
 }
 
 #[pyfunction]
