@@ -9,6 +9,9 @@ pub enum AtlasNdError {
     #[error("shape mismatch: expected {expected} elements, got {actual}")]
     ShapeMismatch { expected: usize, actual: usize },
 
+    #[error("mask shape mismatch for {op}: array {array:?}, mask {mask:?}")]
+    MaskShapeMismatch { op: &'static str, array: Vec<usize>, mask: Vec<usize> },
+
     #[error("shape overflow for {op}: {shape:?}")]
     ShapeOverflow { op: &'static str, shape: Vec<usize> },
 

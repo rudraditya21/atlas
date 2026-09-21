@@ -31,9 +31,10 @@ where
     M: OperandMetadata<bool> + ?Sized,
 {
     if operand.shape() != mask.shape() {
-        return Err(AtlasNdError::InvalidArgument {
+        return Err(AtlasNdError::MaskShapeMismatch {
             op: "select",
-            reason: "mask shape must match array shape",
+            array: operand.shape().to_vec(),
+            mask: mask.shape().to_vec(),
         });
     }
 

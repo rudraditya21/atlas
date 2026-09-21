@@ -65,10 +65,7 @@ fn masked_fill_rejects_masks_with_different_shapes() {
 
     assert_eq!(
         values.masked_fill(&mask, 9).unwrap_err(),
-        AtlasNdError::InvalidArgument {
-            op: "masked_fill",
-            reason: "mask shape must match array shape",
-        }
+        AtlasNdError::MaskShapeMismatch { op: "masked_fill", array: vec![2, 2], mask: vec![4] }
     );
     assert_eq!(values.data(), &[0, 1, 2, 3]);
 }

@@ -88,6 +88,6 @@ fn select_rejects_masks_with_different_shapes() {
 
     assert_eq!(
         values.select(&mask).unwrap_err(),
-        AtlasNdError::InvalidArgument { op: "select", reason: "mask shape must match array shape" }
+        AtlasNdError::MaskShapeMismatch { op: "select", array: vec![2, 2], mask: vec![4] }
     );
 }

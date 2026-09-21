@@ -10,9 +10,10 @@ impl<T: ArrayElement> NDArray<T> {
         M: OperandMetadata<bool> + ?Sized,
     {
         if self.shape() != mask.shape() {
-            return Err(AtlasNdError::InvalidArgument {
+            return Err(AtlasNdError::MaskShapeMismatch {
                 op: "masked_fill",
-                reason: "mask shape must match array shape",
+                array: self.shape().to_vec(),
+                mask: mask.shape().to_vec(),
             });
         }
 
