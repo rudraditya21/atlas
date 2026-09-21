@@ -60,6 +60,8 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(count_true, module)?)?;
     module.add_function(wrap_pyfunction!(all, module)?)?;
     module.add_function(wrap_pyfunction!(any, module)?)?;
+    module.add_function(wrap_pyfunction!(all_axis, module)?)?;
+    module.add_function(wrap_pyfunction!(any_axis, module)?)?;
     module.add_function(wrap_pyfunction!(nonzero, module)?)?;
     module.add_function(wrap_pyfunction!(masked_fill, module)?)?;
     module.add_function(wrap_pyfunction!(sum, module)?)?;
@@ -242,6 +244,16 @@ fn all(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<bool> {
 #[pyfunction]
 fn any(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<bool> {
     logical::any(py, value)
+}
+
+#[pyfunction]
+fn all_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
+    logical::all_axis(py, value, axis)
+}
+
+#[pyfunction]
+fn any_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
+    logical::any_axis(py, value, axis)
 }
 
 #[pyfunction]

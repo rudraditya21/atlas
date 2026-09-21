@@ -20,6 +20,8 @@ astype = _native.astype
 allclose = _native.allclose
 all = _native.all
 any = _native.any
+all_axis = _native.all_axis
+any_axis = _native.any_axis
 clip = _native.clip
 matmul = _native.matmul
 neg = _native.neg
@@ -78,9 +80,11 @@ __all__ = [
     "abs",
     "allclose",
     "all",
+    "all_axis",
     "argmax",
     "argmin",
     "any",
+    "any_axis",
     "arange",
     "astype",
     "asarray",

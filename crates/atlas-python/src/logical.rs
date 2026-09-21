@@ -129,6 +129,16 @@ pub(crate) fn any(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<bool> {
     Ok(gil::without_gil(py, move || value.any()))
 }
 
+pub(crate) fn all_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
+    let value = boolean_array(py, value)?;
+    output(py, gil::without_gil(py, move || value.all_axis(axis)))
+}
+
+pub(crate) fn any_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
+    let value = boolean_array(py, value)?;
+    output(py, gil::without_gil(py, move || value.any_axis(axis)))
+}
+
 pub(crate) fn select(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
