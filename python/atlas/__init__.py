@@ -36,6 +36,7 @@ expand_dims = _native.expand_dims
 concatenate = _native.concatenate
 stack = _native.stack
 diag = _native.diag
+matrix_norm = _native.matrix_norm
 clip = _native.clip
 matmul = _native.matmul
 neg = _native.neg
@@ -134,6 +135,7 @@ __all__ = [
     "less_equal",
     "masked_fill",
     "matmul",
+    "matrix_norm",
     "max",
     "max_axis",
     "mean",

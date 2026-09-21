@@ -24,6 +24,8 @@ mod gil;
 mod logical;
 #[path = "matmul.rs"]
 mod matmul_ops;
+#[path = "matrix_norm.rs"]
+mod matrix_norm_ops;
 mod metadata;
 #[path = "norm.rs"]
 mod norm_ops;
@@ -90,6 +92,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(concatenate, module)?)?;
     module.add_function(wrap_pyfunction!(stack, module)?)?;
     module.add_function(wrap_pyfunction!(diag, module)?)?;
+    module.add_function(wrap_pyfunction!(matrix_norm, module)?)?;
     module.add_function(wrap_pyfunction!(nonzero, module)?)?;
     module.add_function(wrap_pyfunction!(masked_fill, module)?)?;
     module.add_function(wrap_pyfunction!(sum, module)?)?;
@@ -372,6 +375,11 @@ fn stack(py: Python<'_>, arrays: Vec<Py<PyAny>>, axis: i64) -> PyResult<Py<PyAny
 #[pyfunction]
 fn diag(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     diag_ops::diag(py, value)
+}
+
+#[pyfunction(signature = (value, order = "fro"))]
+fn matrix_norm(py: Python<'_>, value: &Bound<'_, PyAny>, order: &str) -> PyResult<f64> {
+    matrix_norm_ops::matrix_norm(py, value, order)
 }
 
 #[pyfunction]
