@@ -66,8 +66,12 @@ pub(crate) fn reshape(
     with_array!(py, value, |array| reshape_array(py, array, shape))
 }
 
-pub(crate) fn transpose(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    with_array!(py, value, |array| transpose_array(py, array))
+pub(crate) fn transpose(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axes: Option<Vec<i64>>,
+) -> PyResult<Py<PyAny>> {
+    with_array!(py, value, |array| transpose_array(py, array, axes))
 }
 
 fn reshape_array<T>(py: Python<'_>, array: NDArray<T>, shape: Vec<usize>) -> PyResult<Py<PyAny>>
@@ -80,11 +84,19 @@ where
     Ok(array::to_numpy_owned(py, array)?.into_any().unbind())
 }
 
-fn transpose_array<T>(py: Python<'_>, array: NDArray<T>) -> PyResult<Py<PyAny>>
+fn transpose_array<T>(
+    py: Python<'_>,
+    array: NDArray<T>,
+    axes: Option<Vec<i64>>,
+) -> PyResult<Py<PyAny>>
 where
     T: ArrayElement + Element,
 {
-    let array = gil::without_gil(py, move || array.view().transpose().to_owned());
+    let array = gil::without_gil(py, move || match axes {
+        Some(axes) => array.permute_axes(axes).map(|view| view.to_owned()),
+        None => Ok(array.view().transpose().to_owned()),
+    })
+    .map_err(|error| crate::error::ndarray(py, error))?;
 
     Ok(array::to_numpy_owned(py, array)?.into_any().unbind())
 }

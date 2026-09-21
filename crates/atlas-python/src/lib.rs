@@ -478,9 +478,13 @@ fn reshape(py: Python<'_>, value: &Bound<'_, PyAny>, shape: Vec<usize>) -> PyRes
     shape_ops::reshape(py, value, shape)
 }
 
-#[pyfunction]
-fn transpose(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    shape_ops::transpose(py, value)
+#[pyfunction(signature = (value, axes = None))]
+fn transpose(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axes: Option<Vec<i64>>,
+) -> PyResult<Py<PyAny>> {
+    shape_ops::transpose(py, value, axes)
 }
 
 #[pyfunction(signature = (lhs, rhs, rtol = 1e-5, atol = 1e-8, equal_nan = false))]

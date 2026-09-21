@@ -16,6 +16,7 @@ pub(crate) fn ndarray(py: Python<'_>, error: AtlasNdError) -> PyErr {
         | AtlasNdError::InvalidReshape { .. }
         | AtlasNdError::InvalidBroadcast { .. }
         | AtlasNdError::MaskShapeMismatch { .. }
+        | AtlasNdError::InvalidArgument { op: "permute_axes", .. }
         | AtlasNdError::InvalidShape => "ShapeError",
         AtlasNdError::EmptyReduction { .. }
         | AtlasNdError::AllNaN { .. }
