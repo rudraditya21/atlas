@@ -21,5 +21,5 @@ def test_take_supports_non_contiguous_views() -> None:
 
 
 def test_take_translates_invalid_indices_to_axis_errors() -> None:
-    with pytest.raises(atlas.AxisError, match="index 3 out of bounds"):
+    with pytest.raises(atlas.AxisError, match="index out of bounds on axis 1"):
         atlas.take(np.arange(6).reshape(2, 3), [3], 1)
