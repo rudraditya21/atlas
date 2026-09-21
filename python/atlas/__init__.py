@@ -18,6 +18,13 @@ full = _native.full
 arange = _native.arange
 astype = _native.astype
 allclose = _native.allclose
+neg = _native.neg
+abs = _native.abs
+sign = _native.sign
+round = _native.round
+isnan = _native.isnan
+isinf = _native.isinf
+isfinite = _native.isfinite
 shape = _native.shape
 ndim = _native.ndim
 size = _native.size
@@ -54,6 +61,7 @@ __all__ = [
     "SliceError",
     "__version__",
     "add",
+    "abs",
     "allclose",
     "arange",
     "astype",
@@ -72,6 +80,7 @@ __all__ = [
     "mean",
     "min",
     "multiply",
+    "neg",
     "ndim",
     "nonzero",
     "not_equal",
@@ -83,6 +92,11 @@ __all__ = [
     "sum",
     "stddev",
     "reshape",
+    "round",
+    "sign",
+    "isnan",
+    "isinf",
+    "isfinite",
     "transpose",
     "variance",
     "zeros",

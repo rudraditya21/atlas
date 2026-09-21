@@ -22,6 +22,7 @@ mod scalar;
 mod shape_ops;
 #[cfg(feature = "test-support")]
 mod test_support;
+mod unary;
 
 #[pyfunction]
 fn version() -> &'static str {
@@ -64,6 +65,13 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(reshape, module)?)?;
     module.add_function(wrap_pyfunction!(transpose, module)?)?;
     module.add_function(wrap_pyfunction!(allclose, module)?)?;
+    module.add_function(wrap_pyfunction!(neg, module)?)?;
+    module.add_function(wrap_pyfunction!(abs, module)?)?;
+    module.add_function(wrap_pyfunction!(sign, module)?)?;
+    module.add_function(wrap_pyfunction!(round, module)?)?;
+    module.add_function(wrap_pyfunction!(isnan, module)?)?;
+    module.add_function(wrap_pyfunction!(isinf, module)?)?;
+    module.add_function(wrap_pyfunction!(isfinite, module)?)?;
 
     #[cfg(feature = "test-support")]
     test_support::register(module)?;
@@ -273,4 +281,39 @@ fn allclose(
     equal_nan: bool,
 ) -> PyResult<bool> {
     close::allclose(py, lhs, rhs, rtol, atol, equal_nan)
+}
+
+#[pyfunction]
+fn neg(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    unary::neg(py, value)
+}
+
+#[pyfunction]
+fn abs(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    unary::abs(py, value)
+}
+
+#[pyfunction]
+fn sign(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    unary::sign(py, value)
+}
+
+#[pyfunction]
+fn round(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    unary::round(py, value)
+}
+
+#[pyfunction]
+fn isnan(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    unary::isnan(py, value)
+}
+
+#[pyfunction]
+fn isinf(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    unary::isinf(py, value)
+}
+
+#[pyfunction]
+fn isfinite(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    unary::isfinite(py, value)
 }
