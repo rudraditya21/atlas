@@ -18,6 +18,7 @@ full = _native.full
 arange = _native.arange
 astype = _native.astype
 allclose = _native.allclose
+clip = _native.clip
 neg = _native.neg
 abs = _native.abs
 sign = _native.sign
@@ -67,6 +68,7 @@ __all__ = [
     "astype",
     "asarray",
     "count_true",
+    "clip",
     "divide",
     "dtype",
     "equal",

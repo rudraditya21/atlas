@@ -8,6 +8,8 @@ use pyo3::prelude::*;
 mod arithmetic;
 mod array;
 mod casting;
+#[path = "clip.rs"]
+mod clip_ops;
 mod close;
 mod constructors;
 mod error;
@@ -65,6 +67,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(reshape, module)?)?;
     module.add_function(wrap_pyfunction!(transpose, module)?)?;
     module.add_function(wrap_pyfunction!(allclose, module)?)?;
+    module.add_function(wrap_pyfunction!(clip, module)?)?;
     module.add_function(wrap_pyfunction!(neg, module)?)?;
     module.add_function(wrap_pyfunction!(abs, module)?)?;
     module.add_function(wrap_pyfunction!(sign, module)?)?;
@@ -281,6 +284,16 @@ fn allclose(
     equal_nan: bool,
 ) -> PyResult<bool> {
     close::allclose(py, lhs, rhs, rtol, atol, equal_nan)
+}
+
+#[pyfunction]
+fn clip(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    minimum: &Bound<'_, PyAny>,
+    maximum: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyAny>> {
+    clip_ops::clip(py, value, minimum, maximum)
 }
 
 #[pyfunction]
