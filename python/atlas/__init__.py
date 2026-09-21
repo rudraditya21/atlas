@@ -28,6 +28,7 @@ bitwise_or = _native.bitwise_or
 bitwise_xor = _native.bitwise_xor
 bitwise_not = _native.bitwise_not
 take = _native.take
+dot = _native.dot
 clip = _native.clip
 matmul = _native.matmul
 neg = _native.neg
@@ -113,6 +114,7 @@ __all__ = [
     "cumsum_axis",
     "clip",
     "divide",
+    "dot",
     "dtype",
     "equal",
     "full",

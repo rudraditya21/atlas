@@ -13,6 +13,8 @@ mod casting;
 mod clip_ops;
 mod close;
 mod constructors;
+#[path = "dot.rs"]
+mod dot_ops;
 mod error;
 mod gil;
 mod logical;
@@ -72,6 +74,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(bitwise_xor, module)?)?;
     module.add_function(wrap_pyfunction!(bitwise_not, module)?)?;
     module.add_function(wrap_pyfunction!(take, module)?)?;
+    module.add_function(wrap_pyfunction!(dot, module)?)?;
     module.add_function(wrap_pyfunction!(nonzero, module)?)?;
     module.add_function(wrap_pyfunction!(masked_fill, module)?)?;
     module.add_function(wrap_pyfunction!(sum, module)?)?;
@@ -322,6 +325,11 @@ fn take(
     axis: i64,
 ) -> PyResult<Py<PyAny>> {
     take_ops::take(py, value, indices, axis)
+}
+
+#[pyfunction]
+fn dot(py: Python<'_>, lhs: &Bound<'_, PyAny>, rhs: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    dot_ops::dot(py, lhs, rhs)
 }
 
 #[pyfunction]
