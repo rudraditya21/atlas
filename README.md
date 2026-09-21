@@ -56,7 +56,21 @@ The Python extension requires Python 3.10 or newer, Rust 1.85 or newer, and
 [uv](https://docs.astral.sh/uv/).
 
 ```sh
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv python install 3.10
+uv sync
 make python-dev
+```
+
+Activate the environment when running Python commands directly:
+
+```sh
+source .venv/bin/activate
+```
+
+Run the Python test suite with its test dependencies and private native test support:
+
+```sh
 make python-test
 ```
 
