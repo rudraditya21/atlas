@@ -27,6 +27,7 @@ mod shape_ops;
 #[cfg(feature = "test-support")]
 mod test_support;
 mod unary;
+mod where_ops;
 
 #[pyfunction]
 fn version() -> &'static str {
@@ -62,6 +63,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(any, module)?)?;
     module.add_function(wrap_pyfunction!(all_axis, module)?)?;
     module.add_function(wrap_pyfunction!(any_axis, module)?)?;
+    module.add_function(wrap_pyfunction!(where_, module)?)?;
     module.add_function(wrap_pyfunction!(nonzero, module)?)?;
     module.add_function(wrap_pyfunction!(masked_fill, module)?)?;
     module.add_function(wrap_pyfunction!(sum, module)?)?;
@@ -260,6 +262,16 @@ fn all_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<
 #[pyfunction]
 fn any_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
     logical::any_axis(py, value, axis)
+}
+
+#[pyfunction(name = "where")]
+fn where_(
+    py: Python<'_>,
+    condition: &Bound<'_, PyAny>,
+    x: &Bound<'_, PyAny>,
+    y: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyAny>> {
+    where_ops::where_(py, condition, x, y)
 }
 
 #[pyfunction]

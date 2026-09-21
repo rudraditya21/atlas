@@ -22,6 +22,7 @@ all = _native.all
 any = _native.any
 all_axis = _native.all_axis
 any_axis = _native.any_axis
+where = _native.where
 clip = _native.clip
 matmul = _native.matmul
 neg = _native.neg
@@ -143,5 +144,6 @@ __all__ = [
     "isfinite",
     "transpose",
     "variance",
+    "where",
     "zeros",
 ]
