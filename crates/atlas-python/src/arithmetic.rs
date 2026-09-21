@@ -55,7 +55,14 @@ fn apply(
     let dtype: String = lhs.getattr("dtype")?.getattr("name")?.extract()?;
 
     match dtype.as_str() {
+        "int8" => apply_i8(py, lhs, rhs, operation),
+        "int16" => apply_i16(py, lhs, rhs, operation),
+        "int32" => apply_i32(py, lhs, rhs, operation),
         "int64" => apply_i64(py, lhs, rhs, operation),
+        "uint8" => apply_u8(py, lhs, rhs, operation),
+        "uint16" => apply_u16(py, lhs, rhs, operation),
+        "uint32" => apply_u32(py, lhs, rhs, operation),
+        "uint64" => apply_u64(py, lhs, rhs, operation),
         "float32" => apply_f32(py, lhs, rhs, operation),
         "float64" => apply_f64(py, lhs, rhs, operation),
         "bool" => Err(PyTypeError::new_err("arithmetic does not support bool dtype")),
@@ -118,5 +125,12 @@ macro_rules! impl_apply {
 }
 
 impl_apply!(apply_i64, i64);
+impl_apply!(apply_i8, i8);
+impl_apply!(apply_i16, i16);
+impl_apply!(apply_i32, i32);
+impl_apply!(apply_u8, u8);
+impl_apply!(apply_u16, u16);
+impl_apply!(apply_u32, u32);
+impl_apply!(apply_u64, u64);
 impl_apply!(apply_f32, f32);
 impl_apply!(apply_f64, f64);

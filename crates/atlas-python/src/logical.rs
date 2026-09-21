@@ -24,8 +24,36 @@ macro_rules! with_dtype {
                 let $array = array::from_numpy(array::readonly_from_python::<bool>($py, $value)?)?;
                 $body
             }
+            "int8" => {
+                let $array = array::from_numpy(array::readonly_from_python::<i8>($py, $value)?)?;
+                $body
+            }
+            "int16" => {
+                let $array = array::from_numpy(array::readonly_from_python::<i16>($py, $value)?)?;
+                $body
+            }
+            "int32" => {
+                let $array = array::from_numpy(array::readonly_from_python::<i32>($py, $value)?)?;
+                $body
+            }
             "int64" => {
                 let $array = array::from_numpy(array::readonly_from_python::<i64>($py, $value)?)?;
+                $body
+            }
+            "uint8" => {
+                let $array = array::from_numpy(array::readonly_from_python::<u8>($py, $value)?)?;
+                $body
+            }
+            "uint16" => {
+                let $array = array::from_numpy(array::readonly_from_python::<u16>($py, $value)?)?;
+                $body
+            }
+            "uint32" => {
+                let $array = array::from_numpy(array::readonly_from_python::<u32>($py, $value)?)?;
+                $body
+            }
+            "uint64" => {
+                let $array = array::from_numpy(array::readonly_from_python::<u64>($py, $value)?)?;
                 $body
             }
             "float32" => {
@@ -142,7 +170,14 @@ fn compare(
 
     match dtype.as_str() {
         "bool" => compare_bool(py, lhs, rhs, comparison),
+        "int8" => compare_i8(py, lhs, rhs, comparison),
+        "int16" => compare_i16(py, lhs, rhs, comparison),
+        "int32" => compare_i32(py, lhs, rhs, comparison),
         "int64" => compare_i64(py, lhs, rhs, comparison),
+        "uint8" => compare_u8(py, lhs, rhs, comparison),
+        "uint16" => compare_u16(py, lhs, rhs, comparison),
+        "uint32" => compare_u32(py, lhs, rhs, comparison),
+        "uint64" => compare_u64(py, lhs, rhs, comparison),
         "float32" => compare_f32(py, lhs, rhs, comparison),
         "float64" => compare_f64(py, lhs, rhs, comparison),
         _ => Err(PyTypeError::new_err(format!("unsupported NumPy dtype {dtype}"))),
@@ -195,7 +230,14 @@ macro_rules! impl_compare {
 }
 
 impl_compare!(compare_bool, bool);
+impl_compare!(compare_i8, i8);
+impl_compare!(compare_i16, i16);
+impl_compare!(compare_i32, i32);
 impl_compare!(compare_i64, i64);
+impl_compare!(compare_u8, u8);
+impl_compare!(compare_u16, u16);
+impl_compare!(compare_u32, u32);
+impl_compare!(compare_u64, u64);
 impl_compare!(compare_f32, f32);
 impl_compare!(compare_f64, f64);
 

@@ -42,7 +42,7 @@ def test_logical_operations_handle_scalars_and_empty_arrays() -> None:
 
 def test_logical_operations_reject_invalid_masks_and_dtypes() -> None:
     with pytest.raises(TypeError, match="unsupported NumPy dtype"):
-        atlas.equal(np.array([1], dtype=np.int32), 1)
+        atlas.equal(np.array([1], dtype=np.float16), 1)
 
     with pytest.raises((TypeError, ValueError), match="mask"):
         atlas.select(np.ones((2, 2)), np.ones((3, 2), dtype=bool))
