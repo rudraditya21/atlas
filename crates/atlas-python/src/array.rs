@@ -28,16 +28,6 @@ where
         .map_err(|error| Python::attach(|py| crate::error::ndarray(py, error)))
 }
 
-pub(crate) fn to_numpy<'py, T>(
-    py: Python<'py>,
-    array: &NDArray<T>,
-) -> PyResult<Bound<'py, PyArrayDyn<T>>>
-where
-    T: ArrayElement + Element,
-{
-    PyArray1::from_vec(py, array.data().to_vec()).reshape(array.shape().to_vec())
-}
-
 pub(crate) fn to_numpy_owned<'py, T>(
     py: Python<'py>,
     array: NDArray<T>,

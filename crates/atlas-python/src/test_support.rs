@@ -82,7 +82,7 @@ fn array_f64_output<'py>(
     let array = NDArray::from_shape_vec(shape, data)
         .map_err(|error| PyValueError::new_err(error.to_string()))?;
 
-    array::to_numpy(py, &array)
+    array::to_numpy_owned(py, array)
 }
 
 #[pyfunction(name = "_gil_free_spin")]
