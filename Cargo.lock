@@ -195,6 +195,7 @@ dependencies = [
  "atlas-ndarray",
  "atlas-random",
  "atlas-stats",
+ "num-traits",
  "numpy",
  "pyo3",
 ]

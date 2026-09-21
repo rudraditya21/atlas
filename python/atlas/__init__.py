@@ -35,6 +35,10 @@ select = _native.select
 count_true = _native.count_true
 nonzero = _native.nonzero
 masked_fill = _native.masked_fill
+sum = _native.sum
+mean = _native.mean
+min = _native.min
+max = _native.max
 
 __all__ = [
     "AtlasError",
@@ -58,6 +62,9 @@ __all__ = [
     "less",
     "less_equal",
     "masked_fill",
+    "max",
+    "mean",
+    "min",
     "multiply",
     "ndim",
     "nonzero",
@@ -67,5 +74,6 @@ __all__ = [
     "shape",
     "size",
     "subtract",
+    "sum",
     "zeros",
 ]

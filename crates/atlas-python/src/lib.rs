@@ -15,6 +15,7 @@ mod logical;
 mod metadata;
 #[path = "dtype.rs"]
 mod python_dtype;
+mod reduction;
 #[cfg(feature = "test-support")]
 mod scalar;
 #[cfg(feature = "test-support")]
@@ -52,6 +53,10 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(count_true, module)?)?;
     module.add_function(wrap_pyfunction!(nonzero, module)?)?;
     module.add_function(wrap_pyfunction!(masked_fill, module)?)?;
+    module.add_function(wrap_pyfunction!(sum, module)?)?;
+    module.add_function(wrap_pyfunction!(mean, module)?)?;
+    module.add_function(wrap_pyfunction!(min, module)?)?;
+    module.add_function(wrap_pyfunction!(max, module)?)?;
 
     #[cfg(feature = "test-support")]
     test_support::register(module)?;
@@ -209,4 +214,24 @@ fn masked_fill(
     fill: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyAny>> {
     logical::masked_fill(py, value, mask, fill)
+}
+
+#[pyfunction]
+fn sum(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    reduction::sum(py, value)
+}
+
+#[pyfunction]
+fn mean(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    reduction::mean(py, value)
+}
+
+#[pyfunction]
+fn min(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    reduction::min(py, value)
+}
+
+#[pyfunction]
+fn max(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    reduction::max(py, value)
 }
