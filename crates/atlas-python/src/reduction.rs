@@ -15,6 +15,12 @@ enum Reduction {
     Stddev,
 }
 
+#[derive(Clone, Copy)]
+enum AxisReduction {
+    Sum,
+    Mean,
+}
+
 pub(crate) fn sum(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     reduce(py, value, Reduction::Sum)
 }
@@ -39,6 +45,18 @@ pub(crate) fn stddev(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<Py
     reduce(py, value, Reduction::Stddev)
 }
 
+pub(crate) fn sum_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
+    reduce_axis(py, value, axis, AxisReduction::Sum)
+}
+
+pub(crate) fn mean_axis(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axis: i64,
+) -> PyResult<Py<PyAny>> {
+    reduce_axis(py, value, axis, AxisReduction::Mean)
+}
+
 fn reduce(py: Python<'_>, value: &Bound<'_, PyAny>, reduction: Reduction) -> PyResult<Py<PyAny>> {
     array::require_numpy_array(py, value)?;
     let dtype: String = value.getattr("dtype")?.getattr("name")?.extract()?;
@@ -53,6 +71,40 @@ fn reduce(py: Python<'_>, value: &Bound<'_, PyAny>, reduction: Reduction) -> PyR
                 Reduction::Max => reduce_max(py, array),
                 Reduction::Variance => reduce_variance(py, array),
                 Reduction::Stddev => reduce_stddev(py, array),
+            }
+        }};
+    }
+
+    match dtype.as_str() {
+        "int8" => reduce_from!(i8),
+        "int16" => reduce_from!(i16),
+        "int32" => reduce_from!(i32),
+        "int64" => reduce_from!(i64),
+        "uint8" => reduce_from!(u8),
+        "uint16" => reduce_from!(u16),
+        "uint32" => reduce_from!(u32),
+        "uint64" => reduce_from!(u64),
+        "float32" => reduce_from!(f32),
+        "float64" => reduce_from!(f64),
+        _ => Err(PyTypeError::new_err("reductions require a supported numeric NumPy dtype")),
+    }
+}
+
+fn reduce_axis(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axis: i64,
+    reduction: AxisReduction,
+) -> PyResult<Py<PyAny>> {
+    array::require_numpy_array(py, value)?;
+    let dtype: String = value.getattr("dtype")?.getattr("name")?.extract()?;
+
+    macro_rules! reduce_from {
+        ($ty:ty) => {{
+            let array = array::from_numpy(array::readonly_from_python::<$ty>(py, value)?)?;
+            match reduction {
+                AxisReduction::Sum => reduce_sum_axis(py, array, axis),
+                AxisReduction::Mean => reduce_mean_axis(py, array, axis),
             }
         }};
     }
@@ -117,9 +169,35 @@ where
     scalar(py, gil::without_gil(py, move || array.stddev()))
 }
 
+fn reduce_sum_axis<T>(py: Python<'_>, array: NDArray<T>, axis: i64) -> PyResult<Py<PyAny>>
+where
+    T: Numeric + ElementwiseArithmetic + Element,
+{
+    array_output(py, gil::without_gil(py, move || array.sum_axis(axis)))
+}
+
+fn reduce_mean_axis<T>(py: Python<'_>, array: NDArray<T>, axis: i64) -> PyResult<Py<PyAny>>
+where
+    T: Numeric + ToPrimitive + Element,
+{
+    array_output(py, gil::without_gil(py, move || array.mean_axis(axis)))
+}
+
 fn scalar<T>(py: Python<'_>, result: atlas_ndarray::AtlasNdResult<T>) -> PyResult<Py<PyAny>>
 where
     for<'py> T: IntoPyObject<'py>,
 {
     result.map_err(|error| crate::error::ndarray(py, error))?.into_py_any(py)
+}
+
+fn array_output<T>(
+    py: Python<'_>,
+    result: atlas_ndarray::AtlasNdResult<NDArray<T>>,
+) -> PyResult<Py<PyAny>>
+where
+    T: atlas_ndarray::ArrayElement + Element,
+{
+    Ok(array::to_numpy_owned(py, result.map_err(|error| crate::error::ndarray(py, error))?)?
+        .into_any()
+        .unbind())
 }

@@ -51,6 +51,8 @@ min = _native.min
 max = _native.max
 variance = _native.variance
 stddev = _native.stddev
+sum_axis = _native.sum_axis
+mean_axis = _native.mean_axis
 reshape = _native.reshape
 transpose = _native.transpose
 
@@ -82,6 +84,7 @@ __all__ = [
     "matmul",
     "max",
     "mean",
+    "mean_axis",
     "min",
     "multiply",
     "neg",
@@ -94,6 +97,7 @@ __all__ = [
     "size",
     "subtract",
     "sum",
+    "sum_axis",
     "stddev",
     "reshape",
     "round",
