@@ -18,6 +18,7 @@ pub(crate) fn ndarray(py: Python<'_>, error: AtlasNdError) -> PyErr {
         | AtlasNdError::MaskShapeMismatch { .. }
         | AtlasNdError::InvalidArgument { op: "permute_axes", .. }
         | AtlasNdError::InvalidArgument { op: "squeeze", .. }
+        | AtlasNdError::InvalidArgument { op: "concatenate", .. }
         | AtlasNdError::InvalidShape => "ShapeError",
         AtlasNdError::EmptyReduction { .. }
         | AtlasNdError::AllNaN { .. }

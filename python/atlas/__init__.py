@@ -33,6 +33,7 @@ norm = _native.norm
 trace = _native.trace
 squeeze = _native.squeeze
 expand_dims = _native.expand_dims
+concatenate = _native.concatenate
 clip = _native.clip
 matmul = _native.matmul
 neg = _native.neg
@@ -117,6 +118,7 @@ __all__ = [
     "cumsum",
     "cumsum_axis",
     "clip",
+    "concatenate",
     "divide",
     "dot",
     "dtype",

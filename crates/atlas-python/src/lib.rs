@@ -12,6 +12,8 @@ mod casting;
 #[path = "clip.rs"]
 mod clip_ops;
 mod close;
+#[path = "concat.rs"]
+mod concat_ops;
 mod constructors;
 #[path = "dot.rs"]
 mod dot_ops;
@@ -81,6 +83,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(dot, module)?)?;
     module.add_function(wrap_pyfunction!(norm, module)?)?;
     module.add_function(wrap_pyfunction!(trace, module)?)?;
+    module.add_function(wrap_pyfunction!(concatenate, module)?)?;
     module.add_function(wrap_pyfunction!(nonzero, module)?)?;
     module.add_function(wrap_pyfunction!(masked_fill, module)?)?;
     module.add_function(wrap_pyfunction!(sum, module)?)?;
@@ -348,6 +351,11 @@ fn norm(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<f64> {
 #[pyfunction]
 fn trace(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     trace_ops::trace(py, value)
+}
+
+#[pyfunction]
+fn concatenate(py: Python<'_>, arrays: Vec<Py<PyAny>>, axis: i64) -> PyResult<Py<PyAny>> {
+    concat_ops::concatenate(py, arrays, axis)
 }
 
 #[pyfunction]
