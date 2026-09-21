@@ -11,6 +11,8 @@ enum Reduction {
     Mean,
     Min,
     Max,
+    Variance,
+    Stddev,
 }
 
 pub(crate) fn sum(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
@@ -29,6 +31,14 @@ pub(crate) fn max(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny
     reduce(py, value, Reduction::Max)
 }
 
+pub(crate) fn variance(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    reduce(py, value, Reduction::Variance)
+}
+
+pub(crate) fn stddev(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    reduce(py, value, Reduction::Stddev)
+}
+
 fn reduce(py: Python<'_>, value: &Bound<'_, PyAny>, reduction: Reduction) -> PyResult<Py<PyAny>> {
     array::require_numpy_array(py, value)?;
     let dtype: String = value.getattr("dtype")?.getattr("name")?.extract()?;
@@ -41,6 +51,8 @@ fn reduce(py: Python<'_>, value: &Bound<'_, PyAny>, reduction: Reduction) -> PyR
                 Reduction::Mean => reduce_mean(py, array),
                 Reduction::Min => reduce_min(py, array),
                 Reduction::Max => reduce_max(py, array),
+                Reduction::Variance => reduce_variance(py, array),
+                Reduction::Stddev => reduce_stddev(py, array),
             }
         }};
     }
@@ -89,6 +101,20 @@ where
     for<'py> T: IntoPyObject<'py>,
 {
     scalar(py, gil::without_gil(py, move || array.max()))
+}
+
+fn reduce_variance<T>(py: Python<'_>, array: NDArray<T>) -> PyResult<Py<PyAny>>
+where
+    T: Numeric + ToPrimitive + Element,
+{
+    scalar(py, gil::without_gil(py, move || array.variance()))
+}
+
+fn reduce_stddev<T>(py: Python<'_>, array: NDArray<T>) -> PyResult<Py<PyAny>>
+where
+    T: Numeric + ToPrimitive + Element,
+{
+    scalar(py, gil::without_gil(py, move || array.stddev()))
 }
 
 fn scalar<T>(py: Python<'_>, result: atlas_ndarray::AtlasNdResult<T>) -> PyResult<Py<PyAny>>

@@ -40,6 +40,8 @@ sum = _native.sum
 mean = _native.mean
 min = _native.min
 max = _native.max
+variance = _native.variance
+stddev = _native.stddev
 reshape = _native.reshape
 transpose = _native.transpose
 
@@ -79,7 +81,9 @@ __all__ = [
     "size",
     "subtract",
     "sum",
+    "stddev",
     "reshape",
     "transpose",
+    "variance",
     "zeros",
 ]

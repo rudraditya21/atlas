@@ -59,6 +59,8 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(mean, module)?)?;
     module.add_function(wrap_pyfunction!(min, module)?)?;
     module.add_function(wrap_pyfunction!(max, module)?)?;
+    module.add_function(wrap_pyfunction!(variance, module)?)?;
+    module.add_function(wrap_pyfunction!(stddev, module)?)?;
     module.add_function(wrap_pyfunction!(reshape, module)?)?;
     module.add_function(wrap_pyfunction!(transpose, module)?)?;
     module.add_function(wrap_pyfunction!(allclose, module)?)?;
@@ -239,6 +241,16 @@ fn min(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
 #[pyfunction]
 fn max(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     reduction::max(py, value)
+}
+
+#[pyfunction]
+fn variance(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    reduction::variance(py, value)
+}
+
+#[pyfunction]
+fn stddev(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    reduction::stddev(py, value)
 }
 
 #[pyfunction]
