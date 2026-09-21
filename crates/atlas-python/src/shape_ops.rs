@@ -82,6 +82,14 @@ pub(crate) fn squeeze(
     with_array!(py, value, |array| squeeze_array(py, array, axis))
 }
 
+pub(crate) fn expand_dims(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axis: i64,
+) -> PyResult<Py<PyAny>> {
+    with_array!(py, value, |array| expand_dims_array(py, array, axis))
+}
+
 fn reshape_array<T>(py: Python<'_>, array: NDArray<T>, shape: Vec<usize>) -> PyResult<Py<PyAny>>
 where
     T: ArrayElement + Element,
@@ -118,6 +126,16 @@ where
         None => Ok(array.squeeze().to_owned()),
     })
     .map_err(|error| crate::error::ndarray(py, error))?;
+
+    Ok(array::to_numpy_owned(py, array)?.into_any().unbind())
+}
+
+fn expand_dims_array<T>(py: Python<'_>, array: NDArray<T>, axis: i64) -> PyResult<Py<PyAny>>
+where
+    T: ArrayElement + Element,
+{
+    let array = gil::without_gil(py, move || array.expand_dims(axis).map(|view| view.to_owned()))
+        .map_err(|error| crate::error::ndarray(py, error))?;
 
     Ok(array::to_numpy_owned(py, array)?.into_any().unbind())
 }

@@ -108,6 +108,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(reshape, module)?)?;
     module.add_function(wrap_pyfunction!(transpose, module)?)?;
     module.add_function(wrap_pyfunction!(squeeze, module)?)?;
+    module.add_function(wrap_pyfunction!(expand_dims, module)?)?;
     module.add_function(wrap_pyfunction!(allclose, module)?)?;
     module.add_function(wrap_pyfunction!(clip, module)?)?;
     module.add_function(wrap_pyfunction!(matmul, module)?)?;
@@ -491,6 +492,11 @@ fn transpose(
 #[pyfunction(signature = (value, axis = None))]
 fn squeeze(py: Python<'_>, value: &Bound<'_, PyAny>, axis: Option<i64>) -> PyResult<Py<PyAny>> {
     shape_ops::squeeze(py, value, axis)
+}
+
+#[pyfunction]
+fn expand_dims(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
+    shape_ops::expand_dims(py, value, axis)
 }
 
 #[pyfunction(signature = (lhs, rhs, rtol = 1e-5, atol = 1e-8, equal_nan = false))]
