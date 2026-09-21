@@ -16,6 +16,7 @@ zeros = _native.zeros
 ones = _native.ones
 full = _native.full
 arange = _native.arange
+astype = _native.astype
 shape = _native.shape
 ndim = _native.ndim
 size = _native.size
@@ -45,6 +46,7 @@ __all__ = [
     "__version__",
     "add",
     "arange",
+    "astype",
     "asarray",
     "count_true",
     "divide",

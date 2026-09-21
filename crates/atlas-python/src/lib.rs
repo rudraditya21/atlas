@@ -7,11 +7,14 @@ use pyo3::prelude::*;
 
 mod arithmetic;
 mod array;
+mod casting;
 mod constructors;
 mod error;
 mod gil;
 mod logical;
 mod metadata;
+#[path = "dtype.rs"]
+mod python_dtype;
 #[cfg(feature = "test-support")]
 mod scalar;
 #[cfg(feature = "test-support")]
@@ -30,6 +33,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(ones, module)?)?;
     module.add_function(wrap_pyfunction!(full, module)?)?;
     module.add_function(wrap_pyfunction!(arange, module)?)?;
+    module.add_function(wrap_pyfunction!(astype, module)?)?;
     module.add_function(wrap_pyfunction!(shape, module)?)?;
     module.add_function(wrap_pyfunction!(ndim, module)?)?;
     module.add_function(wrap_pyfunction!(size, module)?)?;
@@ -89,6 +93,11 @@ fn arange(
     dtype: Option<&str>,
 ) -> PyResult<Py<PyAny>> {
     constructors::arange(py, start, stop, step, dtype)
+}
+
+#[pyfunction]
+fn astype(py: Python<'_>, value: &Bound<'_, PyAny>, dtype: &str) -> PyResult<Py<PyAny>> {
+    casting::astype(py, value, dtype)
 }
 
 #[pyfunction]
