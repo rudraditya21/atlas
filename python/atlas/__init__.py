@@ -53,6 +53,8 @@ variance = _native.variance
 stddev = _native.stddev
 argmin = _native.argmin
 argmax = _native.argmax
+cumsum = _native.cumsum
+cumprod = _native.cumprod
 sum_axis = _native.sum_axis
 mean_axis = _native.mean_axis
 min_axis = _native.min_axis
@@ -77,6 +79,8 @@ __all__ = [
     "astype",
     "asarray",
     "count_true",
+    "cumprod",
+    "cumsum",
     "clip",
     "divide",
     "dtype",
