@@ -80,3 +80,41 @@ def test_integer_dtypes_preserve_construction_arithmetic_and_comparison_output(
     assert added.tolist() == (source + 1).tolist()
     assert comparison.dtype == np.dtype(bool)
     assert comparison.tolist() == (source > 0).tolist()
+
+
+def test_array_operations_reject_mixed_dtypes() -> None:
+    with pytest.raises(TypeError, match="unsupported NumPy dtype"):
+        atlas.add(np.array([1], dtype=np.int32), np.array([1.0], dtype=np.float32))
+
+    with pytest.raises(TypeError, match="unsupported NumPy dtype"):
+        atlas.equal(np.array([1], dtype=np.uint8), np.array([1], dtype=np.int16))
+
+
+@pytest.mark.parametrize(
+    ("values", "scalar", "expected"),
+    [
+        (np.array([1, 2], dtype=np.int8), 3, [4, 5]),
+        (np.array([1, 2], dtype=np.uint8), 3, [4, 5]),
+    ],
+)
+def test_array_operations_accept_scalars_that_fit_the_left_dtype(
+    values: np.ndarray, scalar: int, expected: list[int]
+) -> None:
+    result = atlas.add(values, scalar)
+
+    assert result.dtype == values.dtype
+    assert result.tolist() == expected
+
+
+@pytest.mark.parametrize(
+    ("values", "scalar"),
+    [
+        (np.array([1], dtype=np.int8), 128),
+        (np.array([1], dtype=np.uint8), -1),
+    ],
+)
+def test_array_operations_reject_scalars_outside_the_left_dtype(
+    values: np.ndarray, scalar: int
+) -> None:
+    with pytest.raises(OverflowError):
+        atlas.add(values, scalar)
