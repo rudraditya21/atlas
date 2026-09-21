@@ -19,6 +19,8 @@ enum Reduction {
 enum AxisReduction {
     Sum,
     Mean,
+    Min,
+    Max,
 }
 
 pub(crate) fn sum(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
@@ -55,6 +57,14 @@ pub(crate) fn mean_axis(
     axis: i64,
 ) -> PyResult<Py<PyAny>> {
     reduce_axis(py, value, axis, AxisReduction::Mean)
+}
+
+pub(crate) fn min_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
+    reduce_axis(py, value, axis, AxisReduction::Min)
+}
+
+pub(crate) fn max_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
+    reduce_axis(py, value, axis, AxisReduction::Max)
 }
 
 fn reduce(py: Python<'_>, value: &Bound<'_, PyAny>, reduction: Reduction) -> PyResult<Py<PyAny>> {
@@ -105,6 +115,8 @@ fn reduce_axis(
             match reduction {
                 AxisReduction::Sum => reduce_sum_axis(py, array, axis),
                 AxisReduction::Mean => reduce_mean_axis(py, array, axis),
+                AxisReduction::Min => reduce_min_axis(py, array, axis),
+                AxisReduction::Max => reduce_max_axis(py, array, axis),
             }
         }};
     }
@@ -181,6 +193,20 @@ where
     T: Numeric + ToPrimitive + Element,
 {
     array_output(py, gil::without_gil(py, move || array.mean_axis(axis)))
+}
+
+fn reduce_min_axis<T>(py: Python<'_>, array: NDArray<T>, axis: i64) -> PyResult<Py<PyAny>>
+where
+    T: Numeric + PartialOrd + Element,
+{
+    array_output(py, gil::without_gil(py, move || array.min_axis(axis)))
+}
+
+fn reduce_max_axis<T>(py: Python<'_>, array: NDArray<T>, axis: i64) -> PyResult<Py<PyAny>>
+where
+    T: Numeric + PartialOrd + Element,
+{
+    array_output(py, gil::without_gil(py, move || array.max_axis(axis)))
 }
 
 fn scalar<T>(py: Python<'_>, result: atlas_ndarray::AtlasNdResult<T>) -> PyResult<Py<PyAny>>

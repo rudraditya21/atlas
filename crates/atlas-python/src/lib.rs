@@ -68,6 +68,8 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(stddev, module)?)?;
     module.add_function(wrap_pyfunction!(sum_axis, module)?)?;
     module.add_function(wrap_pyfunction!(mean_axis, module)?)?;
+    module.add_function(wrap_pyfunction!(min_axis, module)?)?;
+    module.add_function(wrap_pyfunction!(max_axis, module)?)?;
     module.add_function(wrap_pyfunction!(reshape, module)?)?;
     module.add_function(wrap_pyfunction!(transpose, module)?)?;
     module.add_function(wrap_pyfunction!(allclose, module)?)?;
@@ -277,6 +279,16 @@ fn sum_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<
 #[pyfunction]
 fn mean_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
     reduction::mean_axis(py, value, axis)
+}
+
+#[pyfunction]
+fn min_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
+    reduction::min_axis(py, value, axis)
+}
+
+#[pyfunction]
+fn max_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
+    reduction::max_axis(py, value, axis)
 }
 
 #[pyfunction]
