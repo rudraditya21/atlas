@@ -39,6 +39,8 @@ sum = _native.sum
 mean = _native.mean
 min = _native.min
 max = _native.max
+reshape = _native.reshape
+transpose = _native.transpose
 
 __all__ = [
     "AtlasError",
@@ -75,5 +77,7 @@ __all__ = [
     "size",
     "subtract",
     "sum",
+    "reshape",
+    "transpose",
     "zeros",
 ]

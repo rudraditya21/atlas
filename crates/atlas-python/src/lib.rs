@@ -18,6 +18,7 @@ mod python_dtype;
 mod reduction;
 #[cfg(feature = "test-support")]
 mod scalar;
+mod shape_ops;
 #[cfg(feature = "test-support")]
 mod test_support;
 
@@ -57,6 +58,8 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(mean, module)?)?;
     module.add_function(wrap_pyfunction!(min, module)?)?;
     module.add_function(wrap_pyfunction!(max, module)?)?;
+    module.add_function(wrap_pyfunction!(reshape, module)?)?;
+    module.add_function(wrap_pyfunction!(transpose, module)?)?;
 
     #[cfg(feature = "test-support")]
     test_support::register(module)?;
@@ -234,4 +237,14 @@ fn min(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
 #[pyfunction]
 fn max(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     reduction::max(py, value)
+}
+
+#[pyfunction]
+fn reshape(py: Python<'_>, value: &Bound<'_, PyAny>, shape: Vec<usize>) -> PyResult<Py<PyAny>> {
+    shape_ops::reshape(py, value, shape)
+}
+
+#[pyfunction]
+fn transpose(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    shape_ops::transpose(py, value)
 }
