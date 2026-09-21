@@ -55,6 +55,8 @@ argmin = _native.argmin
 argmax = _native.argmax
 cumsum = _native.cumsum
 cumprod = _native.cumprod
+cumsum_axis = _native.cumsum_axis
+cumprod_axis = _native.cumprod_axis
 sum_axis = _native.sum_axis
 mean_axis = _native.mean_axis
 min_axis = _native.min_axis
@@ -80,7 +82,9 @@ __all__ = [
     "asarray",
     "count_true",
     "cumprod",
+    "cumprod_axis",
     "cumsum",
+    "cumsum_axis",
     "clip",
     "divide",
     "dtype",

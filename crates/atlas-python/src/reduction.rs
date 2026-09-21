@@ -71,6 +71,22 @@ pub(crate) fn cumprod(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<P
     cumulative(py, value, CumulativeReduction::Product)
 }
 
+pub(crate) fn cumsum_axis(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axis: i64,
+) -> PyResult<Py<PyAny>> {
+    cumulative_axis(py, value, axis, CumulativeReduction::Sum)
+}
+
+pub(crate) fn cumprod_axis(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axis: i64,
+) -> PyResult<Py<PyAny>> {
+    cumulative_axis(py, value, axis, CumulativeReduction::Product)
+}
+
 pub(crate) fn sum_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
     reduce_axis(py, value, axis, AxisReduction::Sum)
 }
@@ -176,6 +192,41 @@ fn cumulative(
             let result = gil::without_gil(py, move || match reduction {
                 CumulativeReduction::Sum => array.cumsum(),
                 CumulativeReduction::Product => array.cumprod(),
+            });
+            array_output(py, result)
+        }};
+    }
+
+    match dtype.as_str() {
+        "int8" => apply!(i8),
+        "int16" => apply!(i16),
+        "int32" => apply!(i32),
+        "int64" => apply!(i64),
+        "uint8" => apply!(u8),
+        "uint16" => apply!(u16),
+        "uint32" => apply!(u32),
+        "uint64" => apply!(u64),
+        "float32" => apply!(f32),
+        "float64" => apply!(f64),
+        _ => Err(PyTypeError::new_err("reductions require a supported numeric NumPy dtype")),
+    }
+}
+
+fn cumulative_axis(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axis: i64,
+    reduction: CumulativeReduction,
+) -> PyResult<Py<PyAny>> {
+    array::require_numpy_array(py, value)?;
+    let dtype: String = value.getattr("dtype")?.getattr("name")?.extract()?;
+
+    macro_rules! apply {
+        ($ty:ty) => {{
+            let array = array::from_numpy(array::readonly_from_python::<$ty>(py, value)?)?;
+            let result = gil::without_gil(py, move || match reduction {
+                CumulativeReduction::Sum => array.cumsum_axis(axis),
+                CumulativeReduction::Product => array.cumprod_axis(axis),
             });
             array_output(py, result)
         }};

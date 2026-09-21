@@ -70,6 +70,8 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(argmax, module)?)?;
     module.add_function(wrap_pyfunction!(cumsum, module)?)?;
     module.add_function(wrap_pyfunction!(cumprod, module)?)?;
+    module.add_function(wrap_pyfunction!(cumsum_axis, module)?)?;
+    module.add_function(wrap_pyfunction!(cumprod_axis, module)?)?;
     module.add_function(wrap_pyfunction!(sum_axis, module)?)?;
     module.add_function(wrap_pyfunction!(mean_axis, module)?)?;
     module.add_function(wrap_pyfunction!(min_axis, module)?)?;
@@ -293,6 +295,16 @@ fn cumsum(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
 #[pyfunction]
 fn cumprod(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     reduction::cumprod(py, value)
+}
+
+#[pyfunction]
+fn cumsum_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
+    reduction::cumsum_axis(py, value, axis)
+}
+
+#[pyfunction]
+fn cumprod_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
+    reduction::cumprod_axis(py, value, axis)
 }
 
 #[pyfunction]
