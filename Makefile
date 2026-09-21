@@ -21,7 +21,7 @@ help:
 	@printf "  make clean           Remove build artifacts\n"
 
 build:
-	$(CARGO) build $(WORKSPACE_FLAGS)
+	$(CARGO) build $(WORKSPACE_FLAGS) --exclude atlas-python
 
 check:
 	$(CARGO) fmt --all --check
