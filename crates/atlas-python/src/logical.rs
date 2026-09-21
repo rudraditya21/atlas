@@ -213,5 +213,5 @@ fn output_owned<T>(py: Python<'_>, array: atlas_ndarray::NDArray<T>) -> PyResult
 where
     T: atlas_ndarray::ArrayElement + numpy::Element,
 {
-    Ok(array::to_numpy(py, &array)?.into_any().unbind())
+    Ok(array::to_numpy_owned(py, array)?.into_any().unbind())
 }

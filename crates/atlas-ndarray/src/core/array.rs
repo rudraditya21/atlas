@@ -38,6 +38,11 @@ impl<T: ArrayElement> NDArray<T> {
         &self.data
     }
 
+    /// Consumes the array and returns its row-major data and shape.
+    pub fn into_raw_parts(self) -> (Vec<T>, Vec<usize>) {
+        (self.data, self.shape)
+    }
+
     /// Borrows this array without copying its storage.
     pub fn asarray(&self) -> AsArray<'_, T> {
         AsArray::Borrowed(self.view())

@@ -112,7 +112,7 @@ macro_rules! impl_apply {
             };
 
             let result = result.map_err(|error| PyValueError::new_err(error.to_string()))?;
-            Ok(array::to_numpy(py, &result)?.into_any().unbind())
+            Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
         }
     };
 }

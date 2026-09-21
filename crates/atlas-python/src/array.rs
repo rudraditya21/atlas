@@ -40,6 +40,18 @@ where
     PyArray1::from_vec(py, array.data().to_vec()).reshape(array.shape().to_vec())
 }
 
+pub(crate) fn to_numpy_owned<'py, T>(
+    py: Python<'py>,
+    array: NDArray<T>,
+) -> PyResult<Bound<'py, PyArrayDyn<T>>>
+where
+    T: ArrayElement + Element,
+{
+    let (data, shape) = array.into_raw_parts();
+
+    PyArray1::from_vec(py, data).reshape(shape)
+}
+
 fn validate_dtype<T>(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<()>
 where
     T: Element,
