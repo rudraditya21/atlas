@@ -37,6 +37,7 @@ concatenate = _native.concatenate
 stack = _native.stack
 diag = _native.diag
 matrix_norm = _native.matrix_norm
+det = _native.det
 clip = _native.clip
 matmul = _native.matmul
 neg = _native.neg
@@ -124,6 +125,7 @@ __all__ = [
     "concatenate",
     "divide",
     "diag",
+    "det",
     "dot",
     "dtype",
     "equal",

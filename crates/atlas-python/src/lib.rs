@@ -15,6 +15,8 @@ mod close;
 #[path = "concat.rs"]
 mod concat_ops;
 mod constructors;
+#[path = "determinant.rs"]
+mod determinant_ops;
 #[path = "diag.rs"]
 mod diag_ops;
 #[path = "dot.rs"]
@@ -93,6 +95,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(stack, module)?)?;
     module.add_function(wrap_pyfunction!(diag, module)?)?;
     module.add_function(wrap_pyfunction!(matrix_norm, module)?)?;
+    module.add_function(wrap_pyfunction!(det, module)?)?;
     module.add_function(wrap_pyfunction!(nonzero, module)?)?;
     module.add_function(wrap_pyfunction!(masked_fill, module)?)?;
     module.add_function(wrap_pyfunction!(sum, module)?)?;
@@ -380,6 +383,11 @@ fn diag(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
 #[pyfunction(signature = (value, order = "fro"))]
 fn matrix_norm(py: Python<'_>, value: &Bound<'_, PyAny>, order: &str) -> PyResult<f64> {
     matrix_norm_ops::matrix_norm(py, value, order)
+}
+
+#[pyfunction]
+fn det(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<f64> {
+    determinant_ops::det(py, value)
 }
 
 #[pyfunction]
