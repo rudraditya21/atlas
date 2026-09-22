@@ -96,6 +96,7 @@ reshape = _native.reshape
 transpose = _native.transpose
 swap_axes = _native.swap_axes
 split = _native.split
+repeat = _native.repeat
 
 __all__ = [
     "AtlasError",
@@ -179,6 +180,7 @@ __all__ = [
     "take",
     "reshape",
     "ravel",
+    "repeat",
     "round",
     "sign",
     "isnan",

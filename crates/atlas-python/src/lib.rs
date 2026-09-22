@@ -40,6 +40,8 @@ mod python_dtype;
 #[path = "ravel.rs"]
 mod ravel_ops;
 mod reduction;
+#[path = "repeat.rs"]
+mod repeat_ops;
 #[cfg(feature = "test-support")]
 mod scalar;
 mod shape_ops;
@@ -139,6 +141,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(transpose, module)?)?;
     module.add_function(wrap_pyfunction!(swap_axes, module)?)?;
     module.add_function(wrap_pyfunction!(split, module)?)?;
+    module.add_function(wrap_pyfunction!(repeat, module)?)?;
     module.add_function(wrap_pyfunction!(squeeze, module)?)?;
     module.add_function(wrap_pyfunction!(expand_dims, module)?)?;
     module.add_function(wrap_pyfunction!(allclose, module)?)?;
@@ -589,6 +592,16 @@ fn split(
     axis: i64,
 ) -> PyResult<Vec<Py<PyAny>>> {
     split_ops::split(py, value, indices, axis)
+}
+
+#[pyfunction(signature = (value, repeats, axis = None))]
+fn repeat(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    repeats: i64,
+    axis: Option<i64>,
+) -> PyResult<Py<PyAny>> {
+    repeat_ops::repeat(py, value, repeats, axis)
 }
 
 #[pyfunction(signature = (value, axis = None))]
