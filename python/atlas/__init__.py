@@ -99,6 +99,7 @@ split = _native.split
 repeat = _native.repeat
 tile = _native.tile
 flip = _native.flip
+roll = _native.roll
 
 __all__ = [
     "AtlasError",
@@ -185,6 +186,7 @@ __all__ = [
     "reshape",
     "ravel",
     "repeat",
+    "roll",
     "round",
     "sign",
     "isnan",

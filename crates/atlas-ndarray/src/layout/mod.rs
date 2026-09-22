@@ -8,6 +8,7 @@ pub(crate) mod permutation;
 pub(crate) mod ravel;
 pub(crate) mod repeat;
 pub(crate) mod reshape;
+pub(crate) mod roll;
 pub(crate) mod shape_ops;
 pub(crate) mod split;
 pub(crate) mod stack;
