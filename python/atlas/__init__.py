@@ -38,6 +38,7 @@ stack = _native.stack
 diag = _native.diag
 matrix_norm = _native.matrix_norm
 det = _native.det
+inverse = _native.inverse
 clip = _native.clip
 matmul = _native.matmul
 neg = _native.neg
@@ -169,6 +170,7 @@ __all__ = [
     "round",
     "sign",
     "isnan",
+    "inverse",
     "isinf",
     "isfinite",
     "transpose",

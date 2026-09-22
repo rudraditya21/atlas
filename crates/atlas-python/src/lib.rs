@@ -23,6 +23,8 @@ mod diag_ops;
 mod dot_ops;
 mod error;
 mod gil;
+#[path = "inverse.rs"]
+mod inverse_ops;
 mod logical;
 #[path = "matmul.rs"]
 mod matmul_ops;
@@ -96,6 +98,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(diag, module)?)?;
     module.add_function(wrap_pyfunction!(matrix_norm, module)?)?;
     module.add_function(wrap_pyfunction!(det, module)?)?;
+    module.add_function(wrap_pyfunction!(inverse, module)?)?;
     module.add_function(wrap_pyfunction!(nonzero, module)?)?;
     module.add_function(wrap_pyfunction!(masked_fill, module)?)?;
     module.add_function(wrap_pyfunction!(sum, module)?)?;
@@ -388,6 +391,11 @@ fn matrix_norm(py: Python<'_>, value: &Bound<'_, PyAny>, order: &str) -> PyResul
 #[pyfunction]
 fn det(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<f64> {
     determinant_ops::det(py, value)
+}
+
+#[pyfunction]
+fn inverse(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    inverse_ops::inverse(py, value)
 }
 
 #[pyfunction]
