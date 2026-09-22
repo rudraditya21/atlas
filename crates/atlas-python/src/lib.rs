@@ -39,6 +39,8 @@ mod matrix_norm_ops;
 mod metadata;
 #[path = "norm.rs"]
 mod norm_ops;
+#[path = "pad.rs"]
+mod pad_ops;
 #[path = "dtype.rs"]
 mod python_dtype;
 #[path = "ravel.rs"]
@@ -160,6 +162,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(sort, module)?)?;
     module.add_function(wrap_pyfunction!(argsort, module)?)?;
     module.add_function(wrap_pyfunction!(unique, module)?)?;
+    module.add_function(wrap_pyfunction!(pad, module)?)?;
     module.add_function(wrap_pyfunction!(squeeze, module)?)?;
     module.add_function(wrap_pyfunction!(expand_dims, module)?)?;
     module.add_function(wrap_pyfunction!(allclose, module)?)?;
@@ -659,6 +662,16 @@ fn argsort(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<P
 #[pyfunction]
 fn unique(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     unique_ops::unique(py, value)
+}
+
+#[pyfunction(signature = (array, widths, value = None))]
+fn pad(
+    py: Python<'_>,
+    array: &Bound<'_, PyAny>,
+    widths: &Bound<'_, PyAny>,
+    value: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Py<PyAny>> {
+    pad_ops::pad(py, array, widths, value)
 }
 
 #[pyfunction(signature = (value, axis = None))]

@@ -103,6 +103,7 @@ roll = _native.roll
 sort = _native.sort
 argsort = _native.argsort
 unique = _native.unique
+pad = _native.pad
 
 __all__ = [
     "AtlasError",
@@ -173,6 +174,7 @@ __all__ = [
     "nonzero",
     "not_equal",
     "ones",
+    "pad",
     "select",
     "shape",
     "size",
