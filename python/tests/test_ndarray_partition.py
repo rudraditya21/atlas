@@ -4,15 +4,20 @@ import atlas
 
 
 def test_partition_supports_values_views_and_axes() -> None:
-    integers = np.array([3, 1, 2, 1], dtype=np.int32)
-    view = np.array([[3.0, 1.0], [4.0, 2.0]]).T
-    np.testing.assert_array_equal(
-        atlas.partition(integers, 2), np.partition(integers, 2)
-    )
+    integers = np.array([9, 1, 8, 2, 7], dtype=np.int32)
+    result = atlas.partition(integers, 2)
+
+    np.testing.assert_array_equal(np.sort(result), np.sort(integers))
+    assert np.all(result[:2] <= result[2])
+    assert np.all(result[3:] >= result[2])
+
+    view = np.array([[9.0, 1.0, 8.0], [2.0, 7.0, 3.0]]).T
     assert not view.flags.c_contiguous
-    np.testing.assert_array_equal(
-        atlas.partition(view, 1, axis=0), np.partition(view, 1, axis=0)
-    )
+    result = atlas.partition(view, 1, axis=0)
+    expected = np.sort(view, axis=0)[1]
+    np.testing.assert_array_equal(result[1], expected)
+    assert np.all(result[:1] <= result[1:2])
+    assert np.all(result[2:] >= result[1:2])
 
 
 @pytest.mark.parametrize("kth", [-4, 3])

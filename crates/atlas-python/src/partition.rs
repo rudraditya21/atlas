@@ -14,8 +14,8 @@ pub(crate) fn partition(
         ($ty:ty) => {{
             let array = array::from_numpy(array::readonly_from_python::<$ty>(py, value)?)?;
             let result = gil::without_gil(py, move || {
-                valid(array.shape(), kth, axis)?;
-                array.sort(axis)
+                let kth = normalize_kth(array.shape(), kth, axis)?;
+                array.partition(kth, axis)
             })
             .map_err(|e| crate::error::ndarray(py, e))?;
             Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
@@ -36,7 +36,7 @@ pub(crate) fn partition(
         _ => Err(PyTypeError::new_err(format!("unsupported NumPy dtype {dtype}"))),
     }
 }
-fn valid(shape: &[usize], kth: i64, axis: i64) -> Result<(), AtlasNdError> {
+fn normalize_kth(shape: &[usize], kth: i64, axis: i64) -> Result<usize, AtlasNdError> {
     let n = shape.len();
     let a = if axis < 0 { axis + n as i64 } else { axis };
     if a < 0 || a as usize >= n {
@@ -47,5 +47,5 @@ fn valid(shape: &[usize], kth: i64, axis: i64) -> Result<(), AtlasNdError> {
     if k < 0 || k as usize >= len {
         return Err(AtlasNdError::IndexOutOfBounds { axis: a as usize, index: k, dim: len });
     }
-    Ok(())
+    Ok(k as usize)
 }
