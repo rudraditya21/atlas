@@ -41,6 +41,7 @@ det = _native.det
 inverse = _native.inverse
 solve = _native.solve
 ravel = _native.ravel
+flatten = _native.flatten
 clip = _native.clip
 matmul = _native.matmul
 neg = _native.neg
@@ -133,6 +134,7 @@ __all__ = [
     "dtype",
     "equal",
     "expand_dims",
+    "flatten",
     "full",
     "greater",
     "greater_equal",

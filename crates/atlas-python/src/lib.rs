@@ -22,6 +22,8 @@ mod diag_ops;
 #[path = "dot.rs"]
 mod dot_ops;
 mod error;
+#[path = "flatten.rs"]
+mod flatten_ops;
 mod gil;
 #[path = "inverse.rs"]
 mod inverse_ops;
@@ -105,6 +107,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(inverse, module)?)?;
     module.add_function(wrap_pyfunction!(solve, module)?)?;
     module.add_function(wrap_pyfunction!(ravel, module)?)?;
+    module.add_function(wrap_pyfunction!(flatten, module)?)?;
     module.add_function(wrap_pyfunction!(nonzero, module)?)?;
     module.add_function(wrap_pyfunction!(masked_fill, module)?)?;
     module.add_function(wrap_pyfunction!(sum, module)?)?;
@@ -412,6 +415,11 @@ fn solve(py: Python<'_>, matrix: &Bound<'_, PyAny>, rhs: &Bound<'_, PyAny>) -> P
 #[pyfunction]
 fn ravel(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     ravel_ops::ravel(py, value)
+}
+
+#[pyfunction]
+fn flatten(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    flatten_ops::flatten(py, value)
 }
 
 #[pyfunction]
