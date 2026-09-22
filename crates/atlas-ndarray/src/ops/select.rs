@@ -63,7 +63,7 @@ where
         );
     }
 
-    Ok(NDArray::from_shape_vec([data.len()], data)?)
+    NDArray::from_shape_vec([data.len()], data)
 }
 
 fn count_selected<M: OperandMetadata<bool> + ?Sized>(mask: &M) -> usize {
