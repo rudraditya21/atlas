@@ -98,6 +98,7 @@ swap_axes = _native.swap_axes
 split = _native.split
 repeat = _native.repeat
 tile = _native.tile
+flip = _native.flip
 
 __all__ = [
     "AtlasError",
@@ -141,6 +142,7 @@ __all__ = [
     "equal",
     "expand_dims",
     "flatten",
+    "flip",
     "full",
     "greater",
     "greater_equal",

@@ -24,6 +24,8 @@ mod dot_ops;
 mod error;
 #[path = "flatten.rs"]
 mod flatten_ops;
+#[path = "flip.rs"]
+mod flip_ops;
 mod gil;
 #[path = "inverse.rs"]
 mod inverse_ops;
@@ -145,6 +147,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(split, module)?)?;
     module.add_function(wrap_pyfunction!(repeat, module)?)?;
     module.add_function(wrap_pyfunction!(tile, module)?)?;
+    module.add_function(wrap_pyfunction!(flip, module)?)?;
     module.add_function(wrap_pyfunction!(squeeze, module)?)?;
     module.add_function(wrap_pyfunction!(expand_dims, module)?)?;
     module.add_function(wrap_pyfunction!(allclose, module)?)?;
@@ -614,6 +617,11 @@ fn tile(
     repetitions: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyAny>> {
     tile_ops::tile(py, value, repetitions)
+}
+
+#[pyfunction(signature = (value, axis = None))]
+fn flip(py: Python<'_>, value: &Bound<'_, PyAny>, axis: Option<i64>) -> PyResult<Py<PyAny>> {
+    flip_ops::flip(py, value, axis)
 }
 
 #[pyfunction(signature = (value, axis = None))]
