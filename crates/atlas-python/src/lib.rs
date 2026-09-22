@@ -39,6 +39,8 @@ mod reduction;
 #[cfg(feature = "test-support")]
 mod scalar;
 mod shape_ops;
+#[path = "solve.rs"]
+mod solve_ops;
 #[path = "stack.rs"]
 mod stack_ops;
 #[path = "take.rs"]
@@ -99,6 +101,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(matrix_norm, module)?)?;
     module.add_function(wrap_pyfunction!(det, module)?)?;
     module.add_function(wrap_pyfunction!(inverse, module)?)?;
+    module.add_function(wrap_pyfunction!(solve, module)?)?;
     module.add_function(wrap_pyfunction!(nonzero, module)?)?;
     module.add_function(wrap_pyfunction!(masked_fill, module)?)?;
     module.add_function(wrap_pyfunction!(sum, module)?)?;
@@ -396,6 +399,11 @@ fn det(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<f64> {
 #[pyfunction]
 fn inverse(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     inverse_ops::inverse(py, value)
+}
+
+#[pyfunction]
+fn solve(py: Python<'_>, matrix: &Bound<'_, PyAny>, rhs: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    solve_ops::solve(py, matrix, rhs)
 }
 
 #[pyfunction]
