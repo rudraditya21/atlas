@@ -7,6 +7,8 @@ use crate::{
 
 pub trait SortElement: ArrayElement {
     fn sort_compare(&self, other: &Self) -> Ordering;
+
+    fn sort_equal(&self, other: &Self) -> bool;
 }
 
 macro_rules! impl_sort_element {
@@ -14,6 +16,10 @@ macro_rules! impl_sort_element {
         impl SortElement for $ty {
             fn sort_compare(&self, other: &Self) -> Ordering {
                 self.cmp(other)
+            }
+
+            fn sort_equal(&self, other: &Self) -> bool {
+                self == other
             }
         }
     )+ };
@@ -32,6 +38,10 @@ macro_rules! impl_float_sort_element {
                     (false, false) => self.total_cmp(other),
                 }
             }
+
+            fn sort_equal(&self, other: &Self) -> bool {
+                self == other || (self.is_nan() && other.is_nan())
+            }
         }
     )+ };
 }
@@ -48,6 +58,11 @@ impl<T: SortElement> NDArray<T> {
     pub fn argsort<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<i64>> {
         argsort_operand(self, axis)
     }
+
+    /// Returns sorted unique logical values as an owned one-dimensional array.
+    pub fn unique(&self) -> NDArray<T> {
+        unique_operand(self)
+    }
 }
 
 impl<'a, T: SortElement> ArrayView<'a, T> {
@@ -59,6 +74,11 @@ impl<'a, T: SortElement> ArrayView<'a, T> {
     /// Returns stable ascending sort indices for each lane along `axis`.
     pub fn argsort<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<i64>> {
         argsort_operand(self, axis)
+    }
+
+    /// Returns sorted unique logical values as an owned one-dimensional array.
+    pub fn unique(&self) -> NDArray<T> {
+        unique_operand(self)
     }
 }
 
@@ -122,4 +142,19 @@ where
     }
 
     NDArray::from_shape_vec(shape.to_vec(), indices)
+}
+
+fn unique_operand<T, O>(operand: &O) -> NDArray<T>
+where
+    T: SortElement,
+    O: OperandMetadata<T> + ?Sized,
+{
+    let mut values: Vec<_> =
+        value_iter(operand.data(), operand.offset(), operand.shape(), operand.strides())
+            .copied()
+            .collect();
+    values.sort_by(SortElement::sort_compare);
+    values.dedup_by(|left, right| left.sort_equal(right));
+
+    NDArray::from_vector_data(values).expect("unique preserves ndarray invariants")
 }

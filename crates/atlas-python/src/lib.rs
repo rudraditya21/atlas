@@ -68,6 +68,8 @@ mod tile_ops;
 #[path = "trace.rs"]
 mod trace_ops;
 mod unary;
+#[path = "unique.rs"]
+mod unique_ops;
 mod where_ops;
 
 #[pyfunction]
@@ -157,6 +159,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(roll, module)?)?;
     module.add_function(wrap_pyfunction!(sort, module)?)?;
     module.add_function(wrap_pyfunction!(argsort, module)?)?;
+    module.add_function(wrap_pyfunction!(unique, module)?)?;
     module.add_function(wrap_pyfunction!(squeeze, module)?)?;
     module.add_function(wrap_pyfunction!(expand_dims, module)?)?;
     module.add_function(wrap_pyfunction!(allclose, module)?)?;
@@ -651,6 +654,11 @@ fn sort(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAn
 #[pyfunction(signature = (value, axis = -1))]
 fn argsort(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
     argsort_ops::argsort(py, value, axis)
+}
+
+#[pyfunction]
+fn unique(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    unique_ops::unique(py, value)
 }
 
 #[pyfunction(signature = (value, axis = None))]

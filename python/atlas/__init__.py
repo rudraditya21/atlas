@@ -102,6 +102,7 @@ flip = _native.flip
 roll = _native.roll
 sort = _native.sort
 argsort = _native.argsort
+unique = _native.unique
 
 __all__ = [
     "AtlasError",
@@ -199,6 +200,7 @@ __all__ = [
     "isfinite",
     "transpose",
     "trace",
+    "unique",
     "variance",
     "where",
     "zeros",
