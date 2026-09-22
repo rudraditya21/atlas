@@ -5,6 +5,8 @@
 
 use pyo3::prelude::*;
 
+#[path = "argsort.rs"]
+mod argsort_ops;
 mod arithmetic;
 mod array;
 mod bitwise;
@@ -154,6 +156,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(flip, module)?)?;
     module.add_function(wrap_pyfunction!(roll, module)?)?;
     module.add_function(wrap_pyfunction!(sort, module)?)?;
+    module.add_function(wrap_pyfunction!(argsort, module)?)?;
     module.add_function(wrap_pyfunction!(squeeze, module)?)?;
     module.add_function(wrap_pyfunction!(expand_dims, module)?)?;
     module.add_function(wrap_pyfunction!(allclose, module)?)?;
@@ -643,6 +646,11 @@ fn roll(
 #[pyfunction(signature = (value, axis = -1))]
 fn sort(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
     sort_ops::sort(py, value, axis)
+}
+
+#[pyfunction(signature = (value, axis = -1))]
+fn argsort(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
+    argsort_ops::argsort(py, value, axis)
 }
 
 #[pyfunction(signature = (value, axis = None))]

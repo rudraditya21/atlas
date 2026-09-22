@@ -101,6 +101,7 @@ tile = _native.tile
 flip = _native.flip
 roll = _native.roll
 sort = _native.sort
+argsort = _native.argsort
 
 __all__ = [
     "AtlasError",
@@ -122,6 +123,7 @@ __all__ = [
     "any",
     "any_axis",
     "argwhere",
+    "argsort",
     "bitwise_and",
     "bitwise_not",
     "bitwise_or",
