@@ -68,6 +68,7 @@ greater_equal = _native.greater_equal
 select = _native.select
 count_true = _native.count_true
 nonzero = _native.nonzero
+argwhere = _native.argwhere
 masked_fill = _native.masked_fill
 sum = _native.sum
 mean = _native.mean
@@ -113,6 +114,7 @@ __all__ = [
     "argmin_axis",
     "any",
     "any_axis",
+    "argwhere",
     "bitwise_and",
     "bitwise_not",
     "bitwise_or",

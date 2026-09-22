@@ -157,6 +157,22 @@ pub(crate) fn nonzero(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<P
     ))
 }
 
+pub(crate) fn argwhere(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    with_dtype!(py, value, |array| {
+        let indices = gil::without_gil(py, move || array.argwhere());
+        let (data, shape) = indices.into_raw_parts();
+        let data = data
+            .into_iter()
+            .map(|index| i64::try_from(index).expect("NumPy dimensions fit i64"))
+            .collect();
+        output_owned(
+            py,
+            atlas_ndarray::NDArray::from_shape_vec(shape, data)
+                .expect("argwhere preserves ndarray invariants"),
+        )
+    })
+}
+
 pub(crate) fn masked_fill(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,

@@ -109,6 +109,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(ravel, module)?)?;
     module.add_function(wrap_pyfunction!(flatten, module)?)?;
     module.add_function(wrap_pyfunction!(nonzero, module)?)?;
+    module.add_function(wrap_pyfunction!(argwhere, module)?)?;
     module.add_function(wrap_pyfunction!(masked_fill, module)?)?;
     module.add_function(wrap_pyfunction!(sum, module)?)?;
     module.add_function(wrap_pyfunction!(mean, module)?)?;
@@ -425,6 +426,11 @@ fn flatten(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
 #[pyfunction]
 fn nonzero(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     logical::nonzero(py, value)
+}
+
+#[pyfunction]
+fn argwhere(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    logical::argwhere(py, value)
 }
 
 #[pyfunction]
