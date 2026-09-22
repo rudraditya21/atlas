@@ -104,6 +104,7 @@ sort = _native.sort
 argsort = _native.argsort
 unique = _native.unique
 pad = _native.pad
+searchsorted = _native.searchsorted
 
 __all__ = [
     "AtlasError",
@@ -176,6 +177,7 @@ __all__ = [
     "ones",
     "pad",
     "select",
+    "searchsorted",
     "shape",
     "size",
     "solve",

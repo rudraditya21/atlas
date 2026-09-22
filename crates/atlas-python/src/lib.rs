@@ -52,6 +52,8 @@ mod repeat_ops;
 mod roll_ops;
 #[cfg(feature = "test-support")]
 mod scalar;
+#[path = "searchsorted.rs"]
+mod searchsorted_ops;
 mod shape_ops;
 #[path = "solve.rs"]
 mod solve_ops;
@@ -163,6 +165,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(argsort, module)?)?;
     module.add_function(wrap_pyfunction!(unique, module)?)?;
     module.add_function(wrap_pyfunction!(pad, module)?)?;
+    module.add_function(wrap_pyfunction!(searchsorted, module)?)?;
     module.add_function(wrap_pyfunction!(squeeze, module)?)?;
     module.add_function(wrap_pyfunction!(expand_dims, module)?)?;
     module.add_function(wrap_pyfunction!(allclose, module)?)?;
@@ -672,6 +675,16 @@ fn pad(
     value: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
     pad_ops::pad(py, array, widths, value)
+}
+
+#[pyfunction(signature = (sorted, values, side = "left"))]
+fn searchsorted(
+    py: Python<'_>,
+    sorted: &Bound<'_, PyAny>,
+    values: &Bound<'_, PyAny>,
+    side: &str,
+) -> PyResult<Py<PyAny>> {
+    searchsorted_ops::searchsorted(py, sorted, values, side)
 }
 
 #[pyfunction(signature = (value, axis = None))]
