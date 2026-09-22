@@ -41,6 +41,8 @@ mod metadata;
 mod norm_ops;
 #[path = "pad.rs"]
 mod pad_ops;
+#[path = "partition.rs"]
+mod partition_ops;
 #[path = "dtype.rs"]
 mod python_dtype;
 #[path = "ravel.rs"]
@@ -166,6 +168,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(unique, module)?)?;
     module.add_function(wrap_pyfunction!(pad, module)?)?;
     module.add_function(wrap_pyfunction!(searchsorted, module)?)?;
+    module.add_function(wrap_pyfunction!(partition, module)?)?;
     module.add_function(wrap_pyfunction!(squeeze, module)?)?;
     module.add_function(wrap_pyfunction!(expand_dims, module)?)?;
     module.add_function(wrap_pyfunction!(allclose, module)?)?;
@@ -685,6 +688,11 @@ fn searchsorted(
     side: &str,
 ) -> PyResult<Py<PyAny>> {
     searchsorted_ops::searchsorted(py, sorted, values, side)
+}
+
+#[pyfunction(signature = (value, kth, axis = -1))]
+fn partition(py: Python<'_>, value: &Bound<'_, PyAny>, kth: i64, axis: i64) -> PyResult<Py<PyAny>> {
+    partition_ops::partition(py, value, kth, axis)
 }
 
 #[pyfunction(signature = (value, axis = None))]
