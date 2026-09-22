@@ -55,6 +55,8 @@ mod stack_ops;
 mod take_ops;
 #[cfg(feature = "test-support")]
 mod test_support;
+#[path = "tile.rs"]
+mod tile_ops;
 #[path = "trace.rs"]
 mod trace_ops;
 mod unary;
@@ -142,6 +144,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(swap_axes, module)?)?;
     module.add_function(wrap_pyfunction!(split, module)?)?;
     module.add_function(wrap_pyfunction!(repeat, module)?)?;
+    module.add_function(wrap_pyfunction!(tile, module)?)?;
     module.add_function(wrap_pyfunction!(squeeze, module)?)?;
     module.add_function(wrap_pyfunction!(expand_dims, module)?)?;
     module.add_function(wrap_pyfunction!(allclose, module)?)?;
@@ -602,6 +605,15 @@ fn repeat(
     axis: Option<i64>,
 ) -> PyResult<Py<PyAny>> {
     repeat_ops::repeat(py, value, repeats, axis)
+}
+
+#[pyfunction]
+fn tile(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    repetitions: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyAny>> {
+    tile_ops::tile(py, value, repetitions)
 }
 
 #[pyfunction(signature = (value, axis = None))]

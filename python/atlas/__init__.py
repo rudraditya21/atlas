@@ -97,6 +97,7 @@ transpose = _native.transpose
 swap_axes = _native.swap_axes
 split = _native.split
 repeat = _native.repeat
+tile = _native.tile
 
 __all__ = [
     "AtlasError",
@@ -178,6 +179,7 @@ __all__ = [
     "stddev",
     "stack",
     "take",
+    "tile",
     "reshape",
     "ravel",
     "repeat",
