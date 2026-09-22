@@ -94,6 +94,7 @@ min_axis = _native.min_axis
 max_axis = _native.max_axis
 reshape = _native.reshape
 transpose = _native.transpose
+swap_axes = _native.swap_axes
 
 __all__ = [
     "AtlasError",
@@ -169,6 +170,7 @@ __all__ = [
     "subtract",
     "sum",
     "sum_axis",
+    "swap_axes",
     "squeeze",
     "stddev",
     "stack",

@@ -74,6 +74,15 @@ pub(crate) fn transpose(
     with_array!(py, value, |array| transpose_array(py, array, axes))
 }
 
+pub(crate) fn swap_axes(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    left: i64,
+    right: i64,
+) -> PyResult<Py<PyAny>> {
+    with_array!(py, value, |array| swap_axes_array(py, array, left, right))
+}
+
 pub(crate) fn squeeze(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
@@ -113,6 +122,22 @@ where
         None => Ok(array.view().transpose().to_owned()),
     })
     .map_err(|error| crate::error::ndarray(py, error))?;
+
+    Ok(array::to_numpy_owned(py, array)?.into_any().unbind())
+}
+
+fn swap_axes_array<T>(
+    py: Python<'_>,
+    array: NDArray<T>,
+    left: i64,
+    right: i64,
+) -> PyResult<Py<PyAny>>
+where
+    T: ArrayElement + Element,
+{
+    let array =
+        gil::without_gil(py, move || array.swap_axes(left, right).map(|view| view.to_owned()))
+            .map_err(|error| crate::error::ndarray(py, error))?;
 
     Ok(array::to_numpy_owned(py, array)?.into_any().unbind())
 }
