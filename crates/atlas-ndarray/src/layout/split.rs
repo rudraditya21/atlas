@@ -21,6 +21,15 @@ impl<T: ArrayElement> NDArray<T> {
     ) -> AtlasNdResult<Vec<ArrayView<'_, T>>> {
         self.view().array_split(sections, axis)
     }
+
+    /// Splits an axis at the provided indices into metadata-only views.
+    pub fn split_at_indices<A: AxisIndex>(
+        &self,
+        indices: &[usize],
+        axis: A,
+    ) -> AtlasNdResult<Vec<ArrayView<'_, T>>> {
+        self.view().split_at_indices(indices, axis)
+    }
 }
 
 impl<'a, T: ArrayElement> ArrayView<'a, T> {
@@ -53,6 +62,36 @@ impl<'a, T: ArrayElement> ArrayView<'a, T> {
         let lengths = (0..sections).map(|index| base + usize::from(index < remainder));
 
         self.split_lengths(axis, lengths)
+    }
+
+    /// Splits an axis at the provided indices into metadata-only views.
+    pub fn split_at_indices<A: AxisIndex>(
+        &self,
+        indices: &[usize],
+        axis: A,
+    ) -> AtlasNdResult<Vec<Self>> {
+        let axis = normalize_split_axis(axis, self.ndim())?;
+        let axis_len = self.shape[axis];
+        let mut start = 0;
+        let mut views = Vec::with_capacity(indices.len() + 1);
+
+        for &end in indices.iter().chain(std::iter::once(&axis_len)) {
+            if end < start || end > axis_len {
+                return Err(AtlasNdError::InvalidArgument {
+                    op: "split",
+                    reason: "split indices must be sorted and within the selected axis",
+                });
+            }
+
+            let mut starts = vec![0; self.ndim()];
+            let mut shape = self.shape.clone();
+            starts[axis] = start;
+            shape[axis] = end - start;
+            views.push(self.slice(starts, shape)?);
+            start = end;
+        }
+
+        Ok(views)
     }
 
     fn split_lengths(

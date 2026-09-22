@@ -45,6 +45,8 @@ mod scalar;
 mod shape_ops;
 #[path = "solve.rs"]
 mod solve_ops;
+#[path = "split.rs"]
+mod split_ops;
 #[path = "stack.rs"]
 mod stack_ops;
 #[path = "take.rs"]
@@ -136,6 +138,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(reshape, module)?)?;
     module.add_function(wrap_pyfunction!(transpose, module)?)?;
     module.add_function(wrap_pyfunction!(swap_axes, module)?)?;
+    module.add_function(wrap_pyfunction!(split, module)?)?;
     module.add_function(wrap_pyfunction!(squeeze, module)?)?;
     module.add_function(wrap_pyfunction!(expand_dims, module)?)?;
     module.add_function(wrap_pyfunction!(allclose, module)?)?;
@@ -576,6 +579,16 @@ fn swap_axes(
     right: i64,
 ) -> PyResult<Py<PyAny>> {
     shape_ops::swap_axes(py, value, left, right)
+}
+
+#[pyfunction]
+fn split(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    indices: Vec<usize>,
+    axis: i64,
+) -> PyResult<Vec<Py<PyAny>>> {
+    split_ops::split(py, value, indices, axis)
 }
 
 #[pyfunction(signature = (value, axis = None))]

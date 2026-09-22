@@ -95,6 +95,7 @@ max_axis = _native.max_axis
 reshape = _native.reshape
 transpose = _native.transpose
 swap_axes = _native.swap_axes
+split = _native.split
 
 __all__ = [
     "AtlasError",
@@ -167,6 +168,7 @@ __all__ = [
     "shape",
     "size",
     "solve",
+    "split",
     "subtract",
     "sum",
     "sum_axis",
