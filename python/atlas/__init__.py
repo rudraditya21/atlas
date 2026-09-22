@@ -40,6 +40,7 @@ matrix_norm = _native.matrix_norm
 det = _native.det
 inverse = _native.inverse
 solve = _native.solve
+ravel = _native.ravel
 clip = _native.clip
 matmul = _native.matmul
 neg = _native.neg
@@ -169,6 +170,7 @@ __all__ = [
     "stack",
     "take",
     "reshape",
+    "ravel",
     "round",
     "sign",
     "isnan",

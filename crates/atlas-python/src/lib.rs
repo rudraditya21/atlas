@@ -35,6 +35,8 @@ mod metadata;
 mod norm_ops;
 #[path = "dtype.rs"]
 mod python_dtype;
+#[path = "ravel.rs"]
+mod ravel_ops;
 mod reduction;
 #[cfg(feature = "test-support")]
 mod scalar;
@@ -102,6 +104,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(det, module)?)?;
     module.add_function(wrap_pyfunction!(inverse, module)?)?;
     module.add_function(wrap_pyfunction!(solve, module)?)?;
+    module.add_function(wrap_pyfunction!(ravel, module)?)?;
     module.add_function(wrap_pyfunction!(nonzero, module)?)?;
     module.add_function(wrap_pyfunction!(masked_fill, module)?)?;
     module.add_function(wrap_pyfunction!(sum, module)?)?;
@@ -404,6 +407,11 @@ fn inverse(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
 #[pyfunction]
 fn solve(py: Python<'_>, matrix: &Bound<'_, PyAny>, rhs: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     solve_ops::solve(py, matrix, rhs)
+}
+
+#[pyfunction]
+fn ravel(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    ravel_ops::ravel(py, value)
 }
 
 #[pyfunction]
