@@ -51,6 +51,8 @@ mod scalar;
 mod shape_ops;
 #[path = "solve.rs"]
 mod solve_ops;
+#[path = "sort.rs"]
+mod sort_ops;
 #[path = "split.rs"]
 mod split_ops;
 #[path = "stack.rs"]
@@ -151,6 +153,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(tile, module)?)?;
     module.add_function(wrap_pyfunction!(flip, module)?)?;
     module.add_function(wrap_pyfunction!(roll, module)?)?;
+    module.add_function(wrap_pyfunction!(sort, module)?)?;
     module.add_function(wrap_pyfunction!(squeeze, module)?)?;
     module.add_function(wrap_pyfunction!(expand_dims, module)?)?;
     module.add_function(wrap_pyfunction!(allclose, module)?)?;
@@ -635,6 +638,11 @@ fn roll(
     axis: Option<i64>,
 ) -> PyResult<Py<PyAny>> {
     roll_ops::roll(py, value, shift, axis)
+}
+
+#[pyfunction(signature = (value, axis = -1))]
+fn sort(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
+    sort_ops::sort(py, value, axis)
 }
 
 #[pyfunction(signature = (value, axis = None))]

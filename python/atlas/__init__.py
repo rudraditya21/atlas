@@ -100,6 +100,7 @@ repeat = _native.repeat
 tile = _native.tile
 flip = _native.flip
 roll = _native.roll
+sort = _native.sort
 
 __all__ = [
     "AtlasError",
@@ -174,6 +175,7 @@ __all__ = [
     "size",
     "solve",
     "split",
+    "sort",
     "subtract",
     "sum",
     "sum_axis",

@@ -53,6 +53,7 @@ pub use ops::{
     comparison::{EqOperand, GeOperand, GtOperand, LeOperand, LtOperand, NeOperand},
     indexing::Truthy,
     logical::LogicalOperand,
+    sort::SortElement,
     unary::{FloatClassify, UnaryAbs, UnaryNeg, UnaryRound, UnarySign},
     where_::{IntoWhereOperand, WhereOperand},
 };

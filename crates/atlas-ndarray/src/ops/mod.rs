@@ -11,6 +11,7 @@ pub(crate) mod nonzero;
 pub(crate) mod put;
 pub(crate) mod reduction;
 pub(crate) mod select;
+pub(crate) mod sort;
 pub(crate) mod take;
 pub(crate) mod unary;
 pub(crate) mod where_;
