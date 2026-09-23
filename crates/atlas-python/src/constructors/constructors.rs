@@ -85,13 +85,13 @@ pub(crate) fn identity(
 pub(crate) fn full(
     py: Python<'_>,
     shape: &Bound<'_, PyAny>,
-    value: &Bound<'_, PyAny>,
+    fill_value: &Bound<'_, PyAny>,
     dtype: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
     let shape = shape_values(shape)?;
     let dtype = DType::parse(py, dtype)?;
 
-    with_dtype!(dtype, all | T | output(py, NDArray::full(shape, value.extract::<T>()?)))
+    with_dtype!(dtype, all | T | output(py, NDArray::full(shape, fill_value.extract::<T>()?)))
 }
 
 fn shape_values(shape: &Bound<'_, PyAny>) -> PyResult<Vec<usize>> {

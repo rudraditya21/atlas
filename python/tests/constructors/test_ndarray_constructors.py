@@ -46,6 +46,17 @@ def test_full_supports_boolean_dtype() -> None:
     assert result.tolist() == [[True, True], [True, True]]
 
 
+def test_full_accepts_fill_value_and_compatibility_value_keywords() -> None:
+    expected = np.array([7, 7], dtype=np.int32)
+
+    np.testing.assert_array_equal(
+        atlas.full([2], fill_value=7, dtype="int32"), expected
+    )
+    np.testing.assert_array_equal(atlas.full([2], value=7, dtype="int32"), expected)
+    with pytest.raises(TypeError, match="both 'fill_value' and 'value'"):
+        atlas.full([2], fill_value=7, value=7)
+
+
 @pytest.mark.parametrize("constructor", [atlas.zeros, atlas.ones])
 def test_zeros_and_ones_accept_scalar_shapes(constructor: object) -> None:
     result = constructor(3, dtype="int32")

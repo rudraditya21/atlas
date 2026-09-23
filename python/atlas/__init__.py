@@ -164,6 +164,20 @@ pad = _native.pad
 searchsorted = _native.searchsorted
 partition = _native.partition
 
+
+_UNSET = object()
+
+
+def full(shape, fill_value=_UNSET, dtype=None, *, value=_UNSET):
+    if fill_value is not _UNSET and value is not _UNSET:
+        raise TypeError("full() received both 'fill_value' and 'value'")
+    if fill_value is _UNSET:
+        if value is _UNSET:
+            raise TypeError("full() missing required argument: 'fill_value'")
+        fill_value = value
+    return _native.full(shape, fill_value, dtype)
+
+
 asarray = _coerce_arrays(asarray, required=((0, "value"),))
 astype = _coerce_arrays(astype, required=((0, "value"),))
 

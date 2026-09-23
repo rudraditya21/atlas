@@ -252,14 +252,14 @@ fn identity(py: Python<'_>, size: usize, dtype: Option<&Bound<'_, PyAny>>) -> Py
     constructors::identity(py, size, dtype)
 }
 
-#[pyfunction(signature = (shape, value, dtype = None))]
+#[pyfunction(signature = (shape, fill_value, dtype = None))]
 fn full(
     py: Python<'_>,
     shape: &Bound<'_, PyAny>,
-    value: &Bound<'_, PyAny>,
+    fill_value: &Bound<'_, PyAny>,
     dtype: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
-    constructors::full(py, shape, value, dtype)
+    constructors::full(py, shape, fill_value, dtype)
 }
 
 #[pyfunction(signature = (start, stop = None, step = None, dtype = None))]

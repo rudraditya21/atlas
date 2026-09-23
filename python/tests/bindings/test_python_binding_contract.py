@@ -11,7 +11,7 @@ def test_constructor_sequence_shapes_and_keywords_are_supported(
     shape: list[int] | tuple[int, int],
 ) -> None:
     zeros = atlas.zeros(shape=shape, dtype="int32")
-    full = atlas.full(shape=shape, value=7, dtype="int32")
+    full = atlas.full(shape=shape, fill_value=7, dtype="int32")
 
     assert zeros.shape == (2, 3)
     assert zeros.dtype == np.dtype("int32")
