@@ -37,6 +37,45 @@ def test_full_supports_boolean_dtype() -> None:
     assert result.tolist() == [[True, True], [True, True]]
 
 
+@pytest.mark.parametrize(
+    "dtype",
+    [
+        "int8",
+        "int16",
+        "int32",
+        "int64",
+        "uint8",
+        "uint16",
+        "uint32",
+        "uint64",
+        "float32",
+        "float64",
+    ],
+)
+def test_eye_supports_numeric_dtypes(dtype: str) -> None:
+    result = atlas.eye(2, 3, dtype=dtype)
+
+    assert result.dtype == np.dtype(dtype)
+    np.testing.assert_array_equal(result, np.eye(2, 3, dtype=dtype))
+
+
+def test_eye_defaults_to_a_square_float64_matrix_and_supports_empty_dimensions() -> (
+    None
+):
+    result = atlas.eye(3)
+    empty = atlas.eye(0, 2, dtype="int64")
+
+    assert result.dtype == np.dtype("float64")
+    np.testing.assert_array_equal(result, np.eye(3))
+    assert empty.dtype == np.dtype("int64")
+    assert empty.shape == (0, 2)
+
+
+def test_eye_rejects_boolean_dtype() -> None:
+    with pytest.raises(ValueError, match="does not support bool"):
+        atlas.eye(2, dtype="bool")
+
+
 def test_arange_supports_default_and_selected_dtypes() -> None:
     assert atlas.arange(4).tolist() == [0.0, 1.0, 2.0, 3.0]
     assert atlas.arange(1, 5, 2, dtype="int64").tolist() == [1, 3]

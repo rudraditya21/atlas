@@ -63,6 +63,29 @@ pub(crate) fn ones(py: Python<'_>, shape: Vec<usize>, dtype: Option<&str>) -> Py
     }
 }
 
+pub(crate) fn eye(
+    py: Python<'_>,
+    rows: usize,
+    columns: Option<usize>,
+    dtype: Option<&str>,
+) -> PyResult<Py<PyAny>> {
+    let columns = columns.unwrap_or(rows);
+
+    match DType::parse(dtype)? {
+        DType::Bool => Err(PyValueError::new_err("eye does not support bool dtype")),
+        DType::Int8 => output(py, NDArray::<i8>::eye_with_columns(rows, columns)),
+        DType::Int16 => output(py, NDArray::<i16>::eye_with_columns(rows, columns)),
+        DType::Int32 => output(py, NDArray::<i32>::eye_with_columns(rows, columns)),
+        DType::Int64 => output(py, NDArray::<i64>::eye_with_columns(rows, columns)),
+        DType::UInt8 => output(py, NDArray::<u8>::eye_with_columns(rows, columns)),
+        DType::UInt16 => output(py, NDArray::<u16>::eye_with_columns(rows, columns)),
+        DType::UInt32 => output(py, NDArray::<u32>::eye_with_columns(rows, columns)),
+        DType::UInt64 => output(py, NDArray::<u64>::eye_with_columns(rows, columns)),
+        DType::Float32 => output(py, NDArray::<f32>::eye_with_columns(rows, columns)),
+        DType::Float64 => output(py, NDArray::<f64>::eye_with_columns(rows, columns)),
+    }
+}
+
 pub(crate) fn full(
     py: Python<'_>,
     shape: Vec<usize>,

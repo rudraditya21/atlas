@@ -91,6 +91,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(asarray, module)?)?;
     module.add_function(wrap_pyfunction!(zeros, module)?)?;
     module.add_function(wrap_pyfunction!(ones, module)?)?;
+    module.add_function(wrap_pyfunction!(eye, module)?)?;
     module.add_function(wrap_pyfunction!(full, module)?)?;
     module.add_function(wrap_pyfunction!(arange, module)?)?;
     module.add_function(wrap_pyfunction!(linspace, module)?)?;
@@ -205,6 +206,16 @@ fn zeros(py: Python<'_>, shape: Vec<usize>, dtype: Option<&str>) -> PyResult<Py<
 #[pyfunction(signature = (shape, dtype = None))]
 fn ones(py: Python<'_>, shape: Vec<usize>, dtype: Option<&str>) -> PyResult<Py<PyAny>> {
     constructors::ones(py, shape, dtype)
+}
+
+#[pyfunction(signature = (rows, columns = None, dtype = None))]
+fn eye(
+    py: Python<'_>,
+    rows: usize,
+    columns: Option<usize>,
+    dtype: Option<&str>,
+) -> PyResult<Py<PyAny>> {
+    constructors::eye(py, rows, columns, dtype)
 }
 
 #[pyfunction(signature = (shape, value, dtype = None))]

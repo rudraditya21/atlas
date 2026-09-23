@@ -90,12 +90,20 @@ impl<T: Numeric> NDArray<T> {
     ///
     /// Returns [`crate::AtlasNdError::ShapeOverflow`] when `size * size` cannot fit in memory metadata.
     pub fn eye(size: usize) -> AtlasNdResult<Self> {
-        let shape = vec![size, size];
+        Self::eye_with_columns(size, size)
+    }
+
+    /// Creates a contiguous identity matrix with `rows` rows and `columns` columns.
+    ///
+    /// Returns [`crate::AtlasNdError::ShapeOverflow`] when `rows * columns` cannot fit in memory
+    /// metadata.
+    pub fn eye_with_columns(rows: usize, columns: usize) -> AtlasNdResult<Self> {
+        let shape = vec![rows, columns];
         let element_count = crate::checked_element_count(&shape)?;
         let mut data = vec![T::zero(); element_count];
 
-        for index in 0..size {
-            data[index * size + index] = T::one();
+        for index in 0..rows.min(columns) {
+            data[index * columns + index] = T::one();
         }
 
         Self::from_row_major_parts(shape, data)

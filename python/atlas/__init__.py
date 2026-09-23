@@ -14,6 +14,7 @@ __version__ = _native.version()
 asarray = _native.asarray
 zeros = _native.zeros
 ones = _native.ones
+eye = _native.eye
 full = _native.full
 arange = _native.arange
 linspace = _native.linspace
@@ -151,6 +152,7 @@ __all__ = [
     "det",
     "dot",
     "dtype",
+    "eye",
     "equal",
     "expand_dims",
     "flatten",
