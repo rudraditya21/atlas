@@ -808,12 +808,20 @@ fn put(
 }
 
 #[pyfunction(signature = (value, axis = None))]
-fn squeeze(py: Python<'_>, value: &Bound<'_, PyAny>, axis: Option<i64>) -> PyResult<Py<PyAny>> {
+fn squeeze(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axis: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Py<PyAny>> {
     shape_ops::squeeze(py, value, axis)
 }
 
 #[pyfunction]
-fn expand_dims(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
+fn expand_dims(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axis: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyAny>> {
     shape_ops::expand_dims(py, value, axis)
 }
 

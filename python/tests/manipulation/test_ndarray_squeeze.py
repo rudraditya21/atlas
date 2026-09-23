@@ -22,6 +22,17 @@ def test_squeeze_supports_explicit_and_negative_axes() -> None:
     )
 
 
+def test_squeeze_supports_axis_sequences() -> None:
+    values = np.arange(6, dtype=np.float64).reshape(1, 2, 1, 3)
+
+    np.testing.assert_array_equal(
+        atlas.squeeze(values, axis=(0, 2)), np.squeeze(values, axis=(0, 2))
+    )
+    np.testing.assert_array_equal(
+        atlas.squeeze(values, axis=(-4, -2)), np.squeeze(values, axis=(-4, -2))
+    )
+
+
 def test_squeeze_supports_scalar_arrays_and_views() -> None:
     scalar = np.array(7, dtype=np.int64)
     values = np.arange(6, dtype=np.float64).reshape(2, 1, 3).transpose(2, 1, 0)
@@ -38,3 +49,6 @@ def test_squeeze_translates_invalid_dimensions_and_axes() -> None:
 
     with pytest.raises(atlas.AxisError, match="invalid axis"):
         atlas.squeeze(np.ones((2, 1)), 2)
+
+    with pytest.raises(atlas.ShapeError, match="axes must be unique"):
+        atlas.squeeze(np.ones((1, 1)), (0, 0))

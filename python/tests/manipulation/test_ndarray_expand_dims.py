@@ -26,6 +26,17 @@ def test_expand_dims_supports_negative_axes() -> None:
     )
 
 
+def test_expand_dims_supports_axis_sequences() -> None:
+    values = np.arange(6, dtype=np.int32).reshape(2, 3)
+
+    np.testing.assert_array_equal(
+        atlas.expand_dims(values, (0, 2)), np.expand_dims(values, axis=(0, 2))
+    )
+    np.testing.assert_array_equal(
+        atlas.expand_dims(values, (-1, -3)), np.expand_dims(values, axis=(-1, -3))
+    )
+
+
 def test_expand_dims_supports_scalar_arrays() -> None:
     result = atlas.expand_dims(np.array(7, dtype=np.int64), 0)
 
@@ -37,3 +48,8 @@ def test_expand_dims_supports_scalar_arrays() -> None:
 def test_expand_dims_translates_invalid_axes(axis: int) -> None:
     with pytest.raises(atlas.AxisError, match="invalid axis"):
         atlas.expand_dims(np.ones((2, 3)), axis)
+
+
+def test_expand_dims_rejects_duplicate_axes() -> None:
+    with pytest.raises(atlas.ShapeError, match="axes must be unique"):
+        atlas.expand_dims(np.ones((2, 3)), (0, 0))

@@ -65,16 +65,18 @@ pub(crate) fn swap_axes(
 pub(crate) fn squeeze(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
-    axis: Option<i64>,
+    axis: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
+    let axis = axis.map(axis_values).transpose()?;
     with_array!(py, value, |array| squeeze_array(py, array, axis))
 }
 
 pub(crate) fn expand_dims(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
-    axis: i64,
+    axis: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyAny>> {
+    let axis = axis_values(axis)?;
     with_array!(py, value, |array| expand_dims_array(py, array, axis))
 }
 
@@ -220,12 +222,16 @@ where
     Ok(array::to_numpy_owned(py, array)?.into_any().unbind())
 }
 
-fn squeeze_array<T>(py: Python<'_>, array: NDArray<T>, axis: Option<i64>) -> PyResult<Py<PyAny>>
+fn squeeze_array<T>(
+    py: Python<'_>,
+    array: NDArray<T>,
+    axes: Option<Vec<i64>>,
+) -> PyResult<Py<PyAny>>
 where
     T: ArrayElement + Element,
 {
-    let array = gil::without_gil(py, move || match axis {
-        Some(axis) => array.squeeze_axis(axis).map(|view| view.to_owned()),
+    let array = gil::without_gil(py, move || match axes {
+        Some(axes) => squeeze_axes(array, axes),
         None => Ok(array.squeeze().to_owned()),
     })
     .map_err(|error| crate::error::ndarray(py, error))?;
@@ -233,12 +239,60 @@ where
     Ok(array::to_numpy_owned(py, array)?.into_any().unbind())
 }
 
-fn expand_dims_array<T>(py: Python<'_>, array: NDArray<T>, axis: i64) -> PyResult<Py<PyAny>>
+fn expand_dims_array<T>(py: Python<'_>, array: NDArray<T>, axes: Vec<i64>) -> PyResult<Py<PyAny>>
 where
     T: ArrayElement + Element,
 {
-    let array = gil::without_gil(py, move || array.expand_dims(axis).map(|view| view.to_owned()))
+    let array = gil::without_gil(py, move || expand_axes(array, axes))
         .map_err(|error| crate::error::ndarray(py, error))?;
 
     Ok(array::to_numpy_owned(py, array)?.into_any().unbind())
+}
+
+fn squeeze_axes<T: ArrayElement>(
+    mut array: NDArray<T>,
+    axes: Vec<i64>,
+) -> AtlasNdResult<NDArray<T>> {
+    let mut axes = normalize_axes(array.ndim(), axes)?;
+    if !axes_are_unique(&axes) {
+        return Err(AtlasNdError::InvalidArgument { op: "squeeze", reason: "axes must be unique" });
+    }
+    axes.sort_unstable_by(|left, right| right.cmp(left));
+    for axis in axes {
+        array = array.squeeze_axis(axis)?.to_owned();
+    }
+    Ok(array)
+}
+
+fn expand_axes<T: ArrayElement>(
+    mut array: NDArray<T>,
+    axes: Vec<i64>,
+) -> AtlasNdResult<NDArray<T>> {
+    let output_ndim = array.ndim().checked_add(axes.len()).ok_or_else(|| {
+        AtlasNdError::ShapeOverflow { op: "expand_dims", shape: array.shape().to_vec() }
+    })?;
+    let mut axes = normalize_insertion_axes(output_ndim, axes)?;
+    if !axes_are_unique(&axes) {
+        return Err(AtlasNdError::InvalidArgument {
+            op: "expand_dims",
+            reason: "axes must be unique",
+        });
+    }
+    axes.sort_unstable();
+    for axis in axes {
+        array = array.expand_dims(axis)?.to_owned();
+    }
+    Ok(array)
+}
+
+fn normalize_insertion_axes(ndim: usize, axes: Vec<i64>) -> AtlasNdResult<Vec<usize>> {
+    axes.into_iter()
+        .map(|axis| {
+            let normalized = if axis < 0 { axis + ndim as i64 } else { axis };
+            if !(0..ndim as i64).contains(&normalized) {
+                return Err(AtlasNdError::InvalidAxis { axis, ndim });
+            }
+            Ok(usize::try_from(normalized).expect("normalized axes are nonnegative"))
+        })
+        .collect()
 }

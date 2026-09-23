@@ -20,6 +20,7 @@ pub(crate) fn ndarray(py: Python<'_>, error: AtlasNdError) -> PyErr {
         | AtlasNdError::InvalidArgument { op: "moveaxis", .. }
         | AtlasNdError::InvalidArgument { op: "reshape", .. }
         | AtlasNdError::InvalidArgument { op: "squeeze", .. }
+        | AtlasNdError::InvalidArgument { op: "expand_dims", .. }
         | AtlasNdError::InvalidArgument { op: "concatenate", .. }
         | AtlasNdError::InvalidArgument { op: "stack", .. }
         | AtlasNdError::InvalidShape => "ShapeError",
