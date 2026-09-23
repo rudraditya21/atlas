@@ -42,6 +42,19 @@ def test_argpartition_uses_logical_view_values() -> None:
     assert np.all(partitioned[2:] >= partitioned[1:2])
 
 
+def test_argpartition_supports_flattened_axis() -> None:
+    values = np.array([[9, 1, 8], [2, 7, 3]], dtype=np.int64).T
+    indices = atlas.argpartition(values, 2, axis=None)
+    partitioned = values.ravel()[indices]
+
+    assert not values.flags.c_contiguous
+    assert indices.shape == (values.size,)
+    np.testing.assert_array_equal(np.sort(indices), np.arange(values.size))
+    assert partitioned[2] == 3
+    assert np.all(partitioned[:2] <= partitioned[2])
+    assert np.all(partitioned[3:] >= partitioned[2])
+
+
 def test_argpartition_uses_argsort_nan_ordering() -> None:
     values = np.array([np.nan, 2.0, 1.0, np.nan, 0.0], dtype=np.float64)
     indices = atlas.argpartition(values, 3)
