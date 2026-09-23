@@ -46,6 +46,20 @@ def test_full_supports_boolean_dtype() -> None:
     assert result.tolist() == [[True, True], [True, True]]
 
 
+@pytest.mark.parametrize("constructor", [atlas.zeros, atlas.ones])
+def test_zeros_and_ones_accept_scalar_shapes(constructor: object) -> None:
+    result = constructor(3, dtype="int32")
+
+    assert result.shape == (3,)
+
+
+def test_full_accepts_a_scalar_shape() -> None:
+    result = atlas.full(3, 7, dtype="int32")
+
+    assert result.shape == (3,)
+    assert result.tolist() == [7, 7, 7]
+
+
 @pytest.mark.parametrize(
     "dtype",
     [

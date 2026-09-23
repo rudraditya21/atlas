@@ -222,7 +222,7 @@ fn asarray(
 #[pyfunction(signature = (shape, dtype = None))]
 fn zeros(
     py: Python<'_>,
-    shape: Vec<usize>,
+    shape: &Bound<'_, PyAny>,
     dtype: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
     constructors::zeros(py, shape, dtype)
@@ -231,7 +231,7 @@ fn zeros(
 #[pyfunction(signature = (shape, dtype = None))]
 fn ones(
     py: Python<'_>,
-    shape: Vec<usize>,
+    shape: &Bound<'_, PyAny>,
     dtype: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
     constructors::ones(py, shape, dtype)
@@ -255,7 +255,7 @@ fn identity(py: Python<'_>, size: usize, dtype: Option<&Bound<'_, PyAny>>) -> Py
 #[pyfunction(signature = (shape, value, dtype = None))]
 fn full(
     py: Python<'_>,
-    shape: Vec<usize>,
+    shape: &Bound<'_, PyAny>,
     value: &Bound<'_, PyAny>,
     dtype: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {

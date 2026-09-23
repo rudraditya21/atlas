@@ -1,5 +1,9 @@
 use atlas_ndarray::NDArray;
-use pyo3::{exceptions::PyValueError, prelude::*, types::PyDict};
+use pyo3::{
+    exceptions::PyValueError,
+    prelude::*,
+    types::{PyDict, PySequence},
+};
 
 use crate::{
     array,
@@ -28,9 +32,10 @@ pub(crate) fn asarray(
 
 pub(crate) fn zeros(
     py: Python<'_>,
-    shape: Vec<usize>,
+    shape: &Bound<'_, PyAny>,
     dtype: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
+    let shape = shape_values(shape)?;
     let dtype = DType::parse(py, dtype)?;
     if matches!(dtype, DType::Bool) {
         return output(py, NDArray::full(shape, false));
@@ -41,9 +46,10 @@ pub(crate) fn zeros(
 
 pub(crate) fn ones(
     py: Python<'_>,
-    shape: Vec<usize>,
+    shape: &Bound<'_, PyAny>,
     dtype: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
+    let shape = shape_values(shape)?;
     let dtype = DType::parse(py, dtype)?;
     if matches!(dtype, DType::Bool) {
         return output(py, NDArray::full(shape, true));
@@ -78,13 +84,22 @@ pub(crate) fn identity(
 
 pub(crate) fn full(
     py: Python<'_>,
-    shape: Vec<usize>,
+    shape: &Bound<'_, PyAny>,
     value: &Bound<'_, PyAny>,
     dtype: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
+    let shape = shape_values(shape)?;
     let dtype = DType::parse(py, dtype)?;
 
     with_dtype!(dtype, all | T | output(py, NDArray::full(shape, value.extract::<T>()?)))
+}
+
+fn shape_values(shape: &Bound<'_, PyAny>) -> PyResult<Vec<usize>> {
+    if shape.is_instance_of::<PySequence>() {
+        return shape.extract();
+    }
+
+    shape.extract::<usize>().map(|size| vec![size])
 }
 
 pub(crate) fn arange(
