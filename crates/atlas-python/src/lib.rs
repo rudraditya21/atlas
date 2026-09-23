@@ -809,12 +809,12 @@ fn allclose(
     close::allclose(py, lhs, rhs, rtol, atol, equal_nan)
 }
 
-#[pyfunction]
+#[pyfunction(signature = (value, minimum = None, maximum = None))]
 fn clip(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
-    minimum: &Bound<'_, PyAny>,
-    maximum: &Bound<'_, PyAny>,
+    minimum: Option<&Bound<'_, PyAny>>,
+    maximum: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
     clip_ops::clip(py, value, minimum, maximum)
 }
