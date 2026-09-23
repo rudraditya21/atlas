@@ -291,6 +291,7 @@ searchsorted = _coerce_arrays(
 clip = _coerce_arrays(clip, required=((0, "value"),))
 concatenate = _coerce_array_collection(concatenate)
 stack = _coerce_array_collection(stack)
+swapaxes = swap_axes
 
 __all__ = [
     "AtlasError",
@@ -378,6 +379,7 @@ __all__ = [
     "sum",
     "sum_axis",
     "swap_axes",
+    "swapaxes",
     "squeeze",
     "stddev",
     "stack",

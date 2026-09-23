@@ -15,6 +15,15 @@ def test_swap_axes_supports_positive_and_negative_axes() -> None:
     )
 
 
+def test_swapaxes_is_the_numpy_style_public_alias() -> None:
+    value = np.arange(24, dtype=np.int32).reshape(2, 3, 4)
+
+    np.testing.assert_array_equal(atlas.swapaxes(value, 0, 2), np.swapaxes(value, 0, 2))
+    np.testing.assert_array_equal(
+        atlas.swap_axes(value, 0, 2), atlas.swapaxes(value, 0, 2)
+    )
+
+
 def test_swap_axes_uses_logical_values_from_views() -> None:
     value = np.arange(24, dtype=np.float64).reshape(2, 3, 4).transpose(2, 0, 1)
 
