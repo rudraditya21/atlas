@@ -5,22 +5,23 @@ use crate::{array, gil};
 pub(crate) fn roll(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
-    shift: i64,
-    axis: Option<i64>,
+    shift: &Bound<'_, PyAny>,
+    axis: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
+    let (shifts, axes) = roll_spec(py, shift, axis)?;
     array::require_numpy_array(py, value)?;
     let dtype: String = value.getattr("dtype")?.getattr("name")?.extract()?;
 
     macro_rules! apply {
         ($ty:ty) => {{
             let array = array::from_numpy(array::readonly_from_python::<$ty>(py, value)?)?;
-            let result = gil::without_gil(py, move || match axis {
-                Some(axis) => array.roll(shift, axis),
+            let result = gil::without_gil(py, move || match axes {
+                Some(axes) => roll_axes(array, &shifts, &axes),
                 None => {
                     let shape = array.shape().to_vec();
                     array
                         .flatten()
-                        .roll(shift, 0)
+                        .roll(shifts[0], 0)
                         .and_then(|rolled| rolled.reshape(shape).map(|view| view.to_owned()))
                 }
             })
@@ -43,4 +44,51 @@ pub(crate) fn roll(
         "float64" => apply!(f64),
         _ => Err(PyTypeError::new_err(format!("unsupported NumPy dtype {dtype}"))),
     }
+}
+
+fn roll_spec(
+    py: Python<'_>,
+    shift: &Bound<'_, PyAny>,
+    axis: Option<&Bound<'_, PyAny>>,
+) -> PyResult<(Vec<i64>, Option<Vec<i64>>)> {
+    let mut shifts = integer_values(shift)?;
+    let Some(axis) = axis else {
+        if shifts.len() != 1 {
+            return Err(roll_error(py, "shift must be scalar when axis is None"));
+        }
+        return Ok((shifts, None));
+    };
+    let mut axes = integer_values(axis)?;
+
+    if shifts.len() == 1 {
+        shifts = vec![shifts[0]; axes.len()];
+    } else if axes.len() == 1 {
+        axes = vec![axes[0]; shifts.len()];
+    } else if shifts.len() != axes.len() {
+        return Err(roll_error(py, "shift and axis must have matching lengths or be scalar"));
+    }
+
+    Ok((shifts, Some(axes)))
+}
+
+fn integer_values(value: &Bound<'_, PyAny>) -> PyResult<Vec<i64>> {
+    value.extract::<i64>().map(|value| vec![value]).or_else(|_| value.extract())
+}
+
+fn roll_axes<T>(
+    mut array: atlas_ndarray::NDArray<T>,
+    shifts: &[i64],
+    axes: &[i64],
+) -> atlas_ndarray::AtlasNdResult<atlas_ndarray::NDArray<T>>
+where
+    T: atlas_ndarray::ArrayElement,
+{
+    for (&shift, &axis) in shifts.iter().zip(axes) {
+        array = array.roll(shift, axis)?;
+    }
+    Ok(array)
+}
+
+fn roll_error(py: Python<'_>, reason: &'static str) -> PyErr {
+    crate::error::ndarray(py, atlas_ndarray::AtlasNdError::InvalidArgument { op: "roll", reason })
 }

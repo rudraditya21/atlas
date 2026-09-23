@@ -726,8 +726,8 @@ fn flip(py: Python<'_>, value: &Bound<'_, PyAny>, axis: Option<i64>) -> PyResult
 fn roll(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
-    shift: i64,
-    axis: Option<i64>,
+    shift: &Bound<'_, PyAny>,
+    axis: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
     roll_ops::roll(py, value, shift, axis)
 }

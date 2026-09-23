@@ -26,6 +26,22 @@ def test_roll_uses_logical_values_from_views() -> None:
     )
 
 
+def test_roll_supports_scalar_and_sequence_axis_pairs() -> None:
+    value = np.arange(24, dtype=np.int32).reshape(2, 3, 4)
+
+    np.testing.assert_array_equal(
+        atlas.roll(value, [1, -2], axis=[0, 2]), np.roll(value, [1, -2], axis=[0, 2])
+    )
+    np.testing.assert_array_equal(
+        atlas.roll(value, 1, axis=[0, 2]), np.roll(value, 1, axis=[0, 2])
+    )
+
+
+def test_roll_rejects_incompatible_shift_axis_lengths() -> None:
+    with pytest.raises(atlas.NumericError, match="matching lengths"):
+        atlas.roll(np.ones((2, 3)), [1, 2], axis=[0, 1, 0])
+
+
 def test_roll_preserves_empty_arrays() -> None:
     value = np.empty((2, 0), dtype=np.uint8)
 
