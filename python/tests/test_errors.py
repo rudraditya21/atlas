@@ -3,10 +3,15 @@ import atlas
 
 def test_atlas_exceptions_have_the_expected_inheritance() -> None:
     assert issubclass(atlas.ShapeError, atlas.AtlasError)
+    assert issubclass(atlas.ShapeError, ValueError)
     assert issubclass(atlas.AxisError, atlas.ShapeError)
+    assert issubclass(atlas.AxisError, IndexError)
     assert issubclass(atlas.SliceError, atlas.ShapeError)
+    assert issubclass(atlas.SliceError, IndexError)
     assert issubclass(atlas.NumericError, atlas.AtlasError)
+    assert issubclass(atlas.NumericError, ValueError)
     assert issubclass(atlas.ModelError, atlas.AtlasError)
+    assert issubclass(atlas.ModelError, ValueError)
 
 
 def test_atlas_exceptions_are_directly_constructible() -> None:

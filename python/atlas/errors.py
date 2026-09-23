@@ -5,24 +5,24 @@ class AtlasError(Exception):
     """Base exception for Atlas failures."""
 
 
-class ShapeError(AtlasError):
-    """Raised when operand shapes are incompatible."""
+class ShapeError(AtlasError, ValueError):
+    """Raised as a ``ValueError`` when operand shapes are incompatible."""
 
 
-class AxisError(ShapeError):
-    """Raised when an axis is invalid for an operand."""
+class AxisError(ShapeError, IndexError):
+    """Raised as an ``IndexError`` when an axis is invalid for an operand."""
 
 
-class SliceError(ShapeError):
-    """Raised when a slice is invalid for an operand."""
+class SliceError(ShapeError, IndexError):
+    """Raised as an ``IndexError`` when a slice is invalid for an operand."""
 
 
-class NumericError(AtlasError):
-    """Raised when a numeric input or computation is invalid."""
+class NumericError(AtlasError, ValueError):
+    """Raised as a ``ValueError`` when a numeric input or computation is invalid."""
 
 
-class ModelError(AtlasError):
-    """Raised when a machine-learning model operation is invalid."""
+class ModelError(AtlasError, ValueError):
+    """Raised as a ``ValueError`` when a machine-learning model operation is invalid."""
 
 
 __all__ = [
