@@ -206,3 +206,55 @@ where
 
     NDArray::from_vector_data(values).expect("unique preserves ndarray invariants")
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{AtlasNdError, NDArray};
+
+    #[test]
+    fn partition_places_the_requested_owned_axis_value_and_preserves_values() {
+        let values = NDArray::from_shape_vec([5], vec![9_i32, 1, 8, 2, 7]).unwrap();
+        let partitioned = values.partition(2, -1).unwrap();
+
+        assert_eq!(partitioned.data()[2], 7);
+        assert!(partitioned.data()[..2].iter().all(|value| *value <= partitioned.data()[2]));
+        assert!(partitioned.data()[3..].iter().all(|value| *value >= partitioned.data()[2]));
+
+        let mut actual = partitioned.data().to_vec();
+        let mut expected = values.data().to_vec();
+        actual.sort();
+        expected.sort();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn partition_uses_logical_values_from_non_contiguous_views() {
+        let values = NDArray::from_shape_vec([2, 3], vec![9_i32, 1, 8, 2, 7, 3]).unwrap();
+        let view = values.view().transpose();
+        let partitioned = view.partition(1, 0).unwrap();
+
+        assert_eq!(partitioned.shape(), &[3, 2]);
+        assert_eq!(&partitioned.data()[2..4], &[8, 3]);
+        for column in 0..2 {
+            let pivot = partitioned.data()[2 + column];
+            assert!(partitioned.data()[column] <= pivot);
+            assert!(partitioned.data()[4 + column] >= pivot);
+        }
+
+        let mut actual = partitioned.data().to_vec();
+        let mut expected: Vec<_> = view.iter().copied().collect();
+        actual.sort();
+        expected.sort();
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn partition_rejects_an_out_of_bounds_kth_value() {
+        let values = NDArray::from_shape_vec([2, 3], vec![1_i32, 2, 3, 4, 5, 6]).unwrap();
+
+        assert_eq!(
+            values.partition(3, 1).unwrap_err(),
+            AtlasNdError::IndexOutOfBounds { axis: 1, index: 3, dim: 3 }
+        );
+    }
+}
