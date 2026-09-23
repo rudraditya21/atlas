@@ -25,7 +25,9 @@ def test_selection_count_nonzero_and_masked_fill_use_logical_values() -> None:
 
     assert atlas.select(values, mask).tolist() == [0.0, 4.0, 2.0]
     assert atlas.count_true(mask.T.T) == 3
-    assert atlas.nonzero(mask.T.T).tolist() == [[0, 0], [1, 1], [2, 0]]
+    nonzero = atlas.nonzero(mask.T.T)
+    assert isinstance(nonzero, tuple)
+    assert [indices.tolist() for indices in nonzero] == [[0, 1, 2], [0, 1, 0]]
     assert atlas.masked_fill(values, mask, -1.0).tolist() == [
         [-1.0, 3.0],
         [1.0, -1.0],
@@ -36,7 +38,9 @@ def test_selection_count_nonzero_and_masked_fill_use_logical_values() -> None:
 
 def test_logical_operations_handle_scalars_and_empty_arrays() -> None:
     assert atlas.select(np.array(2.0), np.array(True)).tolist() == [2.0]
-    assert atlas.nonzero(np.empty((2, 0))).shape == (0, 2)
+    nonzero = atlas.nonzero(np.empty((2, 0)))
+    assert len(nonzero) == 2
+    assert [indices.shape for indices in nonzero] == [(0,), (0,)]
     assert atlas.count_true(np.empty((2, 0), dtype=bool)) == 0
 
 

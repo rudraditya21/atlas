@@ -1,4 +1,4 @@
-use pyo3::{exceptions::PyTypeError, prelude::*};
+use pyo3::{exceptions::PyTypeError, prelude::*, types::PyTuple};
 
 use crate::{array, gil, python_dtype::with_dtype};
 
@@ -110,10 +110,34 @@ pub(crate) fn select(
 }
 
 pub(crate) fn nonzero(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    with_array!(py, value, |array| output(
-        py,
-        gil::without_gil(py, move || array.nonzero_indices())
-    ))
+    with_array!(py, value, |array| {
+        let indices = gil::without_gil(py, move || array.nonzero_indices())
+            .map_err(|error| crate::error::ndarray(py, error))?;
+        let (data, shape) = indices.into_raw_parts();
+        let matches = shape[0];
+        let dimensions = shape[1];
+        if dimensions == 0 {
+            return Ok(PyTuple::empty(py).into_any().unbind());
+        }
+        let mut per_axis = vec![Vec::with_capacity(matches); dimensions];
+        for coordinate in data.chunks(dimensions) {
+            for (axis, &index) in coordinate.iter().enumerate() {
+                per_axis[axis].push(i64::try_from(index).expect("NumPy dimensions fit i64"));
+            }
+        }
+        let indices = per_axis
+            .into_iter()
+            .map(|indices| {
+                array::to_numpy_owned(
+                    py,
+                    atlas_ndarray::NDArray::from_shape_vec([matches], indices)
+                        .expect("nonzero preserves ndarray invariants"),
+                )
+                .map(|array| array.into_any().unbind())
+            })
+            .collect::<PyResult<Vec<_>>>()?;
+        Ok(PyTuple::new(py, indices)?.into_any().unbind())
+    })
 }
 
 pub(crate) fn argwhere(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
