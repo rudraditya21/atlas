@@ -12,6 +12,8 @@ def test_axis_min_max_reduce_along_positive_and_negative_axes() -> None:
     minimum = atlas.min_axis(values, 0)
     maximum = atlas.max_axis(values, -1)
 
+    np.testing.assert_array_equal(atlas.min(values, axis=0), minimum)
+    np.testing.assert_array_equal(atlas.max(values, axis=-1), maximum)
     assert minimum.dtype == values.dtype
     assert minimum.tolist() == [3, 1, 2]
     assert maximum.dtype == values.dtype

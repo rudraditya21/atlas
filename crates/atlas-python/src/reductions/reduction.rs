@@ -45,20 +45,36 @@ enum AxisIndexReduction {
     Max,
 }
 
-pub(crate) fn sum(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    reduce(py, value, Reduction::Sum)
+pub(crate) fn sum(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axis: Option<i64>,
+) -> PyResult<Py<PyAny>> {
+    reduce_optional_axis(py, value, axis, Reduction::Sum, AxisReduction::Sum)
 }
 
-pub(crate) fn mean(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    reduce(py, value, Reduction::Mean)
+pub(crate) fn mean(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axis: Option<i64>,
+) -> PyResult<Py<PyAny>> {
+    reduce_optional_axis(py, value, axis, Reduction::Mean, AxisReduction::Mean)
 }
 
-pub(crate) fn min(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    reduce(py, value, Reduction::Min)
+pub(crate) fn min(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axis: Option<i64>,
+) -> PyResult<Py<PyAny>> {
+    reduce_optional_axis(py, value, axis, Reduction::Min, AxisReduction::Min)
 }
 
-pub(crate) fn max(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    reduce(py, value, Reduction::Max)
+pub(crate) fn max(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axis: Option<i64>,
+) -> PyResult<Py<PyAny>> {
+    reduce_optional_axis(py, value, axis, Reduction::Max, AxisReduction::Max)
 }
 
 pub(crate) fn variance(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
@@ -134,7 +150,7 @@ pub(crate) fn argmax_axis(
 }
 
 pub(crate) fn sum_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
-    reduce_axis(py, value, axis, AxisReduction::Sum)
+    sum(py, value, Some(axis))
 }
 
 pub(crate) fn mean_axis(
@@ -142,15 +158,28 @@ pub(crate) fn mean_axis(
     value: &Bound<'_, PyAny>,
     axis: i64,
 ) -> PyResult<Py<PyAny>> {
-    reduce_axis(py, value, axis, AxisReduction::Mean)
+    mean(py, value, Some(axis))
 }
 
 pub(crate) fn min_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
-    reduce_axis(py, value, axis, AxisReduction::Min)
+    min(py, value, Some(axis))
 }
 
 pub(crate) fn max_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
-    reduce_axis(py, value, axis, AxisReduction::Max)
+    max(py, value, Some(axis))
+}
+
+fn reduce_optional_axis(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axis: Option<i64>,
+    reduction: Reduction,
+    axis_reduction: AxisReduction,
+) -> PyResult<Py<PyAny>> {
+    match axis {
+        Some(axis) => reduce_axis(py, value, axis, axis_reduction),
+        None => reduce(py, value, reduction),
+    }
 }
 
 fn reduce(py: Python<'_>, value: &Bound<'_, PyAny>, reduction: Reduction) -> PyResult<Py<PyAny>> {

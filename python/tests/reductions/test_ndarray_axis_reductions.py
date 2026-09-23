@@ -12,6 +12,8 @@ def test_axis_reductions_support_positive_and_negative_axes_with_expected_dtypes
     summed = atlas.sum_axis(values, 0)
     mean = atlas.mean_axis(values, -1)
 
+    np.testing.assert_array_equal(atlas.sum(values, axis=0), summed)
+    np.testing.assert_array_equal(atlas.mean(values, axis=-1), mean)
     assert summed.dtype == np.dtype(np.int32)
     assert summed.tolist() == [5, 7, 9]
     assert mean.dtype == np.dtype(np.float64)

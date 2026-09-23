@@ -544,24 +544,24 @@ fn masked_fill(
     logical::masked_fill(py, value, mask, fill)
 }
 
-#[pyfunction]
-fn sum(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    reduction::sum(py, value)
+#[pyfunction(signature = (value, axis = None))]
+fn sum(py: Python<'_>, value: &Bound<'_, PyAny>, axis: Option<i64>) -> PyResult<Py<PyAny>> {
+    reduction::sum(py, value, axis)
 }
 
-#[pyfunction]
-fn mean(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    reduction::mean(py, value)
+#[pyfunction(signature = (value, axis = None))]
+fn mean(py: Python<'_>, value: &Bound<'_, PyAny>, axis: Option<i64>) -> PyResult<Py<PyAny>> {
+    reduction::mean(py, value, axis)
 }
 
-#[pyfunction]
-fn min(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    reduction::min(py, value)
+#[pyfunction(signature = (value, axis = None))]
+fn min(py: Python<'_>, value: &Bound<'_, PyAny>, axis: Option<i64>) -> PyResult<Py<PyAny>> {
+    reduction::min(py, value, axis)
 }
 
-#[pyfunction]
-fn max(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    reduction::max(py, value)
+#[pyfunction(signature = (value, axis = None))]
+fn max(py: Python<'_>, value: &Bound<'_, PyAny>, axis: Option<i64>) -> PyResult<Py<PyAny>> {
+    reduction::max(py, value, axis)
 }
 
 #[pyfunction]
