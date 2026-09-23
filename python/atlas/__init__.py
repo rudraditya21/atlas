@@ -375,6 +375,28 @@ def ascontiguousarray(value, dtype=None):
     return np.ascontiguousarray(_array_like(value), dtype=dtype)
 
 
+def _atleast(function, values):
+    result = function(
+        *[
+            _array_like(value) if _is_array_like(value) else np.asarray(value)
+            for value in values
+        ]
+    )
+    return result if len(values) == 1 else tuple(result)
+
+
+def atleast_1d(*values):
+    return _atleast(np.atleast_1d, values)
+
+
+def atleast_2d(*values):
+    return _atleast(np.atleast_2d, values)
+
+
+def atleast_3d(*values):
+    return _atleast(np.atleast_3d, values)
+
+
 def linspace(start, stop, num, *, dtype=None, endpoint=True):
     return _native.linspace(start, stop, num, dtype, endpoint)
 
