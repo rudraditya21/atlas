@@ -356,6 +356,21 @@ def copy(value):
     return np.array(_array_like(value), copy=True, order="C")
 
 
+def zeros_like(value, dtype=None):
+    value = _array_like(value)
+    return zeros(value.shape, dtype=value.dtype if dtype is None else dtype)
+
+
+def ones_like(value, dtype=None):
+    value = _array_like(value)
+    return ones(value.shape, dtype=value.dtype if dtype is None else dtype)
+
+
+def full_like(value, fill_value, dtype=None):
+    value = _array_like(value)
+    return full(value.shape, fill_value, dtype=value.dtype if dtype is None else dtype)
+
+
 def linspace(start, stop, num, *, dtype=None, endpoint=True):
     return _native.linspace(start, stop, num, dtype, endpoint)
 
@@ -537,6 +552,7 @@ __all__ = sorted(
         "flatten",
         "flip",
         "full",
+        "full_like",
         "greater",
         "greater_equal",
         "less",
@@ -562,6 +578,7 @@ __all__ = sorted(
         "nonzero",
         "not_equal",
         "ones",
+        "ones_like",
         "pad",
         "partition",
         "select",
@@ -599,6 +616,7 @@ __all__ = sorted(
         "var",
         "where",
         "zeros",
+        "zeros_like",
     ]
 )
 
