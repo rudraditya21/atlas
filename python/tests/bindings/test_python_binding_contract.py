@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from inspect import Parameter, signature
 
 import numpy as np
 import pytest
@@ -55,6 +56,24 @@ def test_binding_return_types_follow_python_and_numpy_conventions() -> None:
     assert atlas.dtype(values) == np.dtype("int64")
     assert isinstance(atlas.searchsorted(np.array([1, 3], dtype=np.int64), 2), int)
     assert isinstance(atlas.all(np.array([True, True])), bool)
+
+
+def test_public_signatures_and_module_ownership_are_normalized() -> None:
+    assert signature(atlas.astype).parameters["copy"].kind is Parameter.KEYWORD_ONLY
+    assert (
+        signature(atlas.linspace).parameters["endpoint"].kind is Parameter.KEYWORD_ONLY
+    )
+    assert (
+        signature(atlas.searchsorted).parameters["sorter"].kind
+        is Parameter.KEYWORD_ONLY
+    )
+    assert signature(atlas.sum).parameters["keepdims"].kind is Parameter.KEYWORD_ONLY
+    assert atlas.astype.__module__ == "atlas"
+    assert atlas.searchsorted.__module__ == "atlas"
+    assert atlas.__all__ == sorted(atlas.__all__)
+    assert atlas.swapaxes is atlas.swap_axes
+    assert atlas.var is atlas.variance
+    assert atlas.std is atlas.stddev
 
 
 @pytest.mark.parametrize(

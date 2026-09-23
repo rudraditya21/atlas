@@ -84,8 +84,7 @@ def _coerce_array_collection(function):
 
 
 def _coerce_searchsorted(function):
-    @wraps(function)
-    def wrapper(sorted, values, side="left", sorter=None):
+    def wrapper(sorted, values, side="left", *, sorter=None):
         sorted = _array_like(sorted)
         values = (
             np.asarray(values, dtype=sorted.dtype)
@@ -99,17 +98,31 @@ def _coerce_searchsorted(function):
             None if sorter is None else _array_like(sorter),
         )
 
+    wrapper.__name__ = function.__name__
+    wrapper.__doc__ = function.__doc__
     return wrapper
 
 
 def _with_keepdims(function):
-    @wraps(function)
-    def wrapper(value, axis=None, keepdims=False):
+    def wrapper(value, axis=None, *, keepdims=False):
         if keepdims and axis is None:
             raise ValueError("keepdims requires a single axis")
         result = function(value, axis=axis)
         return np.expand_dims(result, axis) if keepdims else result
 
+    wrapper.__name__ = function.__name__
+    wrapper.__doc__ = function.__doc__
+    return wrapper
+
+
+def _publish(function):
+    """Expose a native callable as a public Atlas function."""
+
+    @wraps(function)
+    def wrapper(*args, **kwargs):
+        return function(*args, **kwargs)
+
+    wrapper.__module__ = __name__
     return wrapper
 
 
@@ -226,6 +239,14 @@ def full(shape, fill_value=_UNSET, dtype=None, *, value=_UNSET):
             raise TypeError("full() missing required argument: 'fill_value'")
         fill_value = value
     return _native.full(shape, fill_value, dtype)
+
+
+def linspace(start, stop, num, *, dtype=None, endpoint=True):
+    return _native.linspace(start, stop, num, dtype, endpoint)
+
+
+def astype(value, dtype, *, copy=True):
+    return _native.astype(value, dtype, copy)
 
 
 asarray = _coerce_arrays(asarray, required=((0, "value"),))
@@ -351,115 +372,131 @@ std = stddev
 for _name in ("all", "any", "sum", "mean", "min", "max", "argmin", "argmax"):
     globals()[_name] = _with_keepdims(globals()[_name])
 
-__all__ = [
-    "AtlasError",
-    "AxisError",
-    "ModelError",
-    "NumericError",
-    "ShapeError",
-    "SliceError",
-    "__version__",
-    "add",
-    "abs",
-    "allclose",
-    "all",
-    "all_axis",
-    "argmax",
-    "argmax_axis",
-    "argmin",
-    "argmin_axis",
-    "any",
-    "any_axis",
-    "argwhere",
-    "argpartition",
-    "argsort",
-    "bitwise_and",
-    "bitwise_not",
-    "bitwise_or",
-    "bitwise_xor",
-    "arange",
-    "linspace",
-    "astype",
-    "asarray",
-    "count_true",
-    "cumprod",
-    "cumprod_axis",
-    "cumsum",
-    "cumsum_axis",
-    "clip",
-    "concatenate",
-    "divide",
-    "diag",
-    "det",
-    "dot",
-    "dtype",
-    "eye",
-    "identity",
-    "equal",
-    "expand_dims",
-    "flatten",
-    "flip",
-    "full",
-    "greater",
-    "greater_equal",
-    "less",
-    "less_equal",
-    "masked_fill",
-    "matmul",
-    "matrix_norm",
-    "max",
-    "max_axis",
-    "mean",
-    "mean_axis",
-    "min",
-    "min_axis",
-    "nanmax",
-    "nanmean",
-    "nanmin",
-    "nanstd",
-    "norm",
-    "multiply",
-    "moveaxis",
-    "neg",
-    "ndim",
-    "nonzero",
-    "not_equal",
-    "ones",
-    "pad",
-    "partition",
-    "select",
-    "searchsorted",
-    "shape",
-    "size",
-    "solve",
-    "split",
-    "sort",
-    "subtract",
-    "sum",
-    "sum_axis",
-    "swap_axes",
-    "swapaxes",
-    "squeeze",
-    "stddev",
-    "std",
-    "stack",
-    "take",
-    "tile",
-    "reshape",
-    "ravel",
-    "repeat",
-    "roll",
-    "round",
-    "sign",
-    "isnan",
-    "inverse",
-    "isinf",
-    "isfinite",
-    "transpose",
-    "trace",
-    "unique",
-    "variance",
-    "var",
-    "where",
-    "zeros",
-]
+__all__ = sorted(
+    [
+        "AtlasError",
+        "AxisError",
+        "ModelError",
+        "NumericError",
+        "ShapeError",
+        "SliceError",
+        "__version__",
+        "add",
+        "abs",
+        "allclose",
+        "all",
+        "all_axis",
+        "argmax",
+        "argmax_axis",
+        "argmin",
+        "argmin_axis",
+        "any",
+        "any_axis",
+        "argwhere",
+        "argpartition",
+        "argsort",
+        "bitwise_and",
+        "bitwise_not",
+        "bitwise_or",
+        "bitwise_xor",
+        "arange",
+        "linspace",
+        "astype",
+        "asarray",
+        "count_true",
+        "cumprod",
+        "cumprod_axis",
+        "cumsum",
+        "cumsum_axis",
+        "clip",
+        "concatenate",
+        "divide",
+        "diag",
+        "det",
+        "dot",
+        "dtype",
+        "eye",
+        "identity",
+        "equal",
+        "expand_dims",
+        "flatten",
+        "flip",
+        "full",
+        "greater",
+        "greater_equal",
+        "less",
+        "less_equal",
+        "masked_fill",
+        "matmul",
+        "matrix_norm",
+        "max",
+        "max_axis",
+        "mean",
+        "mean_axis",
+        "min",
+        "min_axis",
+        "nanmax",
+        "nanmean",
+        "nanmin",
+        "nanstd",
+        "norm",
+        "multiply",
+        "moveaxis",
+        "neg",
+        "ndim",
+        "nonzero",
+        "not_equal",
+        "ones",
+        "pad",
+        "partition",
+        "select",
+        "searchsorted",
+        "shape",
+        "size",
+        "solve",
+        "split",
+        "sort",
+        "subtract",
+        "sum",
+        "sum_axis",
+        "swap_axes",
+        "swapaxes",
+        "squeeze",
+        "stddev",
+        "std",
+        "stack",
+        "take",
+        "tile",
+        "reshape",
+        "ravel",
+        "repeat",
+        "roll",
+        "round",
+        "sign",
+        "isnan",
+        "inverse",
+        "isinf",
+        "isfinite",
+        "transpose",
+        "trace",
+        "unique",
+        "variance",
+        "var",
+        "where",
+        "zeros",
+    ]
+)
+
+for _name in __all__:
+    _value = globals()[_name]
+    if not callable(_value):
+        continue
+    if getattr(_value, "__module__", None) == _native.__name__:
+        _value = _publish(_value)
+        globals()[_name] = _value
+    else:
+        _value.__module__ = __name__
+
+swapaxes = swap_axes
+var = variance
+std = stddev
