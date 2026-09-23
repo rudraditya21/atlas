@@ -23,3 +23,23 @@ def test_astype_performs_lossless_casts_and_preserves_output_dtype(
 def test_astype_rejects_lossy_casts() -> None:
     with pytest.raises(atlas.NumericError, match="invalid cast"):
         atlas.astype(np.array([1.5], dtype=np.float64), "int64")
+
+
+def test_astype_copy_false_returns_a_compatible_input() -> None:
+    source = np.array([1, 2], dtype=np.int32)
+
+    assert atlas.astype(source, "int32", copy=False) is source
+
+
+def test_astype_copies_by_default_for_a_compatible_dtype() -> None:
+    source = np.array([1, 2], dtype=np.int32)
+
+    assert atlas.astype(source, "int32") is not source
+
+
+def test_astype_copy_false_converts_incompatible_dtypes() -> None:
+    source = np.array([1, 2], dtype=np.int32)
+    result = atlas.astype(source, "float64", copy=False)
+
+    assert result is not source
+    assert result.dtype == np.dtype("float64")

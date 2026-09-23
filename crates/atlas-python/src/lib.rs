@@ -285,13 +285,14 @@ fn linspace(
     constructors::linspace(py, start, stop, num, dtype, endpoint)
 }
 
-#[pyfunction]
+#[pyfunction(signature = (value, dtype, copy = true))]
 fn astype(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
     dtype: &Bound<'_, PyAny>,
+    copy: bool,
 ) -> PyResult<Py<PyAny>> {
-    casting::astype(py, value, dtype)
+    casting::astype(py, value, dtype, copy)
 }
 
 #[pyfunction]

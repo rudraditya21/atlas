@@ -11,9 +11,14 @@ pub(crate) fn astype(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
     dtype: &Bound<'_, PyAny>,
+    copy: bool,
 ) -> PyResult<Py<PyAny>> {
     let target = DType::parse(py, Some(dtype))?;
-    array::require_numpy_array(py, value)?;
+    let source_dtype = array::source_dtype(py, value)?;
+    if !copy && source_dtype == target {
+        return Ok(value.clone().unbind());
+    }
+
     let source: String = value.getattr("dtype")?.getattr("name")?.extract()?;
 
     with_dtype!(
