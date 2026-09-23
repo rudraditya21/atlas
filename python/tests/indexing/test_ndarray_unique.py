@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 import atlas
 
@@ -21,6 +22,17 @@ def test_unique_uses_logical_values_from_views() -> None:
 
     assert not value.flags.c_contiguous
     np.testing.assert_array_equal(atlas.unique(value), np.unique(value))
+
+
+def test_unique_accepts_an_explicit_flattened_axis() -> None:
+    value = np.array([[3, 1], [2, 1]], dtype=np.int32)
+
+    np.testing.assert_array_equal(atlas.unique(value, axis=None), np.unique(value))
+
+
+def test_unique_rejects_non_flattened_axes() -> None:
+    with pytest.raises(ValueError, match="axis=None"):
+        atlas.unique(np.array([[1, 2]]), axis=0)
 
 
 def test_unique_handles_empty_inputs() -> None:

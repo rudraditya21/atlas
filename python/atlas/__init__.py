@@ -252,6 +252,12 @@ def where(condition, x=_UNSET, y=_UNSET):
     return _native.where(condition, _optional_array_like(x), _optional_array_like(y))
 
 
+def unique(value, axis=None):
+    if axis is not None:
+        raise ValueError("unique only supports axis=None")
+    return _native.unique(_array_like(value))
+
+
 def linspace(start, stop, num, *, dtype=None, endpoint=True):
     return _native.linspace(start, stop, num, dtype, endpoint)
 
@@ -318,7 +324,6 @@ for _name in (
     "sort",
     "argsort",
     "argpartition",
-    "unique",
     "squeeze",
     "expand_dims",
     "partition",
