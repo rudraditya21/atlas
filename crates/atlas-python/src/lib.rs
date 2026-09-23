@@ -839,9 +839,9 @@ fn sign(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     unary::sign(py, value)
 }
 
-#[pyfunction]
-fn round(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    unary::round(py, value)
+#[pyfunction(signature = (value, decimals = 0))]
+fn round(py: Python<'_>, value: &Bound<'_, PyAny>, decimals: i64) -> PyResult<Py<PyAny>> {
+    unary::round(py, value, decimals)
 }
 
 #[pyfunction]

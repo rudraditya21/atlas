@@ -37,6 +37,21 @@ def test_unary_operations_handle_floats_nan_and_infinity() -> None:
     assert atlas.isfinite(values).tolist() == [True, True, False, False, False]
 
 
+def test_round_supports_positive_and_negative_decimal_precisions() -> None:
+    values = np.array([1234.567, -1234.567, 1.234], dtype=np.float64)
+
+    np.testing.assert_array_equal(atlas.round(values, decimals=2), np.round(values, 2))
+    np.testing.assert_array_equal(
+        atlas.round(values, decimals=-2), np.round(values, -2)
+    )
+
+
+def test_round_keeps_integer_values_unchanged_for_any_precision() -> None:
+    values = np.array([1234, -1234], dtype=np.int32)
+
+    np.testing.assert_array_equal(atlas.round(values, decimals=-2), values)
+
+
 def test_unary_operations_preserve_logical_values_from_non_contiguous_inputs() -> None:
     values = np.array([[-1.2, 2.2], [-3.4, 4.4]], dtype=np.float32).T
 

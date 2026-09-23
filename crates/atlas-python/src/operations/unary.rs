@@ -47,13 +47,21 @@ pub(crate) fn sign(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAn
     apply_unary!(py, value, dtype, numeric, sign)
 }
 
-pub(crate) fn round(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+pub(crate) fn round(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    decimals: i64,
+) -> PyResult<Py<PyAny>> {
     let dtype = array::source_dtype(py, value)?;
     if matches!(dtype, DType::Bool) {
         return Err(PyTypeError::new_err("round does not support bool dtype"));
     }
 
-    apply_unary!(py, value, dtype, numeric, round)
+    match dtype {
+        DType::Float32 => round_float32(py, value, decimals),
+        DType::Float64 => round_float64(py, value, decimals),
+        _ => apply_unary!(py, value, dtype, numeric, round),
+    }
 }
 
 pub(crate) fn isnan(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
@@ -79,4 +87,42 @@ where
     T: atlas_ndarray::ArrayElement + numpy::Element,
 {
     Ok(array::to_numpy_owned(py, array)?.into_any().unbind())
+}
+
+fn round_float32(py: Python<'_>, value: &Bound<'_, PyAny>, decimals: i64) -> PyResult<Py<PyAny>> {
+    let array = array::from_numpy(array::readonly_from_python::<f32>(py, value)?)?;
+    output(
+        py,
+        gil::without_gil(py, move || array.map(|value| round_with_decimals(value, decimals))),
+    )
+}
+
+fn round_float64(py: Python<'_>, value: &Bound<'_, PyAny>, decimals: i64) -> PyResult<Py<PyAny>> {
+    let array = array::from_numpy(array::readonly_from_python::<f64>(py, value)?)?;
+    output(
+        py,
+        gil::without_gil(py, move || array.map(|value| round_with_decimals(value, decimals))),
+    )
+}
+
+trait DecimalRound: Sized {
+    fn round_with_decimals(self, decimals: i64) -> Self;
+}
+
+impl DecimalRound for f32 {
+    fn round_with_decimals(self, decimals: i64) -> Self {
+        let scale = 10_f32.powi(decimals.clamp(-38, 38) as i32);
+        (self * scale).round() / scale
+    }
+}
+
+impl DecimalRound for f64 {
+    fn round_with_decimals(self, decimals: i64) -> Self {
+        let scale = 10_f64.powi(decimals.clamp(-308, 308) as i32);
+        (self * scale).round() / scale
+    }
+}
+
+fn round_with_decimals<T: DecimalRound>(value: T, decimals: i64) -> T {
+    value.round_with_decimals(decimals)
 }
