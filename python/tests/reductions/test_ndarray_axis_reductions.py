@@ -28,6 +28,26 @@ def test_axis_reductions_support_transposed_views() -> None:
     np.testing.assert_array_equal(atlas.mean_axis(values, 0), np.mean(values, axis=0))
 
 
+@pytest.mark.parametrize(
+    ("reduction", "numpy_reduction"),
+    [
+        (atlas.sum, np.sum),
+        (atlas.mean, np.mean),
+        (atlas.min, np.min),
+        (atlas.max, np.max),
+    ],
+)
+def test_axis_reductions_support_keepdims(
+    reduction: object, numpy_reduction: object
+) -> None:
+    values = np.arange(6, dtype=np.int32).reshape(2, 3)
+
+    np.testing.assert_array_equal(
+        reduction(values, axis=1, keepdims=True),
+        numpy_reduction(values, axis=1, keepdims=True),
+    )
+
+
 @pytest.mark.parametrize("reduction", [atlas.sum_axis, atlas.mean_axis])
 def test_axis_reductions_reject_empty_reduction_lanes(reduction: object) -> None:
     with pytest.raises(atlas.NumericError, match="empty input"):

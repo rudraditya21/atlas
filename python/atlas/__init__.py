@@ -64,6 +64,17 @@ def _coerce_array_collection(function):
     return wrapper
 
 
+def _with_keepdims(function):
+    @wraps(function)
+    def wrapper(value, axis=None, keepdims=False):
+        if keepdims and axis is None:
+            raise ValueError("keepdims requires a single axis")
+        result = function(value, axis=axis)
+        return np.expand_dims(result, axis) if keepdims else result
+
+    return wrapper
+
+
 asarray = _native.asarray
 zeros = _native.zeros
 ones = _native.ones
@@ -296,6 +307,9 @@ stack = _coerce_array_collection(stack)
 swapaxes = swap_axes
 var = variance
 std = stddev
+
+for _name in ("all", "any", "sum", "mean", "min", "max", "argmin", "argmax"):
+    globals()[_name] = _with_keepdims(globals()[_name])
 
 __all__ = [
     "AtlasError",

@@ -37,6 +37,21 @@ def test_axis_index_reductions_support_transposed_views(
     np.testing.assert_array_equal(reduction(values, 0), numpy_reduction(values, axis=0))
 
 
+@pytest.mark.parametrize(
+    ("reduction", "numpy_reduction"),
+    [(atlas.argmin, np.argmin), (atlas.argmax, np.argmax)],
+)
+def test_axis_index_reductions_support_keepdims(
+    reduction: object, numpy_reduction: object
+) -> None:
+    values = np.array([[3, 1, 2], [6, 5, 4]], dtype=np.int32)
+
+    np.testing.assert_array_equal(
+        reduction(values, axis=1, keepdims=True),
+        numpy_reduction(values, axis=1, keepdims=True),
+    )
+
+
 @pytest.mark.parametrize("reduction", [atlas.argmin_axis, atlas.argmax_axis])
 def test_axis_index_reductions_translate_invalid_axes(reduction: object) -> None:
     with pytest.raises(atlas.AxisError, match="invalid axis"):

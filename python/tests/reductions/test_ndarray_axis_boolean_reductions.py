@@ -20,6 +20,20 @@ def test_axis_boolean_reductions_use_empty_lane_identity_values() -> None:
     assert atlas.any_axis(values, 1).tolist() == [False, False]
 
 
+@pytest.mark.parametrize(
+    ("reduction", "numpy_reduction"), [(atlas.all, np.all), (atlas.any, np.any)]
+)
+def test_axis_boolean_reductions_support_keepdims(
+    reduction: object, numpy_reduction: object
+) -> None:
+    values = np.array([[True, False], [True, True]], dtype=bool)
+
+    np.testing.assert_array_equal(
+        reduction(values, axis=1, keepdims=True),
+        numpy_reduction(values, axis=1, keepdims=True),
+    )
+
+
 @pytest.mark.parametrize("reduction", [atlas.all_axis, atlas.any_axis])
 def test_axis_boolean_reductions_translate_invalid_axes(reduction: object) -> None:
     with pytest.raises(atlas.AxisError, match="invalid axis"):
