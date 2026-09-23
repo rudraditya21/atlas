@@ -55,6 +55,8 @@ mod norm_ops;
 mod pad_ops;
 #[path = "indexing/partition.rs"]
 mod partition_ops;
+#[path = "indexing/put.rs"]
+mod put_ops;
 #[path = "support/dtype.rs"]
 mod python_dtype;
 #[path = "manipulation/ravel.rs"]
@@ -192,6 +194,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(pad, module)?)?;
     module.add_function(wrap_pyfunction!(searchsorted, module)?)?;
     module.add_function(wrap_pyfunction!(partition, module)?)?;
+    module.add_function(wrap_pyfunction!(put, module)?)?;
     module.add_function(wrap_pyfunction!(squeeze, module)?)?;
     module.add_function(wrap_pyfunction!(expand_dims, module)?)?;
     module.add_function(wrap_pyfunction!(allclose, module)?)?;
@@ -792,6 +795,16 @@ fn partition(
     axis: Option<i64>,
 ) -> PyResult<Py<PyAny>> {
     partition_ops::partition(py, value, kth, axis)
+}
+
+#[pyfunction]
+fn put(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    indices: Vec<i64>,
+    values: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyAny>> {
+    put_ops::put(py, value, indices, values)
 }
 
 #[pyfunction(signature = (value, axis = None))]

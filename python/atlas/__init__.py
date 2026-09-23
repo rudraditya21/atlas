@@ -227,6 +227,7 @@ unique = _native.unique
 pad = _native.pad
 searchsorted = _native.searchsorted
 partition = _native.partition
+put = _native.put
 
 
 _UNSET = object()
@@ -300,6 +301,14 @@ def take(value, indices, axis=None, *, mode="raise"):
     return _native.take(value, indices.tolist(), axis)
 
 
+def put(value, indices, values):
+    value = _array_like(value)
+    if _is_array_like(values):
+        values = np.asarray(values, dtype=value.dtype)
+    result = _native.put(value, indices, values)
+    np.copyto(value, result)
+
+
 def linspace(start, stop, num, *, dtype=None, endpoint=True):
     return _native.linspace(start, stop, num, dtype, endpoint)
 
@@ -368,6 +377,7 @@ for _name in (
     "squeeze",
     "expand_dims",
     "partition",
+    "put",
     "neg",
     "abs",
     "sign",
