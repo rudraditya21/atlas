@@ -97,12 +97,19 @@ def test_integer_dtypes_preserve_construction_arithmetic_and_comparison_output(
     assert comparison.tolist() == (source > 0).tolist()
 
 
-def test_array_operations_reject_mixed_dtypes() -> None:
-    with pytest.raises(TypeError, match="unsupported NumPy dtype"):
-        atlas.add(np.array([1], dtype=np.int32), np.array([1.0], dtype=np.float32))
+@pytest.mark.parametrize(
+    ("lhs", "rhs"),
+    [
+        (np.array([1], dtype=np.int32), np.array([1.0], dtype=np.float32)),
+        (np.array([1], dtype=np.uint8), np.array([1], dtype=np.int16)),
+        (np.array([1], dtype=np.int64), np.array([1], dtype=np.uint64)),
+    ],
+)
+def test_arithmetic_promotes_mixed_dtypes(lhs: np.ndarray, rhs: np.ndarray) -> None:
+    result = atlas.add(lhs, rhs)
 
-    with pytest.raises(TypeError, match="unsupported NumPy dtype"):
-        atlas.equal(np.array([1], dtype=np.uint8), np.array([1], dtype=np.int16))
+    assert result.dtype == np.result_type(lhs, rhs)
+    assert result.tolist() == np.add(lhs, rhs).tolist()
 
 
 @pytest.mark.parametrize(

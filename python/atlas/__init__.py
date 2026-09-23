@@ -61,20 +61,16 @@ def _coerce_arrays(function, *, required=(), optional=()):
 
 
 def _coerce_binary_operands(function):
-    """Coerce binary operands while preserving scalar broadcast semantics."""
+    """Coerce binary operands to their NumPy-promoted dtype."""
 
     @wraps(function)
     def wrapper(lhs, rhs):
-        if _is_array_like(lhs):
-            lhs = _array_like(lhs)
-            if _is_array_like(rhs):
-                rhs = _array_like(rhs)
-        elif _is_array_like(rhs):
-            rhs = _array_like(rhs)
-            lhs = np.asarray(lhs, dtype=rhs.dtype)
-        else:
-            lhs = np.asarray(lhs)
-        return function(lhs, rhs)
+        lhs_value = _array_like(lhs) if _is_array_like(lhs) else lhs
+        rhs_value = _array_like(rhs) if _is_array_like(rhs) else rhs
+        dtype = np.result_type(lhs_value, rhs_value)
+        return function(
+            np.asarray(lhs_value, dtype=dtype), np.asarray(rhs_value, dtype=dtype)
+        )
 
     return wrapper
 

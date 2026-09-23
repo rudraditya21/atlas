@@ -41,6 +41,16 @@ def test_comparisons_support_scalar_left_operands(
     assert comparison(scalar, values).tolist() == expected
 
 
+def test_comparisons_promote_mixed_dtypes() -> None:
+    lhs = np.array([1, 2], dtype=np.uint8)
+    rhs = np.array([1.0, 3.0], dtype=np.float32)
+
+    result = atlas.less(lhs, rhs)
+
+    assert result.dtype == np.dtype(bool)
+    assert result.tolist() == np.less(lhs, rhs).tolist()
+
+
 def test_selection_count_nonzero_and_masked_fill_use_logical_values() -> None:
     values = np.arange(6.0).reshape(2, 3).T
     mask = np.array([[True, False], [False, True], [True, False]])
