@@ -341,6 +341,17 @@ def broadcast_to(value, shape):
         raise ShapeError(str(error)) from None
 
 
+def broadcast_arrays(*values):
+    values = [
+        _array_like(value) if _is_array_like(value) else np.asarray(value)
+        for value in values
+    ]
+    try:
+        return np.broadcast_arrays(*values)
+    except ValueError as error:
+        raise ShapeError(str(error)) from None
+
+
 def linspace(start, stop, num, *, dtype=None, endpoint=True):
     return _native.linspace(start, stop, num, dtype, endpoint)
 
@@ -438,6 +449,7 @@ for _name in (
     "bitwise_and",
     "bitwise_or",
     "bitwise_xor",
+    "broadcast_arrays",
     "broadcast_to",
 ):
     globals()[_name] = _coerce_arrays(
