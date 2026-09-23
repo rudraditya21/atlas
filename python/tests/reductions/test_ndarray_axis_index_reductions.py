@@ -7,6 +7,12 @@ import atlas
 def test_axis_index_reductions_use_first_indices_for_ties() -> None:
     values = np.array([[1, 1, 2], [3, 3, 0]], dtype=np.int32)
 
+    np.testing.assert_array_equal(
+        atlas.argmin(values, axis=1), atlas.argmin_axis(values, 1)
+    )
+    np.testing.assert_array_equal(
+        atlas.argmax(values, axis=-1), atlas.argmax_axis(values, -1)
+    )
     assert atlas.argmin_axis(values, 1).tolist() == [0, 2]
     assert atlas.argmax_axis(values, -1).tolist() == [2, 0]
 

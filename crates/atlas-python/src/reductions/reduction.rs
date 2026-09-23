@@ -85,12 +85,20 @@ pub(crate) fn stddev(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<Py
     reduce(py, value, Reduction::Stddev)
 }
 
-pub(crate) fn argmin(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    reduce(py, value, Reduction::Argmin)
+pub(crate) fn argmin(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axis: Option<i64>,
+) -> PyResult<Py<PyAny>> {
+    index_reduce_optional_axis(py, value, axis, Reduction::Argmin, AxisIndexReduction::Min)
 }
 
-pub(crate) fn argmax(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    reduce(py, value, Reduction::Argmax)
+pub(crate) fn argmax(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axis: Option<i64>,
+) -> PyResult<Py<PyAny>> {
+    index_reduce_optional_axis(py, value, axis, Reduction::Argmax, AxisIndexReduction::Max)
 }
 
 pub(crate) fn cumsum(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
@@ -138,7 +146,7 @@ pub(crate) fn argmin_axis(
     value: &Bound<'_, PyAny>,
     axis: i64,
 ) -> PyResult<Py<PyAny>> {
-    index_reduce_axis(py, value, axis, AxisIndexReduction::Min)
+    argmin(py, value, Some(axis))
 }
 
 pub(crate) fn argmax_axis(
@@ -146,7 +154,20 @@ pub(crate) fn argmax_axis(
     value: &Bound<'_, PyAny>,
     axis: i64,
 ) -> PyResult<Py<PyAny>> {
-    index_reduce_axis(py, value, axis, AxisIndexReduction::Max)
+    argmax(py, value, Some(axis))
+}
+
+fn index_reduce_optional_axis(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axis: Option<i64>,
+    reduction: Reduction,
+    axis_reduction: AxisIndexReduction,
+) -> PyResult<Py<PyAny>> {
+    match axis {
+        Some(axis) => index_reduce_axis(py, value, axis, axis_reduction),
+        None => reduce(py, value, reduction),
+    }
 }
 
 pub(crate) fn sum_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {

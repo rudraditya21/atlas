@@ -574,14 +574,14 @@ fn stddev(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     reduction::stddev(py, value)
 }
 
-#[pyfunction]
-fn argmin(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    reduction::argmin(py, value)
+#[pyfunction(signature = (value, axis = None))]
+fn argmin(py: Python<'_>, value: &Bound<'_, PyAny>, axis: Option<i64>) -> PyResult<Py<PyAny>> {
+    reduction::argmin(py, value, axis)
 }
 
-#[pyfunction]
-fn argmax(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    reduction::argmax(py, value)
+#[pyfunction(signature = (value, axis = None))]
+fn argmax(py: Python<'_>, value: &Bound<'_, PyAny>, axis: Option<i64>) -> PyResult<Py<PyAny>> {
+    reduction::argmax(py, value, axis)
 }
 
 #[pyfunction]
