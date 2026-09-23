@@ -702,7 +702,7 @@ fn split(
 fn repeat(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
-    repeats: i64,
+    repeats: &Bound<'_, PyAny>,
     axis: Option<i64>,
 ) -> PyResult<Py<PyAny>> {
     repeat_ops::repeat(py, value, repeats, axis)
