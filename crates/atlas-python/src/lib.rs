@@ -178,6 +178,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(max_axis, module)?)?;
     module.add_function(wrap_pyfunction!(reshape, module)?)?;
     module.add_function(wrap_pyfunction!(transpose, module)?)?;
+    module.add_function(wrap_pyfunction!(moveaxis, module)?)?;
     module.add_function(wrap_pyfunction!(swap_axes, module)?)?;
     module.add_function(wrap_pyfunction!(split, module)?)?;
     module.add_function(wrap_pyfunction!(repeat, module)?)?;
@@ -665,6 +666,16 @@ fn transpose(
     axes: Option<Vec<i64>>,
 ) -> PyResult<Py<PyAny>> {
     shape_ops::transpose(py, value, axes)
+}
+
+#[pyfunction]
+fn moveaxis(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    source: &Bound<'_, PyAny>,
+    destination: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyAny>> {
+    shape_ops::moveaxis(py, value, source, destination)
 }
 
 #[pyfunction]

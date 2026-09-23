@@ -150,6 +150,7 @@ min_axis = _native.min_axis
 max_axis = _native.max_axis
 reshape = _native.reshape
 transpose = _native.transpose
+moveaxis = _native.moveaxis
 swap_axes = _native.swap_axes
 split = _native.split
 repeat = _native.repeat
@@ -226,6 +227,7 @@ for _name in (
     "max_axis",
     "reshape",
     "transpose",
+    "moveaxis",
     "swap_axes",
     "split",
     "repeat",
@@ -361,6 +363,7 @@ __all__ = [
     "nanstd",
     "norm",
     "multiply",
+    "moveaxis",
     "neg",
     "ndim",
     "nonzero",

@@ -21,6 +21,30 @@ def test_reshape_infers_a_single_negative_dimension() -> None:
     np.testing.assert_array_equal(atlas.reshape(values, [3, -1]), values.reshape(3, 4))
 
 
+def test_moveaxis_supports_scalar_and_multiple_axes() -> None:
+    values = np.arange(24, dtype=np.int32).reshape(2, 3, 4)
+
+    np.testing.assert_array_equal(
+        atlas.moveaxis(values, 0, -1), np.moveaxis(values, 0, -1)
+    )
+    np.testing.assert_array_equal(
+        atlas.moveaxis(values, [0, 2], [2, 0]), np.moveaxis(values, [0, 2], [2, 0])
+    )
+
+
+@pytest.mark.parametrize("source, destination", [([0, 0], [1, 2]), ([0], [1, 2])])
+def test_moveaxis_rejects_invalid_axis_specifications(
+    source: list[int], destination: list[int]
+) -> None:
+    with pytest.raises(atlas.ShapeError):
+        atlas.moveaxis(np.ones((2, 3, 4)), source, destination)
+
+
+def test_moveaxis_translates_out_of_bounds_axes() -> None:
+    with pytest.raises(atlas.AxisError, match="axis 3 is out of bounds"):
+        atlas.moveaxis(np.ones((2, 3, 4)), 3, 0)
+
+
 @pytest.mark.parametrize("shape", [[-1, -1], [5, -1], [-2], [-1, 0]])
 def test_reshape_rejects_invalid_inferred_dimensions(shape: list[int]) -> None:
     with pytest.raises(atlas.ShapeError):
