@@ -60,7 +60,11 @@ def test_binding_return_types_follow_python_and_numpy_conventions() -> None:
 @pytest.mark.parametrize(
     ("operation", "exception", "match"),
     [
-        (lambda: atlas.sort([3, 1, 2]), TypeError, "expected a NumPy ndarray"),
+        (
+            lambda: atlas.sort(3),
+            TypeError,
+            "expected a NumPy ndarray or Python sequence",
+        ),
         (lambda: atlas.zeros([2], dtype="complex128"), ValueError, "unsupported dtype"),
         (lambda: atlas.sort(np.array([3, 1, 2]), axis=1), atlas.AxisError, "axis"),
         (lambda: atlas.repeat(np.array([1, 2]), -1), atlas.NumericError, "nonnegative"),

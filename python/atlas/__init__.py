@@ -1,5 +1,10 @@
 """Python bindings for Atlas."""
 
+from collections.abc import Sequence
+from functools import wraps
+
+import numpy as np
+
 from . import _native
 from .errors import (
     AtlasError,
@@ -11,6 +16,54 @@ from .errors import (
 )
 
 __version__ = _native.version()
+
+
+def _array_like(value):
+    if isinstance(value, np.ndarray):
+        return value
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        return np.asarray(value)
+    raise TypeError("expected a NumPy ndarray or Python sequence")
+
+
+def _optional_array_like(value):
+    if isinstance(value, np.ndarray) or (
+        isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray))
+    ):
+        return _array_like(value)
+    return value
+
+
+def _coerce_arrays(function, *, required=(), optional=()):
+    """Coerce array-like public arguments before entering the native boundary."""
+
+    @wraps(function)
+    def wrapper(*args, **kwargs):
+        args = list(args)
+        kwargs = dict(kwargs)
+        for index, name in required:
+            if index < len(args):
+                args[index] = _array_like(args[index])
+            elif name in kwargs:
+                kwargs[name] = _array_like(kwargs[name])
+        for index, name in optional:
+            if index < len(args):
+                args[index] = _optional_array_like(args[index])
+            elif name in kwargs:
+                kwargs[name] = _optional_array_like(kwargs[name])
+        return function(*args, **kwargs)
+
+    return wrapper
+
+
+def _coerce_array_collection(function):
+    @wraps(function)
+    def wrapper(arrays, axis):
+        return function([_array_like(value) for value in arrays], axis)
+
+    return wrapper
+
+
 asarray = _native.asarray
 zeros = _native.zeros
 ones = _native.ones
@@ -110,6 +163,120 @@ unique = _native.unique
 pad = _native.pad
 searchsorted = _native.searchsorted
 partition = _native.partition
+
+asarray = _coerce_arrays(asarray, required=((0, "value"),))
+astype = _coerce_arrays(astype, required=((0, "value"),))
+
+for _name in (
+    "shape",
+    "ndim",
+    "size",
+    "dtype",
+    "count_true",
+    "all",
+    "any",
+    "all_axis",
+    "any_axis",
+    "take",
+    "norm",
+    "trace",
+    "diag",
+    "matrix_norm",
+    "det",
+    "inverse",
+    "ravel",
+    "flatten",
+    "nonzero",
+    "argwhere",
+    "sum",
+    "mean",
+    "min",
+    "max",
+    "variance",
+    "stddev",
+    "argmin",
+    "argmax",
+    "cumsum",
+    "cumprod",
+    "cumsum_axis",
+    "cumprod_axis",
+    "nanmin",
+    "nanmax",
+    "nanmean",
+    "nanstd",
+    "argmin_axis",
+    "argmax_axis",
+    "sum_axis",
+    "mean_axis",
+    "min_axis",
+    "max_axis",
+    "reshape",
+    "transpose",
+    "swap_axes",
+    "split",
+    "repeat",
+    "tile",
+    "flip",
+    "roll",
+    "sort",
+    "argsort",
+    "argpartition",
+    "unique",
+    "squeeze",
+    "expand_dims",
+    "partition",
+    "neg",
+    "abs",
+    "sign",
+    "round",
+    "isnan",
+    "isinf",
+    "isfinite",
+):
+    globals()[_name] = _coerce_arrays(globals()[_name], required=((0, "value"),))
+
+for _name in (
+    "add",
+    "subtract",
+    "multiply",
+    "divide",
+    "equal",
+    "not_equal",
+    "less",
+    "less_equal",
+    "greater",
+    "greater_equal",
+    "bitwise_and",
+    "bitwise_or",
+    "bitwise_xor",
+):
+    globals()[_name] = _coerce_arrays(
+        globals()[_name], required=((0, "lhs"),), optional=((1, "rhs"),)
+    )
+
+for _name in ("dot", "matmul", "allclose"):
+    globals()[_name] = _coerce_arrays(
+        globals()[_name], required=((0, "lhs"), (1, "rhs"))
+    )
+
+solve = _coerce_arrays(solve, required=((0, "matrix"), (1, "rhs")))
+
+for _name in ("select", "masked_fill"):
+    globals()[_name] = _coerce_arrays(
+        globals()[_name], required=((0, "value"), (1, "mask"))
+    )
+
+where = _coerce_arrays(
+    where, required=((0, "condition"),), optional=((1, "x"), (2, "y"))
+)
+bitwise_not = _coerce_arrays(bitwise_not, required=((0, "value"),))
+pad = _coerce_arrays(pad, required=((0, "array"),))
+searchsorted = _coerce_arrays(
+    searchsorted, required=((0, "sorted"),), optional=((1, "values"),)
+)
+clip = _coerce_arrays(clip, required=((0, "value"),))
+concatenate = _coerce_array_collection(concatenate)
+stack = _coerce_array_collection(stack)
 
 __all__ = [
     "AtlasError",
