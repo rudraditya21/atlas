@@ -241,6 +241,17 @@ def full(shape, fill_value=_UNSET, dtype=None, *, value=_UNSET):
     return _native.full(shape, fill_value, dtype)
 
 
+def where(condition, x=_UNSET, y=_UNSET):
+    condition = _array_like(condition)
+    if x is _UNSET:
+        if y is not _UNSET:
+            raise TypeError("where() requires both x and y")
+        return nonzero(condition)
+    if y is _UNSET:
+        raise TypeError("where() requires both x and y")
+    return _native.where(condition, _optional_array_like(x), _optional_array_like(y))
+
+
 def linspace(start, stop, num, *, dtype=None, endpoint=True):
     return _native.linspace(start, stop, num, dtype, endpoint)
 
@@ -356,9 +367,6 @@ for _name in ("select", "masked_fill"):
         globals()[_name], required=((0, "value"), (1, "mask"))
     )
 
-where = _coerce_arrays(
-    where, required=((0, "condition"),), optional=((1, "x"), (2, "y"))
-)
 bitwise_not = _coerce_arrays(bitwise_not, required=((0, "value"),))
 pad = _coerce_arrays(pad, required=((0, "array"),))
 searchsorted = _coerce_searchsorted(searchsorted)
