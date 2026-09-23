@@ -1,5 +1,103 @@
 use pyo3::{exceptions::PyValueError, prelude::*, types::PyModule};
 
+macro_rules! with_dtype {
+    ($dtype:expr, all |$ty:ident| $body:expr) => {{
+        match $dtype {
+            DType::Bool => {
+                type $ty = bool;
+                $body
+            }
+            DType::Int8 => {
+                type $ty = i8;
+                $body
+            }
+            DType::Int16 => {
+                type $ty = i16;
+                $body
+            }
+            DType::Int32 => {
+                type $ty = i32;
+                $body
+            }
+            DType::Int64 => {
+                type $ty = i64;
+                $body
+            }
+            DType::UInt8 => {
+                type $ty = u8;
+                $body
+            }
+            DType::UInt16 => {
+                type $ty = u16;
+                $body
+            }
+            DType::UInt32 => {
+                type $ty = u32;
+                $body
+            }
+            DType::UInt64 => {
+                type $ty = u64;
+                $body
+            }
+            DType::Float32 => {
+                type $ty = f32;
+                $body
+            }
+            DType::Float64 => {
+                type $ty = f64;
+                $body
+            }
+        }
+    }};
+    ($dtype:expr, numeric |$ty:ident| $body:expr) => {{
+        match $dtype {
+            DType::Bool => unreachable!("numeric dtype dispatch excludes bool"),
+            DType::Int8 => {
+                type $ty = i8;
+                $body
+            }
+            DType::Int16 => {
+                type $ty = i16;
+                $body
+            }
+            DType::Int32 => {
+                type $ty = i32;
+                $body
+            }
+            DType::Int64 => {
+                type $ty = i64;
+                $body
+            }
+            DType::UInt8 => {
+                type $ty = u8;
+                $body
+            }
+            DType::UInt16 => {
+                type $ty = u16;
+                $body
+            }
+            DType::UInt32 => {
+                type $ty = u32;
+                $body
+            }
+            DType::UInt64 => {
+                type $ty = u64;
+                $body
+            }
+            DType::Float32 => {
+                type $ty = f32;
+                $body
+            }
+            DType::Float64 => {
+                type $ty = f64;
+                $body
+            }
+        }
+    }};
+}
+
+pub(crate) use with_dtype;
+
 #[derive(Clone, Copy)]
 pub(crate) enum DType {
     Bool,

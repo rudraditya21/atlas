@@ -1,7 +1,10 @@
 use atlas_ndarray::NDArray;
 use pyo3::{exceptions::PyValueError, prelude::*};
 
-use crate::{array, python_dtype::DType};
+use crate::{
+    array,
+    python_dtype::{DType, with_dtype},
+};
 
 pub(crate) fn asarray(
     py: Python<'_>,
@@ -16,19 +19,7 @@ pub(crate) fn asarray(
         }
     };
 
-    match dtype {
-        DType::Bool => asarray_typed::<bool>(py, value),
-        DType::Int8 => asarray_typed::<i8>(py, value),
-        DType::Int16 => asarray_typed::<i16>(py, value),
-        DType::Int32 => asarray_typed::<i32>(py, value),
-        DType::Int64 => asarray_typed::<i64>(py, value),
-        DType::UInt8 => asarray_typed::<u8>(py, value),
-        DType::UInt16 => asarray_typed::<u16>(py, value),
-        DType::UInt32 => asarray_typed::<u32>(py, value),
-        DType::UInt64 => asarray_typed::<u64>(py, value),
-        DType::Float32 => asarray_typed::<f32>(py, value),
-        DType::Float64 => asarray_typed::<f64>(py, value),
-    }
+    with_dtype!(dtype, all | T | asarray_typed::<T>(py, value))
 }
 
 pub(crate) fn zeros(
@@ -36,19 +27,12 @@ pub(crate) fn zeros(
     shape: Vec<usize>,
     dtype: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
-    match DType::parse(py, dtype)? {
-        DType::Bool => output(py, NDArray::full(shape, false)),
-        DType::Int8 => output(py, NDArray::<i8>::zeros(shape)),
-        DType::Int16 => output(py, NDArray::<i16>::zeros(shape)),
-        DType::Int32 => output(py, NDArray::<i32>::zeros(shape)),
-        DType::Int64 => output(py, NDArray::<i64>::zeros(shape)),
-        DType::UInt8 => output(py, NDArray::<u8>::zeros(shape)),
-        DType::UInt16 => output(py, NDArray::<u16>::zeros(shape)),
-        DType::UInt32 => output(py, NDArray::<u32>::zeros(shape)),
-        DType::UInt64 => output(py, NDArray::<u64>::zeros(shape)),
-        DType::Float32 => output(py, NDArray::<f32>::zeros(shape)),
-        DType::Float64 => output(py, NDArray::<f64>::zeros(shape)),
+    let dtype = DType::parse(py, dtype)?;
+    if matches!(dtype, DType::Bool) {
+        return output(py, NDArray::full(shape, false));
     }
+
+    with_dtype!(dtype, numeric | T | output(py, NDArray::<T>::zeros(shape)))
 }
 
 pub(crate) fn ones(
@@ -56,19 +40,12 @@ pub(crate) fn ones(
     shape: Vec<usize>,
     dtype: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
-    match DType::parse(py, dtype)? {
-        DType::Bool => output(py, NDArray::full(shape, true)),
-        DType::Int8 => output(py, NDArray::<i8>::ones(shape)),
-        DType::Int16 => output(py, NDArray::<i16>::ones(shape)),
-        DType::Int32 => output(py, NDArray::<i32>::ones(shape)),
-        DType::Int64 => output(py, NDArray::<i64>::ones(shape)),
-        DType::UInt8 => output(py, NDArray::<u8>::ones(shape)),
-        DType::UInt16 => output(py, NDArray::<u16>::ones(shape)),
-        DType::UInt32 => output(py, NDArray::<u32>::ones(shape)),
-        DType::UInt64 => output(py, NDArray::<u64>::ones(shape)),
-        DType::Float32 => output(py, NDArray::<f32>::ones(shape)),
-        DType::Float64 => output(py, NDArray::<f64>::ones(shape)),
+    let dtype = DType::parse(py, dtype)?;
+    if matches!(dtype, DType::Bool) {
+        return output(py, NDArray::full(shape, true));
     }
+
+    with_dtype!(dtype, numeric | T | output(py, NDArray::<T>::ones(shape)))
 }
 
 pub(crate) fn eye(
@@ -79,19 +56,12 @@ pub(crate) fn eye(
 ) -> PyResult<Py<PyAny>> {
     let columns = columns.unwrap_or(rows);
 
-    match DType::parse(py, dtype)? {
-        DType::Bool => Err(PyValueError::new_err("eye does not support bool dtype")),
-        DType::Int8 => output(py, NDArray::<i8>::eye_with_columns(rows, columns)),
-        DType::Int16 => output(py, NDArray::<i16>::eye_with_columns(rows, columns)),
-        DType::Int32 => output(py, NDArray::<i32>::eye_with_columns(rows, columns)),
-        DType::Int64 => output(py, NDArray::<i64>::eye_with_columns(rows, columns)),
-        DType::UInt8 => output(py, NDArray::<u8>::eye_with_columns(rows, columns)),
-        DType::UInt16 => output(py, NDArray::<u16>::eye_with_columns(rows, columns)),
-        DType::UInt32 => output(py, NDArray::<u32>::eye_with_columns(rows, columns)),
-        DType::UInt64 => output(py, NDArray::<u64>::eye_with_columns(rows, columns)),
-        DType::Float32 => output(py, NDArray::<f32>::eye_with_columns(rows, columns)),
-        DType::Float64 => output(py, NDArray::<f64>::eye_with_columns(rows, columns)),
+    let dtype = DType::parse(py, dtype)?;
+    if matches!(dtype, DType::Bool) {
+        return Err(PyValueError::new_err("eye does not support bool dtype"));
     }
+
+    with_dtype!(dtype, numeric | T | output(py, NDArray::<T>::eye_with_columns(rows, columns)))
 }
 
 pub(crate) fn identity(
@@ -108,19 +78,9 @@ pub(crate) fn full(
     value: &Bound<'_, PyAny>,
     dtype: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
-    match DType::parse(py, dtype)? {
-        DType::Bool => output(py, NDArray::full(shape, value.extract::<bool>()?)),
-        DType::Int8 => output(py, NDArray::full(shape, value.extract::<i8>()?)),
-        DType::Int16 => output(py, NDArray::full(shape, value.extract::<i16>()?)),
-        DType::Int32 => output(py, NDArray::full(shape, value.extract::<i32>()?)),
-        DType::Int64 => output(py, NDArray::full(shape, value.extract::<i64>()?)),
-        DType::UInt8 => output(py, NDArray::full(shape, value.extract::<u8>()?)),
-        DType::UInt16 => output(py, NDArray::full(shape, value.extract::<u16>()?)),
-        DType::UInt32 => output(py, NDArray::full(shape, value.extract::<u32>()?)),
-        DType::UInt64 => output(py, NDArray::full(shape, value.extract::<u64>()?)),
-        DType::Float32 => output(py, NDArray::full(shape, value.extract::<f32>()?)),
-        DType::Float64 => output(py, NDArray::full(shape, value.extract::<f64>()?)),
-    }
+    let dtype = DType::parse(py, dtype)?;
+
+    with_dtype!(dtype, all | T | output(py, NDArray::full(shape, value.extract::<T>()?)))
 }
 
 pub(crate) fn arange(
