@@ -692,10 +692,10 @@ fn swap_axes(
 fn split(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
-    indices: Vec<usize>,
+    indices_or_sections: &Bound<'_, PyAny>,
     axis: i64,
 ) -> PyResult<Vec<Py<PyAny>>> {
-    split_ops::split(py, value, indices, axis)
+    split_ops::split(py, value, indices_or_sections, axis)
 }
 
 #[pyfunction(signature = (value, repeats, axis = None))]

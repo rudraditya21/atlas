@@ -16,6 +16,16 @@ def test_split_returns_partitions_at_requested_indices() -> None:
     np.testing.assert_array_equal(result[2], [[3], [7], [11]])
 
 
+def test_split_accepts_an_equal_section_count() -> None:
+    value = np.arange(12, dtype=np.int32).reshape(3, 4)
+
+    result = atlas.split(value, 2, axis=1)
+
+    assert len(result) == 2
+    np.testing.assert_array_equal(result[0], value[:, :2])
+    np.testing.assert_array_equal(result[1], value[:, 2:])
+
+
 def test_split_supports_negative_axes_and_empty_partitions() -> None:
     value = np.arange(6, dtype=np.float64).reshape(2, 3)
 
@@ -40,3 +50,8 @@ def test_split_uses_logical_values_from_views() -> None:
 def test_split_rejects_invalid_indices(indices: list[int]) -> None:
     with pytest.raises(atlas.NumericError, match="split indices"):
         atlas.split(np.arange(4), indices, axis=0)
+
+
+def test_split_rejects_non_divisible_section_counts() -> None:
+    with pytest.raises(atlas.NumericError, match="divisible by sections"):
+        atlas.split(np.arange(5), 2, axis=0)

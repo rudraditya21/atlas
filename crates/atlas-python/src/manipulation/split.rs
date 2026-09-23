@@ -2,12 +2,18 @@ use pyo3::{exceptions::PyTypeError, prelude::*};
 
 use crate::{array, gil};
 
+enum SplitSpec {
+    Indices(Vec<usize>),
+    Sections(usize),
+}
+
 pub(crate) fn split(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
-    indices: Vec<usize>,
+    indices_or_sections: &Bound<'_, PyAny>,
     axis: i64,
 ) -> PyResult<Vec<Py<PyAny>>> {
+    let split_spec = split_spec(indices_or_sections)?;
     array::require_numpy_array(py, value)?;
     let dtype: String = value.getattr("dtype")?.getattr("name")?.extract()?;
 
@@ -15,9 +21,11 @@ pub(crate) fn split(
         ($ty:ty) => {{
             let array = array::from_numpy(array::readonly_from_python::<$ty>(py, value)?)?;
             let arrays = gil::without_gil(py, move || {
-                array
-                    .split_at_indices(&indices, axis)
-                    .map(|views| views.into_iter().map(|view| view.to_owned()).collect::<Vec<_>>())
+                let views = match split_spec {
+                    SplitSpec::Indices(indices) => array.split_at_indices(&indices, axis),
+                    SplitSpec::Sections(sections) => array.split(sections, axis),
+                };
+                views.map(|views| views.into_iter().map(|view| view.to_owned()).collect::<Vec<_>>())
             })
             .map_err(|error| crate::error::ndarray(py, error))?;
             arrays
@@ -41,4 +49,11 @@ pub(crate) fn split(
         "float64" => apply!(f64),
         _ => Err(PyTypeError::new_err(format!("unsupported NumPy dtype {dtype}"))),
     }
+}
+
+fn split_spec(value: &Bound<'_, PyAny>) -> PyResult<SplitSpec> {
+    value
+        .extract::<usize>()
+        .map(SplitSpec::Sections)
+        .or_else(|_| value.extract::<Vec<usize>>().map(SplitSpec::Indices))
 }
