@@ -19,6 +19,28 @@ def test_comparisons_support_scalars_broadcasting_and_views() -> None:
     ]
 
 
+@pytest.mark.parametrize(
+    ("comparison", "scalar", "values", "expected"),
+    [
+        (atlas.equal, 2, np.array([1, 2, 3], dtype=np.int32), [False, True, False]),
+        (atlas.not_equal, 2, np.array([1, 2, 3], dtype=np.int32), [True, False, True]),
+        (atlas.less, 2, np.array([1, 2, 3], dtype=np.int32), [False, False, True]),
+        (atlas.less_equal, 2, np.array([1, 2, 3], dtype=np.int32), [False, True, True]),
+        (atlas.greater, 2, np.array([1, 2, 3], dtype=np.int32), [True, False, False]),
+        (
+            atlas.greater_equal,
+            2,
+            np.array([1, 2, 3], dtype=np.int32),
+            [True, True, False],
+        ),
+    ],
+)
+def test_comparisons_support_scalar_left_operands(
+    comparison: object, scalar: int, values: np.ndarray, expected: list[bool]
+) -> None:
+    assert comparison(scalar, values).tolist() == expected
+
+
 def test_selection_count_nonzero_and_masked_fill_use_logical_values() -> None:
     values = np.arange(6.0).reshape(2, 3).T
     mask = np.array([[True, False], [False, True], [True, False]])

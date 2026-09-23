@@ -26,10 +26,14 @@ def _array_like(value):
     raise TypeError("expected a NumPy ndarray or Python sequence")
 
 
-def _optional_array_like(value):
-    if isinstance(value, np.ndarray) or (
+def _is_array_like(value):
+    return isinstance(value, np.ndarray) or (
         isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray))
-    ):
+    )
+
+
+def _optional_array_like(value):
+    if _is_array_like(value):
         return _array_like(value)
     return value
 
@@ -52,6 +56,25 @@ def _coerce_arrays(function, *, required=(), optional=()):
             elif name in kwargs:
                 kwargs[name] = _optional_array_like(kwargs[name])
         return function(*args, **kwargs)
+
+    return wrapper
+
+
+def _coerce_binary_operands(function):
+    """Coerce binary operands while preserving scalar broadcast semantics."""
+
+    @wraps(function)
+    def wrapper(lhs, rhs):
+        if _is_array_like(lhs):
+            lhs = _array_like(lhs)
+            if _is_array_like(rhs):
+                rhs = _array_like(rhs)
+        elif _is_array_like(rhs):
+            rhs = _array_like(rhs)
+            lhs = np.asarray(lhs, dtype=rhs.dtype)
+        else:
+            lhs = np.asarray(lhs)
+        return function(lhs, rhs)
 
     return wrapper
 
@@ -273,6 +296,10 @@ for _name in (
     "less_equal",
     "greater",
     "greater_equal",
+):
+    globals()[_name] = _coerce_binary_operands(globals()[_name])
+
+for _name in (
     "bitwise_and",
     "bitwise_or",
     "bitwise_xor",

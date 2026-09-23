@@ -24,6 +24,21 @@ def test_arithmetic_supports_scalars(
     assert operation(values, scalar).tolist() == expected
 
 
+@pytest.mark.parametrize(
+    ("operation", "scalar", "values", "expected"),
+    [
+        (atlas.add, 1.0, np.array([2.0, 3.0]), [3.0, 4.0]),
+        (atlas.subtract, 8.0, np.array([2.0, 3.0]), [6.0, 5.0]),
+        (atlas.multiply, 2.0, np.array([2.0, 3.0]), [4.0, 6.0]),
+        (atlas.divide, 12.0, np.array([2.0, 3.0]), [6.0, 4.0]),
+    ],
+)
+def test_arithmetic_supports_scalar_left_operands(
+    operation: object, scalar: float, values: np.ndarray, expected: list[float]
+) -> None:
+    assert operation(scalar, values).tolist() == expected
+
+
 def test_arithmetic_supports_broadcasting_and_views() -> None:
     lhs = np.arange(6.0).reshape(2, 3).T
     rhs = np.array([10.0, 20.0])
