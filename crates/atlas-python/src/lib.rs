@@ -5,6 +5,8 @@
 
 use pyo3::prelude::*;
 
+#[path = "argpartition.rs"]
+mod argpartition_ops;
 #[path = "argsort.rs"]
 mod argsort_ops;
 mod arithmetic;
@@ -166,6 +168,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(roll, module)?)?;
     module.add_function(wrap_pyfunction!(sort, module)?)?;
     module.add_function(wrap_pyfunction!(argsort, module)?)?;
+    module.add_function(wrap_pyfunction!(argpartition, module)?)?;
     module.add_function(wrap_pyfunction!(unique, module)?)?;
     module.add_function(wrap_pyfunction!(pad, module)?)?;
     module.add_function(wrap_pyfunction!(searchsorted, module)?)?;
@@ -675,6 +678,16 @@ fn sort(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAn
 #[pyfunction(signature = (value, axis = -1))]
 fn argsort(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
     argsort_ops::argsort(py, value, axis)
+}
+
+#[pyfunction(signature = (value, kth, axis = -1))]
+fn argpartition(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    kth: i64,
+    axis: i64,
+) -> PyResult<Py<PyAny>> {
+    argpartition_ops::argpartition(py, value, kth, axis)
 }
 
 #[pyfunction]

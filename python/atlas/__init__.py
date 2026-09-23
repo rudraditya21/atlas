@@ -103,6 +103,7 @@ flip = _native.flip
 roll = _native.roll
 sort = _native.sort
 argsort = _native.argsort
+argpartition = _native.argpartition
 unique = _native.unique
 pad = _native.pad
 searchsorted = _native.searchsorted
@@ -128,6 +129,7 @@ __all__ = [
     "any",
     "any_axis",
     "argwhere",
+    "argpartition",
     "argsort",
     "bitwise_and",
     "bitwise_not",

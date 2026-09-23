@@ -59,6 +59,11 @@ impl<T: SortElement> NDArray<T> {
         argsort_operand(self, axis)
     }
 
+    /// Returns indices that partition each lane along `axis` at `kth`.
+    pub fn argpartition<A: AxisIndex>(&self, kth: usize, axis: A) -> AtlasNdResult<NDArray<i64>> {
+        argpartition_operand(self, kth, axis)
+    }
+
     /// Partitions each lane along `axis` so the value at `kth` is in sorted position.
     pub fn partition<A: AxisIndex>(&self, kth: usize, axis: A) -> AtlasNdResult<Self> {
         partition_operand(self, kth, axis)
@@ -79,6 +84,11 @@ impl<'a, T: SortElement> ArrayView<'a, T> {
     /// Returns stable ascending sort indices for each lane along `axis`.
     pub fn argsort<A: AxisIndex>(&self, axis: A) -> AtlasNdResult<NDArray<i64>> {
         argsort_operand(self, axis)
+    }
+
+    /// Returns indices that partition each lane along `axis` at `kth`.
+    pub fn argpartition<A: AxisIndex>(&self, kth: usize, axis: A) -> AtlasNdResult<NDArray<i64>> {
+        argpartition_operand(self, kth, axis)
     }
 
     /// Partitions each lane along `axis` so the value at `kth` is in sorted position.
@@ -190,6 +200,46 @@ where
     }
 
     NDArray::from_shape_vec(shape.to_vec(), partitioned)
+}
+
+fn argpartition_operand<T, O, A>(operand: &O, kth: usize, axis: A) -> AtlasNdResult<NDArray<i64>>
+where
+    T: SortElement,
+    O: OperandMetadata<T> + ?Sized,
+    A: AxisIndex,
+{
+    let axis = normalize_axis(axis, operand.ndim())?;
+    let shape = operand.shape();
+    let axis_len = shape[axis];
+    if kth >= axis_len {
+        return Err(crate::AtlasNdError::IndexOutOfBounds {
+            axis,
+            index: i64::try_from(kth).expect("ndarray axes fit i64"),
+            dim: axis_len,
+        });
+    }
+
+    let inner = element_count(&shape[axis + 1..]);
+    let outer = element_count(&shape[..axis]);
+    let data: Vec<_> =
+        value_iter(operand.data(), operand.offset(), shape, operand.strides()).copied().collect();
+    let mut indices = vec![0; data.len()];
+
+    for outer_index in 0..outer {
+        for inner_index in 0..inner {
+            let mut lane: Vec<_> = (0..axis_len).collect();
+            lane.select_nth_unstable_by(kth, |left, right| {
+                data[(outer_index * axis_len + *left) * inner + inner_index]
+                    .sort_compare(&data[(outer_index * axis_len + *right) * inner + inner_index])
+            });
+            for (axis_index, source_index) in lane.into_iter().enumerate() {
+                indices[(outer_index * axis_len + axis_index) * inner + inner_index] =
+                    i64::try_from(source_index).expect("ndarray axes fit i64");
+            }
+        }
+    }
+
+    NDArray::from_shape_vec(shape.to_vec(), indices)
 }
 
 fn unique_operand<T, O>(operand: &O) -> NDArray<T>
@@ -304,5 +354,50 @@ mod tests {
             scalar.partition(0, -1).unwrap_err(),
             AtlasNdError::InvalidAxis { axis: -1, ndim: 0 }
         );
+    }
+
+    #[test]
+    fn argpartition_returns_a_partitioned_permutation() {
+        let values = NDArray::from_shape_vec([5], vec![9_i32, 1, 8, 2, 7]).unwrap();
+        let indices = values.argpartition(2, -1).unwrap();
+        let partitioned: Vec<_> =
+            indices.data().iter().map(|&index| values.data()[index as usize]).collect();
+
+        assert_eq!(partitioned[2], 7);
+        assert!(partitioned[..2].iter().all(|value| *value <= partitioned[2]));
+        assert!(partitioned[3..].iter().all(|value| *value >= partitioned[2]));
+
+        let mut actual = indices.data().to_vec();
+        actual.sort();
+        assert_eq!(actual, vec![0, 1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn argpartition_uses_logical_view_values_and_nan_ordering() {
+        let values = NDArray::from_shape_vec([2, 3], vec![9_i32, 1, 8, 2, 7, 3]).unwrap();
+        let view = values.view().transpose();
+        let indices = view.argpartition(1, 0).unwrap();
+        let expected = [8, 3];
+
+        for column in 0..2 {
+            let lane: Vec<_> = (0..3)
+                .map(|row| *view.get(&[indices.data()[row * 2 + column], column as i64]).unwrap())
+                .collect();
+            assert_eq!(lane[1], expected[column]);
+            assert!(lane[0] <= lane[1]);
+            assert!(lane[2] >= lane[1]);
+        }
+
+        let values = NDArray::from_shape_vec([5], vec![f64::NAN, 2.0, 1.0, f64::NAN, 0.0]).unwrap();
+        let indices = values.argpartition(3, 0).unwrap();
+        let partitioned: Vec<_> =
+            indices.data().iter().map(|&index| values.data()[index as usize]).collect();
+        let pivot = partitioned[3];
+
+        assert!(pivot.is_nan());
+        assert!(
+            partitioned[..3].iter().all(|value| value.sort_compare(&pivot) != Ordering::Greater)
+        );
+        assert!(partitioned[4..].iter().all(|value| value.sort_compare(&pivot) != Ordering::Less));
     }
 }

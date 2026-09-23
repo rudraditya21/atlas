@@ -42,7 +42,7 @@ pub(crate) fn partition(
         _ => Err(PyTypeError::new_err(format!("unsupported NumPy dtype {dtype}"))),
     }
 }
-fn normalize_kth(shape: &[usize], kth: i64, axis: i64) -> Result<usize, AtlasNdError> {
+pub(crate) fn normalize_kth(shape: &[usize], kth: i64, axis: i64) -> Result<usize, AtlasNdError> {
     let n = shape.len();
     let a = if axis < 0 { axis + n as i64 } else { axis };
     if a < 0 || a as usize >= n {
