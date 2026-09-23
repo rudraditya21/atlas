@@ -42,6 +42,16 @@ def test_arange_supports_default_and_selected_dtypes() -> None:
     assert atlas.arange(1, 5, 2, dtype="int64").tolist() == [1, 3]
 
 
+def test_range_constructor_defaults_and_endpoints() -> None:
+    arange = atlas.arange(0.0, 1.0, 0.25)
+    linspace = atlas.linspace(0.0, 1.0, 5)
+
+    assert arange.dtype == np.dtype("float64")
+    np.testing.assert_array_equal(arange, np.array([0.0, 0.25, 0.5, 0.75]))
+    assert linspace.dtype == np.dtype("float64")
+    np.testing.assert_array_equal(linspace, np.array([0.0, 0.25, 0.5, 0.75, 1.0]))
+
+
 def test_linspace_supports_float_dtypes() -> None:
     default = atlas.linspace(-1.0, 1.0, 5)
     float32 = atlas.linspace(-1.0, 1.0, 5, dtype="float32")
@@ -90,6 +100,28 @@ def test_integer_arange_rejects_values_outside_the_target_dtype(
 ) -> None:
     with pytest.raises(ValueError, match="integer arange"):
         atlas.arange(*args, dtype=dtype)
+
+
+def test_range_constructors_reject_unsupported_dtypes_and_non_finite_inputs() -> None:
+    with pytest.raises(ValueError, match="arange does not support bool"):
+        atlas.arange(0, 3, dtype="bool")
+    with pytest.raises(ValueError, match="linspace only supports"):
+        atlas.linspace(0.0, 1.0, 3, dtype="int64")
+    with pytest.raises(atlas.NumericError, match="finite"):
+        atlas.arange(0.0, float("inf"))
+    with pytest.raises(atlas.NumericError, match="finite"):
+        atlas.linspace(0.0, float("inf"), 3)
+
+
+def test_range_constructors_handle_empty_and_singleton_outputs() -> None:
+    arange = atlas.arange(3, 3, dtype="int64")
+    empty = atlas.linspace(0.0, 1.0, 0)
+    single = atlas.linspace(2.5, 9.0, 1)
+
+    assert arange.dtype == np.dtype("int64")
+    assert arange.shape == (0,)
+    assert empty.shape == (0,)
+    assert single.tolist() == [2.5]
 
 
 @pytest.mark.parametrize("shape", [[2**64], [2, 2**64]])
