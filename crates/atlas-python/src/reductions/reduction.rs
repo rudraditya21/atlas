@@ -101,12 +101,20 @@ pub(crate) fn argmax(
     index_reduce_optional_axis(py, value, axis, Reduction::Argmax, AxisIndexReduction::Max)
 }
 
-pub(crate) fn cumsum(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    cumulative(py, value, CumulativeReduction::Sum)
+pub(crate) fn cumsum(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axis: Option<i64>,
+) -> PyResult<Py<PyAny>> {
+    cumulative_optional_axis(py, value, axis, CumulativeReduction::Sum)
 }
 
-pub(crate) fn cumprod(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    cumulative(py, value, CumulativeReduction::Product)
+pub(crate) fn cumprod(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axis: Option<i64>,
+) -> PyResult<Py<PyAny>> {
+    cumulative_optional_axis(py, value, axis, CumulativeReduction::Product)
 }
 
 pub(crate) fn cumsum_axis(
@@ -114,7 +122,7 @@ pub(crate) fn cumsum_axis(
     value: &Bound<'_, PyAny>,
     axis: i64,
 ) -> PyResult<Py<PyAny>> {
-    cumulative_axis(py, value, axis, CumulativeReduction::Sum)
+    cumsum(py, value, Some(axis))
 }
 
 pub(crate) fn cumprod_axis(
@@ -122,7 +130,19 @@ pub(crate) fn cumprod_axis(
     value: &Bound<'_, PyAny>,
     axis: i64,
 ) -> PyResult<Py<PyAny>> {
-    cumulative_axis(py, value, axis, CumulativeReduction::Product)
+    cumprod(py, value, Some(axis))
+}
+
+fn cumulative_optional_axis(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axis: Option<i64>,
+    reduction: CumulativeReduction,
+) -> PyResult<Py<PyAny>> {
+    match axis {
+        Some(axis) => cumulative_axis(py, value, axis, reduction),
+        None => cumulative(py, value, reduction),
+    }
 }
 
 pub(crate) fn nanmin(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {

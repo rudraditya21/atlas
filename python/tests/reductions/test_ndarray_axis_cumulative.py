@@ -10,6 +10,8 @@ def test_axis_cumulative_operations_support_positive_and_negative_axes() -> None
     summed = atlas.cumsum_axis(values, 0)
     product = atlas.cumprod_axis(values, -1)
 
+    np.testing.assert_array_equal(atlas.cumsum(values, axis=0), summed)
+    np.testing.assert_array_equal(atlas.cumprod(values, axis=-1), product)
     assert summed.dtype == values.dtype
     assert summed.tolist() == [[1, 2, 3], [5, 7, 9]]
     assert product.dtype == values.dtype

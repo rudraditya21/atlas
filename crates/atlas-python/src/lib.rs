@@ -584,14 +584,14 @@ fn argmax(py: Python<'_>, value: &Bound<'_, PyAny>, axis: Option<i64>) -> PyResu
     reduction::argmax(py, value, axis)
 }
 
-#[pyfunction]
-fn cumsum(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    reduction::cumsum(py, value)
+#[pyfunction(signature = (value, axis = None))]
+fn cumsum(py: Python<'_>, value: &Bound<'_, PyAny>, axis: Option<i64>) -> PyResult<Py<PyAny>> {
+    reduction::cumsum(py, value, axis)
 }
 
-#[pyfunction]
-fn cumprod(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    reduction::cumprod(py, value)
+#[pyfunction(signature = (value, axis = None))]
+fn cumprod(py: Python<'_>, value: &Bound<'_, PyAny>, axis: Option<i64>) -> PyResult<Py<PyAny>> {
+    reduction::cumprod(py, value, axis)
 }
 
 #[pyfunction]
