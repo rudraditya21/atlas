@@ -86,6 +86,10 @@ pub(crate) fn eye(
     }
 }
 
+pub(crate) fn identity(py: Python<'_>, size: usize, dtype: Option<&str>) -> PyResult<Py<PyAny>> {
+    eye(py, size, None, dtype)
+}
+
 pub(crate) fn full(
     py: Python<'_>,
     shape: Vec<usize>,

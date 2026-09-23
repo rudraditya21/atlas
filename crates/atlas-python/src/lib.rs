@@ -92,6 +92,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(zeros, module)?)?;
     module.add_function(wrap_pyfunction!(ones, module)?)?;
     module.add_function(wrap_pyfunction!(eye, module)?)?;
+    module.add_function(wrap_pyfunction!(identity, module)?)?;
     module.add_function(wrap_pyfunction!(full, module)?)?;
     module.add_function(wrap_pyfunction!(arange, module)?)?;
     module.add_function(wrap_pyfunction!(linspace, module)?)?;
@@ -216,6 +217,11 @@ fn eye(
     dtype: Option<&str>,
 ) -> PyResult<Py<PyAny>> {
     constructors::eye(py, rows, columns, dtype)
+}
+
+#[pyfunction(signature = (size, dtype = None))]
+fn identity(py: Python<'_>, size: usize, dtype: Option<&str>) -> PyResult<Py<PyAny>> {
+    constructors::identity(py, size, dtype)
 }
 
 #[pyfunction(signature = (shape, value, dtype = None))]

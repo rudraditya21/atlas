@@ -15,6 +15,7 @@ asarray = _native.asarray
 zeros = _native.zeros
 ones = _native.ones
 eye = _native.eye
+identity = _native.identity
 full = _native.full
 arange = _native.arange
 linspace = _native.linspace
@@ -153,6 +154,7 @@ __all__ = [
     "dot",
     "dtype",
     "eye",
+    "identity",
     "equal",
     "expand_dims",
     "flatten",

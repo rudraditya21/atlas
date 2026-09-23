@@ -76,6 +76,24 @@ def test_eye_rejects_boolean_dtype() -> None:
         atlas.eye(2, dtype="bool")
 
 
+@pytest.mark.parametrize("dtype", ["int32", "uint64", "float32", "float64"])
+def test_identity_supports_numeric_dtypes(dtype: str) -> None:
+    result = atlas.identity(3, dtype=dtype)
+
+    assert result.dtype == np.dtype(dtype)
+    np.testing.assert_array_equal(result, np.identity(3, dtype=dtype))
+
+
+def test_identity_defaults_to_a_square_float64_matrix_and_supports_zero_size() -> None:
+    result = atlas.identity(2)
+    empty = atlas.identity(0, dtype="int64")
+
+    assert result.dtype == np.dtype("float64")
+    np.testing.assert_array_equal(result, np.identity(2))
+    assert empty.dtype == np.dtype("int64")
+    assert empty.shape == (0, 0)
+
+
 def test_arange_supports_default_and_selected_dtypes() -> None:
     assert atlas.arange(4).tolist() == [0.0, 1.0, 2.0, 3.0]
     assert atlas.arange(1, 5, 2, dtype="int64").tolist() == [1, 3]
