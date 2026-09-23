@@ -42,6 +42,22 @@ def test_arange_supports_default_and_selected_dtypes() -> None:
     assert atlas.arange(1, 5, 2, dtype="int64").tolist() == [1, 3]
 
 
+def test_linspace_supports_float_dtypes() -> None:
+    default = atlas.linspace(-1.0, 1.0, 5)
+    float32 = atlas.linspace(-1.0, 1.0, 5, dtype="float32")
+    single = atlas.linspace(2.5, 9.0, 1, dtype="float32")
+    empty = atlas.linspace(0.0, 1.0, 0, dtype="float64")
+
+    assert default.dtype == np.dtype("float64")
+    np.testing.assert_array_equal(default, np.linspace(-1.0, 1.0, 5))
+    assert float32.dtype == np.dtype("float32")
+    np.testing.assert_array_equal(float32, np.linspace(-1.0, 1.0, 5, dtype=np.float32))
+    assert single.dtype == np.dtype("float32")
+    np.testing.assert_array_equal(single, np.array([2.5], dtype=np.float32))
+    assert empty.dtype == np.dtype("float64")
+    assert empty.shape == (0,)
+
+
 def test_integer_arange_preserves_values_above_f64_integer_precision() -> None:
     start = 2**53 + 1
 

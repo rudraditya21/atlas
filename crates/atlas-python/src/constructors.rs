@@ -125,6 +125,20 @@ pub(crate) fn arange(
     }
 }
 
+pub(crate) fn linspace(
+    py: Python<'_>,
+    start: f64,
+    stop: f64,
+    num: usize,
+    dtype: Option<&str>,
+) -> PyResult<Py<PyAny>> {
+    match DType::parse(dtype)? {
+        DType::Float32 => output(py, NDArray::linspace(start as f32, stop as f32, num)),
+        DType::Float64 => output(py, NDArray::linspace(start, stop, num)),
+        _ => Err(PyValueError::new_err("linspace only supports float32 and float64 dtypes")),
+    }
+}
+
 fn integer_arange_value(
     value: &Bound<'_, PyAny>,
     name: &str,

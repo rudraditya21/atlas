@@ -91,6 +91,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(ones, module)?)?;
     module.add_function(wrap_pyfunction!(full, module)?)?;
     module.add_function(wrap_pyfunction!(arange, module)?)?;
+    module.add_function(wrap_pyfunction!(linspace, module)?)?;
     module.add_function(wrap_pyfunction!(astype, module)?)?;
     module.add_function(wrap_pyfunction!(shape, module)?)?;
     module.add_function(wrap_pyfunction!(ndim, module)?)?;
@@ -222,6 +223,17 @@ fn arange(
     dtype: Option<&str>,
 ) -> PyResult<Py<PyAny>> {
     constructors::arange(py, start, stop, step, dtype)
+}
+
+#[pyfunction(signature = (start, stop, num, dtype = None))]
+fn linspace(
+    py: Python<'_>,
+    start: f64,
+    stop: f64,
+    num: usize,
+    dtype: Option<&str>,
+) -> PyResult<Py<PyAny>> {
+    constructors::linspace(py, start, stop, num, dtype)
 }
 
 #[pyfunction]

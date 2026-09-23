@@ -16,6 +16,7 @@ zeros = _native.zeros
 ones = _native.ones
 full = _native.full
 arange = _native.arange
+linspace = _native.linspace
 astype = _native.astype
 allclose = _native.allclose
 all = _native.all
@@ -133,6 +134,7 @@ __all__ = [
     "bitwise_or",
     "bitwise_xor",
     "arange",
+    "linspace",
     "astype",
     "asarray",
     "count_true",
