@@ -454,12 +454,12 @@ fn bitwise_not(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> 
     bitwise::bitwise_not(py, value)
 }
 
-#[pyfunction]
+#[pyfunction(signature = (value, indices, axis = None))]
 fn take(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
     indices: Vec<i64>,
-    axis: i64,
+    axis: Option<i64>,
 ) -> PyResult<Py<PyAny>> {
     take_ops::take(py, value, indices, axis)
 }

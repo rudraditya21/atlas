@@ -20,6 +20,15 @@ def test_take_supports_non_contiguous_views() -> None:
     assert result.tolist() == [[2.0, 5.0], [0.0, 3.0]]
 
 
+def test_take_without_an_axis_flattens_logical_values() -> None:
+    values = np.arange(6, dtype=np.float64).reshape(2, 3).T
+
+    result = atlas.take(values, [-1, 0, 2], axis=None)
+
+    assert not values.flags.c_contiguous
+    np.testing.assert_array_equal(result, np.take(values, [-1, 0, 2], axis=None))
+
+
 def test_take_translates_invalid_indices_to_axis_errors() -> None:
     with pytest.raises(atlas.AxisError, match="index out of bounds on axis 1"):
         atlas.take(np.arange(6).reshape(2, 3), [3], 1)
