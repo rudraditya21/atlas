@@ -334,6 +334,13 @@ def choose(indices, choices):
     return result
 
 
+def broadcast_to(value, shape):
+    try:
+        return np.broadcast_to(_array_like(value), shape)
+    except ValueError as error:
+        raise ShapeError(str(error)) from None
+
+
 def linspace(start, stop, num, *, dtype=None, endpoint=True):
     return _native.linspace(start, stop, num, dtype, endpoint)
 
@@ -431,6 +438,7 @@ for _name in (
     "bitwise_and",
     "bitwise_or",
     "bitwise_xor",
+    "broadcast_to",
 ):
     globals()[_name] = _coerce_arrays(
         globals()[_name], required=((0, "lhs"),), optional=((1, "rhs"),)
