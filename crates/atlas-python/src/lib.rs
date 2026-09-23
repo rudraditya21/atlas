@@ -654,7 +654,7 @@ fn max_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<
 }
 
 #[pyfunction]
-fn reshape(py: Python<'_>, value: &Bound<'_, PyAny>, shape: Vec<usize>) -> PyResult<Py<PyAny>> {
+fn reshape(py: Python<'_>, value: &Bound<'_, PyAny>, shape: Vec<i128>) -> PyResult<Py<PyAny>> {
     shape_ops::reshape(py, value, shape)
 }
 

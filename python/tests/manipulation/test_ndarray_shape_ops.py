@@ -15,6 +15,18 @@ def test_reshape_and_transpose_preserve_logical_values() -> None:
     assert transposed.tolist() == [[0, 3], [1, 4], [2, 5]]
 
 
+def test_reshape_infers_a_single_negative_dimension() -> None:
+    values = np.arange(12, dtype=np.int32)
+
+    np.testing.assert_array_equal(atlas.reshape(values, [3, -1]), values.reshape(3, 4))
+
+
+@pytest.mark.parametrize("shape", [[-1, -1], [5, -1], [-2], [-1, 0]])
+def test_reshape_rejects_invalid_inferred_dimensions(shape: list[int]) -> None:
+    with pytest.raises(atlas.ShapeError):
+        atlas.reshape(np.arange(6), shape)
+
+
 def test_shape_operations_support_zero_sized_dimensions() -> None:
     values = np.empty((2, 0, 3), dtype=np.float64)
 
