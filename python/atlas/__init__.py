@@ -366,6 +366,10 @@ def ones_like(value, dtype=None):
     return ones(value.shape, dtype=value.dtype if dtype is None else dtype)
 
 
+def empty_like(value, dtype=None):
+    return np.empty_like(_array_like(value), dtype=dtype)
+
+
 def full_like(value, fill_value, dtype=None):
     value = _array_like(value)
     return full(value.shape, fill_value, dtype=value.dtype if dtype is None else dtype)
@@ -426,6 +430,7 @@ for _name in (
     "ndim",
     "size",
     "dtype",
+    "empty_like",
     "count_true",
     "all",
     "any",
