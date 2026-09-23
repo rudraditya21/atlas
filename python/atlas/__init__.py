@@ -294,6 +294,8 @@ clip = _coerce_arrays(clip, required=((0, "value"),))
 concatenate = _coerce_array_collection(concatenate)
 stack = _coerce_array_collection(stack)
 swapaxes = swap_axes
+var = variance
+std = stddev
 
 __all__ = [
     "AtlasError",
@@ -385,6 +387,7 @@ __all__ = [
     "swapaxes",
     "squeeze",
     "stddev",
+    "std",
     "stack",
     "take",
     "tile",
@@ -402,6 +405,7 @@ __all__ = [
     "trace",
     "unique",
     "variance",
+    "var",
     "where",
     "zeros",
 ]

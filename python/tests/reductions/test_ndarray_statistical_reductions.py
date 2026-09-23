@@ -6,6 +6,13 @@ import pytest
 import atlas
 
 
+def test_var_and_std_are_numpy_style_public_aliases() -> None:
+    values = np.array([1.0, 2.0, 3.0], dtype=np.float64)
+
+    assert atlas.var(values) == atlas.variance(values)
+    assert atlas.std(values) == atlas.stddev(values)
+
+
 @pytest.mark.parametrize(
     "values",
     [np.array([1, 2, 3, 4], dtype=np.int32), np.array([1.0, 2.0, 3.0, 4.0])],
