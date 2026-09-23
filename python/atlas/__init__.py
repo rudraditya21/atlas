@@ -352,6 +352,10 @@ def broadcast_arrays(*values):
         raise ShapeError(str(error)) from None
 
 
+def copy(value):
+    return np.array(_array_like(value), copy=True, order="C")
+
+
 def linspace(start, stop, num, *, dtype=None, endpoint=True):
     return _native.linspace(start, stop, num, dtype, endpoint)
 
@@ -520,6 +524,7 @@ __all__ = sorted(
         "clip",
         "choose",
         "concatenate",
+        "copy",
         "divide",
         "diag",
         "det",
