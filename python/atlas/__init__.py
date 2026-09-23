@@ -2,6 +2,7 @@
 
 from collections.abc import Sequence
 from functools import wraps
+from operator import index as integer_index
 
 import numpy as np
 
@@ -271,6 +272,34 @@ def unique(
     return tuple(outputs)
 
 
+def take(value, indices, axis=None, *, mode="raise"):
+    value = _array_like(value)
+    if mode == "raise":
+        return _native.take(value, indices, axis)
+    if mode not in {"wrap", "clip"}:
+        raise ValueError("mode must be 'raise', 'wrap', or 'clip'")
+
+    indices = np.asarray(indices)
+    if indices.ndim != 1 or (indices.size and indices.dtype.kind not in "iu"):
+        raise TypeError("indices must be a one-dimensional integer sequence")
+    if axis is None:
+        length = value.size
+    else:
+        axis_index = integer_index(axis)
+        normalized_axis = axis_index + value.ndim if axis_index < 0 else axis_index
+        if normalized_axis < 0 or normalized_axis >= value.ndim:
+            return _native.take(value, indices.tolist(), axis)
+        length = value.shape[normalized_axis]
+    if length == 0:
+        return _native.take(value, indices.tolist(), axis)
+
+    if mode == "wrap":
+        indices = indices % length
+    else:
+        indices = np.clip(indices, 0, length - 1)
+    return _native.take(value, indices.tolist(), axis)
+
+
 def linspace(start, stop, num, *, dtype=None, endpoint=True):
     return _native.linspace(start, stop, num, dtype, endpoint)
 
@@ -292,7 +321,6 @@ for _name in (
     "any",
     "all_axis",
     "any_axis",
-    "take",
     "norm",
     "trace",
     "diag",

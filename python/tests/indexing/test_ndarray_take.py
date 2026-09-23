@@ -29,6 +29,31 @@ def test_take_without_an_axis_flattens_logical_values() -> None:
     np.testing.assert_array_equal(result, np.take(values, [-1, 0, 2], axis=None))
 
 
+@pytest.mark.parametrize("mode", ["wrap", "clip"])
+def test_take_supports_index_modes(mode: str) -> None:
+    values = np.arange(6, dtype=np.int32).reshape(2, 3)
+    indices = [-4, -1, 3, 4]
+
+    np.testing.assert_array_equal(
+        atlas.take(values, indices, axis=1, mode=mode),
+        np.take(values, indices, axis=1, mode=mode),
+    )
+
+
+def test_take_wraps_flattened_logical_values() -> None:
+    values = np.arange(6, dtype=np.int32).reshape(2, 3).T
+
+    np.testing.assert_array_equal(
+        atlas.take(values, [-7, 6], axis=None, mode="wrap"),
+        np.take(values, [-7, 6], axis=None, mode="wrap"),
+    )
+
+
+def test_take_rejects_unknown_index_modes() -> None:
+    with pytest.raises(ValueError, match="mode must"):
+        atlas.take(np.arange(3), [0], mode="invalid")
+
+
 def test_take_translates_invalid_indices_to_axis_errors() -> None:
     with pytest.raises(atlas.AxisError, match="index out of bounds on axis 1"):
         atlas.take(np.arange(6).reshape(2, 3), [3], 1)
