@@ -3,14 +3,14 @@ use pyo3::{exceptions::PyTypeError, prelude::*};
 
 use crate::{array, gil};
 
-pub(crate) fn diag(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+pub(crate) fn diag(py: Python<'_>, value: &Bound<'_, PyAny>, k: isize) -> PyResult<Py<PyAny>> {
     array::require_numpy_array(py, value)?;
     let dtype: String = value.getattr("dtype")?.getattr("name")?.extract()?;
 
     macro_rules! apply {
         ($ty:ty) => {{
             let value = array::from_numpy(array::readonly_from_python::<$ty>(py, value)?)?;
-            let result = gil::without_gil(py, move || diag_array(value))
+            let result = gil::without_gil(py, move || diag_array(value, k))
                 .map_err(|error| crate::error::linalg(py, error))?;
             Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
         }};
@@ -32,21 +32,29 @@ pub(crate) fn diag(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAn
     }
 }
 
-fn diag_array<T: Numeric>(array: NDArray<T>) -> atlas_linalg::AtlasLinalgResult<NDArray<T>> {
+fn diag_array<T: Numeric>(
+    array: NDArray<T>,
+    k: isize,
+) -> atlas_linalg::AtlasLinalgResult<NDArray<T>> {
     if array.ndim() == 1 {
-        return diagonal_matrix(array).map_err(Into::into);
+        return diagonal_matrix(array, k).map_err(Into::into);
     }
 
-    atlas_linalg::diag(&array, 0)
+    atlas_linalg::diag(&array, k)
 }
 
-fn diagonal_matrix<T: Numeric>(array: NDArray<T>) -> AtlasNdResult<NDArray<T>> {
+fn diagonal_matrix<T: Numeric>(array: NDArray<T>, k: isize) -> AtlasNdResult<NDArray<T>> {
     let length = array.len();
-    let mut values = vec![T::zero(); checked_element_count(&[length, length])?];
+    let offset = k.unsigned_abs();
+    let size = length.checked_add(offset).ok_or_else(|| {
+        atlas_ndarray::AtlasNdError::ShapeOverflow { op: "diag", shape: vec![length, offset] }
+    })?;
+    let mut values = vec![T::zero(); checked_element_count(&[size, size])?];
 
     for (index, value) in array.data().iter().copied().enumerate() {
-        values[index * length + index] = value;
+        let (row, column) = if k >= 0 { (index, index + offset) } else { (index + offset, index) };
+        values[row * size + column] = value;
     }
 
-    NDArray::from_shape_vec([length, length], values)
+    NDArray::from_shape_vec([size, size], values)
 }

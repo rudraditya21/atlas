@@ -489,9 +489,9 @@ fn stack(py: Python<'_>, arrays: Vec<Py<PyAny>>, axis: i64) -> PyResult<Py<PyAny
     stack_ops::stack(py, arrays, axis)
 }
 
-#[pyfunction]
-fn diag(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    diag_ops::diag(py, value)
+#[pyfunction(signature = (value, k = 0))]
+fn diag(py: Python<'_>, value: &Bound<'_, PyAny>, k: isize) -> PyResult<Py<PyAny>> {
+    diag_ops::diag(py, value, k)
 }
 
 #[pyfunction(signature = (value, order = "fro"))]
