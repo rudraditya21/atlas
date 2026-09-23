@@ -42,6 +42,23 @@ def test_arange_supports_default_and_selected_dtypes() -> None:
     assert atlas.arange(1, 5, 2, dtype="int64").tolist() == [1, 3]
 
 
+def test_integer_arange_preserves_values_above_f64_integer_precision() -> None:
+    start = 2**53 + 1
+
+    assert atlas.arange(start, start + 4, 1, dtype="int64").tolist() == [
+        start,
+        start + 1,
+        start + 2,
+        start + 3,
+    ]
+    assert atlas.arange(start, start + 4, 1, dtype="uint64").tolist() == [
+        start,
+        start + 1,
+        start + 2,
+        start + 3,
+    ]
+
+
 @pytest.mark.parametrize(
     ("args", "dtype"),
     [

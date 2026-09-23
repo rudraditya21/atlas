@@ -216,9 +216,9 @@ fn full(
 #[pyfunction(signature = (start, stop = None, step = None, dtype = None))]
 fn arange(
     py: Python<'_>,
-    start: f64,
-    stop: Option<f64>,
-    step: Option<f64>,
+    start: &Bound<'_, PyAny>,
+    stop: Option<&Bound<'_, PyAny>>,
+    step: Option<&Bound<'_, PyAny>>,
     dtype: Option<&str>,
 ) -> PyResult<Py<PyAny>> {
     constructors::arange(py, start, stop, step, dtype)
