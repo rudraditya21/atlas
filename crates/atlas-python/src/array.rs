@@ -5,6 +5,8 @@ use numpy::{
 };
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
+use crate::python_dtype::DType;
+
 pub(crate) fn readonly_from_python<'py, T>(
     py: Python<'py>,
     value: &Bound<'py, PyAny>,
@@ -69,6 +71,13 @@ pub(crate) fn require_numpy_array(py: Python<'_>, value: &Bound<'_, PyAny>) -> P
     }
 
     Ok(())
+}
+
+pub(crate) fn source_dtype(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<DType> {
+    require_numpy_array(py, value)?;
+    let name: String = value.getattr("dtype")?.getattr("name")?.extract()?;
+
+    DType::from_numpy_name(&name)
 }
 
 pub(crate) fn is_numpy_array(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<bool> {

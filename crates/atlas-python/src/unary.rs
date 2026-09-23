@@ -1,78 +1,77 @@
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
-use crate::{array, gil};
+use crate::{
+    array, gil,
+    python_dtype::{DType, with_dtype},
+};
 
-macro_rules! numeric_operation {
-    ($py:expr, $value:expr, $operation:ident, $($dtype:literal => $ty:ty),+ $(,)?) => {{
-        array::require_numpy_array($py, $value)?;
-        let dtype: String = $value.getattr("dtype")?.getattr("name")?.extract()?;
-        match dtype.as_str() {
-            $(
-                $dtype => {
-                    let array = array::from_numpy(array::readonly_from_python::<$ty>($py, $value)?)?;
-                    output($py, gil::without_gil($py, move || array.$operation()))
-                }
-            )+
-            "bool" => Err(PyTypeError::new_err(concat!(stringify!($operation), " does not support bool dtype"))),
-            _ => Err(PyTypeError::new_err(format!("unsupported NumPy dtype {dtype}"))),
-        }
-    }};
-}
-
-macro_rules! classify {
-    ($py:expr, $value:expr, $operation:ident) => {{
-        array::require_numpy_array($py, $value)?;
-        let dtype: String = $value.getattr("dtype")?.getattr("name")?.extract()?;
-        macro_rules! apply {
-            ($ty:ty) => {{
-                let array = array::from_numpy(array::readonly_from_python::<$ty>($py, $value)?)?;
+macro_rules! apply_unary {
+    ($py:expr, $value:expr, $dtype:expr, $category:ident, $operation:ident) => {{
+        with_dtype!(
+            $dtype,
+            $category | T | {
+                let array = array::from_numpy(array::readonly_from_python::<T>($py, $value)?)?;
                 output($py, gil::without_gil($py, move || array.$operation()))
-            }};
-        }
-
-        match dtype.as_str() {
-            "bool" => apply!(bool),
-            "int8" => apply!(i8),
-            "int16" => apply!(i16),
-            "int32" => apply!(i32),
-            "int64" => apply!(i64),
-            "uint8" => apply!(u8),
-            "uint16" => apply!(u16),
-            "uint32" => apply!(u32),
-            "uint64" => apply!(u64),
-            "float32" => apply!(f32),
-            "float64" => apply!(f64),
-            _ => Err(PyTypeError::new_err(format!("unsupported NumPy dtype {dtype}"))),
-        }
+            }
+        )
     }};
 }
 
 pub(crate) fn neg(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    numeric_operation!(py, value, neg, "int8" => i8, "int16" => i16, "int32" => i32, "int64" => i64, "float32" => f32, "float64" => f64)
+    let dtype = array::source_dtype(py, value)?;
+    if matches!(dtype, DType::Bool) {
+        return Err(PyTypeError::new_err("neg does not support bool dtype"));
+    }
+    if dtype.is_unsigned() {
+        return Err(PyTypeError::new_err(format!("unsupported NumPy dtype {}", dtype.name())));
+    }
+
+    apply_unary!(py, value, dtype, signed, neg)
 }
 
 pub(crate) fn abs(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    numeric_operation!(py, value, abs, "int8" => i8, "int16" => i16, "int32" => i32, "int64" => i64, "uint8" => u8, "uint16" => u16, "uint32" => u32, "uint64" => u64, "float32" => f32, "float64" => f64)
+    let dtype = array::source_dtype(py, value)?;
+    if matches!(dtype, DType::Bool) {
+        return Err(PyTypeError::new_err("abs does not support bool dtype"));
+    }
+
+    apply_unary!(py, value, dtype, numeric, abs)
 }
 
 pub(crate) fn sign(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    numeric_operation!(py, value, sign, "int8" => i8, "int16" => i16, "int32" => i32, "int64" => i64, "uint8" => u8, "uint16" => u16, "uint32" => u32, "uint64" => u64, "float32" => f32, "float64" => f64)
+    let dtype = array::source_dtype(py, value)?;
+    if matches!(dtype, DType::Bool) {
+        return Err(PyTypeError::new_err("sign does not support bool dtype"));
+    }
+
+    apply_unary!(py, value, dtype, numeric, sign)
 }
 
 pub(crate) fn round(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    numeric_operation!(py, value, round, "int8" => i8, "int16" => i16, "int32" => i32, "int64" => i64, "uint8" => u8, "uint16" => u16, "uint32" => u32, "uint64" => u64, "float32" => f32, "float64" => f64)
+    let dtype = array::source_dtype(py, value)?;
+    if matches!(dtype, DType::Bool) {
+        return Err(PyTypeError::new_err("round does not support bool dtype"));
+    }
+
+    apply_unary!(py, value, dtype, numeric, round)
 }
 
 pub(crate) fn isnan(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    classify!(py, value, isnan)
+    let dtype = array::source_dtype(py, value)?;
+
+    apply_unary!(py, value, dtype, all, isnan)
 }
 
 pub(crate) fn isinf(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    classify!(py, value, isinf)
+    let dtype = array::source_dtype(py, value)?;
+
+    apply_unary!(py, value, dtype, all, isinf)
 }
 
 pub(crate) fn isfinite(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    classify!(py, value, isfinite)
+    let dtype = array::source_dtype(py, value)?;
+
+    apply_unary!(py, value, dtype, all, isfinite)
 }
 
 fn output<T>(py: Python<'_>, array: atlas_ndarray::NDArray<T>) -> PyResult<Py<PyAny>>

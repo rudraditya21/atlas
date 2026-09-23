@@ -1,60 +1,19 @@
 use atlas_ndarray::{ArrayElement, NDArray};
 use numpy::Element;
-use pyo3::{exceptions::PyTypeError, prelude::*};
+use pyo3::prelude::*;
 
-use crate::{array, gil};
+use crate::{array, gil, python_dtype::with_dtype};
 
 macro_rules! with_array {
     ($py:expr, $value:expr, |$array:ident| $body:expr) => {{
-        array::require_numpy_array($py, $value)?;
-        let dtype: String = $value.getattr("dtype")?.getattr("name")?.extract()?;
-        match dtype.as_str() {
-            "bool" => {
-                let $array = array::from_numpy(array::readonly_from_python::<bool>($py, $value)?)?;
+        let dtype = array::source_dtype($py, $value)?;
+        with_dtype!(
+            dtype,
+            all | T | {
+                let $array = array::from_numpy(array::readonly_from_python::<T>($py, $value)?)?;
                 $body
             }
-            "int8" => {
-                let $array = array::from_numpy(array::readonly_from_python::<i8>($py, $value)?)?;
-                $body
-            }
-            "int16" => {
-                let $array = array::from_numpy(array::readonly_from_python::<i16>($py, $value)?)?;
-                $body
-            }
-            "int32" => {
-                let $array = array::from_numpy(array::readonly_from_python::<i32>($py, $value)?)?;
-                $body
-            }
-            "int64" => {
-                let $array = array::from_numpy(array::readonly_from_python::<i64>($py, $value)?)?;
-                $body
-            }
-            "uint8" => {
-                let $array = array::from_numpy(array::readonly_from_python::<u8>($py, $value)?)?;
-                $body
-            }
-            "uint16" => {
-                let $array = array::from_numpy(array::readonly_from_python::<u16>($py, $value)?)?;
-                $body
-            }
-            "uint32" => {
-                let $array = array::from_numpy(array::readonly_from_python::<u32>($py, $value)?)?;
-                $body
-            }
-            "uint64" => {
-                let $array = array::from_numpy(array::readonly_from_python::<u64>($py, $value)?)?;
-                $body
-            }
-            "float32" => {
-                let $array = array::from_numpy(array::readonly_from_python::<f32>($py, $value)?)?;
-                $body
-            }
-            "float64" => {
-                let $array = array::from_numpy(array::readonly_from_python::<f64>($py, $value)?)?;
-                $body
-            }
-            _ => Err(PyTypeError::new_err(format!("unsupported NumPy dtype {dtype}"))),
-        }
+        )
     }};
 }
 

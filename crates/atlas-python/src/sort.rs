@@ -1,32 +1,17 @@
-use pyo3::{exceptions::PyTypeError, prelude::*};
+use pyo3::prelude::*;
 
-use crate::{array, gil};
+use crate::{array, gil, python_dtype::with_dtype};
 
 pub(crate) fn sort(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
-    array::require_numpy_array(py, value)?;
-    let dtype: String = value.getattr("dtype")?.getattr("name")?.extract()?;
+    let dtype = array::source_dtype(py, value)?;
 
-    macro_rules! apply {
-        ($ty:ty) => {{
-            let array = array::from_numpy(array::readonly_from_python::<$ty>(py, value)?)?;
+    with_dtype!(
+        dtype,
+        all | T | {
+            let array = array::from_numpy(array::readonly_from_python::<T>(py, value)?)?;
             let result = gil::without_gil(py, move || array.sort(axis))
                 .map_err(|error| crate::error::ndarray(py, error))?;
             Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
-        }};
-    }
-
-    match dtype.as_str() {
-        "bool" => apply!(bool),
-        "int8" => apply!(i8),
-        "int16" => apply!(i16),
-        "int32" => apply!(i32),
-        "int64" => apply!(i64),
-        "uint8" => apply!(u8),
-        "uint16" => apply!(u16),
-        "uint32" => apply!(u32),
-        "uint64" => apply!(u64),
-        "float32" => apply!(f32),
-        "float64" => apply!(f64),
-        _ => Err(PyTypeError::new_err(format!("unsupported NumPy dtype {dtype}"))),
-    }
+        }
+    )
 }

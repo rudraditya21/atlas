@@ -1,6 +1,6 @@
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
-use crate::{array, gil};
+use crate::{array, gil, python_dtype::with_dtype};
 
 #[derive(Clone, Copy)]
 enum Comparison {
@@ -12,57 +12,16 @@ enum Comparison {
     GreaterEqual,
 }
 
-macro_rules! with_dtype {
+macro_rules! with_array {
     ($py:expr, $value:expr, |$array:ident| $body:expr) => {{
-        array::require_numpy_array($py, $value)?;
-        let dtype: String = $value.getattr("dtype")?.getattr("name")?.extract()?;
-        match dtype.as_str() {
-            "bool" => {
-                let $array = array::from_numpy(array::readonly_from_python::<bool>($py, $value)?)?;
+        let dtype = array::source_dtype($py, $value)?;
+        with_dtype!(
+            dtype,
+            all | T | {
+                let $array = array::from_numpy(array::readonly_from_python::<T>($py, $value)?)?;
                 $body
             }
-            "int8" => {
-                let $array = array::from_numpy(array::readonly_from_python::<i8>($py, $value)?)?;
-                $body
-            }
-            "int16" => {
-                let $array = array::from_numpy(array::readonly_from_python::<i16>($py, $value)?)?;
-                $body
-            }
-            "int32" => {
-                let $array = array::from_numpy(array::readonly_from_python::<i32>($py, $value)?)?;
-                $body
-            }
-            "int64" => {
-                let $array = array::from_numpy(array::readonly_from_python::<i64>($py, $value)?)?;
-                $body
-            }
-            "uint8" => {
-                let $array = array::from_numpy(array::readonly_from_python::<u8>($py, $value)?)?;
-                $body
-            }
-            "uint16" => {
-                let $array = array::from_numpy(array::readonly_from_python::<u16>($py, $value)?)?;
-                $body
-            }
-            "uint32" => {
-                let $array = array::from_numpy(array::readonly_from_python::<u32>($py, $value)?)?;
-                $body
-            }
-            "uint64" => {
-                let $array = array::from_numpy(array::readonly_from_python::<u64>($py, $value)?)?;
-                $body
-            }
-            "float32" => {
-                let $array = array::from_numpy(array::readonly_from_python::<f32>($py, $value)?)?;
-                $body
-            }
-            "float64" => {
-                let $array = array::from_numpy(array::readonly_from_python::<f64>($py, $value)?)?;
-                $body
-            }
-            _ => Err(PyTypeError::new_err(format!("unsupported NumPy dtype {dtype}"))),
-        }
+        )
     }};
 }
 
@@ -144,21 +103,21 @@ pub(crate) fn select(
     value: &Bound<'_, PyAny>,
     mask: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyAny>> {
-    with_dtype!(py, value, |array| {
+    with_array!(py, value, |array| {
         let mask = boolean_array(py, mask)?;
         output(py, gil::without_gil(py, move || array.select(&mask)))
     })
 }
 
 pub(crate) fn nonzero(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    with_dtype!(py, value, |array| output(
+    with_array!(py, value, |array| output(
         py,
         gil::without_gil(py, move || array.nonzero_indices())
     ))
 }
 
 pub(crate) fn argwhere(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    with_dtype!(py, value, |array| {
+    with_array!(py, value, |array| {
         let indices = gil::without_gil(py, move || array.argwhere());
         let (data, shape) = indices.into_raw_parts();
         let data = data
@@ -179,7 +138,7 @@ pub(crate) fn masked_fill(
     mask: &Bound<'_, PyAny>,
     fill: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyAny>> {
-    with_dtype!(py, value, |array| {
+    with_array!(py, value, |array| {
         let mask = boolean_array(py, mask)?;
         let fill = fill.extract()?;
         let array = gil::without_gil(py, move || {
