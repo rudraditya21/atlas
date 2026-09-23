@@ -64,6 +64,15 @@ impl<T: SortElement> NDArray<T> {
         argpartition_operand(self, kth, axis)
     }
 
+    /// Returns indices that partition each lane along `axis` at every requested index.
+    pub fn argpartition_many<A: AxisIndex>(
+        &self,
+        kths: &[usize],
+        axis: A,
+    ) -> AtlasNdResult<NDArray<i64>> {
+        argpartition_many_operand(self, kths, axis)
+    }
+
     /// Partitions each lane along `axis` so the value at `kth` is in sorted position.
     pub fn partition<A: AxisIndex>(&self, kth: usize, axis: A) -> AtlasNdResult<Self> {
         partition_operand(self, kth, axis)
@@ -94,6 +103,15 @@ impl<'a, T: SortElement> ArrayView<'a, T> {
     /// Returns indices that partition each lane along `axis` at `kth`.
     pub fn argpartition<A: AxisIndex>(&self, kth: usize, axis: A) -> AtlasNdResult<NDArray<i64>> {
         argpartition_operand(self, kth, axis)
+    }
+
+    /// Returns indices that partition each lane along `axis` at every requested index.
+    pub fn argpartition_many<A: AxisIndex>(
+        &self,
+        kths: &[usize],
+        axis: A,
+    ) -> AtlasNdResult<NDArray<i64>> {
+        argpartition_many_operand(self, kths, axis)
     }
 
     /// Partitions each lane along `axis` so the value at `kth` is in sorted position.
@@ -271,16 +289,23 @@ where
     O: OperandMetadata<T> + ?Sized,
     A: AxisIndex,
 {
+    argpartition_many_operand(operand, &[kth], axis)
+}
+
+fn argpartition_many_operand<T, O, A>(
+    operand: &O,
+    kths: &[usize],
+    axis: A,
+) -> AtlasNdResult<NDArray<i64>>
+where
+    T: SortElement,
+    O: OperandMetadata<T> + ?Sized,
+    A: AxisIndex,
+{
     let axis = normalize_axis(axis, operand.ndim())?;
     let shape = operand.shape();
     let axis_len = shape[axis];
-    if kth >= axis_len {
-        return Err(crate::AtlasNdError::IndexOutOfBounds {
-            axis,
-            index: i64::try_from(kth).expect("ndarray axes fit i64"),
-            dim: axis_len,
-        });
-    }
+    validate_partition_indices(kths, axis, axis_len)?;
 
     let inner = element_count(&shape[axis + 1..]);
     let outer = element_count(&shape[..axis]);
@@ -291,10 +316,11 @@ where
     for outer_index in 0..outer {
         for inner_index in 0..inner {
             let mut lane: Vec<_> = (0..axis_len).collect();
-            lane.select_nth_unstable_by(kth, |left, right| {
+            let compare = |left: &usize, right: &usize| {
                 data[(outer_index * axis_len + *left) * inner + inner_index]
                     .sort_compare(&data[(outer_index * axis_len + *right) * inner + inner_index])
-            });
+            };
+            partition_lane(&mut lane, kths, 0, &compare);
             for (axis_index, source_index) in lane.into_iter().enumerate() {
                 indices[(outer_index * axis_len + axis_index) * inner + inner_index] =
                     i64::try_from(source_index).expect("ndarray axes fit i64");
@@ -462,6 +488,55 @@ mod tests {
             partitioned[..3].iter().all(|value| value.sort_compare(&pivot) != Ordering::Greater)
         );
         assert!(partitioned[4..].iter().all(|value| value.sort_compare(&pivot) != Ordering::Less));
+    }
+
+    #[test]
+    fn argpartition_many_supports_logical_views_and_nan_ordering() {
+        let values = NDArray::from_shape_vec([2, 3], vec![9_i32, 1, 8, 2, 7, 3]).unwrap();
+        let view = values.view().transpose();
+        let indices = view.argpartition_many(&[0, 2], 0).unwrap();
+
+        for column in 0..2 {
+            let lane: Vec<_> = (0..3)
+                .map(|row| *view.get(&[indices.data()[row * 2 + column], column as i64]).unwrap())
+                .collect();
+            assert_eq!(lane[0], [1, 2][column]);
+            assert_eq!(lane[2], [9, 7][column]);
+        }
+
+        let values = NDArray::from_shape_vec([5], vec![f64::NAN, 2.0, 1.0, f64::NAN, 0.0]).unwrap();
+        let indices = values.argpartition_many(&[2, 3], 0).unwrap();
+        let partitioned: Vec<_> =
+            indices.data().iter().map(|&index| values.data()[index as usize]).collect();
+
+        assert_eq!(partitioned[2], 2.0);
+        assert!(partitioned[3].is_nan());
+        assert!(partitioned[..2].iter().all(|value| *value <= partitioned[2]));
+        assert!(partitioned[4..].iter().all(|value| value.is_nan()));
+    }
+
+    #[test]
+    fn argpartition_many_rejects_empty_unordered_and_out_of_bounds_indices() {
+        let values = NDArray::from_shape_vec([3], vec![1_i32, 2, 3]).unwrap();
+
+        assert_eq!(
+            values.argpartition_many(&[], 0).unwrap_err(),
+            AtlasNdError::InvalidArgument {
+                op: "partition",
+                reason: "kth values must not be empty"
+            }
+        );
+        assert_eq!(
+            values.argpartition_many(&[2, 1], 0).unwrap_err(),
+            AtlasNdError::InvalidArgument {
+                op: "partition",
+                reason: "kth values must be ordered and unique",
+            }
+        );
+        assert_eq!(
+            values.argpartition_many(&[3], 0).unwrap_err(),
+            AtlasNdError::IndexOutOfBounds { axis: 0, index: 3, dim: 3 }
+        );
     }
 
     #[test]

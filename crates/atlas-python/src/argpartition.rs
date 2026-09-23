@@ -1,27 +1,29 @@
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
-use crate::{array, gil, partition_ops::normalize_kth};
+use crate::{array, gil, partition_ops::normalize_kths};
 
 pub(crate) fn argpartition(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
-    kth: i64,
+    kth: &Bound<'_, PyAny>,
     axis: Option<i64>,
 ) -> PyResult<Py<PyAny>> {
     array::require_numpy_array(py, value)?;
     let dtype: String = value.getattr("dtype")?.getattr("name")?.extract()?;
+    let kths =
+        if let Ok(kth) = kth.extract::<i64>() { vec![kth] } else { kth.extract::<Vec<i64>>()? };
 
     macro_rules! apply {
         ($ty:ty) => {{
             let array = array::from_numpy(array::readonly_from_python::<$ty>(py, value)?)?;
             let result = gil::without_gil(py, move || {
                 if let Some(axis) = axis {
-                    let kth = normalize_kth(array.shape(), kth, axis)?;
-                    array.argpartition(kth, axis)
+                    let kths = normalize_kths(array.shape(), &kths, axis)?;
+                    array.argpartition_many(&kths, axis)
                 } else {
                     let array = array.flatten();
-                    let kth = normalize_kth(array.shape(), kth, 0)?;
-                    array.argpartition(kth, 0)
+                    let kths = normalize_kths(array.shape(), &kths, 0)?;
+                    array.argpartition_many(&kths, 0)
                 }
             })
             .map_err(|error| crate::error::ndarray(py, error))?;

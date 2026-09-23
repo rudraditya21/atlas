@@ -684,7 +684,7 @@ fn argsort(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<P
 fn argpartition(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
-    kth: i64,
+    kth: &Bound<'_, PyAny>,
     axis: Option<i64>,
 ) -> PyResult<Py<PyAny>> {
     argpartition_ops::argpartition(py, value, kth, axis)

@@ -42,6 +42,18 @@ def test_argpartition_uses_logical_view_values() -> None:
     assert np.all(partitioned[2:] >= partitioned[1:2])
 
 
+def test_argpartition_supports_multiple_kth_values_for_logical_views() -> None:
+    values = np.array([[9, 1, 8], [2, 7, 3]], dtype=np.int64).T
+    indices = atlas.argpartition(values, [0, 2], axis=0)
+    partitioned = np.take_along_axis(values, indices, axis=0)
+
+    assert not values.flags.c_contiguous
+    np.testing.assert_array_equal(partitioned[[0, 2]], np.sort(values, axis=0)[[0, 2]])
+    np.testing.assert_array_equal(
+        np.sort(indices, axis=0), np.tile(np.arange(3)[:, None], 2)
+    )
+
+
 def test_argpartition_supports_flattened_axis() -> None:
     values = np.array([[9, 1, 8], [2, 7, 3]], dtype=np.int64).T
     indices = atlas.argpartition(values, 2, axis=None)
@@ -65,3 +77,30 @@ def test_argpartition_uses_argsort_nan_ordering() -> None:
     assert np.all(keys[:3] <= keys[3])
     assert np.all(keys[4:] >= keys[3])
     assert np.isnan(partitioned).sum() == 2
+
+
+def test_argpartition_supports_multiple_kth_values_with_nan_ordering() -> None:
+    values = np.array([np.nan, 2.0, 1.0, np.nan, 0.0], dtype=np.float64)
+    indices = atlas.argpartition(values, [2, 3])
+    partitioned = values[indices]
+
+    assert partitioned[2] == 2.0
+    assert np.isnan(partitioned[3])
+    assert np.all(partitioned[:2] <= partitioned[2])
+    assert np.all(np.isnan(partitioned[4:]))
+
+
+@pytest.mark.parametrize(
+    ("kth", "exception", "match"),
+    [
+        ([], atlas.NumericError, "must not be empty"),
+        ([1, 1], atlas.NumericError, "ordered and unique"),
+        ([2, 1], atlas.NumericError, "ordered and unique"),
+        ([4], atlas.AxisError, "index"),
+    ],
+)
+def test_argpartition_rejects_invalid_multiple_kth_values(
+    kth: list[int], exception: type[Exception], match: str
+) -> None:
+    with pytest.raises(exception, match=match):
+        atlas.argpartition(np.array([3, 1, 2], dtype=np.int64), kth)
