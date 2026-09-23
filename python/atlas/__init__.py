@@ -371,6 +371,10 @@ def full_like(value, fill_value, dtype=None):
     return full(value.shape, fill_value, dtype=value.dtype if dtype is None else dtype)
 
 
+def ascontiguousarray(value, dtype=None):
+    return np.ascontiguousarray(_array_like(value), dtype=dtype)
+
+
 def linspace(start, stop, num, *, dtype=None, endpoint=True):
     return _native.linspace(start, stop, num, dtype, endpoint)
 
@@ -531,6 +535,7 @@ __all__ = sorted(
         "linspace",
         "astype",
         "asarray",
+        "ascontiguousarray",
         "count_true",
         "cumprod",
         "cumprod_axis",
