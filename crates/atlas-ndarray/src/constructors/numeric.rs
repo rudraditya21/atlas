@@ -57,8 +57,8 @@ where
     /// Creates a contiguous 1D array from the half-open interval `[start, end)` with `step`.
     ///
     /// Positive steps require `start < end`; negative steps require `start > end`; otherwise the
-    /// result is empty. Integer ranges return an error when a step would overflow the dtype.
-    /// Floating-point inputs must be finite and return an error when a step cannot advance.
+    /// result is empty. Integer ranges stop after their final representable value, while
+    /// floating-point inputs must be finite and return an error when a step cannot advance.
     pub fn arange(start: T, end: T, step: T) -> AtlasNdResult<Self> {
         T::validate_arange_inputs(start, end, step)?;
         let zero = T::zero();
@@ -80,10 +80,7 @@ where
         if step > zero {
             while current < end {
                 data.push(current);
-                let next = T::advance(current, step).ok_or(AtlasNdError::InvalidArgument {
-                    op: "arange",
-                    reason: "range overflows dtype",
-                })?;
+                let Some(next) = T::advance(current, step) else { break };
                 if next <= current {
                     return Err(AtlasNdError::InvalidArgument {
                         op: "arange",
@@ -95,10 +92,7 @@ where
         } else {
             while current > end {
                 data.push(current);
-                let next = T::advance(current, step).ok_or(AtlasNdError::InvalidArgument {
-                    op: "arange",
-                    reason: "range overflows dtype",
-                })?;
+                let Some(next) = T::advance(current, step) else { break };
                 if next >= current {
                     return Err(AtlasNdError::InvalidArgument {
                         op: "arange",
@@ -200,6 +194,13 @@ mod tests {
         assert!(positive_mismatch.data().is_empty());
         assert_eq!(negative_mismatch.shape(), &[0]);
         assert!(negative_mismatch.data().is_empty());
+    }
+
+    #[test]
+    fn arange_keeps_terminal_integer_values_when_the_next_step_overflows() {
+        assert_eq!(NDArray::arange(126_i8, 127, 2).unwrap().data(), &[126]);
+        assert_eq!(NDArray::arange(-127_i8, -128, -2).unwrap().data(), &[-127]);
+        assert_eq!(NDArray::arange(254_u8, 255, 2).unwrap().data(), &[254]);
     }
 
     #[test]
