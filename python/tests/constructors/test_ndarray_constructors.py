@@ -4,13 +4,22 @@ import pytest
 import atlas
 
 
-def test_asarray_copies_logical_values_and_preserves_dtype() -> None:
+def test_asarray_returns_a_dtype_compatible_ndarray_without_copying() -> None:
     source = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32).T
     result = atlas.asarray(source)
 
+    assert result is source
     assert result.dtype == np.dtype(np.float32)
-    assert result.flags.c_contiguous
     assert result.tolist() == [[1.0, 3.0], [2.0, 4.0]]
+
+
+def test_asarray_copies_only_when_dtype_conversion_is_required() -> None:
+    source = np.array([1, 2], dtype=np.int32)
+    result = atlas.asarray(source, dtype="float64")
+
+    assert result is not source
+    assert result.dtype == np.dtype(np.float64)
+    np.testing.assert_array_equal(result, source)
 
 
 @pytest.mark.parametrize(

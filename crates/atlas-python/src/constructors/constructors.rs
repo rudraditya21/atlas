@@ -1,5 +1,5 @@
 use atlas_ndarray::NDArray;
-use pyo3::{exceptions::PyValueError, prelude::*};
+use pyo3::{exceptions::PyValueError, prelude::*, types::PyDict};
 
 use crate::{
     array,
@@ -11,15 +11,19 @@ pub(crate) fn asarray(
     value: &Bound<'_, PyAny>,
     dtype: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
+    let source_dtype = array::source_dtype(py, value)?;
     let dtype = match dtype {
         Some(dtype) => DType::parse(py, Some(dtype))?,
-        None => {
-            let source_dtype = value.getattr("dtype")?;
-            DType::parse(py, Some(&source_dtype))?
-        }
+        None => source_dtype,
     };
 
-    with_dtype!(dtype, all | T | asarray_typed::<T>(py, value))
+    if dtype == source_dtype {
+        return Ok(value.clone().unbind());
+    }
+
+    let kwargs = PyDict::new(py);
+    kwargs.set_item("dtype", dtype.name())?;
+    Ok(PyModule::import(py, "numpy")?.getattr("asarray")?.call((value,), Some(&kwargs))?.unbind())
 }
 
 pub(crate) fn zeros(
@@ -183,13 +187,6 @@ where
     let (start, stop) = stop.map_or((0.0, start), |stop| (start, stop));
 
     output(py, arange(start, stop, step.unwrap_or(1.0)))
-}
-
-fn asarray_typed<T>(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>>
-where
-    T: atlas_ndarray::ArrayElement + numpy::Element,
-{
-    output_owned(py, array::from_numpy(array::readonly_from_python::<T>(py, value)?)?)
 }
 
 fn output<T>(py: Python<'_>, array: atlas_ndarray::AtlasNdResult<NDArray<T>>) -> PyResult<Py<PyAny>>

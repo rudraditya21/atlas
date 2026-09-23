@@ -137,7 +137,7 @@ macro_rules! with_dtype {
 
 pub(crate) use with_dtype;
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum DType {
     Bool,
     Int8,
