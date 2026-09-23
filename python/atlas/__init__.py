@@ -58,7 +58,7 @@ def _coerce_arrays(function, *, required=(), optional=()):
 
 def _coerce_array_collection(function):
     @wraps(function)
-    def wrapper(arrays, axis):
+    def wrapper(arrays, axis=0):
         return function([_array_like(value) for value in arrays], axis)
 
     return wrapper

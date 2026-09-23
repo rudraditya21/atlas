@@ -479,12 +479,12 @@ fn trace(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     trace_ops::trace(py, value)
 }
 
-#[pyfunction]
+#[pyfunction(signature = (arrays, axis = 0))]
 fn concatenate(py: Python<'_>, arrays: Vec<Py<PyAny>>, axis: i64) -> PyResult<Py<PyAny>> {
     concat_ops::concatenate(py, arrays, axis)
 }
 
-#[pyfunction]
+#[pyfunction(signature = (arrays, axis = 0))]
 fn stack(py: Python<'_>, arrays: Vec<Py<PyAny>>, axis: i64) -> PyResult<Py<PyAny>> {
     stack_ops::stack(py, arrays, axis)
 }

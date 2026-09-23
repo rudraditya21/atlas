@@ -12,6 +12,12 @@ def test_concatenate_supports_multiple_axes() -> None:
     assert atlas.concatenate([lhs, rhs], 1).tolist() == [[1, 2, 5, 6], [3, 4, 7, 8]]
 
 
+def test_concatenate_defaults_to_axis_zero_and_accepts_tuples() -> None:
+    arrays = (np.array([1, 2], dtype=np.int32), np.array([3, 4], dtype=np.int32))
+
+    np.testing.assert_array_equal(atlas.concatenate(arrays), np.concatenate(arrays))
+
+
 def test_concatenate_supports_non_contiguous_views() -> None:
     lhs = np.arange(6, dtype=np.float64).reshape(2, 3).T
     rhs = np.arange(6, 12, dtype=np.float64).reshape(2, 3).T
