@@ -209,6 +209,9 @@ where
 
 #[cfg(test)]
 mod tests {
+    use std::cmp::Ordering;
+
+    use super::SortElement;
     use crate::{AtlasNdError, NDArray};
 
     #[test]
@@ -255,6 +258,51 @@ mod tests {
         assert_eq!(
             values.partition(3, 1).unwrap_err(),
             AtlasNdError::IndexOutOfBounds { axis: 1, index: 3, dim: 3 }
+        );
+    }
+
+    #[test]
+    fn partition_handles_duplicate_values() {
+        let values = NDArray::from_shape_vec([6], vec![3_i32, 1, 2, 2, 2, 4]).unwrap();
+        let partitioned = values.partition(3, 0).unwrap();
+
+        assert_eq!(partitioned.data()[3], 2);
+        assert!(partitioned.data()[..3].iter().all(|value| *value <= partitioned.data()[3]));
+        assert!(partitioned.data()[4..].iter().all(|value| *value >= partitioned.data()[3]));
+    }
+
+    #[test]
+    fn partition_orders_nan_values_using_sort_element_ordering() {
+        let values = NDArray::from_shape_vec([5], vec![f64::NAN, 2.0, 1.0, f64::NAN, 0.0]).unwrap();
+        let partitioned = values.partition(3, 0).unwrap();
+        let pivot = partitioned.data()[3];
+
+        assert!(pivot.is_nan());
+        assert!(
+            partitioned.data()[..3]
+                .iter()
+                .all(|value| value.sort_compare(&pivot) != Ordering::Greater)
+        );
+        assert!(
+            partitioned.data()[4..]
+                .iter()
+                .all(|value| value.sort_compare(&pivot) != Ordering::Less)
+        );
+        assert_eq!(partitioned.data().iter().filter(|value| value.is_nan()).count(), 2);
+    }
+
+    #[test]
+    fn partition_rejects_zero_length_lanes_and_scalar_axes() {
+        let empty = NDArray::<i32>::zeros([2, 0, 3]).unwrap();
+        let scalar = NDArray::from_shape_vec([], vec![7_i32]).unwrap();
+
+        assert_eq!(
+            empty.partition(0, 1).unwrap_err(),
+            AtlasNdError::IndexOutOfBounds { axis: 1, index: 0, dim: 0 }
+        );
+        assert_eq!(
+            scalar.partition(0, -1).unwrap_err(),
+            AtlasNdError::InvalidAxis { axis: -1, ndim: 0 }
         );
     }
 }
