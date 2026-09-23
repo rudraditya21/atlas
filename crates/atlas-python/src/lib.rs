@@ -392,14 +392,14 @@ fn count_true(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<usize> {
     logical::count_true(py, value)
 }
 
-#[pyfunction]
-fn all(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<bool> {
-    logical::all(py, value)
+#[pyfunction(signature = (value, axis = None))]
+fn all(py: Python<'_>, value: &Bound<'_, PyAny>, axis: Option<i64>) -> PyResult<Py<PyAny>> {
+    logical::all(py, value, axis)
 }
 
-#[pyfunction]
-fn any(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<bool> {
-    logical::any(py, value)
+#[pyfunction(signature = (value, axis = None))]
+fn any(py: Python<'_>, value: &Bound<'_, PyAny>, axis: Option<i64>) -> PyResult<Py<PyAny>> {
+    logical::any(py, value, axis)
 }
 
 #[pyfunction]

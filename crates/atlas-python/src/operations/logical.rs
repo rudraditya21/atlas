@@ -1,4 +1,4 @@
-use pyo3::{exceptions::PyTypeError, prelude::*, types::PyTuple};
+use pyo3::{IntoPyObjectExt, exceptions::PyTypeError, prelude::*, types::PyTuple};
 
 use crate::{array, gil, python_dtype::with_dtype};
 
@@ -78,24 +78,36 @@ pub(crate) fn count_true(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<u
     Ok(gil::without_gil(py, move || value.count_true()))
 }
 
-pub(crate) fn all(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<bool> {
+pub(crate) fn all(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axis: Option<i64>,
+) -> PyResult<Py<PyAny>> {
     let value = boolean_array(py, value)?;
-    Ok(gil::without_gil(py, move || value.all()))
+    match axis {
+        Some(axis) => output(py, gil::without_gil(py, move || value.all_axis(axis))),
+        None => gil::without_gil(py, move || value.all()).into_py_any(py),
+    }
 }
 
-pub(crate) fn any(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<bool> {
+pub(crate) fn any(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axis: Option<i64>,
+) -> PyResult<Py<PyAny>> {
     let value = boolean_array(py, value)?;
-    Ok(gil::without_gil(py, move || value.any()))
+    match axis {
+        Some(axis) => output(py, gil::without_gil(py, move || value.any_axis(axis))),
+        None => gil::without_gil(py, move || value.any()).into_py_any(py),
+    }
 }
 
 pub(crate) fn all_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
-    let value = boolean_array(py, value)?;
-    output(py, gil::without_gil(py, move || value.all_axis(axis)))
+    all(py, value, Some(axis))
 }
 
 pub(crate) fn any_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
-    let value = boolean_array(py, value)?;
-    output(py, gil::without_gil(py, move || value.any_axis(axis)))
+    any(py, value, Some(axis))
 }
 
 pub(crate) fn select(
