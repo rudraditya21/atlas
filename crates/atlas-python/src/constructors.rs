@@ -6,17 +6,17 @@ use crate::{array, python_dtype::DType};
 pub(crate) fn asarray(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
-    dtype: Option<&str>,
+    dtype: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
-    let dtype = dtype.map(str::to_owned).or_else(|| {
-        value
-            .getattr("dtype")
-            .ok()
-            .and_then(|dtype| dtype.getattr("name").ok())
-            .and_then(|name| name.extract::<String>().ok())
-    });
+    let dtype = match dtype {
+        Some(dtype) => DType::parse(py, Some(dtype))?,
+        None => {
+            let source_dtype = value.getattr("dtype")?;
+            DType::parse(py, Some(&source_dtype))?
+        }
+    };
 
-    match DType::parse(dtype.as_deref())? {
+    match dtype {
         DType::Bool => asarray_typed::<bool>(py, value),
         DType::Int8 => asarray_typed::<i8>(py, value),
         DType::Int16 => asarray_typed::<i16>(py, value),
@@ -31,8 +31,12 @@ pub(crate) fn asarray(
     }
 }
 
-pub(crate) fn zeros(py: Python<'_>, shape: Vec<usize>, dtype: Option<&str>) -> PyResult<Py<PyAny>> {
-    match DType::parse(dtype)? {
+pub(crate) fn zeros(
+    py: Python<'_>,
+    shape: Vec<usize>,
+    dtype: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Py<PyAny>> {
+    match DType::parse(py, dtype)? {
         DType::Bool => output(py, NDArray::full(shape, false)),
         DType::Int8 => output(py, NDArray::<i8>::zeros(shape)),
         DType::Int16 => output(py, NDArray::<i16>::zeros(shape)),
@@ -47,8 +51,12 @@ pub(crate) fn zeros(py: Python<'_>, shape: Vec<usize>, dtype: Option<&str>) -> P
     }
 }
 
-pub(crate) fn ones(py: Python<'_>, shape: Vec<usize>, dtype: Option<&str>) -> PyResult<Py<PyAny>> {
-    match DType::parse(dtype)? {
+pub(crate) fn ones(
+    py: Python<'_>,
+    shape: Vec<usize>,
+    dtype: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Py<PyAny>> {
+    match DType::parse(py, dtype)? {
         DType::Bool => output(py, NDArray::full(shape, true)),
         DType::Int8 => output(py, NDArray::<i8>::ones(shape)),
         DType::Int16 => output(py, NDArray::<i16>::ones(shape)),
@@ -67,11 +75,11 @@ pub(crate) fn eye(
     py: Python<'_>,
     rows: usize,
     columns: Option<usize>,
-    dtype: Option<&str>,
+    dtype: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
     let columns = columns.unwrap_or(rows);
 
-    match DType::parse(dtype)? {
+    match DType::parse(py, dtype)? {
         DType::Bool => Err(PyValueError::new_err("eye does not support bool dtype")),
         DType::Int8 => output(py, NDArray::<i8>::eye_with_columns(rows, columns)),
         DType::Int16 => output(py, NDArray::<i16>::eye_with_columns(rows, columns)),
@@ -86,7 +94,11 @@ pub(crate) fn eye(
     }
 }
 
-pub(crate) fn identity(py: Python<'_>, size: usize, dtype: Option<&str>) -> PyResult<Py<PyAny>> {
+pub(crate) fn identity(
+    py: Python<'_>,
+    size: usize,
+    dtype: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Py<PyAny>> {
     eye(py, size, None, dtype)
 }
 
@@ -94,9 +106,9 @@ pub(crate) fn full(
     py: Python<'_>,
     shape: Vec<usize>,
     value: &Bound<'_, PyAny>,
-    dtype: Option<&str>,
+    dtype: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
-    match DType::parse(dtype)? {
+    match DType::parse(py, dtype)? {
         DType::Bool => output(py, NDArray::full(shape, value.extract::<bool>()?)),
         DType::Int8 => output(py, NDArray::full(shape, value.extract::<i8>()?)),
         DType::Int16 => output(py, NDArray::full(shape, value.extract::<i16>()?)),
@@ -116,7 +128,7 @@ pub(crate) fn arange(
     start: &Bound<'_, PyAny>,
     stop: Option<&Bound<'_, PyAny>>,
     step: Option<&Bound<'_, PyAny>>,
-    dtype: Option<&str>,
+    dtype: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
     macro_rules! integer_arange {
         ($ty:ty, $minimum:expr, $maximum_exclusive:expr) => {{
@@ -135,7 +147,7 @@ pub(crate) fn arange(
         }};
     }
 
-    match DType::parse(dtype)? {
+    match DType::parse(py, dtype)? {
         DType::Bool => Err(PyValueError::new_err("arange does not support bool dtype")),
         DType::Int8 => integer_arange!(i8, i8::MIN as i128, i8::MAX as i128 + 1),
         DType::Int16 => integer_arange!(i16, i16::MIN as i128, i16::MAX as i128 + 1),
@@ -157,10 +169,10 @@ pub(crate) fn linspace(
     start: f64,
     stop: f64,
     num: usize,
-    dtype: Option<&str>,
+    dtype: Option<&Bound<'_, PyAny>>,
     endpoint: bool,
 ) -> PyResult<Py<PyAny>> {
-    match DType::parse(dtype)? {
+    match DType::parse(py, dtype)? {
         DType::Float32 => {
             output(py, NDArray::linspace_with_endpoint(start as f32, stop as f32, num, endpoint))
         }

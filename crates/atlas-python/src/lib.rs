@@ -195,17 +195,29 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
 }
 
 #[pyfunction(signature = (value, dtype = None))]
-fn asarray(py: Python<'_>, value: &Bound<'_, PyAny>, dtype: Option<&str>) -> PyResult<Py<PyAny>> {
+fn asarray(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    dtype: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Py<PyAny>> {
     constructors::asarray(py, value, dtype)
 }
 
 #[pyfunction(signature = (shape, dtype = None))]
-fn zeros(py: Python<'_>, shape: Vec<usize>, dtype: Option<&str>) -> PyResult<Py<PyAny>> {
+fn zeros(
+    py: Python<'_>,
+    shape: Vec<usize>,
+    dtype: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Py<PyAny>> {
     constructors::zeros(py, shape, dtype)
 }
 
 #[pyfunction(signature = (shape, dtype = None))]
-fn ones(py: Python<'_>, shape: Vec<usize>, dtype: Option<&str>) -> PyResult<Py<PyAny>> {
+fn ones(
+    py: Python<'_>,
+    shape: Vec<usize>,
+    dtype: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Py<PyAny>> {
     constructors::ones(py, shape, dtype)
 }
 
@@ -214,13 +226,13 @@ fn eye(
     py: Python<'_>,
     rows: usize,
     columns: Option<usize>,
-    dtype: Option<&str>,
+    dtype: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
     constructors::eye(py, rows, columns, dtype)
 }
 
 #[pyfunction(signature = (size, dtype = None))]
-fn identity(py: Python<'_>, size: usize, dtype: Option<&str>) -> PyResult<Py<PyAny>> {
+fn identity(py: Python<'_>, size: usize, dtype: Option<&Bound<'_, PyAny>>) -> PyResult<Py<PyAny>> {
     constructors::identity(py, size, dtype)
 }
 
@@ -229,7 +241,7 @@ fn full(
     py: Python<'_>,
     shape: Vec<usize>,
     value: &Bound<'_, PyAny>,
-    dtype: Option<&str>,
+    dtype: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
     constructors::full(py, shape, value, dtype)
 }
@@ -240,7 +252,7 @@ fn arange(
     start: &Bound<'_, PyAny>,
     stop: Option<&Bound<'_, PyAny>>,
     step: Option<&Bound<'_, PyAny>>,
-    dtype: Option<&str>,
+    dtype: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
     constructors::arange(py, start, stop, step, dtype)
 }
@@ -251,14 +263,18 @@ fn linspace(
     start: f64,
     stop: f64,
     num: usize,
-    dtype: Option<&str>,
+    dtype: Option<&Bound<'_, PyAny>>,
     endpoint: bool,
 ) -> PyResult<Py<PyAny>> {
     constructors::linspace(py, start, stop, num, dtype, endpoint)
 }
 
 #[pyfunction]
-fn astype(py: Python<'_>, value: &Bound<'_, PyAny>, dtype: &str) -> PyResult<Py<PyAny>> {
+fn astype(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    dtype: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyAny>> {
     casting::astype(py, value, dtype)
 }
 

@@ -4,8 +4,12 @@ use pyo3::{exceptions::PyTypeError, prelude::*};
 
 use crate::{array, gil, python_dtype::DType};
 
-pub(crate) fn astype(py: Python<'_>, value: &Bound<'_, PyAny>, dtype: &str) -> PyResult<Py<PyAny>> {
-    let target = DType::parse(Some(dtype))?;
+pub(crate) fn astype(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    dtype: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyAny>> {
+    let target = DType::parse(py, Some(dtype))?;
     array::require_numpy_array(py, value)?;
     let source: String = value.getattr("dtype")?.getattr("name")?.extract()?;
 
