@@ -21,6 +21,16 @@ def test_reshape_infers_a_single_negative_dimension() -> None:
     np.testing.assert_array_equal(atlas.reshape(values, [3, -1]), values.reshape(3, 4))
 
 
+def test_reshape_accepts_variadic_dimensions_and_shape_keywords() -> None:
+    values = np.arange(12, dtype=np.int32)
+
+    np.testing.assert_array_equal(atlas.reshape(values, 3, 4), values.reshape(3, 4))
+    np.testing.assert_array_equal(atlas.reshape(values, 3, -1), values.reshape(3, 4))
+    np.testing.assert_array_equal(
+        atlas.reshape(values, shape=(2, 6)), values.reshape(2, 6)
+    )
+
+
 def test_moveaxis_supports_scalar_and_multiple_axes() -> None:
     values = np.arange(24, dtype=np.int32).reshape(2, 3, 4)
 

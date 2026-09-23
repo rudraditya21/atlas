@@ -397,6 +397,19 @@ def atleast_3d(*values):
     return _atleast(np.atleast_3d, values)
 
 
+def reshape(value, shape, *dimensions):
+    value = _array_like(value)
+    if dimensions:
+        shape = (shape, *dimensions)
+    elif isinstance(shape, np.ndarray):
+        shape = shape.tolist()
+    elif isinstance(shape, Sequence) and not isinstance(shape, (str, bytes, bytearray)):
+        pass
+    else:
+        shape = (shape,)
+    return _native.reshape(value, shape)
+
+
 def linspace(start, stop, num, *, dtype=None, endpoint=True):
     return _native.linspace(start, stop, num, dtype, endpoint)
 
@@ -450,7 +463,6 @@ for _name in (
     "mean_axis",
     "min_axis",
     "max_axis",
-    "reshape",
     "transpose",
     "moveaxis",
     "swap_axes",
