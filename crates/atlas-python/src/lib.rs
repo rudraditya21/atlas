@@ -719,7 +719,7 @@ fn searchsorted(
 fn partition(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
-    kth: i64,
+    kth: &Bound<'_, PyAny>,
     axis: Option<i64>,
 ) -> PyResult<Py<PyAny>> {
     partition_ops::partition(py, value, kth, axis)

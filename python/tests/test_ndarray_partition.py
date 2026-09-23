@@ -45,6 +45,32 @@ def test_partition_supports_flattened_axis() -> None:
     np.testing.assert_array_equal(np.sort(result), np.sort(values, axis=None))
 
 
+def test_partition_supports_multiple_kth_values() -> None:
+    values = np.array([9, 1, 8, 2, 7], dtype=np.int64)
+    result = atlas.partition(values, [1, 3])
+
+    np.testing.assert_array_equal(result[[1, 3]], np.sort(values)[[1, 3]])
+    assert np.all(result[:1] <= result[1])
+    assert np.all((result[2:3] >= result[1]) & (result[2:3] <= result[3]))
+    assert np.all(result[4:] >= result[3])
+
+
+@pytest.mark.parametrize(
+    ("kth", "exception", "match"),
+    [
+        ([], atlas.NumericError, "must not be empty"),
+        ([2, 1], atlas.NumericError, "ordered and unique"),
+        ([1, 1], atlas.NumericError, "ordered and unique"),
+        ([3], atlas.AxisError, "index"),
+    ],
+)
+def test_partition_rejects_invalid_multiple_kth_values(
+    kth: list[int], exception: type[Exception], match: str
+) -> None:
+    with pytest.raises(exception, match=match):
+        atlas.partition(np.array([1, 2, 3]), kth)
+
+
 def test_partition_handles_duplicate_and_nan_values() -> None:
     duplicates = np.array([3, 1, 2, 2, 2, 4], dtype=np.int32)
     result = atlas.partition(duplicates, 3)

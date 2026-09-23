@@ -5,22 +5,25 @@ use crate::{array, gil};
 pub(crate) fn partition(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
-    kth: i64,
+    kth: &Bound<'_, PyAny>,
     axis: Option<i64>,
 ) -> PyResult<Py<PyAny>> {
     array::require_numpy_array(py, value)?;
     let dtype: String = value.getattr("dtype")?.getattr("name")?.extract()?;
+    let kths =
+        if let Ok(kth) = kth.extract::<i64>() { vec![kth] } else { kth.extract::<Vec<i64>>()? };
+
     macro_rules! apply {
         ($ty:ty) => {{
             let array = array::from_numpy(array::readonly_from_python::<$ty>(py, value)?)?;
             let result = gil::without_gil(py, move || {
                 if let Some(axis) = axis {
-                    let kth = normalize_kth(array.shape(), kth, axis)?;
-                    array.partition(kth, axis)
+                    let kths = normalize_kths(array.shape(), &kths, axis)?;
+                    array.partition_many(&kths, axis)
                 } else {
                     let array = array.flatten();
-                    let kth = normalize_kth(array.shape(), kth, 0)?;
-                    array.partition(kth, 0)
+                    let kths = normalize_kths(array.shape(), &kths, 0)?;
+                    array.partition_many(&kths, 0)
                 }
             })
             .map_err(|e| crate::error::ndarray(py, e))?;
@@ -43,15 +46,42 @@ pub(crate) fn partition(
     }
 }
 pub(crate) fn normalize_kth(shape: &[usize], kth: i64, axis: i64) -> Result<usize, AtlasNdError> {
+    Ok(normalize_kths(shape, &[kth], axis)?[0])
+}
+
+pub(crate) fn normalize_kths(
+    shape: &[usize],
+    kths: &[i64],
+    axis: i64,
+) -> Result<Vec<usize>, AtlasNdError> {
     let n = shape.len();
     let a = if axis < 0 { axis + n as i64 } else { axis };
     if a < 0 || a as usize >= n {
         return Err(AtlasNdError::InvalidAxis { axis: a, ndim: n });
     }
     let len = shape[a as usize];
-    let k = if kth < 0 { kth + len as i64 } else { kth };
-    if k < 0 || k as usize >= len {
-        return Err(AtlasNdError::IndexOutOfBounds { axis: a as usize, index: k, dim: len });
+    if kths.is_empty() {
+        return Err(AtlasNdError::InvalidArgument {
+            op: "partition",
+            reason: "kth values must not be empty",
+        });
     }
-    Ok(k as usize)
+
+    let mut normalized = Vec::with_capacity(kths.len());
+    for &kth in kths {
+        let kth = if kth < 0 { kth + len as i64 } else { kth };
+        if kth < 0 || kth as usize >= len {
+            return Err(AtlasNdError::IndexOutOfBounds { axis: a as usize, index: kth, dim: len });
+        }
+        normalized.push(kth as usize);
+    }
+
+    if normalized.windows(2).any(|pair| pair[0] >= pair[1]) {
+        return Err(AtlasNdError::InvalidArgument {
+            op: "partition",
+            reason: "kth values must be ordered and unique",
+        });
+    }
+
+    Ok(normalized)
 }

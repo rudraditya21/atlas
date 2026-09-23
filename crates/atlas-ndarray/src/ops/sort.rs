@@ -69,6 +69,11 @@ impl<T: SortElement> NDArray<T> {
         partition_operand(self, kth, axis)
     }
 
+    /// Partitions each lane along `axis` so values at every requested index are in sorted position.
+    pub fn partition_many<A: AxisIndex>(&self, kths: &[usize], axis: A) -> AtlasNdResult<Self> {
+        partition_many_operand(self, kths, axis)
+    }
+
     /// Returns sorted unique logical values as an owned one-dimensional array.
     pub fn unique(&self) -> NDArray<T> {
         unique_operand(self)
@@ -94,6 +99,15 @@ impl<'a, T: SortElement> ArrayView<'a, T> {
     /// Partitions each lane along `axis` so the value at `kth` is in sorted position.
     pub fn partition<A: AxisIndex>(&self, kth: usize, axis: A) -> AtlasNdResult<NDArray<T>> {
         partition_operand(self, kth, axis)
+    }
+
+    /// Partitions each lane along `axis` so values at every requested index are in sorted position.
+    pub fn partition_many<A: AxisIndex>(
+        &self,
+        kths: &[usize],
+        axis: A,
+    ) -> AtlasNdResult<NDArray<T>> {
+        partition_many_operand(self, kths, axis)
     }
 
     /// Returns sorted unique logical values as an owned one-dimensional array.
@@ -170,16 +184,23 @@ where
     O: OperandMetadata<T> + ?Sized,
     A: AxisIndex,
 {
+    partition_many_operand(operand, &[kth], axis)
+}
+
+fn partition_many_operand<T, O, A>(
+    operand: &O,
+    kths: &[usize],
+    axis: A,
+) -> AtlasNdResult<NDArray<T>>
+where
+    T: SortElement,
+    O: OperandMetadata<T> + ?Sized,
+    A: AxisIndex,
+{
     let axis = normalize_axis(axis, operand.ndim())?;
     let shape = operand.shape();
     let axis_len = shape[axis];
-    if kth >= axis_len {
-        return Err(crate::AtlasNdError::IndexOutOfBounds {
-            axis,
-            index: i64::try_from(kth).expect("ndarray axes fit i64"),
-            dim: axis_len,
-        });
-    }
+    validate_partition_indices(kths, axis, axis_len)?;
 
     let inner = element_count(&shape[axis + 1..]);
     let outer = element_count(&shape[..axis]);
@@ -192,7 +213,8 @@ where
             let mut lane: Vec<_> = (0..axis_len)
                 .map(|axis_index| data[(outer_index * axis_len + axis_index) * inner + inner_index])
                 .collect();
-            lane.select_nth_unstable_by(kth, SortElement::sort_compare);
+            let compare = |left: &T, right: &T| left.sort_compare(right);
+            partition_lane(&mut lane, kths, 0, &compare);
             for (axis_index, value) in lane.into_iter().enumerate() {
                 partitioned[(outer_index * axis_len + axis_index) * inner + inner_index] = value;
             }
@@ -200,6 +222,47 @@ where
     }
 
     NDArray::from_shape_vec(shape.to_vec(), partitioned)
+}
+
+fn validate_partition_indices(kths: &[usize], axis: usize, axis_len: usize) -> AtlasNdResult<()> {
+    if kths.is_empty() {
+        return Err(crate::AtlasNdError::InvalidArgument {
+            op: "partition",
+            reason: "kth values must not be empty",
+        });
+    }
+
+    if kths.windows(2).any(|pair| pair[0] >= pair[1]) {
+        return Err(crate::AtlasNdError::InvalidArgument {
+            op: "partition",
+            reason: "kth values must be ordered and unique",
+        });
+    }
+
+    if let Some(&kth) = kths.iter().find(|&&kth| kth >= axis_len) {
+        return Err(crate::AtlasNdError::IndexOutOfBounds {
+            axis,
+            index: i64::try_from(kth).expect("ndarray axes fit i64"),
+            dim: axis_len,
+        });
+    }
+
+    Ok(())
+}
+
+fn partition_lane<T, F>(values: &mut [T], kths: &[usize], offset: usize, compare: &F)
+where
+    F: Fn(&T, &T) -> Ordering,
+{
+    if kths.is_empty() {
+        return;
+    }
+
+    let middle = kths.len() / 2;
+    let kth = kths[middle];
+    let (lower, _, upper) = values.select_nth_unstable_by(kth - offset, compare);
+    partition_lane(lower, &kths[..middle], offset, compare);
+    partition_lane(upper, &kths[middle + 1..], kth + 1, compare);
 }
 
 fn argpartition_operand<T, O, A>(operand: &O, kth: usize, axis: A) -> AtlasNdResult<NDArray<i64>>
@@ -399,5 +462,45 @@ mod tests {
             partitioned[..3].iter().all(|value| value.sort_compare(&pivot) != Ordering::Greater)
         );
         assert!(partitioned[4..].iter().all(|value| value.sort_compare(&pivot) != Ordering::Less));
+    }
+
+    #[test]
+    fn partition_many_places_each_requested_order_statistic() {
+        let values = NDArray::from_shape_vec([5], vec![9_i32, 1, 8, 2, 7]).unwrap();
+        let partitioned = values.partition_many(&[1, 3], 0).unwrap();
+
+        assert_eq!(partitioned.data()[1], 2);
+        assert_eq!(partitioned.data()[3], 8);
+        assert!(partitioned.data()[..1].iter().all(|value| *value <= partitioned.data()[1]));
+        assert!(
+            partitioned.data()[2..3]
+                .iter()
+                .all(|value| *value >= partitioned.data()[1] && *value <= partitioned.data()[3])
+        );
+        assert!(partitioned.data()[4..].iter().all(|value| *value >= partitioned.data()[3]));
+    }
+
+    #[test]
+    fn partition_many_rejects_empty_unordered_and_out_of_bounds_indices() {
+        let values = NDArray::from_shape_vec([3], vec![1_i32, 2, 3]).unwrap();
+
+        assert_eq!(
+            values.partition_many(&[], 0).unwrap_err(),
+            AtlasNdError::InvalidArgument {
+                op: "partition",
+                reason: "kth values must not be empty"
+            }
+        );
+        assert_eq!(
+            values.partition_many(&[2, 1], 0).unwrap_err(),
+            AtlasNdError::InvalidArgument {
+                op: "partition",
+                reason: "kth values must be ordered and unique",
+            }
+        );
+        assert_eq!(
+            values.partition_many(&[3], 0).unwrap_err(),
+            AtlasNdError::IndexOutOfBounds { axis: 0, index: 3, dim: 3 }
+        );
     }
 }
