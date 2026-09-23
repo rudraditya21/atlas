@@ -370,6 +370,24 @@ def empty_like(value, dtype=None):
     return np.empty_like(_array_like(value), dtype=dtype)
 
 
+def copyto(destination, source, *, where=True):
+    if not isinstance(destination, np.ndarray):
+        raise TypeError("destination must be a NumPy ndarray")
+    source = _array_like(source) if _is_array_like(source) else source
+    if _is_array_like(where):
+        where = _array_like(where)
+        if where.dtype != np.dtype(bool):
+            raise TypeError("where must have a boolean dtype")
+    elif not isinstance(where, (bool, np.bool_)):
+        raise TypeError("where must be a boolean scalar or array")
+    try:
+        np.copyto(destination, source, where=where)
+    except ValueError as error:
+        if "broadcast" in str(error):
+            raise ShapeError(str(error)) from None
+        raise
+
+
 def full_like(value, fill_value, dtype=None):
     value = _array_like(value)
     return full(value.shape, fill_value, dtype=value.dtype if dtype is None else dtype)
@@ -584,6 +602,7 @@ __all__ = sorted(
         "choose",
         "concatenate",
         "copy",
+        "copyto",
         "divide",
         "diag",
         "det",
