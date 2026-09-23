@@ -6,7 +6,7 @@ pub(crate) fn partition(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
     kth: i64,
-    axis: i64,
+    axis: Option<i64>,
 ) -> PyResult<Py<PyAny>> {
     array::require_numpy_array(py, value)?;
     let dtype: String = value.getattr("dtype")?.getattr("name")?.extract()?;
@@ -14,8 +14,14 @@ pub(crate) fn partition(
         ($ty:ty) => {{
             let array = array::from_numpy(array::readonly_from_python::<$ty>(py, value)?)?;
             let result = gil::without_gil(py, move || {
-                let kth = normalize_kth(array.shape(), kth, axis)?;
-                array.partition(kth, axis)
+                if let Some(axis) = axis {
+                    let kth = normalize_kth(array.shape(), kth, axis)?;
+                    array.partition(kth, axis)
+                } else {
+                    let array = array.flatten();
+                    let kth = normalize_kth(array.shape(), kth, 0)?;
+                    array.partition(kth, 0)
+                }
             })
             .map_err(|e| crate::error::ndarray(py, e))?;
             Ok(array::to_numpy_owned(py, result)?.into_any().unbind())

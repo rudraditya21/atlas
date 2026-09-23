@@ -33,6 +33,18 @@ def test_partition_supports_negative_kth_and_axes() -> None:
     assert np.all(result[:-1] <= result[-1])
 
 
+def test_partition_supports_flattened_axis() -> None:
+    values = np.array([[9, 1, 8], [2, 7, 3]], dtype=np.int64).T
+    result = atlas.partition(values, 2, axis=None)
+
+    assert not values.flags.c_contiguous
+    assert result.shape == (values.size,)
+    assert result[2] == 3
+    assert np.all(result[:2] <= result[2])
+    assert np.all(result[3:] >= result[2])
+    np.testing.assert_array_equal(np.sort(result), np.sort(values, axis=None))
+
+
 def test_partition_handles_duplicate_and_nan_values() -> None:
     duplicates = np.array([3, 1, 2, 2, 2, 4], dtype=np.int32)
     result = atlas.partition(duplicates, 3)

@@ -703,7 +703,12 @@ fn searchsorted(
 }
 
 #[pyfunction(signature = (value, kth, axis = -1))]
-fn partition(py: Python<'_>, value: &Bound<'_, PyAny>, kth: i64, axis: i64) -> PyResult<Py<PyAny>> {
+fn partition(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    kth: i64,
+    axis: Option<i64>,
+) -> PyResult<Py<PyAny>> {
     partition_ops::partition(py, value, kth, axis)
 }
 
