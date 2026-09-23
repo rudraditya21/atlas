@@ -122,6 +122,20 @@ where
     /// Both endpoints are included when `num >= 2`; zero points produce an empty array and one
     /// point produces `[start]`. Endpoints and all generated values must remain finite.
     pub fn linspace(start: T, end: T, num: usize) -> AtlasNdResult<Self> {
+        Self::linspace_with_endpoint(start, end, num, true)
+    }
+
+    /// Creates a contiguous 1D float array with `num` evenly spaced points from `start` to `end`.
+    ///
+    /// When `endpoint` is false, `end` is excluded from the generated points. Zero points produce
+    /// an empty array and one point produces `[start]`. Endpoints and all generated values must
+    /// remain finite.
+    pub fn linspace_with_endpoint(
+        start: T,
+        end: T,
+        num: usize,
+        endpoint: bool,
+    ) -> AtlasNdResult<Self> {
         if !start.is_finite() || !end.is_finite() {
             return Err(AtlasNdError::InvalidArgument {
                 op: "linspace",
@@ -137,7 +151,8 @@ where
             return Self::from_vector_data(vec![start]);
         }
 
-        let step = (end - start) / T::from(num - 1).expect("usize to float conversion");
+        let divisor = if endpoint { num - 1 } else { num };
+        let step = (end - start) / T::from(divisor).expect("usize to float conversion");
         if !step.is_finite() {
             return Err(AtlasNdError::InvalidArgument {
                 op: "linspace",
@@ -150,7 +165,7 @@ where
         for index in 0..num {
             if index == 0 {
                 data.push(start);
-            } else if index == num - 1 {
+            } else if endpoint && index == num - 1 {
                 data.push(end);
             } else {
                 let value = start + step * T::from(index).expect("usize to float conversion");
@@ -253,6 +268,19 @@ mod tests {
         assert_eq!(degenerate.data(), &[4.5, 4.5, 4.5, 4.5]);
         assert!(descending.is_contiguous());
         assert!(degenerate.is_contiguous());
+    }
+
+    #[test]
+    fn linspace_can_exclude_the_endpoint() {
+        let ascending = NDArray::linspace_with_endpoint(0.0_f64, 1.0, 5, false).unwrap();
+        let descending = NDArray::linspace_with_endpoint(3.0_f64, -1.0, 4, false).unwrap();
+        let singleton = NDArray::linspace_with_endpoint(2.5_f64, 9.0, 1, false).unwrap();
+        let empty = NDArray::linspace_with_endpoint(0.0_f64, 1.0, 0, false).unwrap();
+
+        assert_eq!(ascending.data(), &[0.0, 0.2, 0.4, 0.6000000000000001, 0.8]);
+        assert_eq!(descending.data(), &[3.0, 2.0, 1.0, 0.0]);
+        assert_eq!(singleton.data(), &[2.5]);
+        assert_eq!(empty.shape(), &[0]);
     }
 
     #[test]

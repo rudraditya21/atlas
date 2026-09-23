@@ -154,10 +154,13 @@ pub(crate) fn linspace(
     stop: f64,
     num: usize,
     dtype: Option<&str>,
+    endpoint: bool,
 ) -> PyResult<Py<PyAny>> {
     match DType::parse(dtype)? {
-        DType::Float32 => output(py, NDArray::linspace(start as f32, stop as f32, num)),
-        DType::Float64 => output(py, NDArray::linspace(start, stop, num)),
+        DType::Float32 => {
+            output(py, NDArray::linspace_with_endpoint(start as f32, stop as f32, num, endpoint))
+        }
+        DType::Float64 => output(py, NDArray::linspace_with_endpoint(start, stop, num, endpoint)),
         _ => Err(PyValueError::new_err("linspace only supports float32 and float64 dtypes")),
     }
 }

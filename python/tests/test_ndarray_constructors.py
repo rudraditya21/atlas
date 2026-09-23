@@ -107,6 +107,21 @@ def test_linspace_supports_float_dtypes() -> None:
     assert empty.shape == (0,)
 
 
+@pytest.mark.parametrize(
+    ("start", "stop", "num"),
+    [
+        (0.0, 1.0, 5),
+        (3.0, -1.0, 4),
+        (2.5, 9.0, 1),
+        (0.0, 1.0, 0),
+    ],
+)
+def test_linspace_can_exclude_the_endpoint(start: float, stop: float, num: int) -> None:
+    result = atlas.linspace(start, stop, num, endpoint=False)
+
+    np.testing.assert_array_equal(result, np.linspace(start, stop, num, endpoint=False))
+
+
 def test_integer_arange_preserves_values_above_f64_integer_precision() -> None:
     start = 2**53 + 1
 

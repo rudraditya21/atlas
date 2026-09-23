@@ -239,15 +239,16 @@ fn arange(
     constructors::arange(py, start, stop, step, dtype)
 }
 
-#[pyfunction(signature = (start, stop, num, dtype = None))]
+#[pyfunction(signature = (start, stop, num, dtype = None, endpoint = true))]
 fn linspace(
     py: Python<'_>,
     start: f64,
     stop: f64,
     num: usize,
     dtype: Option<&str>,
+    endpoint: bool,
 ) -> PyResult<Py<PyAny>> {
-    constructors::linspace(py, start, stop, num, dtype)
+    constructors::linspace(py, start, stop, num, dtype, endpoint)
 }
 
 #[pyfunction]
