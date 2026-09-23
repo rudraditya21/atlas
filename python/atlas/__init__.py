@@ -388,6 +388,18 @@ def copyto(destination, source, *, where=True):
         raise
 
 
+def shares_memory(left, right, *, max_work=None):
+    return bool(
+        np.shares_memory(_array_like(left), _array_like(right), max_work=max_work)
+    )
+
+
+def may_share_memory(left, right, *, max_work=None):
+    return bool(
+        np.may_share_memory(_array_like(left), _array_like(right), max_work=max_work)
+    )
+
+
 def full_like(value, fill_value, dtype=None):
     value = _array_like(value)
     return full(value.shape, fill_value, dtype=value.dtype if dtype is None else dtype)
@@ -486,6 +498,7 @@ for _name in (
     "mean_axis",
     "min_axis",
     "max_axis",
+    "may_share_memory",
     "transpose",
     "moveaxis",
     "swap_axes",
@@ -647,6 +660,7 @@ __all__ = sorted(
         "select",
         "searchsorted",
         "shape",
+        "shares_memory",
         "size",
         "solve",
         "split",
