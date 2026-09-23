@@ -24,6 +24,14 @@ def test_argsort_supports_axes_and_views() -> None:
     )
 
 
+def test_argsort_without_an_axis_flattens_logical_values() -> None:
+    value = np.array([[3, 1, 2], [6, 4, 5]], dtype=np.int32).T
+
+    np.testing.assert_array_equal(
+        atlas.argsort(value, axis=None), np.argsort(value, axis=None)
+    )
+
+
 def test_argsort_handles_empty_inputs() -> None:
     result = atlas.argsort(np.empty((2, 0, 3), dtype=np.uint8), axis=1)
 

@@ -21,6 +21,14 @@ def test_sort_uses_logical_values_from_views() -> None:
     np.testing.assert_array_equal(atlas.sort(value, axis=1), np.sort(value, axis=1))
 
 
+def test_sort_without_an_axis_flattens_logical_values() -> None:
+    value = np.array([[3, 1, 2], [6, 4, 5]], dtype=np.int32).T
+
+    np.testing.assert_array_equal(
+        atlas.sort(value, axis=None), np.sort(value, axis=None)
+    )
+
+
 def test_sort_handles_empty_lanes() -> None:
     value = np.empty((2, 0, 3), dtype=np.uint8)
 

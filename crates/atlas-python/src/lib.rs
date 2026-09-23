@@ -733,12 +733,12 @@ fn roll(
 }
 
 #[pyfunction(signature = (value, axis = -1))]
-fn sort(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
+fn sort(py: Python<'_>, value: &Bound<'_, PyAny>, axis: Option<i64>) -> PyResult<Py<PyAny>> {
     sort_ops::sort(py, value, axis)
 }
 
 #[pyfunction(signature = (value, axis = -1))]
-fn argsort(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
+fn argsort(py: Python<'_>, value: &Bound<'_, PyAny>, axis: Option<i64>) -> PyResult<Py<PyAny>> {
     argsort_ops::argsort(py, value, axis)
 }
 
