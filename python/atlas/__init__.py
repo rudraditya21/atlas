@@ -252,10 +252,23 @@ def where(condition, x=_UNSET, y=_UNSET):
     return _native.where(condition, _optional_array_like(x), _optional_array_like(y))
 
 
-def unique(value, axis=None):
+def unique(
+    value,
+    axis=None,
+    *,
+    return_index=False,
+    return_inverse=False,
+    return_counts=False,
+):
     if axis is not None:
         raise ValueError("unique only supports axis=None")
-    return _native.unique(_array_like(value))
+    value = _array_like(value)
+    result = _native.unique(value, return_index, return_inverse, return_counts)
+    if not return_inverse:
+        return result
+    outputs = list(result)
+    outputs[1 + return_index] = outputs[1 + return_index].reshape(value.shape)
+    return tuple(outputs)
 
 
 def linspace(start, stop, num, *, dtype=None, endpoint=True):

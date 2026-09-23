@@ -752,9 +752,15 @@ fn argpartition(
     argpartition_ops::argpartition(py, value, kth, axis)
 }
 
-#[pyfunction]
-fn unique(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    unique_ops::unique(py, value)
+#[pyfunction(signature = (value, return_index = false, return_inverse = false, return_counts = false))]
+fn unique(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    return_index: bool,
+    return_inverse: bool,
+    return_counts: bool,
+) -> PyResult<Py<PyAny>> {
+    unique_ops::unique(py, value, return_index, return_inverse, return_counts)
 }
 
 #[pyfunction(signature = (array, widths, value = None))]
