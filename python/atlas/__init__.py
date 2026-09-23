@@ -309,6 +309,31 @@ def put(value, indices, values):
     np.copyto(value, result)
 
 
+def choose(indices, choices):
+    indices = _array_like(indices)
+    if indices.dtype.kind not in "iu":
+        raise TypeError("choose indices must have an integer dtype")
+    if not isinstance(choices, Sequence) or isinstance(
+        choices, (str, bytes, bytearray)
+    ):
+        raise TypeError("choices must be a non-empty sequence")
+    if not choices:
+        raise ValueError("choices must be a non-empty sequence")
+    if indices.size and (np.any(indices < 0) or np.any(indices >= len(choices))):
+        raise ValueError("choose indices must be within the choices range")
+
+    choices = [
+        _array_like(choice) if _is_array_like(choice) else np.asarray(choice)
+        for choice in choices
+    ]
+    dtype = np.result_type(*choices)
+    result = np.asarray(choices[0], dtype=dtype)
+    result = where(equal(indices, 0), result, result)
+    for index, choice in enumerate(choices[1:], start=1):
+        result = where(equal(indices, index), np.asarray(choice, dtype=dtype), result)
+    return result
+
+
 def linspace(start, stop, num, *, dtype=None, endpoint=True):
     return _native.linspace(start, stop, num, dtype, endpoint)
 
@@ -473,6 +498,7 @@ __all__ = sorted(
         "cumsum",
         "cumsum_axis",
         "clip",
+        "choose",
         "concatenate",
         "divide",
         "diag",
