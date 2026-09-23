@@ -83,6 +83,25 @@ def _coerce_array_collection(function):
     return wrapper
 
 
+def _coerce_searchsorted(function):
+    @wraps(function)
+    def wrapper(sorted, values, side="left", sorter=None):
+        sorted = _array_like(sorted)
+        values = (
+            np.asarray(values, dtype=sorted.dtype)
+            if _is_array_like(values) and not isinstance(values, np.ndarray)
+            else _optional_array_like(values)
+        )
+        return function(
+            sorted,
+            values,
+            side,
+            None if sorter is None else _array_like(sorter),
+        )
+
+    return wrapper
+
+
 def _with_keepdims(function):
     @wraps(function)
     def wrapper(value, axis=None, keepdims=False):
@@ -321,9 +340,7 @@ where = _coerce_arrays(
 )
 bitwise_not = _coerce_arrays(bitwise_not, required=((0, "value"),))
 pad = _coerce_arrays(pad, required=((0, "array"),))
-searchsorted = _coerce_arrays(
-    searchsorted, required=((0, "sorted"),), optional=((1, "values"),)
-)
+searchsorted = _coerce_searchsorted(searchsorted)
 clip = _coerce_arrays(clip, required=((0, "value"),))
 concatenate = _coerce_array_collection(concatenate)
 stack = _coerce_array_collection(stack)

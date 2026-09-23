@@ -767,14 +767,15 @@ fn pad(
     pad_ops::pad(py, array, widths, value)
 }
 
-#[pyfunction(signature = (sorted, values, side = "left"))]
+#[pyfunction(signature = (sorted, values, side = "left", sorter = None))]
 fn searchsorted(
     py: Python<'_>,
     sorted: &Bound<'_, PyAny>,
     values: &Bound<'_, PyAny>,
     side: &str,
+    sorter: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
-    searchsorted_ops::searchsorted(py, sorted, values, side)
+    searchsorted_ops::searchsorted(py, sorted, values, side, sorter)
 }
 
 #[pyfunction(signature = (value, kth, axis = -1))]
