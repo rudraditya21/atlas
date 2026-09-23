@@ -5,79 +5,95 @@
 
 use pyo3::prelude::*;
 
-#[path = "argpartition.rs"]
+#[path = "indexing/argpartition.rs"]
 mod argpartition_ops;
-#[path = "argsort.rs"]
+#[path = "indexing/argsort.rs"]
 mod argsort_ops;
+#[path = "operations/arithmetic.rs"]
 mod arithmetic;
+#[path = "support/array.rs"]
 mod array;
+#[path = "operations/bitwise.rs"]
 mod bitwise;
+#[path = "constructors/casting.rs"]
 mod casting;
-#[path = "clip.rs"]
+#[path = "operations/clip.rs"]
 mod clip_ops;
+#[path = "operations/close.rs"]
 mod close;
-#[path = "concat.rs"]
+#[path = "manipulation/concat.rs"]
 mod concat_ops;
+#[path = "constructors/constructors.rs"]
 mod constructors;
-#[path = "determinant.rs"]
+#[path = "linalg/determinant.rs"]
 mod determinant_ops;
-#[path = "diag.rs"]
+#[path = "linalg/diag.rs"]
 mod diag_ops;
-#[path = "dot.rs"]
+#[path = "linalg/dot.rs"]
 mod dot_ops;
+#[path = "support/error.rs"]
 mod error;
-#[path = "flatten.rs"]
+#[path = "manipulation/flatten.rs"]
 mod flatten_ops;
-#[path = "flip.rs"]
+#[path = "manipulation/flip.rs"]
 mod flip_ops;
+#[path = "support/gil.rs"]
 mod gil;
-#[path = "inverse.rs"]
+#[path = "linalg/inverse.rs"]
 mod inverse_ops;
+#[path = "operations/logical.rs"]
 mod logical;
-#[path = "matmul.rs"]
+#[path = "linalg/matmul.rs"]
 mod matmul_ops;
-#[path = "matrix_norm.rs"]
+#[path = "linalg/matrix_norm.rs"]
 mod matrix_norm_ops;
+#[path = "support/metadata.rs"]
 mod metadata;
-#[path = "norm.rs"]
+#[path = "linalg/norm.rs"]
 mod norm_ops;
-#[path = "pad.rs"]
+#[path = "manipulation/pad.rs"]
 mod pad_ops;
-#[path = "partition.rs"]
+#[path = "indexing/partition.rs"]
 mod partition_ops;
-#[path = "dtype.rs"]
+#[path = "support/dtype.rs"]
 mod python_dtype;
-#[path = "ravel.rs"]
+#[path = "manipulation/ravel.rs"]
 mod ravel_ops;
+#[path = "reductions/reduction.rs"]
 mod reduction;
-#[path = "repeat.rs"]
+#[path = "manipulation/repeat.rs"]
 mod repeat_ops;
-#[path = "roll.rs"]
+#[path = "manipulation/roll.rs"]
 mod roll_ops;
 #[cfg(feature = "test-support")]
+#[path = "support/scalar.rs"]
 mod scalar;
-#[path = "searchsorted.rs"]
+#[path = "indexing/searchsorted.rs"]
 mod searchsorted_ops;
+#[path = "manipulation/shape_ops.rs"]
 mod shape_ops;
-#[path = "solve.rs"]
+#[path = "linalg/solve.rs"]
 mod solve_ops;
-#[path = "sort.rs"]
+#[path = "indexing/sort.rs"]
 mod sort_ops;
-#[path = "split.rs"]
+#[path = "manipulation/split.rs"]
 mod split_ops;
-#[path = "stack.rs"]
+#[path = "manipulation/stack.rs"]
 mod stack_ops;
-#[path = "take.rs"]
+#[path = "indexing/take.rs"]
 mod take_ops;
 #[cfg(feature = "test-support")]
+#[path = "support/test_support.rs"]
 mod test_support;
-#[path = "tile.rs"]
+#[path = "manipulation/tile.rs"]
 mod tile_ops;
-#[path = "trace.rs"]
+#[path = "linalg/trace.rs"]
 mod trace_ops;
+#[path = "operations/unary.rs"]
 mod unary;
-#[path = "unique.rs"]
+#[path = "indexing/unique.rs"]
 mod unique_ops;
+#[path = "operations/where_ops.rs"]
 mod where_ops;
 
 #[pyfunction]
