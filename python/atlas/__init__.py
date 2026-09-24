@@ -431,6 +431,18 @@ def atleast_3d(*values):
     return _atleast(np.atleast_3d, values)
 
 
+def _result_type_operand(value):
+    if isinstance(value, (str, np.dtype)) or (
+        isinstance(value, type) and issubclass(value, np.generic)
+    ):
+        return np.dtype(value)
+    return _array_like(value) if _is_array_like(value) else value
+
+
+def result_type(*values):
+    return np.result_type(*[_result_type_operand(value) for value in values])
+
+
 def reshape(value, shape, *dimensions):
     value = _array_like(value)
     if dimensions:
@@ -679,6 +691,7 @@ __all__ = sorted(
         "reshape",
         "ravel",
         "repeat",
+        "result_type",
         "roll",
         "round",
         "sign",
