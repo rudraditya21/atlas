@@ -476,6 +476,15 @@ def min_scalar_type(value):
     return dtype
 
 
+def common_type(*values):
+    return np.common_type(
+        *[
+            _array_like(value) if _is_array_like(value) else np.asarray(value)
+            for value in values
+        ]
+    )
+
+
 def reshape(value, shape, *dimensions):
     value = _array_like(value)
     if dimensions:
@@ -659,6 +668,7 @@ __all__ = sorted(
         "cumsum_axis",
         "clip",
         "choose",
+        "common_type",
         "concatenate",
         "copy",
         "copyto",
