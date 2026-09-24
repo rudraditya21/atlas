@@ -447,6 +447,10 @@ def promote_types(left, right):
     return np.promote_types(np.dtype(left), np.dtype(right))
 
 
+def can_cast(source, target, *, casting="safe"):
+    return bool(np.can_cast(source, target, casting=casting))
+
+
 def reshape(value, shape, *dimensions):
     value = _array_like(value)
     if dimensions:
@@ -622,6 +626,7 @@ __all__ = sorted(
         "astype",
         "asarray",
         "ascontiguousarray",
+        "can_cast",
         "count_true",
         "cumprod",
         "cumprod_axis",
