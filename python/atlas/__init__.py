@@ -451,6 +451,10 @@ def can_cast(source, target, *, casting="safe"):
     return bool(np.can_cast(source, target, casting=casting))
 
 
+def issubdtype(dtype, kind):
+    return bool(np.issubdtype(dtype, kind))
+
+
 def reshape(value, shape, *dimensions):
     value = _array_like(value)
     if dimensions:
@@ -709,6 +713,7 @@ __all__ = sorted(
         "inverse",
         "isinf",
         "isfinite",
+        "issubdtype",
         "transpose",
         "trace",
         "unique",
