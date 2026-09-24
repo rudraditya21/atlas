@@ -455,6 +455,27 @@ def issubdtype(dtype, kind):
     return bool(np.issubdtype(dtype, kind))
 
 
+def min_scalar_type(value):
+    dtype = np.min_scalar_type(value)
+    if dtype == np.dtype(np.float16):
+        return np.dtype(np.float32)
+    if dtype.name not in {
+        "bool",
+        "int8",
+        "int16",
+        "int32",
+        "int64",
+        "uint8",
+        "uint16",
+        "uint32",
+        "uint64",
+        "float32",
+        "float64",
+    }:
+        raise TypeError(f"unsupported scalar dtype {dtype.name}")
+    return dtype
+
+
 def reshape(value, shape, *dimensions):
     value = _array_like(value)
     if dimensions:
@@ -667,6 +688,7 @@ __all__ = sorted(
         "mean_axis",
         "min",
         "min_axis",
+        "min_scalar_type",
         "nanmax",
         "nanmean",
         "nanmin",
