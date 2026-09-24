@@ -443,6 +443,10 @@ def result_type(*values):
     return np.result_type(*[_result_type_operand(value) for value in values])
 
 
+def promote_types(left, right):
+    return np.promote_types(np.dtype(left), np.dtype(right))
+
+
 def reshape(value, shape, *dimensions):
     value = _array_like(value)
     if dimensions:
@@ -669,6 +673,7 @@ __all__ = sorted(
         "ones_like",
         "pad",
         "partition",
+        "promote_types",
         "select",
         "searchsorted",
         "shape",
