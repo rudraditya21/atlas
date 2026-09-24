@@ -18,6 +18,22 @@ from .errors import (
 
 __version__ = _native.version()
 
+_ATLAS_DTYPE_NAMES = frozenset(
+    {
+        "bool",
+        "int8",
+        "int16",
+        "int32",
+        "int64",
+        "uint8",
+        "uint16",
+        "uint32",
+        "uint64",
+        "float32",
+        "float64",
+    }
+)
+
 
 def _array_like(value):
     if isinstance(value, np.ndarray):
@@ -459,21 +475,35 @@ def min_scalar_type(value):
     dtype = np.min_scalar_type(value)
     if dtype == np.dtype(np.float16):
         return np.dtype(np.float32)
-    if dtype.name not in {
-        "bool",
-        "int8",
-        "int16",
-        "int32",
-        "int64",
-        "uint8",
-        "uint16",
-        "uint32",
-        "uint64",
-        "float32",
-        "float64",
-    }:
+    if dtype.name not in _ATLAS_DTYPE_NAMES:
         raise TypeError(f"unsupported scalar dtype {dtype.name}")
     return dtype
+
+
+def _atlas_dtype(dtype):
+    if dtype is None:
+        raise TypeError("dtype is required")
+    try:
+        dtype = np.dtype(dtype)
+    except TypeError as error:
+        raise TypeError(f"unsupported dtype {dtype!r}") from error
+    if dtype.name not in _ATLAS_DTYPE_NAMES:
+        raise TypeError(f"unsupported dtype {dtype.name}")
+    return dtype
+
+
+def finfo(dtype):
+    dtype = _atlas_dtype(dtype)
+    if dtype.kind != "f":
+        raise TypeError("finfo requires a floating-point dtype")
+    return np.finfo(dtype)
+
+
+def iinfo(dtype):
+    dtype = _atlas_dtype(dtype)
+    if dtype.kind not in "iu":
+        raise TypeError("iinfo requires an integer dtype")
+    return np.iinfo(dtype)
 
 
 def common_type(*values):
@@ -678,6 +708,7 @@ __all__ = sorted(
         "dot",
         "dtype",
         "eye",
+        "finfo",
         "identity",
         "equal",
         "expand_dims",
@@ -743,6 +774,7 @@ __all__ = sorted(
         "sign",
         "isnan",
         "inverse",
+        "iinfo",
         "isinf",
         "isfinite",
         "issubdtype",
