@@ -147,8 +147,8 @@ where
 
         let step = residual_norm_squared / direction_product;
         for index in 0..rows {
-            solution[index] = solution[index] + step * direction[index];
-            residual[index] = residual[index] - step * matrix_direction[index];
+            solution[index] += step * direction[index];
+            residual[index] -= step * matrix_direction[index];
         }
 
         let next_residual_norm_squared = dot_slice(&residual, &residual);

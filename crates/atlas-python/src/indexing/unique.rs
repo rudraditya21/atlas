@@ -61,7 +61,7 @@ fn unique_outputs<T: SortElement>(
     let mut counts = return_counts.then(Vec::new);
     for index in order {
         let value = array.data()[index];
-        let is_new = values.last().map_or(true, |previous| !value.sort_equal(previous));
+        let is_new = values.last().is_none_or(|previous| !value.sort_equal(previous));
         if is_new {
             values.push(value);
             if let Some(indices) = &mut indices {

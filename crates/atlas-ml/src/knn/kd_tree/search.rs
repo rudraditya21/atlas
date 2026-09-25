@@ -105,11 +105,9 @@ fn search_node<F, M>(
     search_node(near, features, query, metric, row, candidates);
 
     let should_visit_far = !candidates.is_full()
-        || metric
-            .axis_distance_lower_bound(query[split_axis] - split_value)
-            .map_or(true, |lower_bound| {
-                lower_bound <= candidates.neighbors().last().unwrap().distance
-            });
+        || metric.axis_distance_lower_bound(query[split_axis] - split_value).is_none_or(
+            |lower_bound| lower_bound <= candidates.neighbors().last().unwrap().distance,
+        );
     if should_visit_far {
         search_node(far, features, query, metric, row, candidates);
     }

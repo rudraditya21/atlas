@@ -32,9 +32,9 @@ pub(crate) fn det(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<f64> {
     }
 }
 
-fn to_f64_array<T: ToPrimitive>(array: NDArray<T>) -> atlas_linalg::AtlasLinalgResult<NDArray<f64>>
+fn to_f64_array<T>(array: NDArray<T>) -> atlas_linalg::AtlasLinalgResult<NDArray<f64>>
 where
-    T: atlas_ndarray::ArrayElement,
+    T: ToPrimitive + atlas_ndarray::ArrayElement,
 {
     let values = array
         .data()

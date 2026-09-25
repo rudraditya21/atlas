@@ -85,7 +85,7 @@ impl DecisionStumpClassifier {
                     right_label,
                     errors,
                 };
-                if best.as_ref().map_or(true, |best: &Candidate| candidate.errors < best.errors) {
+                if best.as_ref().is_none_or(|best: &Candidate| candidate.errors < best.errors) {
                     best = Some(candidate);
                 }
             }

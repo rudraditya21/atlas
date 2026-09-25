@@ -162,18 +162,21 @@ impl BinaryLogisticRegression {
         for iteration in 0..config.max_iterations() {
             let mut intercept_gradient = 0.0;
             let mut coefficient_gradients = vec![0.0; feature_count];
-            for sample_index in 0..sample_count {
+            for (sample_index, &sample_weight) in
+                sample_weights.iter().enumerate().take(sample_count)
+            {
                 let logit = (0..feature_count).fold(intercept, |total, feature_index| {
                     total
                         + feature(features, sample_index, feature_index)
                             * coefficients[feature_index]
                 });
                 let error = sigmoid(logit) - label(labels, sample_index) as f64;
-                intercept_gradient += sample_weights[sample_index] * error;
-                for feature_index in 0..feature_count {
-                    coefficient_gradients[feature_index] += sample_weights[sample_index]
-                        * error
-                        * feature(features, sample_index, feature_index);
+                intercept_gradient += sample_weight * error;
+                for (feature_index, coefficient_gradient) in
+                    coefficient_gradients.iter_mut().enumerate()
+                {
+                    *coefficient_gradient +=
+                        sample_weight * error * feature(features, sample_index, feature_index);
                 }
             }
 

@@ -81,5 +81,5 @@ pub(crate) fn source_dtype(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult
 }
 
 pub(crate) fn is_numpy_array(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<bool> {
-    Ok(value.is_instance(&PyModule::import(py, "numpy")?.getattr("ndarray")?)?)
+    value.is_instance(&PyModule::import(py, "numpy")?.getattr("ndarray")?)
 }

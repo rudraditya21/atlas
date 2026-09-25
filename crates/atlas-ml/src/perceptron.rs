@@ -134,8 +134,8 @@ impl BinaryPerceptron {
                 if classify(score) != target {
                     let direction = if target == 1 { 1.0 } else { -1.0 };
                     intercept += config.learning_rate() * direction;
-                    for feature_index in 0..feature_count {
-                        coefficients[feature_index] += config.learning_rate()
+                    for (feature_index, coefficient) in coefficients.iter_mut().enumerate() {
+                        *coefficient += config.learning_rate()
                             * direction
                             * feature(features, sample_index, feature_index);
                     }

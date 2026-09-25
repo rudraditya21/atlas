@@ -12,7 +12,7 @@ fn generated_strided_views_match_contiguous_logical_references() {
         ];
         let axis_cases = dimensions.map(|dimension| axis_case(dimension, &mut state));
         let values = (0..dimensions.iter().product())
-            .map(|index| case_index as i32 * 1_000 + index as i32)
+            .map(|index| case_index * 1_000 + index as i32)
             .collect::<Vec<_>>();
         let array = NDArray::from_shape_vec(dimensions, values.clone()).unwrap();
         let ranges = axis_cases.map(|(start, step, length)| {

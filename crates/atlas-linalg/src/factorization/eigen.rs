@@ -103,7 +103,7 @@ fn largest_off_diagonal<T: Float>(matrix: &[T], order: usize) -> Option<(usize, 
     for row in 0..order {
         for column in (row + 1)..order {
             let value = matrix[row * order + column].abs();
-            if largest.as_ref().map_or(true, |(_, _, current)| value > *current) {
+            if largest.as_ref().is_none_or(|(_, _, current)| value > *current) {
                 largest = Some((row, column, value));
             }
         }

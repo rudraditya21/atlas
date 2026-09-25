@@ -468,11 +468,11 @@ mod tests {
         let indices = view.argpartition(1, 0).unwrap();
         let expected = [8, 3];
 
-        for column in 0..2 {
+        for (column, &expected_value) in expected.iter().enumerate() {
             let lane: Vec<_> = (0..3)
                 .map(|row| *view.get(&[indices.data()[row * 2 + column], column as i64]).unwrap())
                 .collect();
-            assert_eq!(lane[1], expected[column]);
+            assert_eq!(lane[1], expected_value);
             assert!(lane[0] <= lane[1]);
             assert!(lane[2] >= lane[1]);
         }

@@ -106,7 +106,7 @@ fn search_node<F, M>(
     search_node(near, features, query, metric, row, candidates);
 
     let should_visit_far = !candidates.is_full()
-        || far_bound.map_or(true, |lower_bound| {
+        || far_bound.is_none_or(|lower_bound| {
             can_match_candidate(lower_bound, candidates.neighbors().last().unwrap().distance)
         });
     if should_visit_far {
