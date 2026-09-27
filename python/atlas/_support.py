@@ -5,13 +5,18 @@ from functools import wraps
 
 import numpy as np
 
+from .errors import AxisError, ShapeError
+
+
+_ARRAY_LIKE_ERROR = "expected a NumPy ndarray or Python sequence"
+
 
 def _array_like(value):
-    if isinstance(value, np.ndarray):
-        return value
-    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+    if isinstance(value, np.ndarray) or (
+        isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray))
+    ):
         return np.asarray(value)
-    raise TypeError("expected a NumPy ndarray or Python sequence")
+    raise TypeError(_ARRAY_LIKE_ERROR)
 
 
 def _is_array_like(value):
@@ -20,8 +25,24 @@ def _is_array_like(value):
     )
 
 
+def _shape_error(error):
+    return ShapeError(f"shape mismatch: {error}")
+
+
+def _axis_error(axis, *, expected):
+    return AxisError(f"unsupported axis {axis!r}; expected {expected}")
+
+
+def _dtype_error(dtype):
+    return TypeError(f"unsupported dtype: {dtype}")
+
+
 def _optional_array_like(value):
     return _array_like(value) if _is_array_like(value) else value
+
+
+def _array_or_scalar(value):
+    return _array_like(value) if _is_array_like(value) else np.asarray(value)
 
 
 def _coerce_arrays(function, *, required=(), optional=()):
@@ -77,6 +98,12 @@ def _coerce_weighted_operands(function):
 def _coerce_array_collection(function):
     @wraps(function)
     def wrapper(arrays, axis=0):
+        if isinstance(arrays, (str, bytes, bytearray)):
+            raise TypeError("expected an iterable of array-like values")
+        try:
+            arrays = iter(arrays)
+        except TypeError:
+            raise TypeError("expected an iterable of array-like values") from None
         return function([_array_like(value) for value in arrays], axis)
 
     return wrapper

@@ -8,14 +8,17 @@ import numpy as np
 from . import _native
 from ._support import (
     _array_like,
+    _array_or_scalar,
+    _axis_error,
     _coerce_array_collection,
     _coerce_arrays,
     _coerce_binary_operands,
     _coerce_searchsorted,
+    _dtype_error,
     _is_array_like,
     _optional_array_like,
+    _shape_error,
 )
-from .errors import ShapeError
 
 _ATLAS_DTYPE_NAMES = frozenset(
     {
@@ -145,7 +148,7 @@ def unique(
     value, *, axis=None, return_index=False, return_inverse=False, return_counts=False
 ):
     if axis is not None:
-        raise ValueError("unique only supports axis=None")
+        raise _axis_error(axis, expected="axis=None")
     value = _array_like(value)
     result = _native.unique(value, return_index, return_inverse, return_counts)
     if not return_inverse:
@@ -201,10 +204,7 @@ def choose(indices, choices):
         raise ValueError("choices must be a non-empty sequence")
     if indices.size and (np.any(indices < 0) or np.any(indices >= len(choices))):
         raise ValueError("choose indices must be within the choices range")
-    choices = [
-        _array_like(choice) if _is_array_like(choice) else np.asarray(choice)
-        for choice in choices
-    ]
+    choices = [_array_or_scalar(choice) for choice in choices]
     dtype = np.result_type(*choices)
     result = np.asarray(choices[0], dtype=dtype)
     result = where(equal(indices, 0), result, result)
@@ -217,18 +217,15 @@ def broadcast_to(value, shape):
     try:
         return np.broadcast_to(_array_like(value), shape)
     except ValueError as error:
-        raise ShapeError(str(error)) from None
+        raise _shape_error(error) from None
 
 
 def broadcast_arrays(*values):
-    values = [
-        _array_like(value) if _is_array_like(value) else np.asarray(value)
-        for value in values
-    ]
+    values = [_array_or_scalar(value) for value in values]
     try:
         return np.broadcast_arrays(*values)
     except ValueError as error:
-        raise ShapeError(str(error)) from None
+        raise _shape_error(error) from None
 
 
 def copy(value):
@@ -263,7 +260,7 @@ def copyto(destination, source, *, where=True):
         np.copyto(destination, source, where=where)
     except ValueError as error:
         if "broadcast" in str(error):
-            raise ShapeError(str(error)) from None
+            raise _shape_error(error) from None
         raise
 
 
@@ -289,12 +286,7 @@ def ascontiguousarray(value, *, dtype=None):
 
 
 def _atleast(function, values):
-    result = function(
-        *[
-            _array_like(value) if _is_array_like(value) else np.asarray(value)
-            for value in values
-        ]
-    )
+    result = function(*[_array_or_scalar(value) for value in values])
     return result if len(values) == 1 else tuple(result)
 
 
@@ -348,10 +340,10 @@ def _atlas_dtype(dtype):
         raise TypeError("dtype is required")
     try:
         dtype = np.dtype(dtype)
-    except TypeError as error:
-        raise TypeError(f"unsupported dtype {dtype!r}") from error
+    except (TypeError, ValueError):
+        raise _dtype_error(dtype) from None
     if dtype.name not in _ATLAS_DTYPE_NAMES:
-        raise TypeError(f"unsupported dtype {dtype.name}")
+        raise _dtype_error(dtype.name)
     return dtype
 
 
@@ -370,12 +362,7 @@ def iinfo(dtype):
 
 
 def common_type(*values):
-    return np.common_type(
-        *[
-            _array_like(value) if _is_array_like(value) else np.asarray(value)
-            for value in values
-        ]
-    )
+    return np.common_type(*[_array_or_scalar(value) for value in values])
 
 
 def reshape(value, shape, *dimensions):
