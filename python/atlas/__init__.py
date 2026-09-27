@@ -213,6 +213,8 @@ variance = _native.variance
 stddev = _native.stddev
 kurtosis = _native.kurtosis
 skewness = _native.skewness
+median = _native.median
+quantile = _native.quantile
 argmin = _native.argmin
 argmax = _native.argmax
 argmin_axis = _native.argmin_axis
@@ -570,6 +572,8 @@ for _name in (
     "stddev",
     "kurtosis",
     "skewness",
+    "median",
+    "quantile",
     "argmin",
     "argmax",
     "cumsum",
@@ -767,6 +771,8 @@ __all__ = sorted(
         "stddev",
         "kurtosis",
         "skewness",
+        "median",
+        "quantile",
         "std",
         "stack",
         "take",

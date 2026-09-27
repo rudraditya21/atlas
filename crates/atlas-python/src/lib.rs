@@ -61,6 +61,8 @@ mod partition_ops;
 mod put_ops;
 #[path = "support/dtype.rs"]
 mod python_dtype;
+#[path = "statistics/quantile.rs"]
+mod quantile_ops;
 #[path = "manipulation/ravel.rs"]
 mod ravel_ops;
 #[path = "reductions/reduction.rs"]
@@ -168,6 +170,8 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(stddev, module)?)?;
     module.add_function(wrap_pyfunction!(kurtosis, module)?)?;
     module.add_function(wrap_pyfunction!(skewness, module)?)?;
+    module.add_function(wrap_pyfunction!(median, module)?)?;
+    module.add_function(wrap_pyfunction!(quantile, module)?)?;
     module.add_function(wrap_pyfunction!(argmin, module)?)?;
     module.add_function(wrap_pyfunction!(argmax, module)?)?;
     module.add_function(wrap_pyfunction!(cumsum, module)?)?;
@@ -591,6 +595,21 @@ fn kurtosis(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<f64> {
 #[pyfunction]
 fn skewness(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<f64> {
     skewness_ops::skewness(py, value)
+}
+
+#[pyfunction]
+fn median(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<f64> {
+    quantile_ops::median(py, value)
+}
+
+#[pyfunction(signature = (value, q, interpolation = "linear"))]
+fn quantile(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    q: f64,
+    interpolation: &str,
+) -> PyResult<f64> {
+    quantile_ops::quantile(py, value, q, interpolation)
 }
 
 #[pyfunction(signature = (value, axis = None))]
