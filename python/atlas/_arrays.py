@@ -120,7 +120,7 @@ searchsorted = _native.searchsorted
 partition = _native.partition
 
 
-def full(shape, fill_value=_UNSET, dtype=None, *, value=_UNSET):
+def full(shape, fill_value=_UNSET, *, dtype=None, value=_UNSET):
     if fill_value is not _UNSET and value is not _UNSET:
         raise TypeError("full() received both 'fill_value' and 'value'")
     if fill_value is _UNSET:
@@ -142,7 +142,7 @@ def where(condition, x=_UNSET, y=_UNSET):
 
 
 def unique(
-    value, axis=None, *, return_index=False, return_inverse=False, return_counts=False
+    value, *, axis=None, return_index=False, return_inverse=False, return_counts=False
 ):
     if axis is not None:
         raise ValueError("unique only supports axis=None")
@@ -176,6 +176,10 @@ def take(value, indices, axis=None, *, mode="raise"):
         return _native.take(value, indices.tolist(), axis)
     indices = indices % length if mode == "wrap" else np.clip(indices, 0, length - 1)
     return _native.take(value, indices.tolist(), axis)
+
+
+def allclose(lhs, rhs, *, rtol=1e-5, atol=1e-8, equal_nan=False):
+    return _native.allclose(lhs, rhs, rtol, atol, equal_nan)
 
 
 def put(value, indices, values):
@@ -231,17 +235,17 @@ def copy(value):
     return np.array(_array_like(value), copy=True, order="C")
 
 
-def zeros_like(value, dtype=None):
+def zeros_like(value, *, dtype=None):
     value = _array_like(value)
     return zeros(value.shape, dtype=value.dtype if dtype is None else dtype)
 
 
-def ones_like(value, dtype=None):
+def ones_like(value, *, dtype=None):
     value = _array_like(value)
     return ones(value.shape, dtype=value.dtype if dtype is None else dtype)
 
 
-def empty_like(value, dtype=None):
+def empty_like(value, *, dtype=None):
     return np.empty_like(_array_like(value), dtype=dtype)
 
 
@@ -275,12 +279,12 @@ def may_share_memory(left, right, *, max_work=None):
     )
 
 
-def full_like(value, fill_value, dtype=None):
+def full_like(value, fill_value, *, dtype=None):
     value = _array_like(value)
     return full(value.shape, fill_value, dtype=value.dtype if dtype is None else dtype)
 
 
-def ascontiguousarray(value, dtype=None):
+def ascontiguousarray(value, *, dtype=None):
     return np.ascontiguousarray(_array_like(value), dtype=dtype)
 
 

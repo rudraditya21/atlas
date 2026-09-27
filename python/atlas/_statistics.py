@@ -3,8 +3,6 @@
 from . import _native
 from ._support import _coerce_arrays, _coerce_binary_operands, _coerce_weighted_operands
 
-variance = _native.variance
-stddev = _native.stddev
 kurtosis = _native.kurtosis
 skewness = _native.skewness
 median = _native.median
@@ -17,6 +15,23 @@ covariance = _native.covariance
 correlation = _native.correlation
 covariance_matrix = _native.covariance_matrix
 correlation_matrix = _native.correlation_matrix
+
+
+def variance(value, *, ddof=0):
+    return _native.variance(value, ddof)
+
+
+def stddev(value, *, ddof=0):
+    return _native.stddev(value, ddof)
+
+
+def quantile(value, q, *, interpolation="linear"):
+    return _native.quantile(value, q, interpolation)
+
+
+def quantile_axis(value, q, axis, *, interpolation="linear"):
+    return _native.quantile_axis(value, q, axis, interpolation)
+
 
 for _name in (
     "variance",

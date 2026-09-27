@@ -27,9 +27,19 @@ mean_squared_error = _native.mean_squared_error
 r_squared = _native.r_squared
 confusion_matrix = _native.confusion_matrix
 classification_report = _native.classification_report
-train_test_split = _native.train_test_split
-k_fold_split = _native.k_fold_split
-stratified_k_fold_split = _native.stratified_k_fold_split
+
+
+def train_test_split(features, targets, *, test_ratio=0.25, seed=0):
+    return _native.train_test_split(features, targets, test_ratio, seed)
+
+
+def k_fold_split(features, fold_count, *, seed=0):
+    return _native.k_fold_split(features, fold_count, seed)
+
+
+def stratified_k_fold_split(features, labels, fold_count, *, seed=0):
+    return _native.stratified_k_fold_split(features, labels, fold_count, seed)
+
 
 evaluate_binary_gini_split = _coerce_arrays(
     evaluate_binary_gini_split, required=((0, "feature_values"), (1, "labels"))
