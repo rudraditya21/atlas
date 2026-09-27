@@ -193,6 +193,9 @@ solve_transpose = _native.solve_transpose
 slogdet = _native.slogdet
 cholesky = _native.cholesky
 solve_spd = _native.solve_spd
+qr = _native.qr
+least_squares = _native.least_squares
+matrix_rank = _native.matrix_rank
 ravel = _native.ravel
 flatten = _native.flatten
 clip = _native.clip
@@ -584,6 +587,8 @@ for _name in (
     "trace",
     "diag",
     "matrix_norm",
+    "qr",
+    "matrix_rank",
     "det",
     "slogdet",
     "inverse",
@@ -686,6 +691,7 @@ for _name in ("dot", "matmul", "allclose"):
 solve = _coerce_arrays(solve, required=((0, "matrix"), (1, "rhs")))
 solve_transpose = _coerce_arrays(solve_transpose, required=((0, "matrix"), (1, "rhs")))
 solve_spd = _coerce_arrays(solve_spd, required=((0, "matrix"), (1, "rhs")))
+least_squares = _coerce_arrays(least_squares, required=((0, "matrix"), (1, "rhs")))
 
 for _name in ("select", "masked_fill"):
     globals()[_name] = _coerce_arrays(
@@ -772,6 +778,7 @@ __all__ = sorted(
         "masked_fill",
         "matmul",
         "matrix_norm",
+        "matrix_rank",
         "max",
         "max_axis",
         "mean",
@@ -804,6 +811,7 @@ __all__ = sorted(
         "solve_transpose",
         "slogdet",
         "solve_spd",
+        "least_squares",
         "split",
         "sort",
         "subtract",
@@ -831,6 +839,7 @@ __all__ = sorted(
         "tile",
         "reshape",
         "ravel",
+        "qr",
         "repeat",
         "result_type",
         "roll",

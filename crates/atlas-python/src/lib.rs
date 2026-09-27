@@ -67,6 +67,8 @@ mod partition_ops;
 mod put_ops;
 #[path = "support/dtype.rs"]
 mod python_dtype;
+#[path = "linalg/qr.rs"]
+mod qr_ops;
 #[path = "statistics/quantile.rs"]
 mod quantile_ops;
 #[path = "manipulation/ravel.rs"]
@@ -172,6 +174,9 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(slogdet, module)?)?;
     module.add_function(wrap_pyfunction!(cholesky, module)?)?;
     module.add_function(wrap_pyfunction!(solve_spd, module)?)?;
+    module.add_function(wrap_pyfunction!(qr, module)?)?;
+    module.add_function(wrap_pyfunction!(least_squares, module)?)?;
+    module.add_function(wrap_pyfunction!(matrix_rank, module)?)?;
     module.add_function(wrap_pyfunction!(ravel, module)?)?;
     module.add_function(wrap_pyfunction!(flatten, module)?)?;
     module.add_function(wrap_pyfunction!(nonzero, module)?)?;
@@ -576,6 +581,25 @@ fn solve_spd(
     rhs: &Bound<'_, PyAny>,
 ) -> PyResult<Py<PyAny>> {
     cholesky_ops::solve_spd(py, matrix, rhs)
+}
+
+#[pyfunction]
+fn qr(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
+    qr_ops::qr(py, value)
+}
+
+#[pyfunction]
+fn least_squares(
+    py: Python<'_>,
+    matrix: &Bound<'_, PyAny>,
+    rhs: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyAny>> {
+    qr_ops::least_squares(py, matrix, rhs)
+}
+
+#[pyfunction]
+fn matrix_rank(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<usize> {
+    qr_ops::matrix_rank(py, value)
 }
 
 #[pyfunction]
