@@ -43,6 +43,8 @@ mod error;
 mod flatten_ops;
 #[path = "manipulation/flip.rs"]
 mod flip_ops;
+#[path = "ml/gaussian_naive_bayes.rs"]
+mod gaussian_naive_bayes_ops;
 #[path = "random/generator.rs"]
 mod generator;
 #[path = "support/gil.rs"]
@@ -147,6 +149,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<logistic_regression_ops::BinaryLogisticRegression>()?;
     module.add_class::<perceptron_ops::BinaryPerceptron>()?;
     module.add_class::<nearest_centroid_ops::NearestCentroidClassifier>()?;
+    module.add_class::<gaussian_naive_bayes_ops::GaussianNaiveBayes>()?;
     module.add_function(wrap_pyfunction!(version, module)?)?;
     module.add_function(wrap_pyfunction!(asarray, module)?)?;
     module.add_function(wrap_pyfunction!(zeros, module)?)?;
