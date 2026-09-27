@@ -68,7 +68,6 @@ pub(crate) fn linalg(py: Python<'_>, error: AtlasLinalgError) -> PyErr {
     }
 }
 
-#[allow(dead_code, reason = "library bindings are registered incrementally")]
 pub(crate) fn random(py: Python<'_>, error: AtlasRandomError) -> PyErr {
     match &error {
         AtlasRandomError::NdArray(error) => ndarray(py, error.clone()),
