@@ -11,8 +11,8 @@ enum Reduction {
     Mean,
     Min,
     Max,
-    Variance,
-    Stddev,
+    Variance { ddof: usize },
+    Stddev { ddof: usize },
     Argmin,
     Argmax,
 }
@@ -77,12 +77,16 @@ pub(crate) fn max(
     reduce_optional_axis(py, value, axis, Reduction::Max, AxisReduction::Max)
 }
 
-pub(crate) fn variance(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    reduce(py, value, Reduction::Variance)
+pub(crate) fn variance(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    ddof: usize,
+) -> PyResult<Py<PyAny>> {
+    reduce(py, value, Reduction::Variance { ddof })
 }
 
-pub(crate) fn stddev(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    reduce(py, value, Reduction::Stddev)
+pub(crate) fn stddev(py: Python<'_>, value: &Bound<'_, PyAny>, ddof: usize) -> PyResult<Py<PyAny>> {
+    reduce(py, value, Reduction::Stddev { ddof })
 }
 
 pub(crate) fn argmin(
@@ -235,8 +239,8 @@ fn reduce(py: Python<'_>, value: &Bound<'_, PyAny>, reduction: Reduction) -> PyR
                 Reduction::Mean => reduce_mean(py, array),
                 Reduction::Min => reduce_min(py, array),
                 Reduction::Max => reduce_max(py, array),
-                Reduction::Variance => reduce_variance(py, array),
-                Reduction::Stddev => reduce_stddev(py, array),
+                Reduction::Variance { ddof } => reduce_variance(py, array, ddof),
+                Reduction::Stddev { ddof } => reduce_stddev(py, array, ddof),
                 Reduction::Argmin => reduce_argmin(py, array),
                 Reduction::Argmax => reduce_argmax(py, array),
             }
@@ -458,18 +462,30 @@ where
     scalar(py, gil::without_gil(py, move || array.max()))
 }
 
-fn reduce_variance<T>(py: Python<'_>, array: NDArray<T>) -> PyResult<Py<PyAny>>
+fn reduce_variance<T>(py: Python<'_>, array: NDArray<T>, ddof: usize) -> PyResult<Py<PyAny>>
 where
     T: Numeric + ToPrimitive + Element,
 {
-    scalar(py, gil::without_gil(py, move || array.variance()))
+    if ddof == 0 {
+        return scalar(py, gil::without_gil(py, move || array.variance()));
+    }
+
+    gil::without_gil(py, move || atlas_stats::variance_ddof(&array, ddof))
+        .map_err(|error| crate::error::stats(py, error))?
+        .into_py_any(py)
 }
 
-fn reduce_stddev<T>(py: Python<'_>, array: NDArray<T>) -> PyResult<Py<PyAny>>
+fn reduce_stddev<T>(py: Python<'_>, array: NDArray<T>, ddof: usize) -> PyResult<Py<PyAny>>
 where
     T: Numeric + ToPrimitive + Element,
 {
-    scalar(py, gil::without_gil(py, move || array.stddev()))
+    if ddof == 0 {
+        return scalar(py, gil::without_gil(py, move || array.stddev()));
+    }
+
+    gil::without_gil(py, move || atlas_stats::stddev_ddof(&array, ddof))
+        .map_err(|error| crate::error::stats(py, error))?
+        .into_py_any(py)
 }
 
 fn reduce_argmin<T>(py: Python<'_>, array: NDArray<T>) -> PyResult<Py<PyAny>>

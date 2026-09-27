@@ -579,14 +579,14 @@ fn max(py: Python<'_>, value: &Bound<'_, PyAny>, axis: Option<i64>) -> PyResult<
     reduction::max(py, value, axis)
 }
 
-#[pyfunction]
-fn variance(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    reduction::variance(py, value)
+#[pyfunction(signature = (value, ddof = 0))]
+fn variance(py: Python<'_>, value: &Bound<'_, PyAny>, ddof: usize) -> PyResult<Py<PyAny>> {
+    reduction::variance(py, value, ddof)
 }
 
-#[pyfunction]
-fn stddev(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    reduction::stddev(py, value)
+#[pyfunction(signature = (value, ddof = 0))]
+fn stddev(py: Python<'_>, value: &Bound<'_, PyAny>, ddof: usize) -> PyResult<Py<PyAny>> {
+    reduction::stddev(py, value, ddof)
 }
 
 #[pyfunction]
