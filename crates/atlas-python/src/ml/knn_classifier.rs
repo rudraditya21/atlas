@@ -49,7 +49,11 @@ impl KnnClassifier {
         Ok(slf)
     }
 
-    fn predict_proba(&self, py: Python<'_>, features: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    fn predict_proba(
+        &self,
+        py: Python<'_>,
+        features: &Bound<'_, PyAny>,
+    ) -> crate::results::PyObjectResult {
         let features = super::model::predict_features(py, features, PREDICT_PROBA_OP)?;
         let model = self.model.fitted(py, PREDICT_PROBA_OP)?;
         let probabilities = gil::without_gil(py, move || model.predict_proba(&features))
@@ -58,7 +62,11 @@ impl KnnClassifier {
         Ok(array::to_numpy_owned(py, probabilities)?.into_any().unbind())
     }
 
-    fn predict(&self, py: Python<'_>, features: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    fn predict(
+        &self,
+        py: Python<'_>,
+        features: &Bound<'_, PyAny>,
+    ) -> crate::results::PyObjectResult {
         let features = super::model::predict_features(py, features, PREDICT_OP)?;
         let model = self.model.fitted(py, PREDICT_OP)?;
         let predictions = gil::without_gil(py, move || model.predict(&features))

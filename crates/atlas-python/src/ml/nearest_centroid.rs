@@ -33,7 +33,11 @@ impl NearestCentroidClassifier {
         Ok(slf)
     }
 
-    fn predict(&self, py: Python<'_>, features: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    fn predict(
+        &self,
+        py: Python<'_>,
+        features: &Bound<'_, PyAny>,
+    ) -> crate::results::PyObjectResult {
         let features = super::model::predict_features(py, features, PREDICT_OP)?;
         let model = self.model.fitted(py, PREDICT_OP)?;
         let predictions = gil::without_gil(py, move || model.predict(&features))

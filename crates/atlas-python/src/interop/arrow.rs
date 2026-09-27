@@ -8,7 +8,10 @@ use pyo3::{
 
 use crate::{array, python_dtype::with_dtype};
 
-pub(crate) fn to_arrow_primitive(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+pub(crate) fn to_arrow_primitive(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+) -> crate::results::PyObjectResult {
     let dtype = array::source_dtype(py, value)?;
 
     with_dtype!(
@@ -29,7 +32,7 @@ pub(crate) fn to_arrow_primitive(py: Python<'_>, value: &Bound<'_, PyAny>) -> Py
 pub(crate) fn from_arrow_primitive(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
-) -> PyResult<Py<PyAny>> {
+) -> crate::results::PyObjectResult {
     let pyarrow = PyModule::import(py, "pyarrow")?;
     if !value.is_instance(&pyarrow.getattr("Array")?)? {
         return Err(PyTypeError::new_err("expected a pyarrow.Array"));
@@ -62,7 +65,7 @@ pub(crate) fn to_arrow_record_batch(
     py: Python<'_>,
     matrix: &Bound<'_, PyAny>,
     column_names: Vec<String>,
-) -> PyResult<Py<PyAny>> {
+) -> crate::results::PyObjectResult {
     let dtype = array::source_dtype(py, matrix)?;
 
     with_dtype!(
@@ -83,7 +86,7 @@ pub(crate) fn to_arrow_record_batch(
 pub(crate) fn from_arrow_record_batch(
     py: Python<'_>,
     batch: &Bound<'_, PyAny>,
-) -> PyResult<Py<PyAny>> {
+) -> crate::results::PyObjectResult {
     let pyarrow = PyModule::import(py, "pyarrow")?;
     if !batch.is_instance(&pyarrow.getattr("RecordBatch")?)? {
         return Err(PyTypeError::new_err("expected a pyarrow.RecordBatch"));
@@ -144,7 +147,7 @@ fn record_batch_from_matrix<T>(
     py: Python<'_>,
     matrix: &NDArray<T>,
     column_names: &[String],
-) -> PyResult<Py<PyAny>>
+) -> crate::results::PyObjectResult
 where
     T: ArrayElement + Element,
 {

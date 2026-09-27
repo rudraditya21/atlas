@@ -36,7 +36,7 @@ impl StandardScaler {
         &mut self,
         py: Python<'_>,
         features: &Bound<'_, PyAny>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> crate::results::PyObjectResult {
         let features = array::feature_matrix_f64(py, features)?;
         let (model, transformed) =
             gil::without_gil(py, move || atlas_ml::StandardScaler::fit_transform(&features))
@@ -46,7 +46,11 @@ impl StandardScaler {
         Ok(array::to_numpy_owned(py, transformed)?.into_any().unbind())
     }
 
-    fn transform(&self, py: Python<'_>, features: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    fn transform(
+        &self,
+        py: Python<'_>,
+        features: &Bound<'_, PyAny>,
+    ) -> crate::results::PyObjectResult {
         transform(py, features, &self.model, STANDARD_TRANSFORM_OP, |model, features| {
             model.transform(features)
         })
@@ -56,7 +60,7 @@ impl StandardScaler {
         &self,
         py: Python<'_>,
         features: &Bound<'_, PyAny>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> crate::results::PyObjectResult {
         transform(py, features, &self.model, STANDARD_INVERSE_TRANSFORM_OP, |model, features| {
             model.inverse_transform(features)
         })
@@ -99,7 +103,7 @@ impl MinMaxScaler {
         &mut self,
         py: Python<'_>,
         features: &Bound<'_, PyAny>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> crate::results::PyObjectResult {
         let features = array::feature_matrix_f64(py, features)?;
         let output_minimum = self.output_minimum;
         let output_maximum = self.output_maximum;
@@ -115,7 +119,11 @@ impl MinMaxScaler {
         Ok(array::to_numpy_owned(py, transformed)?.into_any().unbind())
     }
 
-    fn transform(&self, py: Python<'_>, features: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    fn transform(
+        &self,
+        py: Python<'_>,
+        features: &Bound<'_, PyAny>,
+    ) -> crate::results::PyObjectResult {
         transform(py, features, &self.model, MIN_MAX_TRANSFORM_OP, |model, features| {
             model.transform(features)
         })
@@ -125,7 +133,7 @@ impl MinMaxScaler {
         &self,
         py: Python<'_>,
         features: &Bound<'_, PyAny>,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> crate::results::PyObjectResult {
         transform(py, features, &self.model, MIN_MAX_INVERSE_TRANSFORM_OP, |model, features| {
             model.inverse_transform(features)
         })
@@ -152,7 +160,7 @@ fn transform<T: Sync>(
         &atlas_ndarray::NDArray<f64>,
     ) -> atlas_ml::AtlasMlResult<atlas_ndarray::NDArray<f64>>
     + Send,
-) -> PyResult<Py<PyAny>> {
+) -> crate::results::PyObjectResult {
     let features = super::model::predict_features(py, features, operation)?;
     let model = model.fitted(py, operation)?;
     let transformed = gil::without_gil(py, move || operation_fn(model, &features))

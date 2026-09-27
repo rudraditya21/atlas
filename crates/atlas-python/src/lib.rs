@@ -94,6 +94,8 @@ mod ravel_ops;
 mod reduction;
 #[path = "manipulation/repeat.rs"]
 mod repeat_ops;
+#[path = "support/results.rs"]
+mod results;
 #[path = "manipulation/roll.rs"]
 mod roll_ops;
 #[cfg(feature = "test-support")]
