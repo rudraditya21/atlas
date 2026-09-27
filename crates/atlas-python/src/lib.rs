@@ -20,15 +20,12 @@ mod arithmetic;
 mod array;
 #[path = "operations/bitwise.rs"]
 mod bitwise;
-#[path = "constructors/casting.rs"]
-mod casting;
 #[path = "operations/clip.rs"]
 mod clip_ops;
 #[path = "operations/close.rs"]
 mod close;
 #[path = "manipulation/concat.rs"]
 mod concat_ops;
-#[path = "constructors/constructors.rs"]
 mod constructors;
 #[path = "support/error.rs"]
 mod error;
@@ -42,8 +39,6 @@ mod interop;
 mod linalg;
 #[path = "operations/logical.rs"]
 mod logical;
-#[path = "support/metadata.rs"]
-mod metadata;
 mod ml;
 #[path = "manipulation/pad.rs"]
 mod pad_ops;
@@ -96,6 +91,7 @@ mod where_ops;
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     support_bindings::register(module)?;
     random::register(module)?;
+    constructors::register(module)?;
     array_bindings::register(module)?;
     linalg::register(module)?;
     statistics::register(module)?;

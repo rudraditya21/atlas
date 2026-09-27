@@ -3,26 +3,13 @@
 use pyo3::{prelude::*, wrap_pyfunction};
 
 use crate::{
-    argpartition_ops, argsort_ops, arithmetic, bitwise, casting, clip_ops, close, concat_ops,
-    constructors, flatten_ops, flip_ops, logical, metadata, pad_ops, partition_ops, put_ops,
-    ravel_ops, reduction, repeat_ops, roll_ops, searchsorted_ops, shape_ops, sort_ops, split_ops,
-    stack_ops, take_ops, tile_ops, unary, unique_ops, where_ops,
+    argpartition_ops, argsort_ops, arithmetic, bitwise, clip_ops, close, concat_ops, flatten_ops,
+    flip_ops, logical, pad_ops, partition_ops, put_ops, ravel_ops, reduction, repeat_ops, roll_ops,
+    searchsorted_ops, shape_ops, sort_ops, split_ops, stack_ops, take_ops, tile_ops, unary,
+    unique_ops, where_ops,
 };
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add_function(wrap_pyfunction!(asarray, module)?)?;
-    module.add_function(wrap_pyfunction!(zeros, module)?)?;
-    module.add_function(wrap_pyfunction!(ones, module)?)?;
-    module.add_function(wrap_pyfunction!(eye, module)?)?;
-    module.add_function(wrap_pyfunction!(identity, module)?)?;
-    module.add_function(wrap_pyfunction!(full, module)?)?;
-    module.add_function(wrap_pyfunction!(arange, module)?)?;
-    module.add_function(wrap_pyfunction!(linspace, module)?)?;
-    module.add_function(wrap_pyfunction!(astype, module)?)?;
-    module.add_function(wrap_pyfunction!(shape, module)?)?;
-    module.add_function(wrap_pyfunction!(ndim, module)?)?;
-    module.add_function(wrap_pyfunction!(size, module)?)?;
-    module.add_function(wrap_pyfunction!(dtype, module)?)?;
     module.add_function(wrap_pyfunction!(add, module)?)?;
     module.add_function(wrap_pyfunction!(subtract, module)?)?;
     module.add_function(wrap_pyfunction!(multiply, module)?)?;
@@ -101,111 +88,6 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(isinf, module)?)?;
     module.add_function(wrap_pyfunction!(isfinite, module)?)?;
     Ok(())
-}
-
-#[pyfunction(signature = (value, dtype = None))]
-fn asarray(
-    py: Python<'_>,
-    value: &Bound<'_, PyAny>,
-    dtype: Option<&Bound<'_, PyAny>>,
-) -> PyResult<Py<PyAny>> {
-    constructors::asarray(py, value, dtype)
-}
-
-#[pyfunction(signature = (shape, dtype = None))]
-fn zeros(
-    py: Python<'_>,
-    shape: &Bound<'_, PyAny>,
-    dtype: Option<&Bound<'_, PyAny>>,
-) -> PyResult<Py<PyAny>> {
-    constructors::zeros(py, shape, dtype)
-}
-
-#[pyfunction(signature = (shape, dtype = None))]
-fn ones(
-    py: Python<'_>,
-    shape: &Bound<'_, PyAny>,
-    dtype: Option<&Bound<'_, PyAny>>,
-) -> PyResult<Py<PyAny>> {
-    constructors::ones(py, shape, dtype)
-}
-
-#[pyfunction(signature = (rows, columns = None, dtype = None))]
-fn eye(
-    py: Python<'_>,
-    rows: usize,
-    columns: Option<usize>,
-    dtype: Option<&Bound<'_, PyAny>>,
-) -> PyResult<Py<PyAny>> {
-    constructors::eye(py, rows, columns, dtype)
-}
-
-#[pyfunction(signature = (size, dtype = None))]
-fn identity(py: Python<'_>, size: usize, dtype: Option<&Bound<'_, PyAny>>) -> PyResult<Py<PyAny>> {
-    constructors::identity(py, size, dtype)
-}
-
-#[pyfunction(signature = (shape, fill_value, dtype = None))]
-fn full(
-    py: Python<'_>,
-    shape: &Bound<'_, PyAny>,
-    fill_value: &Bound<'_, PyAny>,
-    dtype: Option<&Bound<'_, PyAny>>,
-) -> PyResult<Py<PyAny>> {
-    constructors::full(py, shape, fill_value, dtype)
-}
-
-#[pyfunction(signature = (start, stop = None, step = None, dtype = None))]
-fn arange(
-    py: Python<'_>,
-    start: &Bound<'_, PyAny>,
-    stop: Option<&Bound<'_, PyAny>>,
-    step: Option<&Bound<'_, PyAny>>,
-    dtype: Option<&Bound<'_, PyAny>>,
-) -> PyResult<Py<PyAny>> {
-    constructors::arange(py, start, stop, step, dtype)
-}
-
-#[pyfunction(signature = (start, stop, num, dtype = None, endpoint = true))]
-fn linspace(
-    py: Python<'_>,
-    start: f64,
-    stop: f64,
-    num: usize,
-    dtype: Option<&Bound<'_, PyAny>>,
-    endpoint: bool,
-) -> PyResult<Py<PyAny>> {
-    constructors::linspace(py, start, stop, num, dtype, endpoint)
-}
-
-#[pyfunction(signature = (value, dtype, copy = true))]
-fn astype(
-    py: Python<'_>,
-    value: &Bound<'_, PyAny>,
-    dtype: &Bound<'_, PyAny>,
-    copy: bool,
-) -> PyResult<Py<PyAny>> {
-    casting::astype(py, value, dtype, copy)
-}
-
-#[pyfunction]
-fn shape(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    metadata::shape(py, value)
-}
-
-#[pyfunction]
-fn ndim(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<usize> {
-    metadata::ndim(py, value)
-}
-
-#[pyfunction]
-fn size(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<usize> {
-    metadata::size(py, value)
-}
-
-#[pyfunction]
-fn dtype(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    metadata::dtype(py, value)
 }
 
 #[pyfunction]
