@@ -27,6 +27,8 @@ NearestCentroidClassifier = _native.NearestCentroidClassifier
 GaussianNaiveBayes = _native.GaussianNaiveBayes
 KnnClassifier = _native.KnnClassifier
 KnnRegressor = _native.KnnRegressor
+DecisionStumpClassifier = _native.DecisionStumpClassifier
+BinaryGiniSplit = _native.BinaryGiniSplit
 
 _ATLAS_DTYPE_NAMES = frozenset(
     {
@@ -207,6 +209,7 @@ least_squares = _native.least_squares
 matrix_rank = _native.matrix_rank
 symmetric_eigendecomposition = _native.symmetric_eigendecomposition
 conjugate_gradient = _native.conjugate_gradient
+evaluate_binary_gini_split = _native.evaluate_binary_gini_split
 ravel = _native.ravel
 flatten = _native.flatten
 clip = _native.clip
@@ -707,6 +710,10 @@ least_squares = _coerce_arrays(least_squares, required=((0, "matrix"), (1, "rhs"
 conjugate_gradient = _coerce_arrays(
     conjugate_gradient, required=((0, "matrix"), (1, "rhs"))
 )
+evaluate_binary_gini_split = _coerce_arrays(
+    evaluate_binary_gini_split,
+    required=((0, "feature_values"), (1, "labels")),
+)
 
 for _name in ("select", "masked_fill"):
     globals()[_name] = _coerce_arrays(
@@ -730,9 +737,11 @@ __all__ = sorted(
     [
         "AtlasError",
         "AxisError",
+        "BinaryGiniSplit",
         "BinaryLogisticRegression",
         "BinaryPerceptron",
         "ConjugateGradientResult",
+        "DecisionStumpClassifier",
         "Generator",
         "GaussianNaiveBayes",
         "LinearRegression",
@@ -837,6 +846,7 @@ __all__ = sorted(
         "solve_spd",
         "symmetric_eigendecomposition",
         "conjugate_gradient",
+        "evaluate_binary_gini_split",
         "least_squares",
         "split",
         "sort",

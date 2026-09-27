@@ -29,6 +29,10 @@ mod concat_ops;
 mod conjugate_gradient_ops;
 #[path = "constructors/constructors.rs"]
 mod constructors;
+#[path = "ml/decision_stump.rs"]
+mod decision_stump_ops;
+#[path = "ml/decision_tree.rs"]
+mod decision_tree_ops;
 #[path = "linalg/determinant.rs"]
 mod determinant_ops;
 #[path = "linalg/diag.rs"]
@@ -158,6 +162,8 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<gaussian_naive_bayes_ops::GaussianNaiveBayes>()?;
     module.add_class::<knn_classifier_ops::KnnClassifier>()?;
     module.add_class::<knn_regressor_ops::KnnRegressor>()?;
+    module.add_class::<decision_stump_ops::DecisionStumpClassifier>()?;
+    module.add_class::<decision_tree_ops::BinaryGiniSplit>()?;
     module.add_function(wrap_pyfunction!(version, module)?)?;
     module.add_function(wrap_pyfunction!(asarray, module)?)?;
     module.add_function(wrap_pyfunction!(zeros, module)?)?;
@@ -213,6 +219,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(matrix_rank, module)?)?;
     module.add_function(wrap_pyfunction!(symmetric_eigendecomposition, module)?)?;
     module.add_function(wrap_pyfunction!(conjugate_gradient, module)?)?;
+    module.add_function(wrap_pyfunction!(evaluate_binary_gini_split, module)?)?;
     module.add_function(wrap_pyfunction!(ravel, module)?)?;
     module.add_function(wrap_pyfunction!(flatten, module)?)?;
     module.add_function(wrap_pyfunction!(nonzero, module)?)?;
@@ -655,6 +662,16 @@ fn conjugate_gradient(
     tolerance: f64,
 ) -> PyResult<Py<conjugate_gradient_ops::ConjugateGradientResult>> {
     conjugate_gradient_ops::conjugate_gradient(py, matrix, rhs, max_iterations, tolerance)
+}
+
+#[pyfunction]
+fn evaluate_binary_gini_split(
+    py: Python<'_>,
+    feature_values: &Bound<'_, PyAny>,
+    labels: &Bound<'_, PyAny>,
+    threshold: f64,
+) -> PyResult<Py<decision_tree_ops::BinaryGiniSplit>> {
+    decision_tree_ops::evaluate_binary_gini_split(py, feature_values, labels, threshold)
 }
 
 #[pyfunction]

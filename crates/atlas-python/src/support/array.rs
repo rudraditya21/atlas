@@ -48,6 +48,10 @@ pub(crate) fn target_vector_f64(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
 ) -> PyResult<NDArray<f64>> {
+    vector_f64(py, value)
+}
+
+pub(crate) fn vector_f64(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<NDArray<f64>> {
     from_numpy(readonly_from_python(py, value)?)
 }
 
