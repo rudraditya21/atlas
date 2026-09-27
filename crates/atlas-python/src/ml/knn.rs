@@ -30,3 +30,22 @@ pub(crate) fn config(
         .map(|config| config.with_weighting(weighting))
         .map_err(|error| crate::support::errors::ml(py, error))
 }
+
+pub(crate) fn repr(name: &str, config: atlas_ml::KnnConfig) -> String {
+    let search_algorithm = match config.search_algorithm() {
+        atlas_ml::KnnSearchAlgorithm::BruteForce => "brute_force",
+        atlas_ml::KnnSearchAlgorithm::KdTree => "kd_tree",
+        atlas_ml::KnnSearchAlgorithm::BallTree => "ball_tree",
+        atlas_ml::KnnSearchAlgorithm::Auto => "auto",
+    };
+    let weighting = match config.weighting() {
+        atlas_ml::KnnWeighting::Uniform => "uniform",
+        atlas_ml::KnnWeighting::Distance => "distance",
+    };
+
+    format!(
+        "{name}(k={}, search_algorithm='{search_algorithm}', weighting='{weighting}', tree_leaf_size={})",
+        config.k(),
+        config.tree_leaf_size(),
+    )
+}

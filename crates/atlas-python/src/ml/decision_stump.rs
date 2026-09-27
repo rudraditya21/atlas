@@ -17,6 +17,10 @@ impl DecisionStumpClassifier {
         Self { model: super::model::NativeModel::new() }
     }
 
+    fn __repr__(&self) -> &'static str {
+        "DecisionStumpClassifier()"
+    }
+
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         py: Python<'_>,

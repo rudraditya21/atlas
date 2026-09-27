@@ -23,6 +23,10 @@ impl GaussianNaiveBayes {
         Ok(Self { config, model: super::model::NativeModel::new() })
     }
 
+    fn __repr__(&self) -> String {
+        format!("GaussianNaiveBayes(variance_smoothing={})", self.config.variance_smoothing())
+    }
+
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         py: Python<'_>,

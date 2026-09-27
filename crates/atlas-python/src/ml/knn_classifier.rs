@@ -33,6 +33,10 @@ impl KnnClassifier {
         Ok(Self { config, model: super::model::NativeModel::new() })
     }
 
+    fn __repr__(&self) -> String {
+        super::knn::repr("KnnClassifier", self.config)
+    }
+
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         py: Python<'_>,

@@ -31,6 +31,18 @@ impl BinaryPerceptron {
         Ok(Self { config, model: super::model::NativeModel::new() })
     }
 
+    fn __repr__(&self) -> String {
+        let shuffle_seed = match self.config.shuffle_policy() {
+            atlas_ml::PerceptronShufflePolicy::Disabled => "None".to_owned(),
+            atlas_ml::PerceptronShufflePolicy::Seeded(seed) => seed.to_string(),
+        };
+        format!(
+            "BinaryPerceptron(learning_rate={}, max_iterations={}, shuffle_seed={shuffle_seed})",
+            self.config.learning_rate(),
+            self.config.max_iterations(),
+        )
+    }
+
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         py: Python<'_>,

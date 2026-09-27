@@ -17,6 +17,10 @@ impl LinearRegression {
         Self { model: super::model::NativeModel::new() }
     }
 
+    fn __repr__(&self) -> &'static str {
+        "LinearRegression()"
+    }
+
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         py: Python<'_>,

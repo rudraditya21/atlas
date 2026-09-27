@@ -19,6 +19,10 @@ impl StandardScaler {
         Self { model: super::model::NativeModel::new() }
     }
 
+    fn __repr__(&self) -> &'static str {
+        "StandardScaler()"
+    }
+
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         py: Python<'_>,
@@ -80,6 +84,13 @@ impl MinMaxScaler {
     #[pyo3(signature = (output_minimum = 0.0, output_maximum = 1.0))]
     fn new(output_minimum: f64, output_maximum: f64) -> Self {
         Self { output_minimum, output_maximum, model: super::model::NativeModel::new() }
+    }
+
+    fn __repr__(&self) -> String {
+        format!(
+            "MinMaxScaler(output_minimum={}, output_maximum={})",
+            self.output_minimum, self.output_maximum
+        )
     }
 
     fn fit<'py>(

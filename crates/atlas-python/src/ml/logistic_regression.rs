@@ -39,6 +39,16 @@ impl BinaryLogisticRegression {
         Ok(Self { config, model: super::model::NativeModel::new() })
     }
 
+    fn __repr__(&self) -> String {
+        format!(
+            "BinaryLogisticRegression(learning_rate={}, max_iterations={}, convergence_tolerance={}, l2_regularization={})",
+            self.config.learning_rate(),
+            self.config.max_iterations(),
+            self.config.convergence_tolerance(),
+            self.config.l2_regularization(),
+        )
+    }
+
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         py: Python<'_>,

@@ -22,6 +22,10 @@ impl RidgeRegression {
         Ok(Self { config, model: super::model::NativeModel::new() })
     }
 
+    fn __repr__(&self) -> String {
+        format!("RidgeRegression(l2_regularization={})", self.config.l2_regularization())
+    }
+
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         py: Python<'_>,
