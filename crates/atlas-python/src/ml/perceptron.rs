@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 
-use crate::{array, gil, model_support};
+use crate::{array, gil};
 
 const FIT_OP: &str = "binary_perceptron_fit";
 const PREDICT_OP: &str = "binary_perceptron_predict";
@@ -8,7 +8,7 @@ const PREDICT_OP: &str = "binary_perceptron_predict";
 #[pyclass(module = "atlas._native")]
 pub(crate) struct BinaryPerceptron {
     config: atlas_ml::PerceptronConfig,
-    model: model_support::NativeModel<atlas_ml::BinaryPerceptron>,
+    model: super::model::NativeModel<atlas_ml::BinaryPerceptron>,
 }
 
 #[pymethods]
@@ -28,7 +28,7 @@ impl BinaryPerceptron {
                 None => atlas_ml::PerceptronShufflePolicy::Disabled,
             });
 
-        Ok(Self { config, model: model_support::NativeModel::new() })
+        Ok(Self { config, model: super::model::NativeModel::new() })
     }
 
     fn fit<'py>(
@@ -37,8 +37,7 @@ impl BinaryPerceptron {
         features: &Bound<'_, PyAny>,
         labels: &Bound<'_, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let (features, labels) =
-            model_support::classifier_fit_inputs(py, features, labels, FIT_OP)?;
+        let (features, labels) = super::model::classifier_fit_inputs(py, features, labels, FIT_OP)?;
         let config = slf.config;
         let model = gil::without_gil(py, move || {
             atlas_ml::BinaryPerceptron::fit(&features, &labels, config)
@@ -50,7 +49,7 @@ impl BinaryPerceptron {
     }
 
     fn predict(&self, py: Python<'_>, features: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-        let features = model_support::predict_features(py, features, PREDICT_OP)?;
+        let features = super::model::predict_features(py, features, PREDICT_OP)?;
         let model = self.model.fitted(py, PREDICT_OP)?;
         let predictions = gil::without_gil(py, move || model.predict(&features))
             .map_err(|error| crate::error::ml(py, error))?;

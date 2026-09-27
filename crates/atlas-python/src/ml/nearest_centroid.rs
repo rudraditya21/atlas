@@ -1,20 +1,20 @@
 use pyo3::prelude::*;
 
-use crate::{array, gil, model_support};
+use crate::{array, gil};
 
 const FIT_OP: &str = "nearest_centroid_fit";
 const PREDICT_OP: &str = "nearest_centroid_predict";
 
 #[pyclass(module = "atlas._native")]
 pub(crate) struct NearestCentroidClassifier {
-    model: model_support::NativeModel<atlas_ml::NearestCentroidClassifier>,
+    model: super::model::NativeModel<atlas_ml::NearestCentroidClassifier>,
 }
 
 #[pymethods]
 impl NearestCentroidClassifier {
     #[new]
     fn new() -> Self {
-        Self { model: model_support::NativeModel::new() }
+        Self { model: super::model::NativeModel::new() }
     }
 
     fn fit<'py>(
@@ -23,8 +23,7 @@ impl NearestCentroidClassifier {
         features: &Bound<'_, PyAny>,
         labels: &Bound<'_, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let (features, labels) =
-            model_support::classifier_fit_inputs(py, features, labels, FIT_OP)?;
+        let (features, labels) = super::model::classifier_fit_inputs(py, features, labels, FIT_OP)?;
         let model = gil::without_gil(py, move || {
             atlas_ml::NearestCentroidClassifier::fit(&features, &labels)
         })
@@ -35,7 +34,7 @@ impl NearestCentroidClassifier {
     }
 
     fn predict(&self, py: Python<'_>, features: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-        let features = model_support::predict_features(py, features, PREDICT_OP)?;
+        let features = super::model::predict_features(py, features, PREDICT_OP)?;
         let model = self.model.fitted(py, PREDICT_OP)?;
         let predictions = gil::without_gil(py, move || model.predict(&features))
             .map_err(|error| crate::error::ml(py, error))?;

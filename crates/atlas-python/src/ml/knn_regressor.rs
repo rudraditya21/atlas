@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 
-use crate::{array, gil, knn_support, model_support};
+use crate::{array, gil};
 
 const FIT_OP: &str = "knn_regressor_fit";
 const PREDICT_OP: &str = "knn_regressor_predict";
@@ -8,7 +8,7 @@ const PREDICT_OP: &str = "knn_regressor_predict";
 #[pyclass(module = "atlas._native")]
 pub(crate) struct KnnRegressor {
     config: atlas_ml::KnnConfig,
-    model: model_support::NativeModel<atlas_ml::KnnRegressor>,
+    model: super::model::NativeModel<atlas_ml::KnnRegressor>,
 }
 
 #[pymethods]
@@ -27,9 +27,9 @@ impl KnnRegressor {
         weighting: &str,
         tree_leaf_size: usize,
     ) -> PyResult<Self> {
-        let config = knn_support::config(py, k, search_algorithm, weighting, tree_leaf_size)?;
+        let config = super::knn::config(py, k, search_algorithm, weighting, tree_leaf_size)?;
 
-        Ok(Self { config, model: model_support::NativeModel::new() })
+        Ok(Self { config, model: super::model::NativeModel::new() })
     }
 
     fn fit<'py>(
@@ -39,7 +39,7 @@ impl KnnRegressor {
         targets: &Bound<'_, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
         let (features, targets) =
-            model_support::regression_fit_inputs(py, features, targets, FIT_OP)?;
+            super::model::regression_fit_inputs(py, features, targets, FIT_OP)?;
         let config = slf.config;
         let model =
             gil::without_gil(py, move || atlas_ml::KnnRegressor::fit(features, targets, config))
@@ -50,7 +50,7 @@ impl KnnRegressor {
     }
 
     fn predict(&self, py: Python<'_>, features: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-        let features = model_support::predict_features(py, features, PREDICT_OP)?;
+        let features = super::model::predict_features(py, features, PREDICT_OP)?;
         let model = self.model.fitted(py, PREDICT_OP)?;
         let predictions = gil::without_gil(py, move || model.predict(&features))
             .map_err(|error| crate::error::ml(py, error))?;

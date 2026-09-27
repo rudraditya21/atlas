@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 
-use crate::{array, gil, model_support};
+use crate::{array, gil};
 
 const STANDARD_TRANSFORM_OP: &str = "standard_scaler_transform";
 const STANDARD_INVERSE_TRANSFORM_OP: &str = "standard_scaler_inverse_transform";
@@ -9,14 +9,14 @@ const MIN_MAX_INVERSE_TRANSFORM_OP: &str = "min_max_scaler_inverse_transform";
 
 #[pyclass(module = "atlas._native")]
 pub(crate) struct StandardScaler {
-    model: model_support::NativeModel<atlas_ml::StandardScaler>,
+    model: super::model::NativeModel<atlas_ml::StandardScaler>,
 }
 
 #[pymethods]
 impl StandardScaler {
     #[new]
     fn new() -> Self {
-        Self { model: model_support::NativeModel::new() }
+        Self { model: super::model::NativeModel::new() }
     }
 
     fn fit<'py>(
@@ -67,7 +67,7 @@ impl StandardScaler {
 pub(crate) struct MinMaxScaler {
     output_minimum: f64,
     output_maximum: f64,
-    model: model_support::NativeModel<atlas_ml::MinMaxScaler>,
+    model: super::model::NativeModel<atlas_ml::MinMaxScaler>,
 }
 
 #[pymethods]
@@ -75,7 +75,7 @@ impl MinMaxScaler {
     #[new]
     #[pyo3(signature = (output_minimum = 0.0, output_maximum = 1.0))]
     fn new(output_minimum: f64, output_maximum: f64) -> Self {
-        Self { output_minimum, output_maximum, model: model_support::NativeModel::new() }
+        Self { output_minimum, output_maximum, model: super::model::NativeModel::new() }
     }
 
     fn fit<'py>(
@@ -145,7 +145,7 @@ impl MinMaxScaler {
 fn transform<T: Sync>(
     py: Python<'_>,
     features: &Bound<'_, PyAny>,
-    model: &model_support::NativeModel<T>,
+    model: &super::model::NativeModel<T>,
     operation: &'static str,
     operation_fn: impl FnOnce(
         &T,
@@ -153,7 +153,7 @@ fn transform<T: Sync>(
     ) -> atlas_ml::AtlasMlResult<atlas_ndarray::NDArray<f64>>
     + Send,
 ) -> PyResult<Py<PyAny>> {
-    let features = model_support::predict_features(py, features, operation)?;
+    let features = super::model::predict_features(py, features, operation)?;
     let model = model.fitted(py, operation)?;
     let transformed = gil::without_gil(py, move || operation_fn(model, &features))
         .map_err(|error| crate::error::ml(py, error))?;
