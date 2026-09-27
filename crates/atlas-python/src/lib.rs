@@ -42,8 +42,7 @@ mod python_dtype;
 mod random;
 #[path = "manipulation/ravel.rs"]
 mod ravel_ops;
-#[path = "reductions/reduction.rs"]
-mod reduction;
+mod reductions;
 #[path = "manipulation/repeat.rs"]
 mod repeat_ops;
 #[path = "support/results.rs"]
@@ -80,6 +79,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     random::register(module)?;
     constructors::register(module)?;
     operations::register(module)?;
+    reductions::register(module)?;
     array_bindings::register(module)?;
     linalg::register(module)?;
     statistics::register(module)?;

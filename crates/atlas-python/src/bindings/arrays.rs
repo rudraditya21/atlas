@@ -4,8 +4,8 @@ use pyo3::{prelude::*, wrap_pyfunction};
 
 use crate::{
     argpartition_ops, argsort_ops, concat_ops, flatten_ops, flip_ops, pad_ops, partition_ops,
-    put_ops, ravel_ops, reduction, repeat_ops, roll_ops, searchsorted_ops, shape_ops, sort_ops,
-    split_ops, stack_ops, take_ops, tile_ops, unique_ops,
+    put_ops, ravel_ops, repeat_ops, roll_ops, searchsorted_ops, shape_ops, sort_ops, split_ops,
+    stack_ops, take_ops, tile_ops, unique_ops,
 };
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -14,26 +14,6 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(stack, module)?)?;
     module.add_function(wrap_pyfunction!(ravel, module)?)?;
     module.add_function(wrap_pyfunction!(flatten, module)?)?;
-    module.add_function(wrap_pyfunction!(sum, module)?)?;
-    module.add_function(wrap_pyfunction!(mean, module)?)?;
-    module.add_function(wrap_pyfunction!(min, module)?)?;
-    module.add_function(wrap_pyfunction!(max, module)?)?;
-    module.add_function(wrap_pyfunction!(argmin, module)?)?;
-    module.add_function(wrap_pyfunction!(argmax, module)?)?;
-    module.add_function(wrap_pyfunction!(cumsum, module)?)?;
-    module.add_function(wrap_pyfunction!(cumprod, module)?)?;
-    module.add_function(wrap_pyfunction!(cumsum_axis, module)?)?;
-    module.add_function(wrap_pyfunction!(cumprod_axis, module)?)?;
-    module.add_function(wrap_pyfunction!(nanmin, module)?)?;
-    module.add_function(wrap_pyfunction!(nanmax, module)?)?;
-    module.add_function(wrap_pyfunction!(nanmean, module)?)?;
-    module.add_function(wrap_pyfunction!(nanstd, module)?)?;
-    module.add_function(wrap_pyfunction!(argmin_axis, module)?)?;
-    module.add_function(wrap_pyfunction!(argmax_axis, module)?)?;
-    module.add_function(wrap_pyfunction!(sum_axis, module)?)?;
-    module.add_function(wrap_pyfunction!(mean_axis, module)?)?;
-    module.add_function(wrap_pyfunction!(min_axis, module)?)?;
-    module.add_function(wrap_pyfunction!(max_axis, module)?)?;
     module.add_function(wrap_pyfunction!(reshape, module)?)?;
     module.add_function(wrap_pyfunction!(transpose, module)?)?;
     module.add_function(wrap_pyfunction!(moveaxis, module)?)?;
@@ -84,106 +64,6 @@ fn ravel(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
 #[pyfunction]
 fn flatten(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     flatten_ops::flatten(py, value)
-}
-
-#[pyfunction(signature = (value, axis = None))]
-fn sum(py: Python<'_>, value: &Bound<'_, PyAny>, axis: Option<i64>) -> PyResult<Py<PyAny>> {
-    reduction::sum(py, value, axis)
-}
-
-#[pyfunction(signature = (value, axis = None))]
-fn mean(py: Python<'_>, value: &Bound<'_, PyAny>, axis: Option<i64>) -> PyResult<Py<PyAny>> {
-    reduction::mean(py, value, axis)
-}
-
-#[pyfunction(signature = (value, axis = None))]
-fn min(py: Python<'_>, value: &Bound<'_, PyAny>, axis: Option<i64>) -> PyResult<Py<PyAny>> {
-    reduction::min(py, value, axis)
-}
-
-#[pyfunction(signature = (value, axis = None))]
-fn max(py: Python<'_>, value: &Bound<'_, PyAny>, axis: Option<i64>) -> PyResult<Py<PyAny>> {
-    reduction::max(py, value, axis)
-}
-
-#[pyfunction(signature = (value, axis = None))]
-fn argmin(py: Python<'_>, value: &Bound<'_, PyAny>, axis: Option<i64>) -> PyResult<Py<PyAny>> {
-    reduction::argmin(py, value, axis)
-}
-
-#[pyfunction(signature = (value, axis = None))]
-fn argmax(py: Python<'_>, value: &Bound<'_, PyAny>, axis: Option<i64>) -> PyResult<Py<PyAny>> {
-    reduction::argmax(py, value, axis)
-}
-
-#[pyfunction(signature = (value, axis = None))]
-fn cumsum(py: Python<'_>, value: &Bound<'_, PyAny>, axis: Option<i64>) -> PyResult<Py<PyAny>> {
-    reduction::cumsum(py, value, axis)
-}
-
-#[pyfunction(signature = (value, axis = None))]
-fn cumprod(py: Python<'_>, value: &Bound<'_, PyAny>, axis: Option<i64>) -> PyResult<Py<PyAny>> {
-    reduction::cumprod(py, value, axis)
-}
-
-#[pyfunction]
-fn cumsum_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
-    reduction::cumsum_axis(py, value, axis)
-}
-
-#[pyfunction]
-fn cumprod_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
-    reduction::cumprod_axis(py, value, axis)
-}
-
-#[pyfunction]
-fn nanmin(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    reduction::nanmin(py, value)
-}
-
-#[pyfunction]
-fn nanmax(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    reduction::nanmax(py, value)
-}
-
-#[pyfunction]
-fn nanmean(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    reduction::nanmean(py, value)
-}
-
-#[pyfunction]
-fn nanstd(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    reduction::nanstd(py, value)
-}
-
-#[pyfunction]
-fn argmin_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
-    reduction::argmin_axis(py, value, axis)
-}
-
-#[pyfunction]
-fn argmax_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
-    reduction::argmax_axis(py, value, axis)
-}
-
-#[pyfunction]
-fn sum_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
-    reduction::sum_axis(py, value, axis)
-}
-
-#[pyfunction]
-fn mean_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
-    reduction::mean_axis(py, value, axis)
-}
-
-#[pyfunction]
-fn min_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
-    reduction::min_axis(py, value, axis)
-}
-
-#[pyfunction]
-fn max_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
-    reduction::max_axis(py, value, axis)
 }
 
 #[pyfunction]

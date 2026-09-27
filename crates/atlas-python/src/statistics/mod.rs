@@ -13,7 +13,7 @@ mod weighted_ops;
 
 use pyo3::{prelude::*, wrap_pyfunction};
 
-use crate::reduction;
+use crate::reductions;
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(variance, module)?)?;
@@ -35,12 +35,12 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
 
 #[pyfunction(signature = (value, ddof = 0))]
 fn variance(py: Python<'_>, value: &Bound<'_, PyAny>, ddof: usize) -> PyResult<Py<PyAny>> {
-    reduction::variance(py, value, ddof)
+    reductions::variance(py, value, ddof)
 }
 
 #[pyfunction(signature = (value, ddof = 0))]
 fn stddev(py: Python<'_>, value: &Bound<'_, PyAny>, ddof: usize) -> PyResult<Py<PyAny>> {
-    reduction::stddev(py, value, ddof)
+    reductions::stddev(py, value, ddof)
 }
 
 #[pyfunction]
