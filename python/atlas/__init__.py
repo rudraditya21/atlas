@@ -212,6 +212,11 @@ matrix_rank = _native.matrix_rank
 symmetric_eigendecomposition = _native.symmetric_eigendecomposition
 conjugate_gradient = _native.conjugate_gradient
 evaluate_binary_gini_split = _native.evaluate_binary_gini_split
+accuracy = _native.accuracy
+log_loss = _native.log_loss
+mean_absolute_error = _native.mean_absolute_error
+mean_squared_error = _native.mean_squared_error
+r_squared = _native.r_squared
 ravel = _native.ravel
 flatten = _native.flatten
 clip = _native.clip
@@ -717,6 +722,13 @@ evaluate_binary_gini_split = _coerce_arrays(
     required=((0, "feature_values"), (1, "labels")),
 )
 
+for _name in ("accuracy", "mean_absolute_error", "mean_squared_error", "r_squared"):
+    globals()[_name] = _coerce_arrays(
+        globals()[_name], required=((0, "actual"), (1, "predicted"))
+    )
+
+log_loss = _coerce_arrays(log_loss, required=((0, "actual"), (1, "probabilities")))
+
 for _name in ("select", "masked_fill"):
     globals()[_name] = _coerce_arrays(
         globals()[_name], required=((0, "value"), (1, "mask"))
@@ -759,6 +771,7 @@ __all__ = sorted(
         "StandardScaler",
         "__version__",
         "add",
+        "accuracy",
         "abs",
         "allclose",
         "all",
@@ -819,7 +832,9 @@ __all__ = sorted(
         "max",
         "max_axis",
         "mean",
+        "mean_absolute_error",
         "mean_axis",
+        "mean_squared_error",
         "min",
         "min_axis",
         "min_scalar_type",
@@ -851,6 +866,7 @@ __all__ = sorted(
         "symmetric_eigendecomposition",
         "conjugate_gradient",
         "evaluate_binary_gini_split",
+        "log_loss",
         "least_squares",
         "split",
         "sort",
@@ -867,6 +883,7 @@ __all__ = sorted(
         "quantile",
         "median_axis",
         "quantile_axis",
+        "r_squared",
         "weighted_mean",
         "weighted_variance",
         "covariance",

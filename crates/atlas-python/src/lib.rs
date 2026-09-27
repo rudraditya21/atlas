@@ -75,6 +75,8 @@ mod matmul_ops;
 mod matrix_norm_ops;
 #[path = "support/metadata.rs"]
 mod metadata;
+#[path = "ml/metrics.rs"]
+mod metrics_ops;
 #[allow(dead_code, reason = "model classes are registered incrementally")]
 #[path = "ml/model.rs"]
 mod model_support;
@@ -224,6 +226,11 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(symmetric_eigendecomposition, module)?)?;
     module.add_function(wrap_pyfunction!(conjugate_gradient, module)?)?;
     module.add_function(wrap_pyfunction!(evaluate_binary_gini_split, module)?)?;
+    module.add_function(wrap_pyfunction!(accuracy, module)?)?;
+    module.add_function(wrap_pyfunction!(log_loss, module)?)?;
+    module.add_function(wrap_pyfunction!(mean_absolute_error, module)?)?;
+    module.add_function(wrap_pyfunction!(mean_squared_error, module)?)?;
+    module.add_function(wrap_pyfunction!(r_squared, module)?)?;
     module.add_function(wrap_pyfunction!(ravel, module)?)?;
     module.add_function(wrap_pyfunction!(flatten, module)?)?;
     module.add_function(wrap_pyfunction!(nonzero, module)?)?;
@@ -676,6 +683,51 @@ fn evaluate_binary_gini_split(
     threshold: f64,
 ) -> PyResult<Py<decision_tree_ops::BinaryGiniSplit>> {
     decision_tree_ops::evaluate_binary_gini_split(py, feature_values, labels, threshold)
+}
+
+#[pyfunction]
+fn accuracy(
+    py: Python<'_>,
+    actual: &Bound<'_, PyAny>,
+    predicted: &Bound<'_, PyAny>,
+) -> PyResult<f64> {
+    metrics_ops::accuracy(py, actual, predicted)
+}
+
+#[pyfunction]
+fn log_loss(
+    py: Python<'_>,
+    actual: &Bound<'_, PyAny>,
+    probabilities: &Bound<'_, PyAny>,
+) -> PyResult<f64> {
+    metrics_ops::log_loss(py, actual, probabilities)
+}
+
+#[pyfunction]
+fn mean_absolute_error(
+    py: Python<'_>,
+    actual: &Bound<'_, PyAny>,
+    predicted: &Bound<'_, PyAny>,
+) -> PyResult<f64> {
+    metrics_ops::mean_absolute_error(py, actual, predicted)
+}
+
+#[pyfunction]
+fn mean_squared_error(
+    py: Python<'_>,
+    actual: &Bound<'_, PyAny>,
+    predicted: &Bound<'_, PyAny>,
+) -> PyResult<f64> {
+    metrics_ops::mean_squared_error(py, actual, predicted)
+}
+
+#[pyfunction]
+fn r_squared(
+    py: Python<'_>,
+    actual: &Bound<'_, PyAny>,
+    predicted: &Bound<'_, PyAny>,
+) -> PyResult<f64> {
+    metrics_ops::r_squared(py, actual, predicted)
 }
 
 #[pyfunction]
