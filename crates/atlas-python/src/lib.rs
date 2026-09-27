@@ -5,39 +5,25 @@
 
 use pyo3::prelude::*;
 
-#[path = "bindings/support.rs"]
-mod support_bindings;
-
-#[path = "support/array.rs"]
-mod array;
 mod constructors;
-#[path = "support/error.rs"]
-mod error;
-#[path = "support/gil.rs"]
-mod gil;
 mod indexing;
 mod interop;
 mod linalg;
 mod manipulation;
 mod ml;
 mod operations;
-#[path = "support/dtype.rs"]
-mod python_dtype;
 mod random;
 mod reductions;
-#[path = "support/results.rs"]
-mod results;
-#[cfg(feature = "test-support")]
-#[path = "support/scalar.rs"]
-mod scalar;
 mod statistics;
+mod support;
+
 #[cfg(feature = "test-support")]
-#[path = "support/test_support.rs"]
-mod test_support;
+pub(crate) use support::scalar;
+pub(crate) use support::{array, error, gil, python_dtype, results};
 
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    support_bindings::register(module)?;
+    support::register(module)?;
     random::register(module)?;
     constructors::register(module)?;
     operations::register(module)?;

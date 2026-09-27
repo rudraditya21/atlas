@@ -3,10 +3,10 @@
 mod casting;
 #[path = "constructors.rs"]
 mod functions;
-#[path = "../support/metadata.rs"]
-mod metadata;
 
 use pyo3::{prelude::*, wrap_pyfunction};
+
+use crate::support::metadata;
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(asarray, module)?)?;
