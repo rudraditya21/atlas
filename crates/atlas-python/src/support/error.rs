@@ -78,7 +78,6 @@ pub(crate) fn random(py: Python<'_>, error: AtlasRandomError) -> PyErr {
     }
 }
 
-#[allow(dead_code, reason = "library bindings are registered incrementally")]
 pub(crate) fn ml(py: Python<'_>, error: AtlasMlError) -> PyErr {
     match &error {
         AtlasMlError::NdArray(error) => ndarray(py, error.clone()),

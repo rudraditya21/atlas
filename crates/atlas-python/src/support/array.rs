@@ -30,7 +30,6 @@ where
         .map_err(|error| Python::attach(|py| crate::error::ndarray(py, error)))
 }
 
-#[allow(dead_code, reason = "ML bindings are registered incrementally")]
 pub(crate) fn feature_matrix_f64(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
@@ -38,7 +37,6 @@ pub(crate) fn feature_matrix_f64(
     from_numpy(readonly_from_python(py, value)?)
 }
 
-#[allow(dead_code, reason = "ML bindings are registered incrementally")]
 pub(crate) fn label_vector_usize(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,

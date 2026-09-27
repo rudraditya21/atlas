@@ -59,6 +59,9 @@ mod matmul_ops;
 mod matrix_norm_ops;
 #[path = "support/metadata.rs"]
 mod metadata;
+#[allow(dead_code, reason = "model classes are registered incrementally")]
+#[path = "ml/model.rs"]
+mod model_support;
 #[path = "linalg/norm.rs"]
 mod norm_ops;
 #[path = "manipulation/pad.rs"]
