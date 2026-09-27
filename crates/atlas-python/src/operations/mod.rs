@@ -15,42 +15,10 @@ mod unary;
 #[path = "where_ops.rs"]
 mod where_ops;
 
-use pyo3::{prelude::*, wrap_pyfunction};
+use pyo3::prelude::*;
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add_function(wrap_pyfunction!(add, module)?)?;
-    module.add_function(wrap_pyfunction!(subtract, module)?)?;
-    module.add_function(wrap_pyfunction!(multiply, module)?)?;
-    module.add_function(wrap_pyfunction!(divide, module)?)?;
-    module.add_function(wrap_pyfunction!(equal, module)?)?;
-    module.add_function(wrap_pyfunction!(not_equal, module)?)?;
-    module.add_function(wrap_pyfunction!(less, module)?)?;
-    module.add_function(wrap_pyfunction!(less_equal, module)?)?;
-    module.add_function(wrap_pyfunction!(greater, module)?)?;
-    module.add_function(wrap_pyfunction!(greater_equal, module)?)?;
-    module.add_function(wrap_pyfunction!(select, module)?)?;
-    module.add_function(wrap_pyfunction!(count_true, module)?)?;
-    module.add_function(wrap_pyfunction!(all, module)?)?;
-    module.add_function(wrap_pyfunction!(any, module)?)?;
-    module.add_function(wrap_pyfunction!(all_axis, module)?)?;
-    module.add_function(wrap_pyfunction!(any_axis, module)?)?;
-    module.add_function(wrap_pyfunction!(where_, module)?)?;
-    module.add_function(wrap_pyfunction!(bitwise_and, module)?)?;
-    module.add_function(wrap_pyfunction!(bitwise_or, module)?)?;
-    module.add_function(wrap_pyfunction!(bitwise_xor, module)?)?;
-    module.add_function(wrap_pyfunction!(bitwise_not, module)?)?;
-    module.add_function(wrap_pyfunction!(nonzero, module)?)?;
-    module.add_function(wrap_pyfunction!(argwhere, module)?)?;
-    module.add_function(wrap_pyfunction!(masked_fill, module)?)?;
-    module.add_function(wrap_pyfunction!(allclose, module)?)?;
-    module.add_function(wrap_pyfunction!(clip, module)?)?;
-    module.add_function(wrap_pyfunction!(neg, module)?)?;
-    module.add_function(wrap_pyfunction!(abs, module)?)?;
-    module.add_function(wrap_pyfunction!(sign, module)?)?;
-    module.add_function(wrap_pyfunction!(round, module)?)?;
-    module.add_function(wrap_pyfunction!(isnan, module)?)?;
-    module.add_function(wrap_pyfunction!(isinf, module)?)?;
-    module.add_function(wrap_pyfunction!(isfinite, module)?)?;
+    crate::register_functions!(module; add, subtract, multiply, divide, equal, not_equal, less, less_equal, greater, greater_equal, select, count_true, all, any, all_axis, any_axis, where_, bitwise_and, bitwise_or, bitwise_xor, bitwise_not, nonzero, argwhere, masked_fill, allclose, clip, neg, abs, sign, round, isnan, isinf, isfinite);
     Ok(())
 }
 

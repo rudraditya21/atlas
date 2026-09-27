@@ -23,25 +23,10 @@ mod stack_ops;
 #[path = "tile.rs"]
 mod tile_ops;
 
-use pyo3::{prelude::*, wrap_pyfunction};
+use pyo3::prelude::*;
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add_function(wrap_pyfunction!(concatenate, module)?)?;
-    module.add_function(wrap_pyfunction!(stack, module)?)?;
-    module.add_function(wrap_pyfunction!(ravel, module)?)?;
-    module.add_function(wrap_pyfunction!(flatten, module)?)?;
-    module.add_function(wrap_pyfunction!(reshape, module)?)?;
-    module.add_function(wrap_pyfunction!(transpose, module)?)?;
-    module.add_function(wrap_pyfunction!(moveaxis, module)?)?;
-    module.add_function(wrap_pyfunction!(swap_axes, module)?)?;
-    module.add_function(wrap_pyfunction!(split, module)?)?;
-    module.add_function(wrap_pyfunction!(repeat, module)?)?;
-    module.add_function(wrap_pyfunction!(tile, module)?)?;
-    module.add_function(wrap_pyfunction!(flip, module)?)?;
-    module.add_function(wrap_pyfunction!(roll, module)?)?;
-    module.add_function(wrap_pyfunction!(pad, module)?)?;
-    module.add_function(wrap_pyfunction!(squeeze, module)?)?;
-    module.add_function(wrap_pyfunction!(expand_dims, module)?)?;
+    crate::register_functions!(module; concatenate, stack, ravel, flatten, reshape, transpose, moveaxis, swap_axes, split, repeat, tile, flip, roll, pad, squeeze, expand_dims);
     Ok(())
 }
 

@@ -29,28 +29,11 @@ mod solve_ops;
 #[path = "trace.rs"]
 mod trace_ops;
 
-use pyo3::{prelude::*, wrap_pyfunction};
+use pyo3::prelude::*;
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<conjugate_gradient_ops::ConjugateGradientResult>()?;
-    module.add_function(wrap_pyfunction!(dot, module)?)?;
-    module.add_function(wrap_pyfunction!(norm, module)?)?;
-    module.add_function(wrap_pyfunction!(trace, module)?)?;
-    module.add_function(wrap_pyfunction!(diag, module)?)?;
-    module.add_function(wrap_pyfunction!(matrix_norm, module)?)?;
-    module.add_function(wrap_pyfunction!(det, module)?)?;
-    module.add_function(wrap_pyfunction!(inverse, module)?)?;
-    module.add_function(wrap_pyfunction!(solve, module)?)?;
-    module.add_function(wrap_pyfunction!(solve_transpose, module)?)?;
-    module.add_function(wrap_pyfunction!(slogdet, module)?)?;
-    module.add_function(wrap_pyfunction!(cholesky, module)?)?;
-    module.add_function(wrap_pyfunction!(solve_spd, module)?)?;
-    module.add_function(wrap_pyfunction!(qr, module)?)?;
-    module.add_function(wrap_pyfunction!(least_squares, module)?)?;
-    module.add_function(wrap_pyfunction!(matrix_rank, module)?)?;
-    module.add_function(wrap_pyfunction!(symmetric_eigendecomposition, module)?)?;
-    module.add_function(wrap_pyfunction!(conjugate_gradient, module)?)?;
-    module.add_function(wrap_pyfunction!(matmul, module)?)?;
+    crate::register_functions!(module; dot, norm, trace, diag, matrix_norm, det, inverse, solve, solve_transpose, slogdet, cholesky, solve_spd, qr, least_squares, matrix_rank, symmetric_eigendecomposition, conjugate_gradient, matmul);
     Ok(())
 }
 

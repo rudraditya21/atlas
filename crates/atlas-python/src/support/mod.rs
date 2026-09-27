@@ -5,6 +5,7 @@ pub(crate) mod dtypes;
 pub(crate) mod errors;
 pub(crate) mod gil;
 pub(crate) mod metadata;
+mod registration;
 pub(crate) mod results;
 #[cfg(feature = "test-support")]
 pub(crate) mod scalar;

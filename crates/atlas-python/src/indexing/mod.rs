@@ -17,17 +17,10 @@ mod take_ops;
 #[path = "unique.rs"]
 mod unique_ops;
 
-use pyo3::{prelude::*, wrap_pyfunction};
+use pyo3::prelude::*;
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add_function(wrap_pyfunction!(take, module)?)?;
-    module.add_function(wrap_pyfunction!(sort, module)?)?;
-    module.add_function(wrap_pyfunction!(argsort, module)?)?;
-    module.add_function(wrap_pyfunction!(argpartition, module)?)?;
-    module.add_function(wrap_pyfunction!(unique, module)?)?;
-    module.add_function(wrap_pyfunction!(searchsorted, module)?)?;
-    module.add_function(wrap_pyfunction!(partition, module)?)?;
-    module.add_function(wrap_pyfunction!(put, module)?)?;
+    crate::register_functions!(module; take, sort, argsort, argpartition, unique, searchsorted, partition, put);
     Ok(())
 }
 

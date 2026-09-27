@@ -11,25 +11,12 @@ mod skewness_ops;
 #[path = "weighted.rs"]
 mod weighted_ops;
 
-use pyo3::{prelude::*, wrap_pyfunction};
+use pyo3::prelude::*;
 
 use crate::reductions;
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add_function(wrap_pyfunction!(variance, module)?)?;
-    module.add_function(wrap_pyfunction!(stddev, module)?)?;
-    module.add_function(wrap_pyfunction!(kurtosis, module)?)?;
-    module.add_function(wrap_pyfunction!(skewness, module)?)?;
-    module.add_function(wrap_pyfunction!(median, module)?)?;
-    module.add_function(wrap_pyfunction!(quantile, module)?)?;
-    module.add_function(wrap_pyfunction!(median_axis, module)?)?;
-    module.add_function(wrap_pyfunction!(quantile_axis, module)?)?;
-    module.add_function(wrap_pyfunction!(weighted_mean, module)?)?;
-    module.add_function(wrap_pyfunction!(weighted_variance, module)?)?;
-    module.add_function(wrap_pyfunction!(covariance, module)?)?;
-    module.add_function(wrap_pyfunction!(correlation, module)?)?;
-    module.add_function(wrap_pyfunction!(covariance_matrix, module)?)?;
-    module.add_function(wrap_pyfunction!(correlation_matrix, module)?)?;
+    crate::register_functions!(module; variance, stddev, kurtosis, skewness, median, quantile, median_axis, quantile_axis, weighted_mean, weighted_variance, covariance, correlation, covariance_matrix, correlation_matrix);
     Ok(())
 }
 

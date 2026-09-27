@@ -4,29 +4,10 @@
 mod functions;
 
 pub(crate) use functions::{stddev, variance};
-use pyo3::{prelude::*, wrap_pyfunction};
+use pyo3::prelude::*;
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add_function(wrap_pyfunction!(sum, module)?)?;
-    module.add_function(wrap_pyfunction!(mean, module)?)?;
-    module.add_function(wrap_pyfunction!(min, module)?)?;
-    module.add_function(wrap_pyfunction!(max, module)?)?;
-    module.add_function(wrap_pyfunction!(argmin, module)?)?;
-    module.add_function(wrap_pyfunction!(argmax, module)?)?;
-    module.add_function(wrap_pyfunction!(cumsum, module)?)?;
-    module.add_function(wrap_pyfunction!(cumprod, module)?)?;
-    module.add_function(wrap_pyfunction!(cumsum_axis, module)?)?;
-    module.add_function(wrap_pyfunction!(cumprod_axis, module)?)?;
-    module.add_function(wrap_pyfunction!(nanmin, module)?)?;
-    module.add_function(wrap_pyfunction!(nanmax, module)?)?;
-    module.add_function(wrap_pyfunction!(nanmean, module)?)?;
-    module.add_function(wrap_pyfunction!(nanstd, module)?)?;
-    module.add_function(wrap_pyfunction!(argmin_axis, module)?)?;
-    module.add_function(wrap_pyfunction!(argmax_axis, module)?)?;
-    module.add_function(wrap_pyfunction!(sum_axis, module)?)?;
-    module.add_function(wrap_pyfunction!(mean_axis, module)?)?;
-    module.add_function(wrap_pyfunction!(min_axis, module)?)?;
-    module.add_function(wrap_pyfunction!(max_axis, module)?)?;
+    crate::register_functions!(module; sum, mean, min, max, argmin, argmax, cumsum, cumprod, cumsum_axis, cumprod_axis, nanmin, nanmax, nanmean, nanstd, argmin_axis, argmax_axis, sum_axis, mean_axis, min_axis, max_axis);
     Ok(())
 }
 

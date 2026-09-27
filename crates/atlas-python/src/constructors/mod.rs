@@ -4,24 +4,12 @@ mod casting;
 #[path = "constructors.rs"]
 mod functions;
 
-use pyo3::{prelude::*, wrap_pyfunction};
+use pyo3::prelude::*;
 
 use crate::support::metadata;
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add_function(wrap_pyfunction!(asarray, module)?)?;
-    module.add_function(wrap_pyfunction!(zeros, module)?)?;
-    module.add_function(wrap_pyfunction!(ones, module)?)?;
-    module.add_function(wrap_pyfunction!(eye, module)?)?;
-    module.add_function(wrap_pyfunction!(identity, module)?)?;
-    module.add_function(wrap_pyfunction!(full, module)?)?;
-    module.add_function(wrap_pyfunction!(arange, module)?)?;
-    module.add_function(wrap_pyfunction!(linspace, module)?)?;
-    module.add_function(wrap_pyfunction!(astype, module)?)?;
-    module.add_function(wrap_pyfunction!(shape, module)?)?;
-    module.add_function(wrap_pyfunction!(ndim, module)?)?;
-    module.add_function(wrap_pyfunction!(size, module)?)?;
-    module.add_function(wrap_pyfunction!(dtype, module)?)?;
+    crate::register_functions!(module; asarray, zeros, ones, eye, identity, full, arange, linspace, astype, shape, ndim, size, dtype);
     Ok(())
 }
 
