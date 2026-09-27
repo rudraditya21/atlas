@@ -9,8 +9,6 @@ use pyo3::prelude::*;
 mod array_bindings;
 #[path = "bindings/random.rs"]
 mod random_bindings;
-#[path = "bindings/statistics.rs"]
-mod statistics_bindings;
 #[path = "bindings/support.rs"]
 mod support_bindings;
 
@@ -45,8 +43,6 @@ mod generator;
 #[path = "support/gil.rs"]
 mod gil;
 mod interop;
-#[path = "statistics/kurtosis.rs"]
-mod kurtosis_ops;
 mod linalg;
 #[path = "operations/logical.rs"]
 mod logical;
@@ -55,16 +51,12 @@ mod metadata;
 mod ml;
 #[path = "manipulation/pad.rs"]
 mod pad_ops;
-#[path = "statistics/pairwise.rs"]
-mod pairwise_ops;
 #[path = "indexing/partition.rs"]
 mod partition_ops;
 #[path = "indexing/put.rs"]
 mod put_ops;
 #[path = "support/dtype.rs"]
 mod python_dtype;
-#[path = "statistics/quantile.rs"]
-mod quantile_ops;
 #[path = "manipulation/ravel.rs"]
 mod ravel_ops;
 #[path = "reductions/reduction.rs"]
@@ -82,14 +74,13 @@ mod scalar;
 mod searchsorted_ops;
 #[path = "manipulation/shape_ops.rs"]
 mod shape_ops;
-#[path = "statistics/skewness.rs"]
-mod skewness_ops;
 #[path = "indexing/sort.rs"]
 mod sort_ops;
 #[path = "manipulation/split.rs"]
 mod split_ops;
 #[path = "manipulation/stack.rs"]
 mod stack_ops;
+mod statistics;
 #[path = "indexing/take.rs"]
 mod take_ops;
 #[cfg(feature = "test-support")]
@@ -101,8 +92,6 @@ mod tile_ops;
 mod unary;
 #[path = "indexing/unique.rs"]
 mod unique_ops;
-#[path = "statistics/weighted.rs"]
-mod weighted_ops;
 #[path = "operations/where_ops.rs"]
 mod where_ops;
 
@@ -112,7 +101,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     random_bindings::register(module)?;
     array_bindings::register(module)?;
     linalg::register(module)?;
-    statistics_bindings::register(module)?;
+    statistics::register(module)?;
     ml::register(module)?;
     interop::register(module)?;
     Ok(())

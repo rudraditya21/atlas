@@ -1,8 +1,19 @@
-//! Statistics Python bindings.
+//! Statistics Python binding modules.
+
+#[path = "kurtosis.rs"]
+mod kurtosis_ops;
+#[path = "pairwise.rs"]
+mod pairwise_ops;
+#[path = "quantile.rs"]
+mod quantile_ops;
+#[path = "skewness.rs"]
+mod skewness_ops;
+#[path = "weighted.rs"]
+mod weighted_ops;
 
 use pyo3::{prelude::*, wrap_pyfunction};
 
-use crate::{kurtosis_ops, pairwise_ops, quantile_ops, reduction, skewness_ops, weighted_ops};
+use crate::reduction;
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(variance, module)?)?;
