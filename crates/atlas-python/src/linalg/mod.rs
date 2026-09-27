@@ -1,11 +1,35 @@
-//! Linalg Python bindings.
+//! Linear algebra Python binding modules.
+
+#[path = "cholesky.rs"]
+mod cholesky_ops;
+#[path = "conjugate_gradient.rs"]
+mod conjugate_gradient_ops;
+#[path = "determinant.rs"]
+mod determinant_ops;
+#[path = "diag.rs"]
+mod diag_ops;
+#[path = "dot.rs"]
+mod dot_ops;
+#[path = "eigen.rs"]
+mod eigen_ops;
+#[path = "inverse.rs"]
+mod inverse_ops;
+#[path = "matmul.rs"]
+mod matmul_ops;
+#[path = "matrix_norm.rs"]
+mod matrix_norm_ops;
+#[path = "norm.rs"]
+mod norm_ops;
+#[path = "qr.rs"]
+mod qr_ops;
+#[path = "slogdet.rs"]
+mod slogdet_ops;
+#[path = "solve.rs"]
+mod solve_ops;
+#[path = "trace.rs"]
+mod trace_ops;
 
 use pyo3::{prelude::*, wrap_pyfunction};
-
-use crate::{
-    cholesky_ops, conjugate_gradient_ops, determinant_ops, diag_ops, dot_ops, eigen_ops,
-    inverse_ops, matmul_ops, matrix_norm_ops, norm_ops, qr_ops, slogdet_ops, solve_ops, trace_ops,
-};
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<conjugate_gradient_ops::ConjugateGradientResult>()?;

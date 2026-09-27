@@ -7,8 +7,6 @@ use pyo3::prelude::*;
 
 #[path = "bindings/arrays.rs"]
 mod array_bindings;
-#[path = "bindings/linalg.rs"]
-mod linalg_bindings;
 #[path = "bindings/random.rs"]
 mod random_bindings;
 #[path = "bindings/statistics.rs"]
@@ -28,26 +26,14 @@ mod array;
 mod bitwise;
 #[path = "constructors/casting.rs"]
 mod casting;
-#[path = "linalg/cholesky.rs"]
-mod cholesky_ops;
 #[path = "operations/clip.rs"]
 mod clip_ops;
 #[path = "operations/close.rs"]
 mod close;
 #[path = "manipulation/concat.rs"]
 mod concat_ops;
-#[path = "linalg/conjugate_gradient.rs"]
-mod conjugate_gradient_ops;
 #[path = "constructors/constructors.rs"]
 mod constructors;
-#[path = "linalg/determinant.rs"]
-mod determinant_ops;
-#[path = "linalg/diag.rs"]
-mod diag_ops;
-#[path = "linalg/dot.rs"]
-mod dot_ops;
-#[path = "linalg/eigen.rs"]
-mod eigen_ops;
 #[path = "support/error.rs"]
 mod error;
 #[path = "manipulation/flatten.rs"]
@@ -59,21 +45,14 @@ mod generator;
 #[path = "support/gil.rs"]
 mod gil;
 mod interop;
-#[path = "linalg/inverse.rs"]
-mod inverse_ops;
 #[path = "statistics/kurtosis.rs"]
 mod kurtosis_ops;
+mod linalg;
 #[path = "operations/logical.rs"]
 mod logical;
-#[path = "linalg/matmul.rs"]
-mod matmul_ops;
-#[path = "linalg/matrix_norm.rs"]
-mod matrix_norm_ops;
 #[path = "support/metadata.rs"]
 mod metadata;
 mod ml;
-#[path = "linalg/norm.rs"]
-mod norm_ops;
 #[path = "manipulation/pad.rs"]
 mod pad_ops;
 #[path = "statistics/pairwise.rs"]
@@ -84,8 +63,6 @@ mod partition_ops;
 mod put_ops;
 #[path = "support/dtype.rs"]
 mod python_dtype;
-#[path = "linalg/qr.rs"]
-mod qr_ops;
 #[path = "statistics/quantile.rs"]
 mod quantile_ops;
 #[path = "manipulation/ravel.rs"]
@@ -107,10 +84,6 @@ mod searchsorted_ops;
 mod shape_ops;
 #[path = "statistics/skewness.rs"]
 mod skewness_ops;
-#[path = "linalg/slogdet.rs"]
-mod slogdet_ops;
-#[path = "linalg/solve.rs"]
-mod solve_ops;
 #[path = "indexing/sort.rs"]
 mod sort_ops;
 #[path = "manipulation/split.rs"]
@@ -124,8 +97,6 @@ mod take_ops;
 mod test_support;
 #[path = "manipulation/tile.rs"]
 mod tile_ops;
-#[path = "linalg/trace.rs"]
-mod trace_ops;
 #[path = "operations/unary.rs"]
 mod unary;
 #[path = "indexing/unique.rs"]
@@ -140,7 +111,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     support_bindings::register(module)?;
     random_bindings::register(module)?;
     array_bindings::register(module)?;
-    linalg_bindings::register(module)?;
+    linalg::register(module)?;
     statistics_bindings::register(module)?;
     ml::register(module)?;
     interop::register(module)?;
