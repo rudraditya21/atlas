@@ -12,6 +12,7 @@ crate-type = ["cdylib"]
 test-support = []
 
 [dependencies]
+atlas-arrow.workspace = true
 atlas-linalg.workspace = true
 atlas-ml.workspace = true
 atlas-ndarray.workspace = true

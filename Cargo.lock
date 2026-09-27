@@ -190,6 +190,7 @@ dependencies = [
 name = "atlas-python"
 version = "0.1.0"
 dependencies = [
+ "atlas-arrow",
  "atlas-linalg",
  "atlas-ml",
  "atlas-ndarray",

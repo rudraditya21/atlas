@@ -13,6 +13,8 @@ mod argsort_ops;
 mod arithmetic;
 #[path = "support/array.rs"]
 mod array;
+#[path = "interop/arrow.rs"]
+mod arrow_ops;
 #[path = "operations/bitwise.rs"]
 mod bitwise;
 #[path = "constructors/casting.rs"]
@@ -244,6 +246,8 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(train_test_split, module)?)?;
     module.add_function(wrap_pyfunction!(k_fold_split, module)?)?;
     module.add_function(wrap_pyfunction!(stratified_k_fold_split, module)?)?;
+    module.add_function(wrap_pyfunction!(to_arrow_primitive, module)?)?;
+    module.add_function(wrap_pyfunction!(from_arrow_primitive, module)?)?;
     module.add_function(wrap_pyfunction!(ravel, module)?)?;
     module.add_function(wrap_pyfunction!(flatten, module)?)?;
     module.add_function(wrap_pyfunction!(nonzero, module)?)?;
@@ -791,6 +795,16 @@ fn stratified_k_fold_split(
     seed: u64,
 ) -> PyResult<Vec<Py<k_fold_ops::KFold>>> {
     k_fold_ops::stratified_k_fold_split(py, features, labels, fold_count, seed)
+}
+
+#[pyfunction]
+fn to_arrow_primitive(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    arrow_ops::to_arrow_primitive(py, value)
+}
+
+#[pyfunction]
+fn from_arrow_primitive(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    arrow_ops::from_arrow_primitive(py, value)
 }
 
 #[pyfunction]

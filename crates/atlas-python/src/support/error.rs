@@ -1,5 +1,6 @@
 use std::fmt::Display;
 
+use atlas_arrow::AtlasArrowError;
 use atlas_linalg::AtlasLinalgError;
 use atlas_ml::AtlasMlError;
 use atlas_ndarray::AtlasNdError;
@@ -83,6 +84,17 @@ pub(crate) fn ml(py: Python<'_>, error: AtlasMlError) -> PyErr {
         AtlasMlError::NdArray(error) => ndarray(py, error.clone()),
         AtlasMlError::Linalg(error) => linalg(py, error.clone()),
         error => python_error(py, "ModelError", error),
+    }
+}
+
+pub(crate) fn arrow(py: Python<'_>, error: AtlasArrowError) -> PyErr {
+    match &error {
+        AtlasArrowError::NdArray(error) => ndarray(py, error.clone()),
+        AtlasArrowError::InvalidInputRank { .. } => python_error(py, "ShapeError", error),
+        AtlasArrowError::NullValues { .. }
+        | AtlasArrowError::ColumnNameCountMismatch { .. }
+        | AtlasArrowError::ColumnDTypeMismatch { .. }
+        | AtlasArrowError::RecordBatch { .. } => python_error(py, "NumericError", error),
     }
 }
 
