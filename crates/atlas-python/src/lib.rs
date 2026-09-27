@@ -10,10 +10,6 @@ mod array_bindings;
 #[path = "bindings/support.rs"]
 mod support_bindings;
 
-#[path = "indexing/argpartition.rs"]
-mod argpartition_ops;
-#[path = "indexing/argsort.rs"]
-mod argsort_ops;
 #[path = "support/array.rs"]
 mod array;
 #[path = "manipulation/concat.rs"]
@@ -27,16 +23,13 @@ mod flatten_ops;
 mod flip_ops;
 #[path = "support/gil.rs"]
 mod gil;
+mod indexing;
 mod interop;
 mod linalg;
 mod ml;
 mod operations;
 #[path = "manipulation/pad.rs"]
 mod pad_ops;
-#[path = "indexing/partition.rs"]
-mod partition_ops;
-#[path = "indexing/put.rs"]
-mod put_ops;
 #[path = "support/dtype.rs"]
 mod python_dtype;
 mod random;
@@ -52,26 +45,18 @@ mod roll_ops;
 #[cfg(feature = "test-support")]
 #[path = "support/scalar.rs"]
 mod scalar;
-#[path = "indexing/searchsorted.rs"]
-mod searchsorted_ops;
 #[path = "manipulation/shape_ops.rs"]
 mod shape_ops;
-#[path = "indexing/sort.rs"]
-mod sort_ops;
 #[path = "manipulation/split.rs"]
 mod split_ops;
 #[path = "manipulation/stack.rs"]
 mod stack_ops;
 mod statistics;
-#[path = "indexing/take.rs"]
-mod take_ops;
 #[cfg(feature = "test-support")]
 #[path = "support/test_support.rs"]
 mod test_support;
 #[path = "manipulation/tile.rs"]
 mod tile_ops;
-#[path = "indexing/unique.rs"]
-mod unique_ops;
 
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -80,6 +65,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     constructors::register(module)?;
     operations::register(module)?;
     reductions::register(module)?;
+    indexing::register(module)?;
     array_bindings::register(module)?;
     linalg::register(module)?;
     statistics::register(module)?;
