@@ -23,6 +23,7 @@ LinearRegression = _native.LinearRegression
 RidgeRegression = _native.RidgeRegression
 BinaryLogisticRegression = _native.BinaryLogisticRegression
 BinaryPerceptron = _native.BinaryPerceptron
+NearestCentroidClassifier = _native.NearestCentroidClassifier
 
 _ATLAS_DTYPE_NAMES = frozenset(
     {
@@ -733,6 +734,7 @@ __all__ = sorted(
         "LinearRegression",
         "RidgeRegression",
         "ModelError",
+        "NearestCentroidClassifier",
         "NumericError",
         "ShapeError",
         "SliceError",

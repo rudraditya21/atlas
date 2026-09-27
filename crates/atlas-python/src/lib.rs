@@ -66,6 +66,8 @@ mod metadata;
 #[allow(dead_code, reason = "model classes are registered incrementally")]
 #[path = "ml/model.rs"]
 mod model_support;
+#[path = "ml/nearest_centroid.rs"]
+mod nearest_centroid_ops;
 #[path = "linalg/norm.rs"]
 mod norm_ops;
 #[path = "manipulation/pad.rs"]
@@ -144,6 +146,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<ridge_regression_ops::RidgeRegression>()?;
     module.add_class::<logistic_regression_ops::BinaryLogisticRegression>()?;
     module.add_class::<perceptron_ops::BinaryPerceptron>()?;
+    module.add_class::<nearest_centroid_ops::NearestCentroidClassifier>()?;
     module.add_function(wrap_pyfunction!(version, module)?)?;
     module.add_function(wrap_pyfunction!(asarray, module)?)?;
     module.add_function(wrap_pyfunction!(zeros, module)?)?;
