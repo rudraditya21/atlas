@@ -189,6 +189,8 @@ matrix_norm = _native.matrix_norm
 det = _native.det
 inverse = _native.inverse
 solve = _native.solve
+cholesky = _native.cholesky
+solve_spd = _native.solve_spd
 ravel = _native.ravel
 flatten = _native.flatten
 clip = _native.clip
@@ -582,6 +584,7 @@ for _name in (
     "matrix_norm",
     "det",
     "inverse",
+    "cholesky",
     "ravel",
     "flatten",
     "nonzero",
@@ -678,6 +681,7 @@ for _name in ("dot", "matmul", "allclose"):
     )
 
 solve = _coerce_arrays(solve, required=((0, "matrix"), (1, "rhs")))
+solve_spd = _coerce_arrays(solve_spd, required=((0, "matrix"), (1, "rhs")))
 
 for _name in ("select", "masked_fill"):
     globals()[_name] = _coerce_arrays(
@@ -742,6 +746,7 @@ __all__ = sorted(
         "concatenate",
         "copy",
         "copyto",
+        "cholesky",
         "divide",
         "diag",
         "det",
@@ -792,6 +797,7 @@ __all__ = sorted(
         "shares_memory",
         "size",
         "solve",
+        "solve_spd",
         "split",
         "sort",
         "subtract",

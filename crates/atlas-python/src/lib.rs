@@ -17,6 +17,8 @@ mod array;
 mod bitwise;
 #[path = "constructors/casting.rs"]
 mod casting;
+#[path = "linalg/cholesky.rs"]
+mod cholesky_ops;
 #[path = "operations/clip.rs"]
 mod clip_ops;
 #[path = "operations/close.rs"]
@@ -164,6 +166,8 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(det, module)?)?;
     module.add_function(wrap_pyfunction!(inverse, module)?)?;
     module.add_function(wrap_pyfunction!(solve, module)?)?;
+    module.add_function(wrap_pyfunction!(cholesky, module)?)?;
+    module.add_function(wrap_pyfunction!(solve_spd, module)?)?;
     module.add_function(wrap_pyfunction!(ravel, module)?)?;
     module.add_function(wrap_pyfunction!(flatten, module)?)?;
     module.add_function(wrap_pyfunction!(nonzero, module)?)?;
@@ -540,6 +544,20 @@ fn inverse(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
 #[pyfunction]
 fn solve(py: Python<'_>, matrix: &Bound<'_, PyAny>, rhs: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     solve_ops::solve(py, matrix, rhs)
+}
+
+#[pyfunction]
+fn cholesky(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    cholesky_ops::cholesky(py, value)
+}
+
+#[pyfunction]
+fn solve_spd(
+    py: Python<'_>,
+    matrix: &Bound<'_, PyAny>,
+    rhs: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyAny>> {
+    cholesky_ops::solve_spd(py, matrix, rhs)
 }
 
 #[pyfunction]
