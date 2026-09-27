@@ -33,6 +33,8 @@ mod determinant_ops;
 mod diag_ops;
 #[path = "linalg/dot.rs"]
 mod dot_ops;
+#[path = "linalg/eigen.rs"]
+mod eigen_ops;
 #[path = "support/error.rs"]
 mod error;
 #[path = "manipulation/flatten.rs"]
@@ -177,6 +179,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(qr, module)?)?;
     module.add_function(wrap_pyfunction!(least_squares, module)?)?;
     module.add_function(wrap_pyfunction!(matrix_rank, module)?)?;
+    module.add_function(wrap_pyfunction!(symmetric_eigendecomposition, module)?)?;
     module.add_function(wrap_pyfunction!(ravel, module)?)?;
     module.add_function(wrap_pyfunction!(flatten, module)?)?;
     module.add_function(wrap_pyfunction!(nonzero, module)?)?;
@@ -600,6 +603,14 @@ fn least_squares(
 #[pyfunction]
 fn matrix_rank(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<usize> {
     qr_ops::matrix_rank(py, value)
+}
+
+#[pyfunction]
+fn symmetric_eigendecomposition(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
+    eigen_ops::symmetric_eigendecomposition(py, value)
 }
 
 #[pyfunction]

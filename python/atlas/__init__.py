@@ -196,6 +196,7 @@ solve_spd = _native.solve_spd
 qr = _native.qr
 least_squares = _native.least_squares
 matrix_rank = _native.matrix_rank
+symmetric_eigendecomposition = _native.symmetric_eigendecomposition
 ravel = _native.ravel
 flatten = _native.flatten
 clip = _native.clip
@@ -589,6 +590,7 @@ for _name in (
     "matrix_norm",
     "qr",
     "matrix_rank",
+    "symmetric_eigendecomposition",
     "det",
     "slogdet",
     "inverse",
@@ -811,6 +813,7 @@ __all__ = sorted(
         "solve_transpose",
         "slogdet",
         "solve_spd",
+        "symmetric_eigendecomposition",
         "least_squares",
         "split",
         "sort",
