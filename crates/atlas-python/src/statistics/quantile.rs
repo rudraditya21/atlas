@@ -1,6 +1,5 @@
 use atlas_stats::QuantileInterpolation;
 use pyo3::{
-    IntoPyObjectExt,
     exceptions::{PyTypeError, PyValueError},
     prelude::*,
 };
