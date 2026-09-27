@@ -22,6 +22,7 @@ ConjugateGradientResult = _native.ConjugateGradientResult
 ConfusionMatrix = _native.ConfusionMatrix
 ClassificationReport = _native.ClassificationReport
 TrainTestSplit = _native.TrainTestSplit
+KFold = _native.KFold
 LinearRegression = _native.LinearRegression
 RidgeRegression = _native.RidgeRegression
 BinaryLogisticRegression = _native.BinaryLogisticRegression
@@ -223,6 +224,8 @@ r_squared = _native.r_squared
 confusion_matrix = _native.confusion_matrix
 classification_report = _native.classification_report
 train_test_split = _native.train_test_split
+k_fold_split = _native.k_fold_split
+stratified_k_fold_split = _native.stratified_k_fold_split
 ravel = _native.ravel
 flatten = _native.flatten
 clip = _native.clip
@@ -743,6 +746,10 @@ for _name in ("confusion_matrix", "classification_report"):
 train_test_split = _coerce_arrays(
     train_test_split, required=((0, "features"), (1, "targets"))
 )
+k_fold_split = _coerce_arrays(k_fold_split, required=((0, "features"),))
+stratified_k_fold_split = _coerce_arrays(
+    stratified_k_fold_split, required=((0, "features"), (1, "labels"))
+)
 
 for _name in ("select", "masked_fill"):
     globals()[_name] = _coerce_arrays(
@@ -778,6 +785,7 @@ __all__ = sorted(
         "LinearRegression",
         "KnnClassifier",
         "KnnRegressor",
+        "KFold",
         "MinMaxScaler",
         "RidgeRegression",
         "ModelError",
@@ -897,7 +905,9 @@ __all__ = sorted(
         "swapaxes",
         "squeeze",
         "stddev",
+        "stratified_k_fold_split",
         "kurtosis",
+        "k_fold_split",
         "skewness",
         "median",
         "quantile",

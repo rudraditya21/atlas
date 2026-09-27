@@ -55,6 +55,8 @@ mod generator;
 mod gil;
 #[path = "linalg/inverse.rs"]
 mod inverse_ops;
+#[path = "ml/k_fold.rs"]
+mod k_fold_ops;
 #[path = "ml/knn_classifier.rs"]
 mod knn_classifier_ops;
 #[path = "ml/knn_regressor.rs"]
@@ -175,6 +177,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<metrics_ops::ConfusionMatrix>()?;
     module.add_class::<metrics_ops::ClassificationReport>()?;
     module.add_class::<train_test_split_ops::TrainTestSplit>()?;
+    module.add_class::<k_fold_ops::KFold>()?;
     module.add_function(wrap_pyfunction!(version, module)?)?;
     module.add_function(wrap_pyfunction!(asarray, module)?)?;
     module.add_function(wrap_pyfunction!(zeros, module)?)?;
@@ -239,6 +242,8 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(confusion_matrix, module)?)?;
     module.add_function(wrap_pyfunction!(classification_report, module)?)?;
     module.add_function(wrap_pyfunction!(train_test_split, module)?)?;
+    module.add_function(wrap_pyfunction!(k_fold_split, module)?)?;
+    module.add_function(wrap_pyfunction!(stratified_k_fold_split, module)?)?;
     module.add_function(wrap_pyfunction!(ravel, module)?)?;
     module.add_function(wrap_pyfunction!(flatten, module)?)?;
     module.add_function(wrap_pyfunction!(nonzero, module)?)?;
@@ -765,6 +770,27 @@ fn train_test_split(
     seed: u64,
 ) -> PyResult<Py<train_test_split_ops::TrainTestSplit>> {
     train_test_split_ops::train_test_split(py, features, targets, test_ratio, seed)
+}
+
+#[pyfunction(signature = (features, fold_count, seed = 0))]
+fn k_fold_split(
+    py: Python<'_>,
+    features: &Bound<'_, PyAny>,
+    fold_count: usize,
+    seed: u64,
+) -> PyResult<Vec<Py<k_fold_ops::KFold>>> {
+    k_fold_ops::k_fold_split(py, features, fold_count, seed)
+}
+
+#[pyfunction(signature = (features, labels, fold_count, seed = 0))]
+fn stratified_k_fold_split(
+    py: Python<'_>,
+    features: &Bound<'_, PyAny>,
+    labels: &Bound<'_, PyAny>,
+    fold_count: usize,
+    seed: u64,
+) -> PyResult<Vec<Py<k_fold_ops::KFold>>> {
+    k_fold_ops::stratified_k_fold_split(py, features, labels, fold_count, seed)
 }
 
 #[pyfunction]
