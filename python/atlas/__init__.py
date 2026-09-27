@@ -19,6 +19,8 @@ from .errors import (
 __version__ = _native.version()
 Generator = _native.Generator
 ConjugateGradientResult = _native.ConjugateGradientResult
+ConfusionMatrix = _native.ConfusionMatrix
+ClassificationReport = _native.ClassificationReport
 LinearRegression = _native.LinearRegression
 RidgeRegression = _native.RidgeRegression
 BinaryLogisticRegression = _native.BinaryLogisticRegression
@@ -217,6 +219,8 @@ log_loss = _native.log_loss
 mean_absolute_error = _native.mean_absolute_error
 mean_squared_error = _native.mean_squared_error
 r_squared = _native.r_squared
+confusion_matrix = _native.confusion_matrix
+classification_report = _native.classification_report
 ravel = _native.ravel
 flatten = _native.flatten
 clip = _native.clip
@@ -729,6 +733,11 @@ for _name in ("accuracy", "mean_absolute_error", "mean_squared_error", "r_square
 
 log_loss = _coerce_arrays(log_loss, required=((0, "actual"), (1, "probabilities")))
 
+for _name in ("confusion_matrix", "classification_report"):
+    globals()[_name] = _coerce_arrays(
+        globals()[_name], required=((0, "actual"), (1, "predicted"))
+    )
+
 for _name in ("select", "masked_fill"):
     globals()[_name] = _coerce_arrays(
         globals()[_name], required=((0, "value"), (1, "mask"))
@@ -754,7 +763,9 @@ __all__ = sorted(
         "BinaryGiniSplit",
         "BinaryLogisticRegression",
         "BinaryPerceptron",
+        "ClassificationReport",
         "ConjugateGradientResult",
+        "ConfusionMatrix",
         "DecisionStumpClassifier",
         "Generator",
         "GaussianNaiveBayes",
@@ -802,6 +813,7 @@ __all__ = sorted(
         "cumsum_axis",
         "clip",
         "choose",
+        "classification_report",
         "common_type",
         "concatenate",
         "copy",
@@ -865,6 +877,7 @@ __all__ = sorted(
         "solve_spd",
         "symmetric_eigendecomposition",
         "conjugate_gradient",
+        "confusion_matrix",
         "evaluate_binary_gini_split",
         "log_loss",
         "least_squares",

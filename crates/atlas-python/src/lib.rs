@@ -170,6 +170,8 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<decision_tree_ops::BinaryGiniSplit>()?;
     module.add_class::<scaler_ops::StandardScaler>()?;
     module.add_class::<scaler_ops::MinMaxScaler>()?;
+    module.add_class::<metrics_ops::ConfusionMatrix>()?;
+    module.add_class::<metrics_ops::ClassificationReport>()?;
     module.add_function(wrap_pyfunction!(version, module)?)?;
     module.add_function(wrap_pyfunction!(asarray, module)?)?;
     module.add_function(wrap_pyfunction!(zeros, module)?)?;
@@ -231,6 +233,8 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(mean_absolute_error, module)?)?;
     module.add_function(wrap_pyfunction!(mean_squared_error, module)?)?;
     module.add_function(wrap_pyfunction!(r_squared, module)?)?;
+    module.add_function(wrap_pyfunction!(confusion_matrix, module)?)?;
+    module.add_function(wrap_pyfunction!(classification_report, module)?)?;
     module.add_function(wrap_pyfunction!(ravel, module)?)?;
     module.add_function(wrap_pyfunction!(flatten, module)?)?;
     module.add_function(wrap_pyfunction!(nonzero, module)?)?;
@@ -728,6 +732,24 @@ fn r_squared(
     predicted: &Bound<'_, PyAny>,
 ) -> PyResult<f64> {
     metrics_ops::r_squared(py, actual, predicted)
+}
+
+#[pyfunction]
+fn confusion_matrix(
+    py: Python<'_>,
+    actual: &Bound<'_, PyAny>,
+    predicted: &Bound<'_, PyAny>,
+) -> PyResult<Py<metrics_ops::ConfusionMatrix>> {
+    metrics_ops::confusion_matrix(py, actual, predicted)
+}
+
+#[pyfunction]
+fn classification_report(
+    py: Python<'_>,
+    actual: &Bound<'_, PyAny>,
+    predicted: &Bound<'_, PyAny>,
+) -> PyResult<Py<metrics_ops::ClassificationReport>> {
+    metrics_ops::classification_report(py, actual, predicted)
 }
 
 #[pyfunction]
