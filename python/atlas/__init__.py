@@ -1,5 +1,6 @@
 """Public Python API for Atlas."""
 
+from . import interop, linalg, ml, random, statistics
 from ._public import *
 
 # Root-only compatibility helpers and NumPy-compatible aliases remain intentionally explicit.
