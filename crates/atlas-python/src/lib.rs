@@ -160,10 +160,52 @@ fn version() -> &'static str {
     env!("CARGO_PKG_VERSION")
 }
 
-#[pymodule]
-fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
-    module.add_class::<generator::Generator>()?;
+fn register_random(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_class::<generator::Generator>()
+}
+
+fn register_linalg(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<conjugate_gradient_ops::ConjugateGradientResult>()?;
+    module.add_function(wrap_pyfunction!(dot, module)?)?;
+    module.add_function(wrap_pyfunction!(norm, module)?)?;
+    module.add_function(wrap_pyfunction!(trace, module)?)?;
+    module.add_function(wrap_pyfunction!(diag, module)?)?;
+    module.add_function(wrap_pyfunction!(matrix_norm, module)?)?;
+    module.add_function(wrap_pyfunction!(det, module)?)?;
+    module.add_function(wrap_pyfunction!(inverse, module)?)?;
+    module.add_function(wrap_pyfunction!(solve, module)?)?;
+    module.add_function(wrap_pyfunction!(solve_transpose, module)?)?;
+    module.add_function(wrap_pyfunction!(slogdet, module)?)?;
+    module.add_function(wrap_pyfunction!(cholesky, module)?)?;
+    module.add_function(wrap_pyfunction!(solve_spd, module)?)?;
+    module.add_function(wrap_pyfunction!(qr, module)?)?;
+    module.add_function(wrap_pyfunction!(least_squares, module)?)?;
+    module.add_function(wrap_pyfunction!(matrix_rank, module)?)?;
+    module.add_function(wrap_pyfunction!(symmetric_eigendecomposition, module)?)?;
+    module.add_function(wrap_pyfunction!(conjugate_gradient, module)?)?;
+    module.add_function(wrap_pyfunction!(matmul, module)?)?;
+    Ok(())
+}
+
+fn register_statistics(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_function(wrap_pyfunction!(variance, module)?)?;
+    module.add_function(wrap_pyfunction!(stddev, module)?)?;
+    module.add_function(wrap_pyfunction!(kurtosis, module)?)?;
+    module.add_function(wrap_pyfunction!(skewness, module)?)?;
+    module.add_function(wrap_pyfunction!(median, module)?)?;
+    module.add_function(wrap_pyfunction!(quantile, module)?)?;
+    module.add_function(wrap_pyfunction!(median_axis, module)?)?;
+    module.add_function(wrap_pyfunction!(quantile_axis, module)?)?;
+    module.add_function(wrap_pyfunction!(weighted_mean, module)?)?;
+    module.add_function(wrap_pyfunction!(weighted_variance, module)?)?;
+    module.add_function(wrap_pyfunction!(covariance, module)?)?;
+    module.add_function(wrap_pyfunction!(correlation, module)?)?;
+    module.add_function(wrap_pyfunction!(covariance_matrix, module)?)?;
+    module.add_function(wrap_pyfunction!(correlation_matrix, module)?)?;
+    Ok(())
+}
+
+fn register_ml(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<linear_regression_ops::LinearRegression>()?;
     module.add_class::<ridge_regression_ops::RidgeRegression>()?;
     module.add_class::<logistic_regression_ops::BinaryLogisticRegression>()?;
@@ -180,6 +222,35 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<metrics_ops::ClassificationReport>()?;
     module.add_class::<train_test_split_ops::TrainTestSplit>()?;
     module.add_class::<k_fold_ops::KFold>()?;
+    module.add_function(wrap_pyfunction!(evaluate_binary_gini_split, module)?)?;
+    module.add_function(wrap_pyfunction!(accuracy, module)?)?;
+    module.add_function(wrap_pyfunction!(log_loss, module)?)?;
+    module.add_function(wrap_pyfunction!(mean_absolute_error, module)?)?;
+    module.add_function(wrap_pyfunction!(mean_squared_error, module)?)?;
+    module.add_function(wrap_pyfunction!(r_squared, module)?)?;
+    module.add_function(wrap_pyfunction!(confusion_matrix, module)?)?;
+    module.add_function(wrap_pyfunction!(classification_report, module)?)?;
+    module.add_function(wrap_pyfunction!(train_test_split, module)?)?;
+    module.add_function(wrap_pyfunction!(k_fold_split, module)?)?;
+    module.add_function(wrap_pyfunction!(stratified_k_fold_split, module)?)?;
+    Ok(())
+}
+
+fn register_interop(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_function(wrap_pyfunction!(to_arrow_primitive, module)?)?;
+    module.add_function(wrap_pyfunction!(from_arrow_primitive, module)?)?;
+    module.add_function(wrap_pyfunction!(to_arrow_record_batch, module)?)?;
+    module.add_function(wrap_pyfunction!(from_arrow_record_batch, module)?)?;
+    Ok(())
+}
+
+#[pymodule]
+fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    register_random(module)?;
+    register_linalg(module)?;
+    register_statistics(module)?;
+    register_ml(module)?;
+    register_interop(module)?;
     module.add_function(wrap_pyfunction!(version, module)?)?;
     module.add_function(wrap_pyfunction!(asarray, module)?)?;
     module.add_function(wrap_pyfunction!(zeros, module)?)?;
@@ -216,40 +287,8 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(bitwise_xor, module)?)?;
     module.add_function(wrap_pyfunction!(bitwise_not, module)?)?;
     module.add_function(wrap_pyfunction!(take, module)?)?;
-    module.add_function(wrap_pyfunction!(dot, module)?)?;
-    module.add_function(wrap_pyfunction!(norm, module)?)?;
-    module.add_function(wrap_pyfunction!(trace, module)?)?;
     module.add_function(wrap_pyfunction!(concatenate, module)?)?;
     module.add_function(wrap_pyfunction!(stack, module)?)?;
-    module.add_function(wrap_pyfunction!(diag, module)?)?;
-    module.add_function(wrap_pyfunction!(matrix_norm, module)?)?;
-    module.add_function(wrap_pyfunction!(det, module)?)?;
-    module.add_function(wrap_pyfunction!(inverse, module)?)?;
-    module.add_function(wrap_pyfunction!(solve, module)?)?;
-    module.add_function(wrap_pyfunction!(solve_transpose, module)?)?;
-    module.add_function(wrap_pyfunction!(slogdet, module)?)?;
-    module.add_function(wrap_pyfunction!(cholesky, module)?)?;
-    module.add_function(wrap_pyfunction!(solve_spd, module)?)?;
-    module.add_function(wrap_pyfunction!(qr, module)?)?;
-    module.add_function(wrap_pyfunction!(least_squares, module)?)?;
-    module.add_function(wrap_pyfunction!(matrix_rank, module)?)?;
-    module.add_function(wrap_pyfunction!(symmetric_eigendecomposition, module)?)?;
-    module.add_function(wrap_pyfunction!(conjugate_gradient, module)?)?;
-    module.add_function(wrap_pyfunction!(evaluate_binary_gini_split, module)?)?;
-    module.add_function(wrap_pyfunction!(accuracy, module)?)?;
-    module.add_function(wrap_pyfunction!(log_loss, module)?)?;
-    module.add_function(wrap_pyfunction!(mean_absolute_error, module)?)?;
-    module.add_function(wrap_pyfunction!(mean_squared_error, module)?)?;
-    module.add_function(wrap_pyfunction!(r_squared, module)?)?;
-    module.add_function(wrap_pyfunction!(confusion_matrix, module)?)?;
-    module.add_function(wrap_pyfunction!(classification_report, module)?)?;
-    module.add_function(wrap_pyfunction!(train_test_split, module)?)?;
-    module.add_function(wrap_pyfunction!(k_fold_split, module)?)?;
-    module.add_function(wrap_pyfunction!(stratified_k_fold_split, module)?)?;
-    module.add_function(wrap_pyfunction!(to_arrow_primitive, module)?)?;
-    module.add_function(wrap_pyfunction!(from_arrow_primitive, module)?)?;
-    module.add_function(wrap_pyfunction!(to_arrow_record_batch, module)?)?;
-    module.add_function(wrap_pyfunction!(from_arrow_record_batch, module)?)?;
     module.add_function(wrap_pyfunction!(ravel, module)?)?;
     module.add_function(wrap_pyfunction!(flatten, module)?)?;
     module.add_function(wrap_pyfunction!(nonzero, module)?)?;
@@ -259,20 +298,6 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(mean, module)?)?;
     module.add_function(wrap_pyfunction!(min, module)?)?;
     module.add_function(wrap_pyfunction!(max, module)?)?;
-    module.add_function(wrap_pyfunction!(variance, module)?)?;
-    module.add_function(wrap_pyfunction!(stddev, module)?)?;
-    module.add_function(wrap_pyfunction!(kurtosis, module)?)?;
-    module.add_function(wrap_pyfunction!(skewness, module)?)?;
-    module.add_function(wrap_pyfunction!(median, module)?)?;
-    module.add_function(wrap_pyfunction!(quantile, module)?)?;
-    module.add_function(wrap_pyfunction!(median_axis, module)?)?;
-    module.add_function(wrap_pyfunction!(quantile_axis, module)?)?;
-    module.add_function(wrap_pyfunction!(weighted_mean, module)?)?;
-    module.add_function(wrap_pyfunction!(weighted_variance, module)?)?;
-    module.add_function(wrap_pyfunction!(covariance, module)?)?;
-    module.add_function(wrap_pyfunction!(correlation, module)?)?;
-    module.add_function(wrap_pyfunction!(covariance_matrix, module)?)?;
-    module.add_function(wrap_pyfunction!(correlation_matrix, module)?)?;
     module.add_function(wrap_pyfunction!(argmin, module)?)?;
     module.add_function(wrap_pyfunction!(argmax, module)?)?;
     module.add_function(wrap_pyfunction!(cumsum, module)?)?;
@@ -310,7 +335,6 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(expand_dims, module)?)?;
     module.add_function(wrap_pyfunction!(allclose, module)?)?;
     module.add_function(wrap_pyfunction!(clip, module)?)?;
-    module.add_function(wrap_pyfunction!(matmul, module)?)?;
     module.add_function(wrap_pyfunction!(neg, module)?)?;
     module.add_function(wrap_pyfunction!(abs, module)?)?;
     module.add_function(wrap_pyfunction!(sign, module)?)?;
