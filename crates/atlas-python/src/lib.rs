@@ -14,16 +14,8 @@ mod support_bindings;
 mod argpartition_ops;
 #[path = "indexing/argsort.rs"]
 mod argsort_ops;
-#[path = "operations/arithmetic.rs"]
-mod arithmetic;
 #[path = "support/array.rs"]
 mod array;
-#[path = "operations/bitwise.rs"]
-mod bitwise;
-#[path = "operations/clip.rs"]
-mod clip_ops;
-#[path = "operations/close.rs"]
-mod close;
 #[path = "manipulation/concat.rs"]
 mod concat_ops;
 mod constructors;
@@ -37,9 +29,8 @@ mod flip_ops;
 mod gil;
 mod interop;
 mod linalg;
-#[path = "operations/logical.rs"]
-mod logical;
 mod ml;
+mod operations;
 #[path = "manipulation/pad.rs"]
 mod pad_ops;
 #[path = "indexing/partition.rs"]
@@ -80,18 +71,15 @@ mod take_ops;
 mod test_support;
 #[path = "manipulation/tile.rs"]
 mod tile_ops;
-#[path = "operations/unary.rs"]
-mod unary;
 #[path = "indexing/unique.rs"]
 mod unique_ops;
-#[path = "operations/where_ops.rs"]
-mod where_ops;
 
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     support_bindings::register(module)?;
     random::register(module)?;
     constructors::register(module)?;
+    operations::register(module)?;
     array_bindings::register(module)?;
     linalg::register(module)?;
     statistics::register(module)?;
