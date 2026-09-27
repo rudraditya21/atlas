@@ -12,51 +12,30 @@ mod support_bindings;
 
 #[path = "support/array.rs"]
 mod array;
-#[path = "manipulation/concat.rs"]
-mod concat_ops;
 mod constructors;
 #[path = "support/error.rs"]
 mod error;
-#[path = "manipulation/flatten.rs"]
-mod flatten_ops;
-#[path = "manipulation/flip.rs"]
-mod flip_ops;
 #[path = "support/gil.rs"]
 mod gil;
 mod indexing;
 mod interop;
 mod linalg;
+mod manipulation;
 mod ml;
 mod operations;
-#[path = "manipulation/pad.rs"]
-mod pad_ops;
 #[path = "support/dtype.rs"]
 mod python_dtype;
 mod random;
-#[path = "manipulation/ravel.rs"]
-mod ravel_ops;
 mod reductions;
-#[path = "manipulation/repeat.rs"]
-mod repeat_ops;
 #[path = "support/results.rs"]
 mod results;
-#[path = "manipulation/roll.rs"]
-mod roll_ops;
 #[cfg(feature = "test-support")]
 #[path = "support/scalar.rs"]
 mod scalar;
-#[path = "manipulation/shape_ops.rs"]
-mod shape_ops;
-#[path = "manipulation/split.rs"]
-mod split_ops;
-#[path = "manipulation/stack.rs"]
-mod stack_ops;
 mod statistics;
 #[cfg(feature = "test-support")]
 #[path = "support/test_support.rs"]
 mod test_support;
-#[path = "manipulation/tile.rs"]
-mod tile_ops;
 
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -66,6 +45,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     operations::register(module)?;
     reductions::register(module)?;
     indexing::register(module)?;
+    manipulation::register(module)?;
     array_bindings::register(module)?;
     linalg::register(module)?;
     statistics::register(module)?;
