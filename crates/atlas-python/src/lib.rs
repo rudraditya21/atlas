@@ -53,6 +53,10 @@ mod gil;
 mod inverse_ops;
 #[path = "ml/knn_classifier.rs"]
 mod knn_classifier_ops;
+#[path = "ml/knn_regressor.rs"]
+mod knn_regressor_ops;
+#[path = "ml/knn.rs"]
+mod knn_support;
 #[path = "statistics/kurtosis.rs"]
 mod kurtosis_ops;
 #[path = "ml/linear_regression.rs"]
@@ -153,6 +157,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<nearest_centroid_ops::NearestCentroidClassifier>()?;
     module.add_class::<gaussian_naive_bayes_ops::GaussianNaiveBayes>()?;
     module.add_class::<knn_classifier_ops::KnnClassifier>()?;
+    module.add_class::<knn_regressor_ops::KnnRegressor>()?;
     module.add_function(wrap_pyfunction!(version, module)?)?;
     module.add_function(wrap_pyfunction!(asarray, module)?)?;
     module.add_function(wrap_pyfunction!(zeros, module)?)?;

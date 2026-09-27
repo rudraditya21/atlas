@@ -26,6 +26,7 @@ BinaryPerceptron = _native.BinaryPerceptron
 NearestCentroidClassifier = _native.NearestCentroidClassifier
 GaussianNaiveBayes = _native.GaussianNaiveBayes
 KnnClassifier = _native.KnnClassifier
+KnnRegressor = _native.KnnRegressor
 
 _ATLAS_DTYPE_NAMES = frozenset(
     {
@@ -736,6 +737,7 @@ __all__ = sorted(
         "GaussianNaiveBayes",
         "LinearRegression",
         "KnnClassifier",
+        "KnnRegressor",
         "RidgeRegression",
         "ModelError",
         "NearestCentroidClassifier",

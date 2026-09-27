@@ -2,18 +2,17 @@ use pyo3::prelude::*;
 
 use crate::{array, gil, knn_support, model_support};
 
-const FIT_OP: &str = "knn_classifier_fit";
-const PREDICT_PROBA_OP: &str = "knn_classifier_predict_proba";
-const PREDICT_OP: &str = "knn_classifier_predict";
+const FIT_OP: &str = "knn_regressor_fit";
+const PREDICT_OP: &str = "knn_regressor_predict";
 
 #[pyclass(module = "atlas._native")]
-pub(crate) struct KnnClassifier {
+pub(crate) struct KnnRegressor {
     config: atlas_ml::KnnConfig,
-    model: model_support::NativeModel<atlas_ml::KnnClassifier>,
+    model: model_support::NativeModel<atlas_ml::KnnRegressor>,
 }
 
 #[pymethods]
-impl KnnClassifier {
+impl KnnRegressor {
     #[new]
     #[pyo3(signature = (
         k,
@@ -37,26 +36,17 @@ impl KnnClassifier {
         mut slf: PyRefMut<'py, Self>,
         py: Python<'_>,
         features: &Bound<'_, PyAny>,
-        labels: &Bound<'_, PyAny>,
+        targets: &Bound<'_, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let (features, labels) =
-            model_support::classifier_fit_inputs(py, features, labels, FIT_OP)?;
+        let (features, targets) =
+            model_support::regression_fit_inputs(py, features, targets, FIT_OP)?;
         let config = slf.config;
         let model =
-            gil::without_gil(py, move || atlas_ml::KnnClassifier::fit(features, labels, config))
+            gil::without_gil(py, move || atlas_ml::KnnRegressor::fit(features, targets, config))
                 .map_err(|error| crate::error::ml(py, error))?;
 
         slf.model.replace(model);
         Ok(slf)
-    }
-
-    fn predict_proba(&self, py: Python<'_>, features: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-        let features = model_support::predict_features(py, features, PREDICT_PROBA_OP)?;
-        let model = self.model.fitted(py, PREDICT_PROBA_OP)?;
-        let probabilities = gil::without_gil(py, move || model.predict_proba(&features))
-            .map_err(|error| crate::error::ml(py, error))?;
-
-        Ok(array::to_numpy_owned(py, probabilities)?.into_any().unbind())
     }
 
     fn predict(&self, py: Python<'_>, features: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
