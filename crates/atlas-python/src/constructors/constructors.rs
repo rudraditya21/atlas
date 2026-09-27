@@ -5,9 +5,9 @@ use pyo3::{
     types::{PyDict, PySequence},
 };
 
-use crate::{
-    array,
-    python_dtype::{DType, with_dtype},
+use crate::support::{
+    arrays as array,
+    dtypes::{DType, with_dtype},
 };
 
 pub(crate) fn asarray(
@@ -208,7 +208,7 @@ fn output<T>(py: Python<'_>, array: atlas_ndarray::AtlasNdResult<NDArray<T>>) ->
 where
     T: atlas_ndarray::ArrayElement + numpy::Element,
 {
-    let array = array.map_err(|error| crate::error::ndarray(py, error))?;
+    let array = array.map_err(|error| crate::support::errors::ndarray(py, error))?;
 
     output_owned(py, array)
 }

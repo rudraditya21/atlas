@@ -1,6 +1,6 @@
 use pyo3::{IntoPyObjectExt, exceptions::PyTypeError, prelude::*};
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 pub(crate) fn dot(
     py: Python<'_>,
@@ -15,7 +15,7 @@ pub(crate) fn dot(
             let lhs = array::from_numpy(array::readonly_from_python::<$ty>(py, lhs)?)?;
             let rhs = array::from_numpy(array::readonly_from_python::<$ty>(py, rhs)?)?;
             match gil::without_gil(py, move || atlas_linalg::dot(&lhs, &rhs))
-                .map_err(|error| crate::error::linalg(py, error))?
+                .map_err(|error| crate::support::errors::linalg(py, error))?
             {
                 atlas_linalg::DotOutput::Scalar(value) => value.into_py_any(py),
                 atlas_linalg::DotOutput::Array(array) => {

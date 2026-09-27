@@ -1,6 +1,6 @@
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 pub(crate) fn symmetric_eigendecomposition(
     py: Python<'_>,
@@ -14,7 +14,7 @@ pub(crate) fn symmetric_eigendecomposition(
             let value = array::from_numpy(array::readonly_from_python::<$ty>(py, value)?)?;
             let decomposition =
                 gil::without_gil(py, move || atlas_linalg::symmetric_eigendecomposition(&value))
-                    .map_err(|error| crate::error::linalg(py, error))?;
+                    .map_err(|error| crate::support::errors::linalg(py, error))?;
             Ok((
                 array::to_numpy_owned(py, decomposition.eigenvalues().clone())?.into_any().unbind(),
                 array::to_numpy_owned(py, decomposition.eigenvectors().clone())?

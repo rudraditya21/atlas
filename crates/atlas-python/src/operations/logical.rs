@@ -1,6 +1,6 @@
 use pyo3::{IntoPyObjectExt, exceptions::PyTypeError, prelude::*, types::PyTuple};
 
-use crate::{array, gil, python_dtype::with_dtype};
+use crate::support::{arrays as array, dtypes::with_dtype, gil};
 
 #[derive(Clone, Copy)]
 enum Comparison {
@@ -124,7 +124,7 @@ pub(crate) fn select(
 pub(crate) fn nonzero(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     with_array!(py, value, |array| {
         let indices = gil::without_gil(py, move || array.nonzero_indices())
-            .map_err(|error| crate::error::ndarray(py, error))?;
+            .map_err(|error| crate::support::errors::ndarray(py, error))?;
         let (data, shape) = indices.into_raw_parts();
         let matches = shape[0];
         let dimensions = shape[1];
@@ -182,7 +182,7 @@ pub(crate) fn masked_fill(
             array.masked_fill(&mask, fill)?;
             Ok::<_, atlas_ndarray::AtlasNdError>(array)
         })
-        .map_err(|error| crate::error::ndarray(py, error))?;
+        .map_err(|error| crate::support::errors::ndarray(py, error))?;
         output_owned(py, array)
     })
 }
@@ -276,7 +276,7 @@ fn output<T>(
 where
     T: atlas_ndarray::ArrayElement + numpy::Element,
 {
-    output_owned(py, array.map_err(|error| crate::error::ndarray(py, error))?)
+    output_owned(py, array.map_err(|error| crate::support::errors::ndarray(py, error))?)
 }
 
 fn output_owned<T>(py: Python<'_>, array: atlas_ndarray::NDArray<T>) -> PyResult<Py<PyAny>>

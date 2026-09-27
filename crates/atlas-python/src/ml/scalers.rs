@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 const STANDARD_TRANSFORM_OP: &str = "standard_scaler_transform";
 const STANDARD_INVERSE_TRANSFORM_OP: &str = "standard_scaler_inverse_transform";
@@ -26,7 +26,7 @@ impl StandardScaler {
     ) -> PyResult<PyRefMut<'py, Self>> {
         let features = array::feature_matrix_f64(py, features)?;
         let model = gil::without_gil(py, move || atlas_ml::StandardScaler::fit(&features))
-            .map_err(|error| crate::error::ml(py, error))?;
+            .map_err(|error| crate::support::errors::ml(py, error))?;
 
         slf.model.replace(model);
         Ok(slf)
@@ -36,11 +36,11 @@ impl StandardScaler {
         &mut self,
         py: Python<'_>,
         features: &Bound<'_, PyAny>,
-    ) -> crate::results::PyObjectResult {
+    ) -> crate::support::results::PyObjectResult {
         let features = array::feature_matrix_f64(py, features)?;
         let (model, transformed) =
             gil::without_gil(py, move || atlas_ml::StandardScaler::fit_transform(&features))
-                .map_err(|error| crate::error::ml(py, error))?;
+                .map_err(|error| crate::support::errors::ml(py, error))?;
 
         self.model.replace(model);
         Ok(array::to_numpy_owned(py, transformed)?.into_any().unbind())
@@ -50,7 +50,7 @@ impl StandardScaler {
         &self,
         py: Python<'_>,
         features: &Bound<'_, PyAny>,
-    ) -> crate::results::PyObjectResult {
+    ) -> crate::support::results::PyObjectResult {
         transform(py, features, &self.model, STANDARD_TRANSFORM_OP, |model, features| {
             model.transform(features)
         })
@@ -60,7 +60,7 @@ impl StandardScaler {
         &self,
         py: Python<'_>,
         features: &Bound<'_, PyAny>,
-    ) -> crate::results::PyObjectResult {
+    ) -> crate::support::results::PyObjectResult {
         transform(py, features, &self.model, STANDARD_INVERSE_TRANSFORM_OP, |model, features| {
             model.inverse_transform(features)
         })
@@ -93,7 +93,7 @@ impl MinMaxScaler {
         let model = gil::without_gil(py, move || {
             atlas_ml::MinMaxScaler::fit_with_range(&features, output_minimum, output_maximum)
         })
-        .map_err(|error| crate::error::ml(py, error))?;
+        .map_err(|error| crate::support::errors::ml(py, error))?;
 
         slf.model.replace(model);
         Ok(slf)
@@ -103,7 +103,7 @@ impl MinMaxScaler {
         &mut self,
         py: Python<'_>,
         features: &Bound<'_, PyAny>,
-    ) -> crate::results::PyObjectResult {
+    ) -> crate::support::results::PyObjectResult {
         let features = array::feature_matrix_f64(py, features)?;
         let output_minimum = self.output_minimum;
         let output_maximum = self.output_maximum;
@@ -113,7 +113,7 @@ impl MinMaxScaler {
             let transformed = model.transform(&features)?;
             Ok::<_, atlas_ml::AtlasMlError>((model, transformed))
         })
-        .map_err(|error| crate::error::ml(py, error))?;
+        .map_err(|error| crate::support::errors::ml(py, error))?;
 
         self.model.replace(model);
         Ok(array::to_numpy_owned(py, transformed)?.into_any().unbind())
@@ -123,7 +123,7 @@ impl MinMaxScaler {
         &self,
         py: Python<'_>,
         features: &Bound<'_, PyAny>,
-    ) -> crate::results::PyObjectResult {
+    ) -> crate::support::results::PyObjectResult {
         transform(py, features, &self.model, MIN_MAX_TRANSFORM_OP, |model, features| {
             model.transform(features)
         })
@@ -133,7 +133,7 @@ impl MinMaxScaler {
         &self,
         py: Python<'_>,
         features: &Bound<'_, PyAny>,
-    ) -> crate::results::PyObjectResult {
+    ) -> crate::support::results::PyObjectResult {
         transform(py, features, &self.model, MIN_MAX_INVERSE_TRANSFORM_OP, |model, features| {
             model.inverse_transform(features)
         })
@@ -160,11 +160,11 @@ fn transform<T: Sync>(
         &atlas_ndarray::NDArray<f64>,
     ) -> atlas_ml::AtlasMlResult<atlas_ndarray::NDArray<f64>>
     + Send,
-) -> crate::results::PyObjectResult {
+) -> crate::support::results::PyObjectResult {
     let features = super::model::predict_features(py, features, operation)?;
     let model = model.fitted(py, operation)?;
     let transformed = gil::without_gil(py, move || operation_fn(model, &features))
-        .map_err(|error| crate::error::ml(py, error))?;
+        .map_err(|error| crate::support::errors::ml(py, error))?;
 
     Ok(array::to_numpy_owned(py, transformed)?.into_any().unbind())
 }

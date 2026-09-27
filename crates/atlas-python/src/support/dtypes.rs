@@ -6,7 +6,7 @@ use pyo3::{
 
 macro_rules! with_dtype {
     ($dtype:expr, all |$ty:ident| $body:expr) => {{
-        use $crate::python_dtype::DType;
+        use $crate::support::dtypes::DType;
 
         match $dtype {
             DType::Bool => {
@@ -56,7 +56,7 @@ macro_rules! with_dtype {
         }
     }};
     ($dtype:expr, numeric |$ty:ident| $body:expr) => {{
-        use $crate::python_dtype::DType;
+        use $crate::support::dtypes::DType;
 
         match $dtype {
             DType::Bool => unreachable!("numeric dtype dispatch excludes bool"),
@@ -103,7 +103,7 @@ macro_rules! with_dtype {
         }
     }};
     ($dtype:expr, signed |$ty:ident| $body:expr) => {{
-        use $crate::python_dtype::DType;
+        use $crate::support::dtypes::DType;
 
         match $dtype {
             DType::Int8 => {

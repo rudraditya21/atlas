@@ -28,5 +28,5 @@ pub(crate) fn config(
         .and_then(|config| config.with_search_algorithm(search_algorithm))
         .and_then(|config| config.with_tree_leaf_size(tree_leaf_size))
         .map(|config| config.with_weighting(weighting))
-        .map_err(|error| crate::error::ml(py, error))
+        .map_err(|error| crate::support::errors::ml(py, error))
 }

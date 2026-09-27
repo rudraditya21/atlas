@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 
-use crate::array;
+use crate::support::arrays as array;
 
 pub(crate) fn shape(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     attribute(py, value, "shape")

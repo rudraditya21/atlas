@@ -1,6 +1,6 @@
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 #[derive(Clone, Copy)]
 enum SolveOperation {
@@ -46,7 +46,7 @@ fn solve_with(
                 SolveOperation::Regular => atlas_linalg::solve(&matrix, &rhs),
                 SolveOperation::Transpose => atlas_linalg::solve_transpose(&matrix, &rhs),
             })
-            .map_err(|error| crate::error::linalg(py, error))?;
+            .map_err(|error| crate::support::errors::linalg(py, error))?;
             Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
         }};
     }

@@ -1,7 +1,7 @@
 use num_traits::ToPrimitive;
 use pyo3::prelude::*;
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 #[pyclass(module = "atlas._native")]
 pub(crate) struct ConjugateGradientResult {
@@ -58,7 +58,7 @@ pub(crate) fn conjugate_gradient(
                         .expect("f64 tolerance must convert to the target float dtype"),
                 )
             })
-            .map_err(|error| crate::error::linalg(py, error))?;
+            .map_err(|error| crate::support::errors::linalg(py, error))?;
             output(py, result)
         }};
     }

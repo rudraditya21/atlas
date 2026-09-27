@@ -1,7 +1,7 @@
 use atlas_ndarray::AtlasNdError;
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 pub(crate) fn tile(
     py: Python<'_>,
@@ -16,7 +16,7 @@ pub(crate) fn tile(
         ($ty:ty) => {{
             let array = array::from_numpy(array::readonly_from_python::<$ty>(py, value)?)?;
             let result = gil::without_gil(py, move || array.tile(&repetitions))
-                .map_err(|error| crate::error::ndarray(py, error))?;
+                .map_err(|error| crate::support::errors::ndarray(py, error))?;
             Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
         }};
     }
@@ -47,7 +47,7 @@ fn repetition_values(py: Python<'_>, repetitions: &Bound<'_, PyAny>) -> PyResult
         .into_iter()
         .map(|value| {
             usize::try_from(value).map_err(|_| {
-                crate::error::ndarray(
+                crate::support::errors::ndarray(
                     py,
                     AtlasNdError::InvalidArgument {
                         op: "tile",

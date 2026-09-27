@@ -1,7 +1,7 @@
 use atlas_ndarray::{AtlasNdResult, NDArray, Numeric, checked_element_count};
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 pub(crate) fn diag(py: Python<'_>, value: &Bound<'_, PyAny>, k: isize) -> PyResult<Py<PyAny>> {
     array::require_numpy_array(py, value)?;
@@ -11,7 +11,7 @@ pub(crate) fn diag(py: Python<'_>, value: &Bound<'_, PyAny>, k: isize) -> PyResu
         ($ty:ty) => {{
             let value = array::from_numpy(array::readonly_from_python::<$ty>(py, value)?)?;
             let result = gil::without_gil(py, move || diag_array(value, k))
-                .map_err(|error| crate::error::linalg(py, error))?;
+                .map_err(|error| crate::support::errors::linalg(py, error))?;
             Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
         }};
     }

@@ -1,6 +1,6 @@
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 enum SplitSpec {
     Indices(Vec<usize>),
@@ -27,7 +27,7 @@ pub(crate) fn split(
                 };
                 views.map(|views| views.into_iter().map(|view| view.to_owned()).collect::<Vec<_>>())
             })
-            .map_err(|error| crate::error::ndarray(py, error))?;
+            .map_err(|error| crate::support::errors::ndarray(py, error))?;
             arrays
                 .into_iter()
                 .map(|array| Ok(array::to_numpy_owned(py, array)?.into_any().unbind()))

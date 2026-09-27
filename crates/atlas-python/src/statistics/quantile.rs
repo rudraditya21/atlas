@@ -4,7 +4,7 @@ use pyo3::{
     prelude::*,
 };
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 #[derive(Clone, Copy)]
 enum Statistic {
@@ -69,7 +69,7 @@ fn scalar_statistic(
                     atlas_stats::quantile_with_interpolation(&value, q, interpolation)
                 }
             })
-            .map_err(|error| crate::error::stats(py, error))
+            .map_err(|error| crate::support::errors::stats(py, error))
         }};
     }
 
@@ -107,7 +107,7 @@ fn axis_statistic(
                     atlas_stats::quantile_axis_with_interpolation(&value, q, axis, interpolation)
                 }
             })
-            .map_err(|error| crate::error::stats(py, error))?;
+            .map_err(|error| crate::support::errors::stats(py, error))?;
             Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
         }};
     }

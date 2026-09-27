@@ -1,7 +1,7 @@
 use pyo3::prelude::*;
 
 use super::partition_ops::normalize_kths;
-use crate::{array, gil, python_dtype::with_dtype};
+use crate::support::{arrays as array, dtypes::with_dtype, gil};
 
 pub(crate) fn argpartition(
     py: Python<'_>,
@@ -27,7 +27,7 @@ pub(crate) fn argpartition(
                     array.argpartition_many(&kths, 0)
                 }
             })
-            .map_err(|error| crate::error::ndarray(py, error))?;
+            .map_err(|error| crate::support::errors::ndarray(py, error))?;
             Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
         }
     )

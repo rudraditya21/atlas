@@ -2,7 +2,7 @@ use atlas_ndarray::{ArrayElement, AtlasNdError, AtlasNdResult, NDArray};
 use numpy::Element;
 use pyo3::prelude::*;
 
-use crate::{array, gil, python_dtype::with_dtype};
+use crate::support::{arrays as array, dtypes::with_dtype, gil};
 
 macro_rules! with_array {
     ($py:expr, $value:expr, |$array:ident| $body:expr) => {{
@@ -24,7 +24,7 @@ pub(crate) fn reshape(
 ) -> PyResult<Py<PyAny>> {
     with_array!(py, value, |array| {
         let shape = resolve_reshape_shape(&array, shape)
-            .map_err(|error| crate::error::ndarray(py, error))?;
+            .map_err(|error| crate::support::errors::ndarray(py, error))?;
         reshape_array(py, array, shape)
     })
 }
@@ -48,7 +48,7 @@ pub(crate) fn moveaxis(
 
     with_array!(py, value, |array| {
         let axes = moveaxis_permutation(array.ndim(), source, destination)
-            .map_err(|error| crate::error::ndarray(py, error))?;
+            .map_err(|error| crate::support::errors::ndarray(py, error))?;
         transpose_array(py, array, Some(axes))
     })
 }
@@ -85,7 +85,7 @@ where
     T: ArrayElement + Element,
 {
     let array = gil::without_gil(py, move || array.reshape(shape).map(|view| view.to_owned()))
-        .map_err(|error| crate::error::ndarray(py, error))?;
+        .map_err(|error| crate::support::errors::ndarray(py, error))?;
 
     Ok(array::to_numpy_owned(py, array)?.into_any().unbind())
 }
@@ -201,7 +201,7 @@ where
         Some(axes) => array.permute_axes(axes).map(|view| view.to_owned()),
         None => Ok(array.view().transpose().to_owned()),
     })
-    .map_err(|error| crate::error::ndarray(py, error))?;
+    .map_err(|error| crate::support::errors::ndarray(py, error))?;
 
     Ok(array::to_numpy_owned(py, array)?.into_any().unbind())
 }
@@ -217,7 +217,7 @@ where
 {
     let array =
         gil::without_gil(py, move || array.swap_axes(left, right).map(|view| view.to_owned()))
-            .map_err(|error| crate::error::ndarray(py, error))?;
+            .map_err(|error| crate::support::errors::ndarray(py, error))?;
 
     Ok(array::to_numpy_owned(py, array)?.into_any().unbind())
 }
@@ -234,7 +234,7 @@ where
         Some(axes) => squeeze_axes(array, axes),
         None => Ok(array.squeeze().to_owned()),
     })
-    .map_err(|error| crate::error::ndarray(py, error))?;
+    .map_err(|error| crate::support::errors::ndarray(py, error))?;
 
     Ok(array::to_numpy_owned(py, array)?.into_any().unbind())
 }
@@ -244,7 +244,7 @@ where
     T: ArrayElement + Element,
 {
     let array = gil::without_gil(py, move || expand_axes(array, axes))
-        .map_err(|error| crate::error::ndarray(py, error))?;
+        .map_err(|error| crate::support::errors::ndarray(py, error))?;
 
     Ok(array::to_numpy_owned(py, array)?.into_any().unbind())
 }

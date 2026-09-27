@@ -13,7 +13,10 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
 }
 
 #[pyfunction]
-fn to_arrow_primitive(py: Python<'_>, value: &Bound<'_, PyAny>) -> crate::results::PyObjectResult {
+fn to_arrow_primitive(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+) -> crate::support::results::PyObjectResult {
     arrow::to_arrow_primitive(py, value)
 }
 
@@ -21,7 +24,7 @@ fn to_arrow_primitive(py: Python<'_>, value: &Bound<'_, PyAny>) -> crate::result
 fn from_arrow_primitive(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
-) -> crate::results::PyObjectResult {
+) -> crate::support::results::PyObjectResult {
     arrow::from_arrow_primitive(py, value)
 }
 
@@ -30,7 +33,7 @@ fn to_arrow_record_batch(
     py: Python<'_>,
     matrix: &Bound<'_, PyAny>,
     column_names: Vec<String>,
-) -> crate::results::PyObjectResult {
+) -> crate::support::results::PyObjectResult {
     arrow::to_arrow_record_batch(py, matrix, column_names)
 }
 
@@ -38,6 +41,6 @@ fn to_arrow_record_batch(
 fn from_arrow_record_batch(
     py: Python<'_>,
     batch: &Bound<'_, PyAny>,
-) -> crate::results::PyObjectResult {
+) -> crate::support::results::PyObjectResult {
     arrow::from_arrow_record_batch(py, batch)
 }

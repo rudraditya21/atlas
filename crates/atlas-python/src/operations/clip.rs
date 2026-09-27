@@ -1,6 +1,6 @@
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 pub(crate) fn clip(
     py: Python<'_>,
@@ -9,7 +9,7 @@ pub(crate) fn clip(
     maximum: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
     if minimum.is_none() && maximum.is_none() {
-        return Err(crate::error::ndarray(
+        return Err(crate::support::errors::ndarray(
             py,
             atlas_ndarray::AtlasNdError::InvalidArgument {
                 op: "clip",
@@ -35,7 +35,7 @@ pub(crate) fn clip(
                 }
                 (None, None) => unreachable!("clip validates that at least one bound is present"),
             })
-            .map_err(|error| crate::error::ndarray(py, error))?;
+            .map_err(|error| crate::support::errors::ndarray(py, error))?;
             Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
         }};
     }

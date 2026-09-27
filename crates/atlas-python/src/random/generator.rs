@@ -1,7 +1,7 @@
 use atlas_random::AtlasRng;
 use pyo3::{exceptions::PyTypeError, prelude::*, types::PySequence};
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 #[pyclass(module = "atlas._native")]
 pub(crate) struct Generator {
@@ -90,7 +90,7 @@ impl Generator {
                 let result = gil::without_gil(py, move || {
                     atlas_random::choice(&values, sample_count, &mut self.rng)
                 })
-                .map_err(|error| crate::error::random(py, error))?;
+                .map_err(|error| crate::support::errors::random(py, error))?;
                 Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
             }};
         }
@@ -113,7 +113,7 @@ impl Generator {
 
     fn permutation(&mut self, py: Python<'_>, size: usize) -> PyResult<Py<PyAny>> {
         let result = gil::without_gil(py, move || atlas_random::permutation(size, &mut self.rng))
-            .map_err(|error| crate::error::random(py, error))?;
+            .map_err(|error| crate::support::errors::random(py, error))?;
 
         Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
     }
@@ -134,7 +134,7 @@ impl Generator {
                 let result = gil::without_gil(py, move || {
                     atlas_random::shuffle_axis(&values, axis, &mut self.rng)
                 })
-                .map_err(|error| crate::error::random(py, error))?;
+                .map_err(|error| crate::support::errors::random(py, error))?;
                 Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
             }};
         }
@@ -172,7 +172,7 @@ impl Generator {
     {
         let shape = shape_values(shape)?;
         let result = gil::without_gil(py, move || sample(&shape, &mut self.rng))
-            .map_err(|error| crate::error::random(py, error))?;
+            .map_err(|error| crate::support::errors::random(py, error))?;
 
         Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
     }

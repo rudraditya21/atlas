@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 const FIT_OP: &str = "binary_perceptron_fit";
 const PREDICT_OP: &str = "binary_perceptron_predict";
@@ -22,7 +22,7 @@ impl BinaryPerceptron {
         shuffle_seed: Option<u64>,
     ) -> PyResult<Self> {
         let config = atlas_ml::PerceptronConfig::new(learning_rate, max_iterations)
-            .map_err(|error| crate::error::ml(py, error))?
+            .map_err(|error| crate::support::errors::ml(py, error))?
             .with_shuffle_policy(match shuffle_seed {
                 Some(seed) => atlas_ml::PerceptronShufflePolicy::Seeded(seed),
                 None => atlas_ml::PerceptronShufflePolicy::Disabled,
@@ -42,7 +42,7 @@ impl BinaryPerceptron {
         let model = gil::without_gil(py, move || {
             atlas_ml::BinaryPerceptron::fit(&features, &labels, config)
         })
-        .map_err(|error| crate::error::ml(py, error))?;
+        .map_err(|error| crate::support::errors::ml(py, error))?;
 
         slf.model.replace(model);
         Ok(slf)
@@ -52,11 +52,11 @@ impl BinaryPerceptron {
         &self,
         py: Python<'_>,
         features: &Bound<'_, PyAny>,
-    ) -> crate::results::PyObjectResult {
+    ) -> crate::support::results::PyObjectResult {
         let features = super::model::predict_features(py, features, PREDICT_OP)?;
         let model = self.model.fitted(py, PREDICT_OP)?;
         let predictions = gil::without_gil(py, move || model.predict(&features))
-            .map_err(|error| crate::error::ml(py, error))?;
+            .map_err(|error| crate::support::errors::ml(py, error))?;
 
         Ok(array::to_numpy_owned(py, predictions)?.into_any().unbind())
     }

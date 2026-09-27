@@ -1,6 +1,6 @@
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 pub(crate) fn where_(
     py: Python<'_>,
@@ -34,7 +34,7 @@ pub(crate) fn where_(
                 let y = array::from_numpy(array::readonly_from_python::<$ty>(py, y)?)?;
                 gil::without_gil(py, move || condition.r#where(x, &y))
             };
-            let result = result.map_err(|error| crate::error::ndarray(py, error))?;
+            let result = result.map_err(|error| crate::support::errors::ndarray(py, error))?;
             Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
         }};
     }

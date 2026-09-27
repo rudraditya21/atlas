@@ -1,6 +1,6 @@
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 pub(crate) fn roll(
     py: Python<'_>,
@@ -25,7 +25,7 @@ pub(crate) fn roll(
                         .and_then(|rolled| rolled.reshape(shape).map(|view| view.to_owned()))
                 }
             })
-            .map_err(|error| crate::error::ndarray(py, error))?;
+            .map_err(|error| crate::support::errors::ndarray(py, error))?;
             Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
         }};
     }
@@ -90,5 +90,8 @@ where
 }
 
 fn roll_error(py: Python<'_>, reason: &'static str) -> PyErr {
-    crate::error::ndarray(py, atlas_ndarray::AtlasNdError::InvalidArgument { op: "roll", reason })
+    crate::support::errors::ndarray(
+        py,
+        atlas_ndarray::AtlasNdError::InvalidArgument { op: "roll", reason },
+    )
 }

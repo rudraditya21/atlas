@@ -1,8 +1,9 @@
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
-use crate::{
-    array, gil,
-    python_dtype::{DType, with_dtype},
+use crate::support::{
+    arrays as array,
+    dtypes::{DType, with_dtype},
+    gil,
 };
 
 macro_rules! apply_unary {

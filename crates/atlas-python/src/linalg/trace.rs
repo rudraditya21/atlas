@@ -1,6 +1,6 @@
 use pyo3::{IntoPyObjectExt, exceptions::PyTypeError, prelude::*};
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 pub(crate) fn trace(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     array::require_numpy_array(py, value)?;
@@ -10,7 +10,7 @@ pub(crate) fn trace(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyA
         ($ty:ty) => {{
             let value = array::from_numpy(array::readonly_from_python::<$ty>(py, value)?)?;
             gil::without_gil(py, move || atlas_linalg::trace(&value))
-                .map_err(|error| crate::error::linalg(py, error))?
+                .map_err(|error| crate::support::errors::linalg(py, error))?
                 .into_py_any(py)
         }};
     }

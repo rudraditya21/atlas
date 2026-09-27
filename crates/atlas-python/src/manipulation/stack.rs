@@ -1,11 +1,11 @@
 use atlas_ndarray::{AtlasNdError, NDArray};
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 pub(crate) fn stack(py: Python<'_>, arrays: Vec<Py<PyAny>>, axis: i64) -> PyResult<Py<PyAny>> {
     let first = arrays.first().ok_or_else(|| {
-        crate::error::ndarray(
+        crate::support::errors::ndarray(
             py,
             AtlasNdError::InvalidArgument { op: "stack", reason: "at least one array is required" },
         )
@@ -27,7 +27,7 @@ pub(crate) fn stack(py: Python<'_>, arrays: Vec<Py<PyAny>>, axis: i64) -> PyResu
                 let views = arrays.iter().map(NDArray::view).collect::<Vec<_>>();
                 NDArray::stack(&views, axis)
             })
-            .map_err(|error| crate::error::ndarray(py, error))?;
+            .map_err(|error| crate::support::errors::ndarray(py, error))?;
             Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
         }};
     }

@@ -17,14 +17,9 @@ mod reductions;
 mod statistics;
 mod support;
 
-#[cfg(feature = "test-support")]
-pub(crate) use support::scalar;
-pub(crate) use support::{arrays as array, dtypes as python_dtype, errors as error, gil, results};
-
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     support::register(module)?;
-    random::register(module)?;
     constructors::register(module)?;
     operations::register(module)?;
     reductions::register(module)?;
@@ -32,6 +27,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     manipulation::register(module)?;
     linalg::register(module)?;
     statistics::register(module)?;
+    random::register(module)?;
     ml::register(module)?;
     interop::register(module)?;
     Ok(())

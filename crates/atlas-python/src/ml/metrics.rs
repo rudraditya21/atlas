@@ -1,7 +1,7 @@
 use numpy::PyArray1;
 use pyo3::prelude::*;
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 #[pyclass(module = "atlas._native")]
 pub(crate) struct ConfusionMatrix {
@@ -61,7 +61,7 @@ pub(crate) fn confusion_matrix(
     let actual = array::label_vector_usize(py, actual)?;
     let predicted = array::label_vector_usize(py, predicted)?;
     let result = gil::without_gil(py, move || atlas_ml::confusion_matrix(&actual, &predicted))
-        .map_err(|error| crate::error::ml(py, error))?;
+        .map_err(|error| crate::support::errors::ml(py, error))?;
 
     Py::new(
         py,
@@ -80,7 +80,7 @@ pub(crate) fn classification_report(
     let actual = array::label_vector_usize(py, actual)?;
     let predicted = array::label_vector_usize(py, predicted)?;
     let result = gil::without_gil(py, move || atlas_ml::classification_report(&actual, &predicted))
-        .map_err(|error| crate::error::ml(py, error))?;
+        .map_err(|error| crate::support::errors::ml(py, error))?;
 
     Py::new(
         py,
@@ -101,7 +101,7 @@ pub(crate) fn accuracy(
     let actual = array::label_vector_usize(py, actual)?;
     let predicted = array::label_vector_usize(py, predicted)?;
     gil::without_gil(py, move || atlas_ml::classification_accuracy(&actual, &predicted))
-        .map_err(|error| crate::error::ml(py, error))
+        .map_err(|error| crate::support::errors::ml(py, error))
 }
 
 pub(crate) fn log_loss(
@@ -112,7 +112,7 @@ pub(crate) fn log_loss(
     let actual = array::label_vector_usize(py, actual)?;
     let probabilities = array::vector_f64(py, probabilities)?;
     gil::without_gil(py, move || atlas_ml::binary_log_loss(&actual, &probabilities))
-        .map_err(|error| crate::error::ml(py, error))
+        .map_err(|error| crate::support::errors::ml(py, error))
 }
 
 pub(crate) fn mean_absolute_error(
@@ -152,5 +152,5 @@ fn regression_metric(
     let actual = array::vector_f64(py, actual)?;
     let predicted = array::vector_f64(py, predicted)?;
     gil::without_gil(py, move || metric(&actual, &predicted))
-        .map_err(|error| crate::error::ml(py, error))
+        .map_err(|error| crate::support::errors::ml(py, error))
 }

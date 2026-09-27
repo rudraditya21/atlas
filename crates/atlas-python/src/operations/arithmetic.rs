@@ -1,6 +1,6 @@
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 #[derive(Clone, Copy)]
 enum Operation {
@@ -115,7 +115,7 @@ macro_rules! impl_apply {
                 }
             };
 
-            let result = result.map_err(|error| crate::error::ndarray(py, error))?;
+            let result = result.map_err(|error| crate::support::errors::ndarray(py, error))?;
             Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
         }
     };

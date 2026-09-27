@@ -1,6 +1,6 @@
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 #[derive(Clone, Copy)]
 enum Statistic {
@@ -55,7 +55,7 @@ fn pairwise_statistic(
                 Statistic::Covariance => atlas_stats::covariance(&lhs, &rhs),
                 Statistic::Correlation => atlas_stats::correlation(&lhs, &rhs),
             })
-            .map_err(|error| crate::error::stats(py, error))
+            .map_err(|error| crate::support::errors::stats(py, error))
         }};
     }
 
@@ -90,7 +90,7 @@ fn matrix_statistic(
                 MatrixStatistic::Covariance => atlas_stats::covariance_matrix(&value),
                 MatrixStatistic::Correlation => atlas_stats::correlation_matrix(&value),
             })
-            .map_err(|error| crate::error::stats(py, error))?;
+            .map_err(|error| crate::support::errors::stats(py, error))?;
             Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
         }};
     }

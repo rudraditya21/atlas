@@ -1,7 +1,7 @@
 use atlas_ndarray::AtlasNdError;
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 enum RepeatSpec {
     Scalar(usize),
@@ -28,14 +28,14 @@ pub(crate) fn repeat(
                 }),
                 RepeatSpec::Counts(counts) => {
                     let indices = repeat_indices(&array, &counts, axis)
-                        .map_err(|error| crate::error::ndarray(py, error))?;
+                        .map_err(|error| crate::support::errors::ndarray(py, error))?;
                     gil::without_gil(py, move || match axis {
                         Some(axis) => array.take(&indices, axis),
                         None => array.flatten().take(&indices, 0),
                     })
                 }
             }
-            .map_err(|error| crate::error::ndarray(py, error))?;
+            .map_err(|error| crate::support::errors::ndarray(py, error))?;
             Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
         }};
     }
@@ -70,7 +70,7 @@ fn repeat_spec(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<RepeatSpec>
 
 fn repeat_count(py: Python<'_>, repeats: i64) -> PyResult<usize> {
     usize::try_from(repeats).map_err(|_| {
-        crate::error::ndarray(
+        crate::support::errors::ndarray(
             py,
             AtlasNdError::InvalidArgument { op: "repeat", reason: "repeats must be nonnegative" },
         )

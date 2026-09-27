@@ -1,6 +1,6 @@
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 pub(crate) fn cholesky(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     array::require_numpy_array(py, value)?;
@@ -12,7 +12,7 @@ pub(crate) fn cholesky(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<
             let result = gil::without_gil(py, move || {
                 atlas_linalg::cholesky(&value).map(|factor| factor.l().clone())
             })
-            .map_err(|error| crate::error::linalg(py, error))?;
+            .map_err(|error| crate::support::errors::linalg(py, error))?;
             Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
         }};
     }
@@ -38,7 +38,7 @@ pub(crate) fn solve_spd(
             let matrix = array::from_numpy(array::readonly_from_python::<$ty>(py, matrix)?)?;
             let rhs = array::from_numpy(array::readonly_from_python::<$ty>(py, rhs)?)?;
             let result = gil::without_gil(py, move || atlas_linalg::solve_spd(&matrix, &rhs))
-                .map_err(|error| crate::error::linalg(py, error))?;
+                .map_err(|error| crate::support::errors::linalg(py, error))?;
             Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
         }};
     }

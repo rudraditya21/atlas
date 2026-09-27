@@ -6,12 +6,12 @@ use pyo3::{
     types::{PyDict, PyList, PyModule},
 };
 
-use crate::{array, python_dtype::with_dtype};
+use crate::support::{arrays as array, dtypes::with_dtype};
 
 pub(crate) fn to_arrow_primitive(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
-) -> crate::results::PyObjectResult {
+) -> crate::support::results::PyObjectResult {
     let dtype = array::source_dtype(py, value)?;
 
     with_dtype!(
@@ -19,9 +19,9 @@ pub(crate) fn to_arrow_primitive(
         all | T | {
             let value = array::from_numpy(array::readonly_from_python::<T>(py, value)?)?;
             let arrow = atlas_arrow::to_arrow_primitive::<T, _>(&value)
-                .map_err(|error| crate::error::arrow(py, error))?;
+                .map_err(|error| crate::support::errors::arrow(py, error))?;
             let values = atlas_arrow::from_arrow_primitive::<T>(&arrow)
-                .map_err(|error| crate::error::arrow(py, error))?;
+                .map_err(|error| crate::support::errors::arrow(py, error))?;
             let values = array::to_numpy_owned(py, values)?.into_any();
 
             Ok(PyModule::import(py, "pyarrow")?.getattr("array")?.call1((values,))?.unbind())
@@ -32,13 +32,13 @@ pub(crate) fn to_arrow_primitive(
 pub(crate) fn from_arrow_primitive(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
-) -> crate::results::PyObjectResult {
+) -> crate::support::results::PyObjectResult {
     let pyarrow = PyModule::import(py, "pyarrow")?;
     if !value.is_instance(&pyarrow.getattr("Array")?)? {
         return Err(PyTypeError::new_err("expected a pyarrow.Array"));
     }
     if value.getattr("null_count")?.extract::<usize>()? != 0 {
-        return Err(crate::error::arrow(
+        return Err(crate::support::errors::arrow(
             py,
             atlas_arrow::AtlasArrowError::NullValues { op: "from_arrow_primitive" },
         ));
@@ -52,9 +52,9 @@ pub(crate) fn from_arrow_primitive(
         all | T | {
             let values = array::from_numpy(array::readonly_from_python::<T>(py, &values)?)?;
             let arrow = atlas_arrow::to_arrow_primitive::<T, _>(&values)
-                .map_err(|error| crate::error::arrow(py, error))?;
+                .map_err(|error| crate::support::errors::arrow(py, error))?;
             let values = atlas_arrow::from_arrow_primitive::<T>(&arrow)
-                .map_err(|error| crate::error::arrow(py, error))?;
+                .map_err(|error| crate::support::errors::arrow(py, error))?;
 
             Ok(array::to_numpy_owned(py, values)?.into_any().unbind())
         }
@@ -65,7 +65,7 @@ pub(crate) fn to_arrow_record_batch(
     py: Python<'_>,
     matrix: &Bound<'_, PyAny>,
     column_names: Vec<String>,
-) -> crate::results::PyObjectResult {
+) -> crate::support::results::PyObjectResult {
     let dtype = array::source_dtype(py, matrix)?;
 
     with_dtype!(
@@ -74,9 +74,9 @@ pub(crate) fn to_arrow_record_batch(
             let matrix = array::from_numpy(array::readonly_from_python::<T>(py, matrix)?)?;
             let names = column_names.iter().map(String::as_str).collect::<Vec<_>>();
             let batch = atlas_arrow::to_arrow_record_batch(&matrix, &names)
-                .map_err(|error| crate::error::arrow(py, error))?;
+                .map_err(|error| crate::support::errors::arrow(py, error))?;
             let matrix = atlas_arrow::from_arrow_record_batch::<T>(&batch)
-                .map_err(|error| crate::error::arrow(py, error))?;
+                .map_err(|error| crate::support::errors::arrow(py, error))?;
 
             record_batch_from_matrix(py, &matrix, &column_names)
         }
@@ -86,7 +86,7 @@ pub(crate) fn to_arrow_record_batch(
 pub(crate) fn from_arrow_record_batch(
     py: Python<'_>,
     batch: &Bound<'_, PyAny>,
-) -> crate::results::PyObjectResult {
+) -> crate::support::results::PyObjectResult {
     let pyarrow = PyModule::import(py, "pyarrow")?;
     if !batch.is_instance(&pyarrow.getattr("RecordBatch")?)? {
         return Err(PyTypeError::new_err("expected a pyarrow.RecordBatch"));
@@ -106,7 +106,7 @@ pub(crate) fn from_arrow_record_batch(
     for column_index in 0..column_count {
         let column = batch.call_method1("column", (column_index,))?;
         if column.getattr("null_count")?.extract::<usize>()? != 0 {
-            return Err(crate::error::arrow(
+            return Err(crate::support::errors::arrow(
                 py,
                 atlas_arrow::AtlasArrowError::NullValues { op: "from_arrow_record_batch" },
             ));
@@ -134,9 +134,9 @@ pub(crate) fn from_arrow_record_batch(
             let matrix = array::from_numpy(array::readonly_from_python::<T>(py, &matrix)?)?;
             let names = names.iter().map(String::as_str).collect::<Vec<_>>();
             let batch = atlas_arrow::to_arrow_record_batch(&matrix, &names)
-                .map_err(|error| crate::error::arrow(py, error))?;
+                .map_err(|error| crate::support::errors::arrow(py, error))?;
             let matrix = atlas_arrow::from_arrow_record_batch::<T>(&batch)
-                .map_err(|error| crate::error::arrow(py, error))?;
+                .map_err(|error| crate::support::errors::arrow(py, error))?;
 
             Ok(array::to_numpy_owned(py, matrix)?.into_any().unbind())
         }
@@ -147,7 +147,7 @@ fn record_batch_from_matrix<T>(
     py: Python<'_>,
     matrix: &NDArray<T>,
     column_names: &[String],
-) -> crate::results::PyObjectResult
+) -> crate::support::results::PyObjectResult
 where
     T: ArrayElement + Element,
 {
@@ -160,7 +160,7 @@ where
         let values = array::to_numpy_owned(
             py,
             NDArray::from_shape_vec([matrix.shape()[0]], values)
-                .map_err(|error| crate::error::ndarray(py, error))?,
+                .map_err(|error| crate::support::errors::ndarray(py, error))?,
         )?
         .into_any();
         columns

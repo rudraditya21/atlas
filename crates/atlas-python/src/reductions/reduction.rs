@@ -3,7 +3,7 @@ use num_traits::{Float, ToPrimitive};
 use numpy::Element;
 use pyo3::{IntoPyObject, IntoPyObjectExt, exceptions::PyTypeError, prelude::*};
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 #[derive(Clone, Copy)]
 enum Reduction {
@@ -471,7 +471,7 @@ where
     }
 
     gil::without_gil(py, move || atlas_stats::variance_ddof(&array, ddof))
-        .map_err(|error| crate::error::stats(py, error))?
+        .map_err(|error| crate::support::errors::stats(py, error))?
         .into_py_any(py)
 }
 
@@ -484,7 +484,7 @@ where
     }
 
     gil::without_gil(py, move || atlas_stats::stddev_ddof(&array, ddof))
-        .map_err(|error| crate::error::stats(py, error))?
+        .map_err(|error| crate::support::errors::stats(py, error))?
         .into_py_any(py)
 }
 
@@ -564,7 +564,7 @@ fn scalar<T>(py: Python<'_>, result: atlas_ndarray::AtlasNdResult<T>) -> PyResul
 where
     for<'py> T: IntoPyObject<'py>,
 {
-    result.map_err(|error| crate::error::ndarray(py, error))?.into_py_any(py)
+    result.map_err(|error| crate::support::errors::ndarray(py, error))?.into_py_any(py)
 }
 
 fn array_output<T>(
@@ -574,7 +574,10 @@ fn array_output<T>(
 where
     T: atlas_ndarray::ArrayElement + Element,
 {
-    Ok(array::to_numpy_owned(py, result.map_err(|error| crate::error::ndarray(py, error))?)?
-        .into_any()
-        .unbind())
+    Ok(array::to_numpy_owned(
+        py,
+        result.map_err(|error| crate::support::errors::ndarray(py, error))?,
+    )?
+    .into_any()
+    .unbind())
 }

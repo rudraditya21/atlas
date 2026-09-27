@@ -1,7 +1,7 @@
 use numpy::PyArray1;
 use pyo3::prelude::*;
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 #[pyclass(module = "atlas._native")]
 pub(crate) struct KFold {
@@ -30,7 +30,7 @@ pub(crate) fn k_fold_split(
 ) -> PyResult<Vec<Py<KFold>>> {
     let features = array::feature_matrix_f64(py, features)?;
     let folds = gil::without_gil(py, move || atlas_ml::k_fold_split(&features, fold_count, seed))
-        .map_err(|error| crate::error::ml(py, error))?;
+        .map_err(|error| crate::support::errors::ml(py, error))?;
 
     output(py, folds)
 }
@@ -47,7 +47,7 @@ pub(crate) fn stratified_k_fold_split(
     let folds = gil::without_gil(py, move || {
         atlas_ml::stratified_k_fold_split(&features, &labels, fold_count, seed)
     })
-    .map_err(|error| crate::error::ml(py, error))?;
+    .map_err(|error| crate::support::errors::ml(py, error))?;
 
     output(py, folds)
 }

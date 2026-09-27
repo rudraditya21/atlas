@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 
-use crate::{array, gil, python_dtype::with_dtype};
+use crate::support::{arrays as array, dtypes::with_dtype, gil};
 
 pub(crate) fn take(
     py: Python<'_>,
@@ -18,7 +18,7 @@ pub(crate) fn take(
                 Some(axis) => value.take(&indices, axis),
                 None => value.flatten().take(&indices, 0),
             })
-            .map_err(|error| crate::error::ndarray(py, error))?;
+            .map_err(|error| crate::support::errors::ndarray(py, error))?;
             Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
         }
     )

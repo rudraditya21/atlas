@@ -2,7 +2,7 @@ use atlas_ndarray::BitwiseElement;
 use numpy::Element;
 use pyo3::{FromPyObject, exceptions::PyTypeError, prelude::*};
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 #[derive(Clone, Copy)]
 enum BinaryOperation {
@@ -153,7 +153,7 @@ fn output<T>(
 where
     T: atlas_ndarray::ArrayElement + Element,
 {
-    output_owned(py, result.map_err(|error| crate::error::ndarray(py, error))?)
+    output_owned(py, result.map_err(|error| crate::support::errors::ndarray(py, error))?)
 }
 
 fn output_owned<T>(py: Python<'_>, array: atlas_ndarray::NDArray<T>) -> PyResult<Py<PyAny>>

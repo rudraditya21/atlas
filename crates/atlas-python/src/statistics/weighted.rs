@@ -1,6 +1,6 @@
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 #[derive(Clone, Copy)]
 enum Statistic {
@@ -41,7 +41,7 @@ fn weighted_statistic(
                 Statistic::Mean => atlas_stats::weighted_mean(&values, &weights),
                 Statistic::Variance => atlas_stats::weighted_variance(&values, &weights),
             })
-            .map_err(|error| crate::error::stats(py, error))
+            .map_err(|error| crate::support::errors::stats(py, error))
         }};
     }
 

@@ -1,6 +1,6 @@
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 pub(crate) fn matmul(
     py: Python<'_>,
@@ -15,7 +15,7 @@ pub(crate) fn matmul(
             let lhs = array::from_numpy(array::readonly_from_python::<$ty>(py, lhs)?)?;
             let rhs = array::from_numpy(array::readonly_from_python::<$ty>(py, rhs)?)?;
             let result = gil::without_gil(py, move || atlas_linalg::matmul(&lhs, &rhs))
-                .map_err(|error| crate::error::linalg(py, error))?;
+                .map_err(|error| crate::support::errors::linalg(py, error))?;
             Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
         }};
     }

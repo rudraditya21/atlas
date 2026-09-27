@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 #[pyclass(module = "atlas._native")]
 pub(crate) struct BinaryGiniSplit {
@@ -38,7 +38,7 @@ pub(crate) fn evaluate_binary_gini_split(
     let split = gil::without_gil(py, move || {
         atlas_ml::evaluate_binary_gini_split(&feature_values, &labels, threshold)
     })
-    .map_err(|error| crate::error::ml(py, error))?;
+    .map_err(|error| crate::support::errors::ml(py, error))?;
 
     Py::new(
         py,

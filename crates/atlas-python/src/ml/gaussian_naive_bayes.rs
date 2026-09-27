@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 const FIT_OP: &str = "gaussian_naive_bayes_fit";
 const PREDICT_PROBA_OP: &str = "gaussian_naive_bayes_predict_proba";
@@ -18,7 +18,7 @@ impl GaussianNaiveBayes {
     #[pyo3(signature = (variance_smoothing = 1e-9))]
     fn new(py: Python<'_>, variance_smoothing: f64) -> PyResult<Self> {
         let config = atlas_ml::GaussianNaiveBayesConfig::new(variance_smoothing)
-            .map_err(|error| crate::error::ml(py, error))?;
+            .map_err(|error| crate::support::errors::ml(py, error))?;
 
         Ok(Self { config, model: super::model::NativeModel::new() })
     }
@@ -34,7 +34,7 @@ impl GaussianNaiveBayes {
         let model = gil::without_gil(py, move || {
             atlas_ml::GaussianNaiveBayes::fit(&features, &labels, config)
         })
-        .map_err(|error| crate::error::ml(py, error))?;
+        .map_err(|error| crate::support::errors::ml(py, error))?;
 
         slf.model.replace(model);
         Ok(slf)
@@ -44,11 +44,11 @@ impl GaussianNaiveBayes {
         &self,
         py: Python<'_>,
         features: &Bound<'_, PyAny>,
-    ) -> crate::results::PyObjectResult {
+    ) -> crate::support::results::PyObjectResult {
         let features = super::model::predict_features(py, features, PREDICT_PROBA_OP)?;
         let model = self.model.fitted(py, PREDICT_PROBA_OP)?;
         let probabilities = gil::without_gil(py, move || model.predict_proba(&features))
-            .map_err(|error| crate::error::ml(py, error))?;
+            .map_err(|error| crate::support::errors::ml(py, error))?;
 
         Ok(array::to_numpy_owned(py, probabilities)?.into_any().unbind())
     }
@@ -57,11 +57,11 @@ impl GaussianNaiveBayes {
         &self,
         py: Python<'_>,
         features: &Bound<'_, PyAny>,
-    ) -> crate::results::PyObjectResult {
+    ) -> crate::support::results::PyObjectResult {
         let features = super::model::predict_features(py, features, PREDICT_OP)?;
         let model = self.model.fitted(py, PREDICT_OP)?;
         let predictions = gil::without_gil(py, move || model.predict(&features))
-            .map_err(|error| crate::error::ml(py, error))?;
+            .map_err(|error| crate::support::errors::ml(py, error))?;
 
         Ok(array::to_numpy_owned(py, predictions)?.into_any().unbind())
     }

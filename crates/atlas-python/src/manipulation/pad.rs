@@ -1,7 +1,7 @@
 use atlas_ndarray::AtlasNdError;
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 pub(crate) fn pad(
     py: Python<'_>,
@@ -19,7 +19,7 @@ pub(crate) fn pad(
             let array = array::from_numpy(array::readonly_from_python::<$ty>(py, value)?)?;
             let fill = fill.map(|fill| fill.extract::<$ty>()).transpose()?.unwrap_or_default();
             let result = gil::without_gil(py, move || array.pad(&widths, fill))
-                .map_err(|error| crate::error::ndarray(py, error))?;
+                .map_err(|error| crate::support::errors::ndarray(py, error))?;
             Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
         }};
     }
@@ -65,7 +65,7 @@ fn pad_widths(
 }
 
 fn invalid_width(py: Python<'_>) -> PyErr {
-    crate::error::ndarray(
+    crate::support::errors::ndarray(
         py,
         AtlasNdError::InvalidArgument { op: "pad", reason: "widths must be nonnegative" },
     )

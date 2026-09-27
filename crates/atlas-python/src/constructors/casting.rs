@@ -2,9 +2,10 @@ use atlas_ndarray::{ArrayElement, NDArray, RuntimeScalar};
 use numpy::Element;
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
-use crate::{
-    array, gil,
-    python_dtype::{DType, with_dtype},
+use crate::support::{
+    arrays as array,
+    dtypes::{DType, with_dtype},
+    gil,
 };
 
 pub(crate) fn astype(
@@ -55,7 +56,7 @@ where
     U: ArrayElement + RuntimeScalar + Element,
 {
     let array = gil::without_gil(py, move || array.astype::<U>())
-        .map_err(|error| crate::error::ndarray(py, error))?;
+        .map_err(|error| crate::support::errors::ndarray(py, error))?;
 
     Ok(array::to_numpy_owned(py, array)?.into_any().unbind())
 }

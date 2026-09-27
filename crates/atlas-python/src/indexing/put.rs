@@ -1,7 +1,7 @@
 use atlas_ndarray::{AtlasNdError, NDArray};
 use pyo3::prelude::*;
 
-use crate::{array, gil, python_dtype::with_dtype};
+use crate::support::{arrays as array, dtypes::with_dtype, gil};
 
 pub(crate) fn put(
     py: Python<'_>,
@@ -22,7 +22,7 @@ pub(crate) fn put(
                     .expect("scalar replacement preserves ndarray invariants")
             };
             let result = gil::without_gil(py, move || put_values(value, &indices, values))
-                .map_err(|error| crate::error::ndarray(py, error))?;
+                .map_err(|error| crate::support::errors::ndarray(py, error))?;
             Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
         }
     )

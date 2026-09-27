@@ -7,7 +7,7 @@ use pyo3::{
     prelude::*,
 };
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 #[derive(Clone, Copy)]
 enum Side {
@@ -43,7 +43,7 @@ pub(crate) fn searchsorted(
             let indices = gil::without_gil(py, move || {
                 search_indices(&sorted, &values, side, sorter.as_deref())
             })
-            .map_err(|error| crate::error::ndarray(py, error))?;
+            .map_err(|error| crate::support::errors::ndarray(py, error))?;
             match shape {
                 Some(shape) => Ok(array::to_numpy_owned(
                     py,

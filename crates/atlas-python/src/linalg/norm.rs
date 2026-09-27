@@ -1,6 +1,6 @@
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 pub(crate) fn norm(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<f64> {
     array::require_numpy_array(py, value)?;
@@ -10,7 +10,7 @@ pub(crate) fn norm(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<f64> {
         ($ty:ty) => {{
             let value = array::from_numpy(array::readonly_from_python::<$ty>(py, value)?)?;
             gil::without_gil(py, move || atlas_linalg::norm(&value))
-                .map_err(|error| crate::error::linalg(py, error))
+                .map_err(|error| crate::support::errors::linalg(py, error))
         }};
     }
 

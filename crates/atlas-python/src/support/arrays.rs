@@ -5,7 +5,7 @@ use numpy::{
 };
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
-use crate::python_dtype::DType;
+use crate::support::dtypes::DType;
 
 pub(crate) fn readonly_from_python<'py, T>(
     py: Python<'py>,
@@ -27,7 +27,7 @@ where
     let data = array.iter().copied().collect();
 
     NDArray::from_shape_vec(shape, data)
-        .map_err(|error| Python::attach(|py| crate::error::ndarray(py, error)))
+        .map_err(|error| Python::attach(|py| crate::support::errors::ndarray(py, error)))
 }
 
 pub(crate) fn feature_matrix_f64(

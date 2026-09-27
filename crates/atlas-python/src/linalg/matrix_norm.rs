@@ -4,7 +4,7 @@ use pyo3::{
     prelude::*,
 };
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 pub(crate) fn matrix_norm(py: Python<'_>, value: &Bound<'_, PyAny>, order: &str) -> PyResult<f64> {
     let order = parse_order(order)?;
@@ -15,7 +15,7 @@ pub(crate) fn matrix_norm(py: Python<'_>, value: &Bound<'_, PyAny>, order: &str)
         ($ty:ty) => {{
             let value = array::from_numpy(array::readonly_from_python::<$ty>(py, value)?)?;
             gil::without_gil(py, move || atlas_linalg::matrix_norm(&value, order))
-                .map_err(|error| crate::error::linalg(py, error))
+                .map_err(|error| crate::support::errors::linalg(py, error))
         }};
     }
 

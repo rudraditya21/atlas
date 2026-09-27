@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 const FIT_OP: &str = "ridge_regression_fit";
 const PREDICT_OP: &str = "ridge_regression_predict";
@@ -17,7 +17,7 @@ impl RidgeRegression {
     #[pyo3(signature = (l2_regularization = 0.0))]
     fn new(py: Python<'_>, l2_regularization: f64) -> PyResult<Self> {
         let config = atlas_ml::RidgeRegressionConfig::new(l2_regularization)
-            .map_err(|error| crate::error::ml(py, error))?;
+            .map_err(|error| crate::support::errors::ml(py, error))?;
 
         Ok(Self { config, model: super::model::NativeModel::new() })
     }
@@ -34,7 +34,7 @@ impl RidgeRegression {
         let model = gil::without_gil(py, move || {
             atlas_ml::RidgeRegression::fit(&features, &targets, config)
         })
-        .map_err(|error| crate::error::ml(py, error))?;
+        .map_err(|error| crate::support::errors::ml(py, error))?;
 
         slf.model.replace(model);
         Ok(slf)
@@ -44,11 +44,11 @@ impl RidgeRegression {
         &self,
         py: Python<'_>,
         features: &Bound<'_, PyAny>,
-    ) -> crate::results::PyObjectResult {
+    ) -> crate::support::results::PyObjectResult {
         let features = super::model::predict_features(py, features, PREDICT_OP)?;
         let model = self.model.fitted(py, PREDICT_OP)?;
         let predictions = gil::without_gil(py, move || model.predict(&features))
-            .map_err(|error| crate::error::ml(py, error))?;
+            .map_err(|error| crate::support::errors::ml(py, error))?;
 
         Ok(array::to_numpy_owned(py, predictions)?.into_any().unbind())
     }

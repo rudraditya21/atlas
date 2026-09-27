@@ -1,6 +1,6 @@
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
-use crate::{array, gil};
+use crate::support::{arrays as array, gil};
 
 pub(crate) fn allclose(
     py: Python<'_>,
@@ -20,7 +20,7 @@ pub(crate) fn allclose(
             gil::without_gil(py, move || {
                 atlas_ndarray::allclose(&lhs, &rhs, rtol as $ty, atol as $ty, equal_nan)
             })
-            .map_err(|error| crate::error::ndarray(py, error))
+            .map_err(|error| crate::support::errors::ndarray(py, error))
         }};
     }
 

@@ -1,7 +1,7 @@
 use atlas_ndarray::{NDArray, SortElement};
 use pyo3::{prelude::*, types::PyTuple};
 
-use crate::{array, gil, python_dtype::with_dtype};
+use crate::support::{arrays as array, dtypes::with_dtype, gil};
 
 pub(crate) fn unique(
     py: Python<'_>,

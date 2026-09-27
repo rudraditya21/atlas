@@ -2,7 +2,7 @@ use atlas_ndarray::ArrayElement;
 use numpy::Element;
 use pyo3::prelude::*;
 
-use crate::{array, gil, python_dtype::with_dtype};
+use crate::support::{arrays as array, dtypes::with_dtype, gil};
 
 #[pyclass(module = "atlas._native")]
 pub(crate) struct TrainTestSplit {
@@ -52,7 +52,7 @@ pub(crate) fn train_test_split(
             let split = gil::without_gil(py, move || {
                 atlas_ml::train_test_split(&features, &targets, test_ratio, seed)
             })
-            .map_err(|error| crate::error::ml(py, error))?;
+            .map_err(|error| crate::support::errors::ml(py, error))?;
             output(py, split)
         }
     )

@@ -8,7 +8,7 @@ use atlas_stats::AtlasStatsError;
 use numpy::PyArrayDyn;
 use pyo3::{exceptions::PyValueError, prelude::*};
 
-use crate::{array, error, gil, scalar};
+use crate::support::{arrays as array, errors as error, gil, scalar};
 
 pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(raise_ndarray_error, module)?)?;

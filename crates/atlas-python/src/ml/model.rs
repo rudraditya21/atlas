@@ -2,7 +2,7 @@ use atlas_ml::AtlasMlError;
 use atlas_ndarray::{ArrayElement, NDArray};
 use pyo3::prelude::*;
 
-use crate::array;
+use crate::support::arrays as array;
 
 pub(crate) struct NativeModel<T> {
     inner: Option<T>,
@@ -19,7 +19,7 @@ impl<T> NativeModel<T> {
 
     pub(crate) fn fitted(&self, py: Python<'_>, operation: &'static str) -> PyResult<&T> {
         self.inner.as_ref().ok_or_else(|| {
-            crate::error::ml(
+            crate::support::errors::ml(
                 py,
                 AtlasMlError::InvalidArgument {
                     op: operation,
@@ -39,7 +39,7 @@ pub(crate) fn classifier_fit_inputs(
     let features = array::feature_matrix_f64(py, features)?;
     let labels = array::label_vector_usize(py, labels)?;
     validate_fit_inputs(&features, &labels, "a rank-1 label vector", operation)
-        .map_err(|error| crate::error::ml(py, error))?;
+        .map_err(|error| crate::support::errors::ml(py, error))?;
 
     Ok((features, labels))
 }
@@ -53,7 +53,7 @@ pub(crate) fn regression_fit_inputs(
     let features = array::feature_matrix_f64(py, features)?;
     let targets = array::target_vector_f64(py, targets)?;
     validate_fit_inputs(&features, &targets, "a rank-1 target vector", operation)
-        .map_err(|error| crate::error::ml(py, error))?;
+        .map_err(|error| crate::support::errors::ml(py, error))?;
 
     Ok((features, targets))
 }
@@ -65,7 +65,7 @@ pub(crate) fn predict_features(
 ) -> PyResult<NDArray<f64>> {
     let features = array::feature_matrix_f64(py, features)?;
     if features.ndim() != 2 {
-        return Err(crate::error::ml(
+        return Err(crate::support::errors::ml(
             py,
             AtlasMlError::InvalidInputRank {
                 op: operation,
