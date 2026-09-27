@@ -182,6 +182,8 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(weighted_variance, module)?)?;
     module.add_function(wrap_pyfunction!(covariance, module)?)?;
     module.add_function(wrap_pyfunction!(correlation, module)?)?;
+    module.add_function(wrap_pyfunction!(covariance_matrix, module)?)?;
+    module.add_function(wrap_pyfunction!(correlation_matrix, module)?)?;
     module.add_function(wrap_pyfunction!(argmin, module)?)?;
     module.add_function(wrap_pyfunction!(argmax, module)?)?;
     module.add_function(wrap_pyfunction!(cumsum, module)?)?;
@@ -664,6 +666,16 @@ fn covariance(py: Python<'_>, lhs: &Bound<'_, PyAny>, rhs: &Bound<'_, PyAny>) ->
 #[pyfunction]
 fn correlation(py: Python<'_>, lhs: &Bound<'_, PyAny>, rhs: &Bound<'_, PyAny>) -> PyResult<f64> {
     pairwise_ops::correlation(py, lhs, rhs)
+}
+
+#[pyfunction]
+fn covariance_matrix(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    pairwise_ops::covariance_matrix(py, value)
+}
+
+#[pyfunction]
+fn correlation_matrix(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
+    pairwise_ops::correlation_matrix(py, value)
 }
 
 #[pyfunction(signature = (value, axis = None))]

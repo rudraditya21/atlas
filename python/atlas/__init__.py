@@ -234,6 +234,8 @@ weighted_mean = _native.weighted_mean
 weighted_variance = _native.weighted_variance
 covariance = _native.covariance
 correlation = _native.correlation
+covariance_matrix = _native.covariance_matrix
+correlation_matrix = _native.correlation_matrix
 argmin = _native.argmin
 argmax = _native.argmax
 argmin_axis = _native.argmin_axis
@@ -595,6 +597,8 @@ for _name in (
     "quantile",
     "median_axis",
     "quantile_axis",
+    "covariance_matrix",
+    "correlation_matrix",
     "argmin",
     "argmax",
     "cumsum",
@@ -805,6 +809,8 @@ __all__ = sorted(
         "weighted_variance",
         "covariance",
         "correlation",
+        "covariance_matrix",
+        "correlation_matrix",
         "std",
         "stack",
         "take",
