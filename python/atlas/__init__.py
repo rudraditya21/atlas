@@ -232,6 +232,8 @@ median_axis = _native.median_axis
 quantile_axis = _native.quantile_axis
 weighted_mean = _native.weighted_mean
 weighted_variance = _native.weighted_variance
+covariance = _native.covariance
+correlation = _native.correlation
 argmin = _native.argmin
 argmax = _native.argmax
 argmin_axis = _native.argmin_axis
@@ -646,6 +648,8 @@ for _name in (
     "less_equal",
     "greater",
     "greater_equal",
+    "covariance",
+    "correlation",
 ):
     globals()[_name] = _coerce_binary_operands(globals()[_name])
 
@@ -799,6 +803,8 @@ __all__ = sorted(
         "quantile_axis",
         "weighted_mean",
         "weighted_variance",
+        "covariance",
+        "correlation",
         "std",
         "stack",
         "take",

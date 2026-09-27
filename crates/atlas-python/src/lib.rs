@@ -55,6 +55,8 @@ mod metadata;
 mod norm_ops;
 #[path = "manipulation/pad.rs"]
 mod pad_ops;
+#[path = "statistics/pairwise.rs"]
+mod pairwise_ops;
 #[path = "indexing/partition.rs"]
 mod partition_ops;
 #[path = "indexing/put.rs"]
@@ -178,6 +180,8 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(quantile_axis, module)?)?;
     module.add_function(wrap_pyfunction!(weighted_mean, module)?)?;
     module.add_function(wrap_pyfunction!(weighted_variance, module)?)?;
+    module.add_function(wrap_pyfunction!(covariance, module)?)?;
+    module.add_function(wrap_pyfunction!(correlation, module)?)?;
     module.add_function(wrap_pyfunction!(argmin, module)?)?;
     module.add_function(wrap_pyfunction!(argmax, module)?)?;
     module.add_function(wrap_pyfunction!(cumsum, module)?)?;
@@ -650,6 +654,16 @@ fn weighted_variance(
     weights: &Bound<'_, PyAny>,
 ) -> PyResult<f64> {
     weighted_ops::weighted_variance(py, values, weights)
+}
+
+#[pyfunction]
+fn covariance(py: Python<'_>, lhs: &Bound<'_, PyAny>, rhs: &Bound<'_, PyAny>) -> PyResult<f64> {
+    pairwise_ops::covariance(py, lhs, rhs)
+}
+
+#[pyfunction]
+fn correlation(py: Python<'_>, lhs: &Bound<'_, PyAny>, rhs: &Bound<'_, PyAny>) -> PyResult<f64> {
+    pairwise_ops::correlation(py, lhs, rhs)
 }
 
 #[pyfunction(signature = (value, axis = None))]
