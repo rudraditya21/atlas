@@ -74,6 +74,8 @@ mod pad_ops;
 mod pairwise_ops;
 #[path = "indexing/partition.rs"]
 mod partition_ops;
+#[path = "ml/perceptron.rs"]
+mod perceptron_ops;
 #[path = "indexing/put.rs"]
 mod put_ops;
 #[path = "support/dtype.rs"]
@@ -141,6 +143,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<linear_regression_ops::LinearRegression>()?;
     module.add_class::<ridge_regression_ops::RidgeRegression>()?;
     module.add_class::<logistic_regression_ops::BinaryLogisticRegression>()?;
+    module.add_class::<perceptron_ops::BinaryPerceptron>()?;
     module.add_function(wrap_pyfunction!(version, module)?)?;
     module.add_function(wrap_pyfunction!(asarray, module)?)?;
     module.add_function(wrap_pyfunction!(zeros, module)?)?;
