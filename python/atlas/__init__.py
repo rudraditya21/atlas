@@ -17,6 +17,7 @@ from .errors import (
 )
 
 __version__ = _native.version()
+Generator = _native.Generator
 
 _ATLAS_DTYPE_NAMES = frozenset(
     {
@@ -700,6 +701,7 @@ __all__ = sorted(
     [
         "AtlasError",
         "AxisError",
+        "Generator",
         "ModelError",
         "NumericError",
         "ShapeError",
@@ -841,6 +843,9 @@ __all__ = sorted(
 
 for _name in __all__:
     _value = globals()[_name]
+    if isinstance(_value, type):
+        _value.__module__ = __name__
+        continue
     if not callable(_value):
         continue
     if getattr(_value, "__module__", None) == _native.__name__:

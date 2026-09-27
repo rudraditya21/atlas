@@ -37,6 +37,8 @@ mod error;
 mod flatten_ops;
 #[path = "manipulation/flip.rs"]
 mod flip_ops;
+#[path = "random/generator.rs"]
+mod generator;
 #[path = "support/gil.rs"]
 mod gil;
 #[path = "linalg/inverse.rs"]
@@ -115,6 +117,7 @@ fn version() -> &'static str {
 
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
+    module.add_class::<generator::Generator>()?;
     module.add_function(wrap_pyfunction!(version, module)?)?;
     module.add_function(wrap_pyfunction!(asarray, module)?)?;
     module.add_function(wrap_pyfunction!(zeros, module)?)?;
