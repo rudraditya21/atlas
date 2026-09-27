@@ -101,6 +101,8 @@ mod trace_ops;
 mod unary;
 #[path = "indexing/unique.rs"]
 mod unique_ops;
+#[path = "statistics/weighted.rs"]
+mod weighted_ops;
 #[path = "operations/where_ops.rs"]
 mod where_ops;
 
@@ -174,6 +176,8 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(quantile, module)?)?;
     module.add_function(wrap_pyfunction!(median_axis, module)?)?;
     module.add_function(wrap_pyfunction!(quantile_axis, module)?)?;
+    module.add_function(wrap_pyfunction!(weighted_mean, module)?)?;
+    module.add_function(wrap_pyfunction!(weighted_variance, module)?)?;
     module.add_function(wrap_pyfunction!(argmin, module)?)?;
     module.add_function(wrap_pyfunction!(argmax, module)?)?;
     module.add_function(wrap_pyfunction!(cumsum, module)?)?;
@@ -628,6 +632,24 @@ fn quantile_axis(
     interpolation: &str,
 ) -> PyResult<Py<PyAny>> {
     quantile_ops::quantile_axis(py, value, q, axis, interpolation)
+}
+
+#[pyfunction]
+fn weighted_mean(
+    py: Python<'_>,
+    values: &Bound<'_, PyAny>,
+    weights: &Bound<'_, PyAny>,
+) -> PyResult<f64> {
+    weighted_ops::weighted_mean(py, values, weights)
+}
+
+#[pyfunction]
+fn weighted_variance(
+    py: Python<'_>,
+    values: &Bound<'_, PyAny>,
+    weights: &Bound<'_, PyAny>,
+) -> PyResult<f64> {
+    weighted_ops::weighted_variance(py, values, weights)
 }
 
 #[pyfunction(signature = (value, axis = None))]

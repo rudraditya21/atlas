@@ -92,6 +92,19 @@ def _coerce_binary_operands(function):
     return wrapper
 
 
+def _coerce_weighted_operands(function):
+    @wraps(function)
+    def wrapper(values, weights):
+        values = _array_like(values)
+        weights = _array_like(weights)
+        dtype = np.result_type(values, weights)
+        return function(
+            np.asarray(values, dtype=dtype), np.asarray(weights, dtype=dtype)
+        )
+
+    return wrapper
+
+
 def _coerce_array_collection(function):
     @wraps(function)
     def wrapper(arrays, axis=0):
@@ -217,6 +230,8 @@ median = _native.median
 quantile = _native.quantile
 median_axis = _native.median_axis
 quantile_axis = _native.quantile_axis
+weighted_mean = _native.weighted_mean
+weighted_variance = _native.weighted_variance
 argmin = _native.argmin
 argmax = _native.argmax
 argmin_axis = _native.argmin_axis
@@ -634,6 +649,9 @@ for _name in (
 ):
     globals()[_name] = _coerce_binary_operands(globals()[_name])
 
+for _name in ("weighted_mean", "weighted_variance"):
+    globals()[_name] = _coerce_weighted_operands(globals()[_name])
+
 for _name in (
     "bitwise_and",
     "bitwise_or",
@@ -779,6 +797,8 @@ __all__ = sorted(
         "quantile",
         "median_axis",
         "quantile_axis",
+        "weighted_mean",
+        "weighted_variance",
         "std",
         "stack",
         "take",
