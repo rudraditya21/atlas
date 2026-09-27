@@ -215,6 +215,8 @@ kurtosis = _native.kurtosis
 skewness = _native.skewness
 median = _native.median
 quantile = _native.quantile
+median_axis = _native.median_axis
+quantile_axis = _native.quantile_axis
 argmin = _native.argmin
 argmax = _native.argmax
 argmin_axis = _native.argmin_axis
@@ -574,6 +576,8 @@ for _name in (
     "skewness",
     "median",
     "quantile",
+    "median_axis",
+    "quantile_axis",
     "argmin",
     "argmax",
     "cumsum",
@@ -773,6 +777,8 @@ __all__ = sorted(
         "skewness",
         "median",
         "quantile",
+        "median_axis",
+        "quantile_axis",
         "std",
         "stack",
         "take",

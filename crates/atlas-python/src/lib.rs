@@ -172,6 +172,8 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(skewness, module)?)?;
     module.add_function(wrap_pyfunction!(median, module)?)?;
     module.add_function(wrap_pyfunction!(quantile, module)?)?;
+    module.add_function(wrap_pyfunction!(median_axis, module)?)?;
+    module.add_function(wrap_pyfunction!(quantile_axis, module)?)?;
     module.add_function(wrap_pyfunction!(argmin, module)?)?;
     module.add_function(wrap_pyfunction!(argmax, module)?)?;
     module.add_function(wrap_pyfunction!(cumsum, module)?)?;
@@ -610,6 +612,22 @@ fn quantile(
     interpolation: &str,
 ) -> PyResult<f64> {
     quantile_ops::quantile(py, value, q, interpolation)
+}
+
+#[pyfunction]
+fn median_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
+    quantile_ops::median_axis(py, value, axis)
+}
+
+#[pyfunction(signature = (value, q, axis, interpolation = "linear"))]
+fn quantile_axis(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    q: f64,
+    axis: i64,
+    interpolation: &str,
+) -> PyResult<Py<PyAny>> {
+    quantile_ops::quantile_axis(py, value, q, axis, interpolation)
 }
 
 #[pyfunction(signature = (value, axis = None))]

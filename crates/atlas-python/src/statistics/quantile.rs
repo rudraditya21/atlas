@@ -1,5 +1,6 @@
 use atlas_stats::QuantileInterpolation;
 use pyo3::{
+    IntoPyObjectExt,
     exceptions::{PyTypeError, PyValueError},
     prelude::*,
 };
@@ -7,13 +8,13 @@ use pyo3::{
 use crate::{array, gil};
 
 #[derive(Clone, Copy)]
-enum ScalarStatistic {
+enum Statistic {
     Median,
     Quantile { q: f64, interpolation: QuantileInterpolation },
 }
 
 pub(crate) fn median(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<f64> {
-    scalar_statistic(py, value, ScalarStatistic::Median)
+    scalar_statistic(py, value, Statistic::Median)
 }
 
 pub(crate) fn quantile(
@@ -25,14 +26,37 @@ pub(crate) fn quantile(
     scalar_statistic(
         py,
         value,
-        ScalarStatistic::Quantile { q, interpolation: parse_interpolation(interpolation)? },
+        Statistic::Quantile { q, interpolation: parse_interpolation(interpolation)? },
+    )
+}
+
+pub(crate) fn median_axis(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axis: i64,
+) -> PyResult<Py<PyAny>> {
+    axis_statistic(py, value, axis, Statistic::Median)
+}
+
+pub(crate) fn quantile_axis(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    q: f64,
+    axis: i64,
+    interpolation: &str,
+) -> PyResult<Py<PyAny>> {
+    axis_statistic(
+        py,
+        value,
+        axis,
+        Statistic::Quantile { q, interpolation: parse_interpolation(interpolation)? },
     )
 }
 
 fn scalar_statistic(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
-    statistic: ScalarStatistic,
+    statistic: Statistic,
 ) -> PyResult<f64> {
     array::require_numpy_array(py, value)?;
     let dtype: String = value.getattr("dtype")?.getattr("name")?.extract()?;
@@ -41,12 +65,51 @@ fn scalar_statistic(
         ($ty:ty) => {{
             let value = array::from_numpy(array::readonly_from_python::<$ty>(py, value)?)?;
             gil::without_gil(py, move || match statistic {
-                ScalarStatistic::Median => atlas_stats::median(&value),
-                ScalarStatistic::Quantile { q, interpolation } => {
+                Statistic::Median => atlas_stats::median(&value),
+                Statistic::Quantile { q, interpolation } => {
                     atlas_stats::quantile_with_interpolation(&value, q, interpolation)
                 }
             })
             .map_err(|error| crate::error::stats(py, error))
+        }};
+    }
+
+    match dtype.as_str() {
+        "int8" => apply!(i8),
+        "int16" => apply!(i16),
+        "int32" => apply!(i32),
+        "int64" => apply!(i64),
+        "uint8" => apply!(u8),
+        "uint16" => apply!(u16),
+        "uint32" => apply!(u32),
+        "uint64" => apply!(u64),
+        "float32" => apply!(f32),
+        "float64" => apply!(f64),
+        "bool" => Err(PyTypeError::new_err("quantile statistics do not support bool dtype")),
+        _ => Err(PyTypeError::new_err(format!("unsupported NumPy dtype {dtype}"))),
+    }
+}
+
+fn axis_statistic(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axis: i64,
+    statistic: Statistic,
+) -> PyResult<Py<PyAny>> {
+    array::require_numpy_array(py, value)?;
+    let dtype: String = value.getattr("dtype")?.getattr("name")?.extract()?;
+
+    macro_rules! apply {
+        ($ty:ty) => {{
+            let value = array::from_numpy(array::readonly_from_python::<$ty>(py, value)?)?;
+            let result = gil::without_gil(py, move || match statistic {
+                Statistic::Median => atlas_stats::median_axis(&value, axis),
+                Statistic::Quantile { q, interpolation } => {
+                    atlas_stats::quantile_axis_with_interpolation(&value, q, axis, interpolation)
+                }
+            })
+            .map_err(|error| crate::error::stats(py, error))?;
+            Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
         }};
     }
 
