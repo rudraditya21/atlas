@@ -1,6 +1,7 @@
 use pyo3::prelude::*;
 
-use crate::{array, gil, partition_ops::normalize_kths, python_dtype::with_dtype};
+use super::partition_ops::normalize_kths;
+use crate::{array, gil, python_dtype::with_dtype};
 
 pub(crate) fn argpartition(
     py: Python<'_>,

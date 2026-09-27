@@ -5,8 +5,6 @@
 
 use pyo3::prelude::*;
 
-#[path = "bindings/arrays.rs"]
-mod array_bindings;
 #[path = "bindings/support.rs"]
 mod support_bindings;
 
@@ -46,7 +44,6 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     reductions::register(module)?;
     indexing::register(module)?;
     manipulation::register(module)?;
-    array_bindings::register(module)?;
     linalg::register(module)?;
     statistics::register(module)?;
     ml::register(module)?;
