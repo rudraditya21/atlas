@@ -7,6 +7,16 @@ from operator import index as integer_index
 import numpy as np
 
 from . import _native
+from ._support import (
+    _array_like,
+    _coerce_array_collection,
+    _coerce_arrays,
+    _coerce_binary_operands,
+    _coerce_searchsorted,
+    _coerce_weighted_operands,
+    _is_array_like,
+    _optional_array_like,
+)
 from .errors import (
     AtlasError,
     AxisError,
@@ -51,104 +61,6 @@ _ATLAS_DTYPE_NAMES = frozenset(
         "float64",
     }
 )
-
-
-def _array_like(value):
-    if isinstance(value, np.ndarray):
-        return value
-    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
-        return np.asarray(value)
-    raise TypeError("expected a NumPy ndarray or Python sequence")
-
-
-def _is_array_like(value):
-    return isinstance(value, np.ndarray) or (
-        isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray))
-    )
-
-
-def _optional_array_like(value):
-    if _is_array_like(value):
-        return _array_like(value)
-    return value
-
-
-def _coerce_arrays(function, *, required=(), optional=()):
-    """Coerce array-like public arguments before entering the native boundary."""
-
-    @wraps(function)
-    def wrapper(*args, **kwargs):
-        args = list(args)
-        kwargs = dict(kwargs)
-        for index, name in required:
-            if index < len(args):
-                args[index] = _array_like(args[index])
-            elif name in kwargs:
-                kwargs[name] = _array_like(kwargs[name])
-        for index, name in optional:
-            if index < len(args):
-                args[index] = _optional_array_like(args[index])
-            elif name in kwargs:
-                kwargs[name] = _optional_array_like(kwargs[name])
-        return function(*args, **kwargs)
-
-    return wrapper
-
-
-def _coerce_binary_operands(function):
-    """Coerce binary operands to their NumPy-promoted dtype."""
-
-    @wraps(function)
-    def wrapper(lhs, rhs):
-        lhs_value = _array_like(lhs) if _is_array_like(lhs) else lhs
-        rhs_value = _array_like(rhs) if _is_array_like(rhs) else rhs
-        dtype = np.result_type(lhs_value, rhs_value)
-        return function(
-            np.asarray(lhs_value, dtype=dtype), np.asarray(rhs_value, dtype=dtype)
-        )
-
-    return wrapper
-
-
-def _coerce_weighted_operands(function):
-    @wraps(function)
-    def wrapper(values, weights):
-        values = _array_like(values)
-        weights = _array_like(weights)
-        dtype = np.result_type(values, weights)
-        return function(
-            np.asarray(values, dtype=dtype), np.asarray(weights, dtype=dtype)
-        )
-
-    return wrapper
-
-
-def _coerce_array_collection(function):
-    @wraps(function)
-    def wrapper(arrays, axis=0):
-        return function([_array_like(value) for value in arrays], axis)
-
-    return wrapper
-
-
-def _coerce_searchsorted(function):
-    def wrapper(sorted, values, side="left", *, sorter=None):
-        sorted = _array_like(sorted)
-        values = (
-            np.asarray(values, dtype=sorted.dtype)
-            if _is_array_like(values) and not isinstance(values, np.ndarray)
-            else _optional_array_like(values)
-        )
-        return function(
-            sorted,
-            values,
-            side,
-            None if sorter is None else _array_like(sorter),
-        )
-
-    wrapper.__name__ = function.__name__
-    wrapper.__doc__ = function.__doc__
-    return wrapper
 
 
 def _with_keepdims(function):
