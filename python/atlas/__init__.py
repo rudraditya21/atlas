@@ -228,6 +228,8 @@ k_fold_split = _native.k_fold_split
 stratified_k_fold_split = _native.stratified_k_fold_split
 to_arrow_primitive = _native.to_arrow_primitive
 from_arrow_primitive = _native.from_arrow_primitive
+to_arrow_record_batch = _native.to_arrow_record_batch
+from_arrow_record_batch = _native.from_arrow_record_batch
 ravel = _native.ravel
 flatten = _native.flatten
 clip = _native.clip
@@ -753,6 +755,7 @@ stratified_k_fold_split = _coerce_arrays(
     stratified_k_fold_split, required=((0, "features"), (1, "labels"))
 )
 to_arrow_primitive = _coerce_arrays(to_arrow_primitive, required=((0, "value"),))
+to_arrow_record_batch = _coerce_arrays(to_arrow_record_batch, required=((0, "matrix"),))
 
 for _name in ("select", "masked_fill"):
     globals()[_name] = _coerce_arrays(
@@ -849,6 +852,7 @@ __all__ = sorted(
         "expand_dims",
         "flatten",
         "from_arrow_primitive",
+        "from_arrow_record_batch",
         "flip",
         "full",
         "full_like",
@@ -944,6 +948,7 @@ __all__ = sorted(
         "issubdtype",
         "transpose",
         "to_arrow_primitive",
+        "to_arrow_record_batch",
         "trace",
         "train_test_split",
         "unique",
