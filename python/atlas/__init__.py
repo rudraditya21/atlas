@@ -18,6 +18,7 @@ from .errors import (
 
 __version__ = _native.version()
 Generator = _native.Generator
+ConjugateGradientResult = _native.ConjugateGradientResult
 
 _ATLAS_DTYPE_NAMES = frozenset(
     {
@@ -197,6 +198,7 @@ qr = _native.qr
 least_squares = _native.least_squares
 matrix_rank = _native.matrix_rank
 symmetric_eigendecomposition = _native.symmetric_eigendecomposition
+conjugate_gradient = _native.conjugate_gradient
 ravel = _native.ravel
 flatten = _native.flatten
 clip = _native.clip
@@ -694,6 +696,9 @@ solve = _coerce_arrays(solve, required=((0, "matrix"), (1, "rhs")))
 solve_transpose = _coerce_arrays(solve_transpose, required=((0, "matrix"), (1, "rhs")))
 solve_spd = _coerce_arrays(solve_spd, required=((0, "matrix"), (1, "rhs")))
 least_squares = _coerce_arrays(least_squares, required=((0, "matrix"), (1, "rhs")))
+conjugate_gradient = _coerce_arrays(
+    conjugate_gradient, required=((0, "matrix"), (1, "rhs"))
+)
 
 for _name in ("select", "masked_fill"):
     globals()[_name] = _coerce_arrays(
@@ -717,6 +722,7 @@ __all__ = sorted(
     [
         "AtlasError",
         "AxisError",
+        "ConjugateGradientResult",
         "Generator",
         "ModelError",
         "NumericError",
@@ -814,6 +820,7 @@ __all__ = sorted(
         "slogdet",
         "solve_spd",
         "symmetric_eigendecomposition",
+        "conjugate_gradient",
         "least_squares",
         "split",
         "sort",

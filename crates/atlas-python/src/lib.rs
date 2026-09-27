@@ -25,6 +25,8 @@ mod clip_ops;
 mod close;
 #[path = "manipulation/concat.rs"]
 mod concat_ops;
+#[path = "linalg/conjugate_gradient.rs"]
+mod conjugate_gradient_ops;
 #[path = "constructors/constructors.rs"]
 mod constructors;
 #[path = "linalg/determinant.rs"]
@@ -126,6 +128,7 @@ fn version() -> &'static str {
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<generator::Generator>()?;
+    module.add_class::<conjugate_gradient_ops::ConjugateGradientResult>()?;
     module.add_function(wrap_pyfunction!(version, module)?)?;
     module.add_function(wrap_pyfunction!(asarray, module)?)?;
     module.add_function(wrap_pyfunction!(zeros, module)?)?;
@@ -180,6 +183,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(least_squares, module)?)?;
     module.add_function(wrap_pyfunction!(matrix_rank, module)?)?;
     module.add_function(wrap_pyfunction!(symmetric_eigendecomposition, module)?)?;
+    module.add_function(wrap_pyfunction!(conjugate_gradient, module)?)?;
     module.add_function(wrap_pyfunction!(ravel, module)?)?;
     module.add_function(wrap_pyfunction!(flatten, module)?)?;
     module.add_function(wrap_pyfunction!(nonzero, module)?)?;
@@ -611,6 +615,17 @@ fn symmetric_eigendecomposition(
     value: &Bound<'_, PyAny>,
 ) -> PyResult<(Py<PyAny>, Py<PyAny>)> {
     eigen_ops::symmetric_eigendecomposition(py, value)
+}
+
+#[pyfunction]
+fn conjugate_gradient(
+    py: Python<'_>,
+    matrix: &Bound<'_, PyAny>,
+    rhs: &Bound<'_, PyAny>,
+    max_iterations: usize,
+    tolerance: f64,
+) -> PyResult<Py<conjugate_gradient_ops::ConjugateGradientResult>> {
+    conjugate_gradient_ops::conjugate_gradient(py, matrix, rhs, max_iterations, tolerance)
 }
 
 #[pyfunction]
