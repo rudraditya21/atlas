@@ -36,7 +36,6 @@ pub(crate) fn ndarray(py: Python<'_>, error: AtlasNdError) -> PyErr {
     python_error(py, exception, error)
 }
 
-#[allow(dead_code, reason = "library bindings are registered incrementally")]
 pub(crate) fn stats(py: Python<'_>, error: AtlasStatsError) -> PyErr {
     match &error {
         AtlasStatsError::NdArray(error) => ndarray(py, error.clone()),
