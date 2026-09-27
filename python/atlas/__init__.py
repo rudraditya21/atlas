@@ -212,6 +212,7 @@ max = _native.max
 variance = _native.variance
 stddev = _native.stddev
 kurtosis = _native.kurtosis
+skewness = _native.skewness
 argmin = _native.argmin
 argmax = _native.argmax
 argmin_axis = _native.argmin_axis
@@ -568,6 +569,7 @@ for _name in (
     "variance",
     "stddev",
     "kurtosis",
+    "skewness",
     "argmin",
     "argmax",
     "cumsum",
@@ -764,6 +766,7 @@ __all__ = sorted(
         "squeeze",
         "stddev",
         "kurtosis",
+        "skewness",
         "std",
         "stack",
         "take",

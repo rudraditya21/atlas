@@ -76,6 +76,8 @@ mod scalar;
 mod searchsorted_ops;
 #[path = "manipulation/shape_ops.rs"]
 mod shape_ops;
+#[path = "statistics/skewness.rs"]
+mod skewness_ops;
 #[path = "linalg/solve.rs"]
 mod solve_ops;
 #[path = "indexing/sort.rs"]
@@ -165,6 +167,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(variance, module)?)?;
     module.add_function(wrap_pyfunction!(stddev, module)?)?;
     module.add_function(wrap_pyfunction!(kurtosis, module)?)?;
+    module.add_function(wrap_pyfunction!(skewness, module)?)?;
     module.add_function(wrap_pyfunction!(argmin, module)?)?;
     module.add_function(wrap_pyfunction!(argmax, module)?)?;
     module.add_function(wrap_pyfunction!(cumsum, module)?)?;
@@ -583,6 +586,11 @@ fn stddev(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
 #[pyfunction]
 fn kurtosis(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<f64> {
     kurtosis_ops::kurtosis(py, value)
+}
+
+#[pyfunction]
+fn skewness(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<f64> {
+    skewness_ops::skewness(py, value)
 }
 
 #[pyfunction(signature = (value, axis = None))]
