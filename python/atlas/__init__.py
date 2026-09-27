@@ -21,6 +21,7 @@ Generator = _native.Generator
 ConjugateGradientResult = _native.ConjugateGradientResult
 ConfusionMatrix = _native.ConfusionMatrix
 ClassificationReport = _native.ClassificationReport
+TrainTestSplit = _native.TrainTestSplit
 LinearRegression = _native.LinearRegression
 RidgeRegression = _native.RidgeRegression
 BinaryLogisticRegression = _native.BinaryLogisticRegression
@@ -221,6 +222,7 @@ mean_squared_error = _native.mean_squared_error
 r_squared = _native.r_squared
 confusion_matrix = _native.confusion_matrix
 classification_report = _native.classification_report
+train_test_split = _native.train_test_split
 ravel = _native.ravel
 flatten = _native.flatten
 clip = _native.clip
@@ -738,6 +740,10 @@ for _name in ("confusion_matrix", "classification_report"):
         globals()[_name], required=((0, "actual"), (1, "predicted"))
     )
 
+train_test_split = _coerce_arrays(
+    train_test_split, required=((0, "features"), (1, "targets"))
+)
+
 for _name in ("select", "masked_fill"):
     globals()[_name] = _coerce_arrays(
         globals()[_name], required=((0, "value"), (1, "mask"))
@@ -780,6 +786,7 @@ __all__ = sorted(
         "ShapeError",
         "SliceError",
         "StandardScaler",
+        "TrainTestSplit",
         "__version__",
         "add",
         "accuracy",
@@ -923,6 +930,7 @@ __all__ = sorted(
         "issubdtype",
         "transpose",
         "trace",
+        "train_test_split",
         "unique",
         "variance",
         "var",

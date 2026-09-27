@@ -140,6 +140,8 @@ mod test_support;
 mod tile_ops;
 #[path = "linalg/trace.rs"]
 mod trace_ops;
+#[path = "ml/train_test_split.rs"]
+mod train_test_split_ops;
 #[path = "operations/unary.rs"]
 mod unary;
 #[path = "indexing/unique.rs"]
@@ -172,6 +174,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<scaler_ops::MinMaxScaler>()?;
     module.add_class::<metrics_ops::ConfusionMatrix>()?;
     module.add_class::<metrics_ops::ClassificationReport>()?;
+    module.add_class::<train_test_split_ops::TrainTestSplit>()?;
     module.add_function(wrap_pyfunction!(version, module)?)?;
     module.add_function(wrap_pyfunction!(asarray, module)?)?;
     module.add_function(wrap_pyfunction!(zeros, module)?)?;
@@ -235,6 +238,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(r_squared, module)?)?;
     module.add_function(wrap_pyfunction!(confusion_matrix, module)?)?;
     module.add_function(wrap_pyfunction!(classification_report, module)?)?;
+    module.add_function(wrap_pyfunction!(train_test_split, module)?)?;
     module.add_function(wrap_pyfunction!(ravel, module)?)?;
     module.add_function(wrap_pyfunction!(flatten, module)?)?;
     module.add_function(wrap_pyfunction!(nonzero, module)?)?;
@@ -750,6 +754,17 @@ fn classification_report(
     predicted: &Bound<'_, PyAny>,
 ) -> PyResult<Py<metrics_ops::ClassificationReport>> {
     metrics_ops::classification_report(py, actual, predicted)
+}
+
+#[pyfunction(signature = (features, targets, test_ratio = 0.25, seed = 0))]
+fn train_test_split(
+    py: Python<'_>,
+    features: &Bound<'_, PyAny>,
+    targets: &Bound<'_, PyAny>,
+    test_ratio: f64,
+    seed: u64,
+) -> PyResult<Py<train_test_split_ops::TrainTestSplit>> {
+    train_test_split_ops::train_test_split(py, features, targets, test_ratio, seed)
 }
 
 #[pyfunction]
