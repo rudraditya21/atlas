@@ -1,22 +1,10 @@
-"""Python bindings for Atlas."""
+"""Public Python API for Atlas."""
 
-from collections.abc import Sequence
 from functools import wraps
-from operator import index as integer_index
 
 import numpy as np
 
-from . import _native
-from ._support import (
-    _array_like,
-    _coerce_array_collection,
-    _coerce_arrays,
-    _coerce_binary_operands,
-    _coerce_searchsorted,
-    _coerce_weighted_operands,
-    _is_array_like,
-    _optional_array_like,
-)
+from . import _arrays, _interop, _linalg, _ml, _native, _random, _statistics
 from .errors import (
     AtlasError,
     AxisError,
@@ -27,40 +15,6 @@ from .errors import (
 )
 
 __version__ = _native.version()
-Generator = _native.Generator
-ConjugateGradientResult = _native.ConjugateGradientResult
-ConfusionMatrix = _native.ConfusionMatrix
-ClassificationReport = _native.ClassificationReport
-TrainTestSplit = _native.TrainTestSplit
-KFold = _native.KFold
-LinearRegression = _native.LinearRegression
-RidgeRegression = _native.RidgeRegression
-BinaryLogisticRegression = _native.BinaryLogisticRegression
-BinaryPerceptron = _native.BinaryPerceptron
-NearestCentroidClassifier = _native.NearestCentroidClassifier
-GaussianNaiveBayes = _native.GaussianNaiveBayes
-KnnClassifier = _native.KnnClassifier
-KnnRegressor = _native.KnnRegressor
-DecisionStumpClassifier = _native.DecisionStumpClassifier
-BinaryGiniSplit = _native.BinaryGiniSplit
-StandardScaler = _native.StandardScaler
-MinMaxScaler = _native.MinMaxScaler
-
-_ATLAS_DTYPE_NAMES = frozenset(
-    {
-        "bool",
-        "int8",
-        "int16",
-        "int32",
-        "int64",
-        "uint8",
-        "uint16",
-        "uint32",
-        "uint64",
-        "float32",
-        "float64",
-    }
-)
 
 
 def _with_keepdims(function):
@@ -86,607 +40,6 @@ def _publish(function):
     return wrapper
 
 
-asarray = _native.asarray
-zeros = _native.zeros
-ones = _native.ones
-eye = _native.eye
-identity = _native.identity
-full = _native.full
-arange = _native.arange
-linspace = _native.linspace
-astype = _native.astype
-allclose = _native.allclose
-all = _native.all
-any = _native.any
-all_axis = _native.all_axis
-any_axis = _native.any_axis
-where = _native.where
-bitwise_and = _native.bitwise_and
-bitwise_or = _native.bitwise_or
-bitwise_xor = _native.bitwise_xor
-bitwise_not = _native.bitwise_not
-take = _native.take
-dot = _native.dot
-norm = _native.norm
-trace = _native.trace
-squeeze = _native.squeeze
-expand_dims = _native.expand_dims
-concatenate = _native.concatenate
-stack = _native.stack
-diag = _native.diag
-matrix_norm = _native.matrix_norm
-det = _native.det
-inverse = _native.inverse
-solve = _native.solve
-solve_transpose = _native.solve_transpose
-slogdet = _native.slogdet
-cholesky = _native.cholesky
-solve_spd = _native.solve_spd
-qr = _native.qr
-least_squares = _native.least_squares
-matrix_rank = _native.matrix_rank
-symmetric_eigendecomposition = _native.symmetric_eigendecomposition
-conjugate_gradient = _native.conjugate_gradient
-evaluate_binary_gini_split = _native.evaluate_binary_gini_split
-accuracy = _native.accuracy
-log_loss = _native.log_loss
-mean_absolute_error = _native.mean_absolute_error
-mean_squared_error = _native.mean_squared_error
-r_squared = _native.r_squared
-confusion_matrix = _native.confusion_matrix
-classification_report = _native.classification_report
-train_test_split = _native.train_test_split
-k_fold_split = _native.k_fold_split
-stratified_k_fold_split = _native.stratified_k_fold_split
-to_arrow_primitive = _native.to_arrow_primitive
-from_arrow_primitive = _native.from_arrow_primitive
-to_arrow_record_batch = _native.to_arrow_record_batch
-from_arrow_record_batch = _native.from_arrow_record_batch
-ravel = _native.ravel
-flatten = _native.flatten
-clip = _native.clip
-matmul = _native.matmul
-neg = _native.neg
-abs = _native.abs
-sign = _native.sign
-round = _native.round
-isnan = _native.isnan
-isinf = _native.isinf
-isfinite = _native.isfinite
-shape = _native.shape
-ndim = _native.ndim
-size = _native.size
-dtype = _native.dtype
-add = _native.add
-subtract = _native.subtract
-multiply = _native.multiply
-divide = _native.divide
-equal = _native.equal
-not_equal = _native.not_equal
-less = _native.less
-less_equal = _native.less_equal
-greater = _native.greater
-greater_equal = _native.greater_equal
-select = _native.select
-count_true = _native.count_true
-nonzero = _native.nonzero
-argwhere = _native.argwhere
-masked_fill = _native.masked_fill
-sum = _native.sum
-mean = _native.mean
-min = _native.min
-max = _native.max
-variance = _native.variance
-stddev = _native.stddev
-kurtosis = _native.kurtosis
-skewness = _native.skewness
-median = _native.median
-quantile = _native.quantile
-median_axis = _native.median_axis
-quantile_axis = _native.quantile_axis
-weighted_mean = _native.weighted_mean
-weighted_variance = _native.weighted_variance
-covariance = _native.covariance
-correlation = _native.correlation
-covariance_matrix = _native.covariance_matrix
-correlation_matrix = _native.correlation_matrix
-argmin = _native.argmin
-argmax = _native.argmax
-argmin_axis = _native.argmin_axis
-argmax_axis = _native.argmax_axis
-cumsum = _native.cumsum
-cumprod = _native.cumprod
-cumsum_axis = _native.cumsum_axis
-cumprod_axis = _native.cumprod_axis
-nanmin = _native.nanmin
-nanmax = _native.nanmax
-nanmean = _native.nanmean
-nanstd = _native.nanstd
-sum_axis = _native.sum_axis
-mean_axis = _native.mean_axis
-min_axis = _native.min_axis
-max_axis = _native.max_axis
-reshape = _native.reshape
-transpose = _native.transpose
-moveaxis = _native.moveaxis
-swap_axes = _native.swap_axes
-split = _native.split
-repeat = _native.repeat
-tile = _native.tile
-flip = _native.flip
-roll = _native.roll
-sort = _native.sort
-argsort = _native.argsort
-argpartition = _native.argpartition
-unique = _native.unique
-pad = _native.pad
-searchsorted = _native.searchsorted
-partition = _native.partition
-put = _native.put
-
-
-_UNSET = object()
-
-
-def full(shape, fill_value=_UNSET, dtype=None, *, value=_UNSET):
-    if fill_value is not _UNSET and value is not _UNSET:
-        raise TypeError("full() received both 'fill_value' and 'value'")
-    if fill_value is _UNSET:
-        if value is _UNSET:
-            raise TypeError("full() missing required argument: 'fill_value'")
-        fill_value = value
-    return _native.full(shape, fill_value, dtype)
-
-
-def where(condition, x=_UNSET, y=_UNSET):
-    condition = _array_like(condition)
-    if x is _UNSET:
-        if y is not _UNSET:
-            raise TypeError("where() requires both x and y")
-        return nonzero(condition)
-    if y is _UNSET:
-        raise TypeError("where() requires both x and y")
-    return _native.where(condition, _optional_array_like(x), _optional_array_like(y))
-
-
-def unique(
-    value,
-    axis=None,
-    *,
-    return_index=False,
-    return_inverse=False,
-    return_counts=False,
-):
-    if axis is not None:
-        raise ValueError("unique only supports axis=None")
-    value = _array_like(value)
-    result = _native.unique(value, return_index, return_inverse, return_counts)
-    if not return_inverse:
-        return result
-    outputs = list(result)
-    outputs[1 + return_index] = outputs[1 + return_index].reshape(value.shape)
-    return tuple(outputs)
-
-
-def take(value, indices, axis=None, *, mode="raise"):
-    value = _array_like(value)
-    if mode == "raise":
-        return _native.take(value, indices, axis)
-    if mode not in {"wrap", "clip"}:
-        raise ValueError("mode must be 'raise', 'wrap', or 'clip'")
-
-    indices = np.asarray(indices)
-    if indices.ndim != 1 or (indices.size and indices.dtype.kind not in "iu"):
-        raise TypeError("indices must be a one-dimensional integer sequence")
-    if axis is None:
-        length = value.size
-    else:
-        axis_index = integer_index(axis)
-        normalized_axis = axis_index + value.ndim if axis_index < 0 else axis_index
-        if normalized_axis < 0 or normalized_axis >= value.ndim:
-            return _native.take(value, indices.tolist(), axis)
-        length = value.shape[normalized_axis]
-    if length == 0:
-        return _native.take(value, indices.tolist(), axis)
-
-    if mode == "wrap":
-        indices = indices % length
-    else:
-        indices = np.clip(indices, 0, length - 1)
-    return _native.take(value, indices.tolist(), axis)
-
-
-def put(value, indices, values):
-    value = _array_like(value)
-    if _is_array_like(values):
-        values = np.asarray(values, dtype=value.dtype)
-    result = _native.put(value, indices, values)
-    np.copyto(value, result)
-
-
-def choose(indices, choices):
-    indices = _array_like(indices)
-    if indices.dtype.kind not in "iu":
-        raise TypeError("choose indices must have an integer dtype")
-    if not isinstance(choices, Sequence) or isinstance(
-        choices, (str, bytes, bytearray)
-    ):
-        raise TypeError("choices must be a non-empty sequence")
-    if not choices:
-        raise ValueError("choices must be a non-empty sequence")
-    if indices.size and (np.any(indices < 0) or np.any(indices >= len(choices))):
-        raise ValueError("choose indices must be within the choices range")
-
-    choices = [
-        _array_like(choice) if _is_array_like(choice) else np.asarray(choice)
-        for choice in choices
-    ]
-    dtype = np.result_type(*choices)
-    result = np.asarray(choices[0], dtype=dtype)
-    result = where(equal(indices, 0), result, result)
-    for index, choice in enumerate(choices[1:], start=1):
-        result = where(equal(indices, index), np.asarray(choice, dtype=dtype), result)
-    return result
-
-
-def broadcast_to(value, shape):
-    try:
-        return np.broadcast_to(_array_like(value), shape)
-    except ValueError as error:
-        raise ShapeError(str(error)) from None
-
-
-def broadcast_arrays(*values):
-    values = [
-        _array_like(value) if _is_array_like(value) else np.asarray(value)
-        for value in values
-    ]
-    try:
-        return np.broadcast_arrays(*values)
-    except ValueError as error:
-        raise ShapeError(str(error)) from None
-
-
-def copy(value):
-    return np.array(_array_like(value), copy=True, order="C")
-
-
-def zeros_like(value, dtype=None):
-    value = _array_like(value)
-    return zeros(value.shape, dtype=value.dtype if dtype is None else dtype)
-
-
-def ones_like(value, dtype=None):
-    value = _array_like(value)
-    return ones(value.shape, dtype=value.dtype if dtype is None else dtype)
-
-
-def empty_like(value, dtype=None):
-    return np.empty_like(_array_like(value), dtype=dtype)
-
-
-def copyto(destination, source, *, where=True):
-    if not isinstance(destination, np.ndarray):
-        raise TypeError("destination must be a NumPy ndarray")
-    source = _array_like(source) if _is_array_like(source) else source
-    if _is_array_like(where):
-        where = _array_like(where)
-        if where.dtype != np.dtype(bool):
-            raise TypeError("where must have a boolean dtype")
-    elif not isinstance(where, (bool, np.bool_)):
-        raise TypeError("where must be a boolean scalar or array")
-    try:
-        np.copyto(destination, source, where=where)
-    except ValueError as error:
-        if "broadcast" in str(error):
-            raise ShapeError(str(error)) from None
-        raise
-
-
-def shares_memory(left, right, *, max_work=None):
-    return bool(
-        np.shares_memory(_array_like(left), _array_like(right), max_work=max_work)
-    )
-
-
-def may_share_memory(left, right, *, max_work=None):
-    return bool(
-        np.may_share_memory(_array_like(left), _array_like(right), max_work=max_work)
-    )
-
-
-def full_like(value, fill_value, dtype=None):
-    value = _array_like(value)
-    return full(value.shape, fill_value, dtype=value.dtype if dtype is None else dtype)
-
-
-def ascontiguousarray(value, dtype=None):
-    return np.ascontiguousarray(_array_like(value), dtype=dtype)
-
-
-def _atleast(function, values):
-    result = function(
-        *[
-            _array_like(value) if _is_array_like(value) else np.asarray(value)
-            for value in values
-        ]
-    )
-    return result if len(values) == 1 else tuple(result)
-
-
-def atleast_1d(*values):
-    return _atleast(np.atleast_1d, values)
-
-
-def atleast_2d(*values):
-    return _atleast(np.atleast_2d, values)
-
-
-def atleast_3d(*values):
-    return _atleast(np.atleast_3d, values)
-
-
-def _result_type_operand(value):
-    if isinstance(value, (str, np.dtype)) or (
-        isinstance(value, type) and issubclass(value, np.generic)
-    ):
-        return np.dtype(value)
-    return _array_like(value) if _is_array_like(value) else value
-
-
-def result_type(*values):
-    return np.result_type(*[_result_type_operand(value) for value in values])
-
-
-def promote_types(left, right):
-    return np.promote_types(np.dtype(left), np.dtype(right))
-
-
-def can_cast(source, target, *, casting="safe"):
-    return bool(np.can_cast(source, target, casting=casting))
-
-
-def issubdtype(dtype, kind):
-    return bool(np.issubdtype(dtype, kind))
-
-
-def min_scalar_type(value):
-    dtype = np.min_scalar_type(value)
-    if dtype == np.dtype(np.float16):
-        return np.dtype(np.float32)
-    if dtype.name not in _ATLAS_DTYPE_NAMES:
-        raise TypeError(f"unsupported scalar dtype {dtype.name}")
-    return dtype
-
-
-def _atlas_dtype(dtype):
-    if dtype is None:
-        raise TypeError("dtype is required")
-    try:
-        dtype = np.dtype(dtype)
-    except TypeError as error:
-        raise TypeError(f"unsupported dtype {dtype!r}") from error
-    if dtype.name not in _ATLAS_DTYPE_NAMES:
-        raise TypeError(f"unsupported dtype {dtype.name}")
-    return dtype
-
-
-def finfo(dtype):
-    dtype = _atlas_dtype(dtype)
-    if dtype.kind != "f":
-        raise TypeError("finfo requires a floating-point dtype")
-    return np.finfo(dtype)
-
-
-def iinfo(dtype):
-    dtype = _atlas_dtype(dtype)
-    if dtype.kind not in "iu":
-        raise TypeError("iinfo requires an integer dtype")
-    return np.iinfo(dtype)
-
-
-def common_type(*values):
-    return np.common_type(
-        *[
-            _array_like(value) if _is_array_like(value) else np.asarray(value)
-            for value in values
-        ]
-    )
-
-
-def reshape(value, shape, *dimensions):
-    value = _array_like(value)
-    if dimensions:
-        shape = (shape, *dimensions)
-    elif isinstance(shape, np.ndarray):
-        shape = shape.tolist()
-    elif isinstance(shape, Sequence) and not isinstance(shape, (str, bytes, bytearray)):
-        pass
-    else:
-        shape = (shape,)
-    return _native.reshape(value, shape)
-
-
-def linspace(start, stop, num, *, dtype=None, endpoint=True):
-    return _native.linspace(start, stop, num, dtype, endpoint)
-
-
-def astype(value, dtype, *, copy=True):
-    return _native.astype(value, dtype, copy)
-
-
-asarray = _coerce_arrays(asarray, required=((0, "value"),))
-astype = _coerce_arrays(astype, required=((0, "value"),))
-
-for _name in (
-    "shape",
-    "ndim",
-    "size",
-    "dtype",
-    "empty_like",
-    "count_true",
-    "all",
-    "any",
-    "all_axis",
-    "any_axis",
-    "norm",
-    "trace",
-    "diag",
-    "matrix_norm",
-    "qr",
-    "matrix_rank",
-    "symmetric_eigendecomposition",
-    "det",
-    "slogdet",
-    "inverse",
-    "cholesky",
-    "ravel",
-    "flatten",
-    "nonzero",
-    "argwhere",
-    "sum",
-    "mean",
-    "min",
-    "max",
-    "variance",
-    "stddev",
-    "kurtosis",
-    "skewness",
-    "median",
-    "quantile",
-    "median_axis",
-    "quantile_axis",
-    "covariance_matrix",
-    "correlation_matrix",
-    "argmin",
-    "argmax",
-    "cumsum",
-    "cumprod",
-    "cumsum_axis",
-    "cumprod_axis",
-    "nanmin",
-    "nanmax",
-    "nanmean",
-    "nanstd",
-    "argmin_axis",
-    "argmax_axis",
-    "sum_axis",
-    "mean_axis",
-    "min_axis",
-    "max_axis",
-    "may_share_memory",
-    "transpose",
-    "moveaxis",
-    "swap_axes",
-    "split",
-    "repeat",
-    "tile",
-    "flip",
-    "roll",
-    "sort",
-    "argsort",
-    "argpartition",
-    "squeeze",
-    "expand_dims",
-    "partition",
-    "put",
-    "neg",
-    "abs",
-    "sign",
-    "round",
-    "isnan",
-    "isinf",
-    "isfinite",
-):
-    globals()[_name] = _coerce_arrays(globals()[_name], required=((0, "value"),))
-
-for _name in (
-    "add",
-    "subtract",
-    "multiply",
-    "divide",
-    "equal",
-    "not_equal",
-    "less",
-    "less_equal",
-    "greater",
-    "greater_equal",
-    "covariance",
-    "correlation",
-):
-    globals()[_name] = _coerce_binary_operands(globals()[_name])
-
-for _name in ("weighted_mean", "weighted_variance"):
-    globals()[_name] = _coerce_weighted_operands(globals()[_name])
-
-for _name in (
-    "bitwise_and",
-    "bitwise_or",
-    "bitwise_xor",
-    "broadcast_arrays",
-    "broadcast_to",
-):
-    globals()[_name] = _coerce_arrays(
-        globals()[_name], required=((0, "lhs"),), optional=((1, "rhs"),)
-    )
-
-for _name in ("dot", "matmul", "allclose"):
-    globals()[_name] = _coerce_arrays(
-        globals()[_name], required=((0, "lhs"), (1, "rhs"))
-    )
-
-solve = _coerce_arrays(solve, required=((0, "matrix"), (1, "rhs")))
-solve_transpose = _coerce_arrays(solve_transpose, required=((0, "matrix"), (1, "rhs")))
-solve_spd = _coerce_arrays(solve_spd, required=((0, "matrix"), (1, "rhs")))
-least_squares = _coerce_arrays(least_squares, required=((0, "matrix"), (1, "rhs")))
-conjugate_gradient = _coerce_arrays(
-    conjugate_gradient, required=((0, "matrix"), (1, "rhs"))
-)
-evaluate_binary_gini_split = _coerce_arrays(
-    evaluate_binary_gini_split,
-    required=((0, "feature_values"), (1, "labels")),
-)
-
-for _name in ("accuracy", "mean_absolute_error", "mean_squared_error", "r_squared"):
-    globals()[_name] = _coerce_arrays(
-        globals()[_name], required=((0, "actual"), (1, "predicted"))
-    )
-
-log_loss = _coerce_arrays(log_loss, required=((0, "actual"), (1, "probabilities")))
-
-for _name in ("confusion_matrix", "classification_report"):
-    globals()[_name] = _coerce_arrays(
-        globals()[_name], required=((0, "actual"), (1, "predicted"))
-    )
-
-train_test_split = _coerce_arrays(
-    train_test_split, required=((0, "features"), (1, "targets"))
-)
-k_fold_split = _coerce_arrays(k_fold_split, required=((0, "features"),))
-stratified_k_fold_split = _coerce_arrays(
-    stratified_k_fold_split, required=((0, "features"), (1, "labels"))
-)
-to_arrow_primitive = _coerce_arrays(to_arrow_primitive, required=((0, "value"),))
-to_arrow_record_batch = _coerce_arrays(to_arrow_record_batch, required=((0, "matrix"),))
-
-for _name in ("select", "masked_fill"):
-    globals()[_name] = _coerce_arrays(
-        globals()[_name], required=((0, "value"), (1, "mask"))
-    )
-
-bitwise_not = _coerce_arrays(bitwise_not, required=((0, "value"),))
-pad = _coerce_arrays(pad, required=((0, "array"),))
-searchsorted = _coerce_searchsorted(searchsorted)
-clip = _coerce_arrays(clip, required=((0, "value"),))
-concatenate = _coerce_array_collection(concatenate)
-stack = _coerce_array_collection(stack)
-swapaxes = swap_axes
-var = variance
-std = stddev
-
-for _name in ("all", "any", "sum", "mean", "min", "max", "argmin", "argmax"):
-    globals()[_name] = _with_keepdims(globals()[_name])
-
 __all__ = sorted(
     [
         "AtlasError",
@@ -700,78 +53,95 @@ __all__ = sorted(
         "DecisionStumpClassifier",
         "Generator",
         "GaussianNaiveBayes",
-        "LinearRegression",
+        "KFold",
         "KnnClassifier",
         "KnnRegressor",
-        "KFold",
+        "LinearRegression",
         "MinMaxScaler",
-        "RidgeRegression",
         "ModelError",
         "NearestCentroidClassifier",
         "NumericError",
+        "RidgeRegression",
         "ShapeError",
         "SliceError",
         "StandardScaler",
         "TrainTestSplit",
         "__version__",
+        "abs",
         "add",
         "accuracy",
-        "abs",
-        "allclose",
         "all",
         "all_axis",
+        "allclose",
+        "any",
+        "any_axis",
+        "arange",
         "argmax",
         "argmax_axis",
         "argmin",
         "argmin_axis",
-        "any",
-        "any_axis",
-        "argwhere",
         "argpartition",
         "argsort",
+        "argwhere",
+        "asarray",
+        "ascontiguousarray",
+        "astype",
         "bitwise_and",
         "bitwise_not",
         "bitwise_or",
         "bitwise_xor",
-        "arange",
-        "linspace",
-        "astype",
-        "asarray",
-        "ascontiguousarray",
         "can_cast",
+        "cholesky",
+        "choose",
+        "classification_report",
+        "clip",
+        "common_type",
+        "concatenate",
+        "conjugate_gradient",
+        "confusion_matrix",
+        "copy",
+        "copyto",
+        "correlation",
+        "correlation_matrix",
         "count_true",
+        "covariance",
+        "covariance_matrix",
         "cumprod",
         "cumprod_axis",
         "cumsum",
         "cumsum_axis",
-        "clip",
-        "choose",
-        "classification_report",
-        "common_type",
-        "concatenate",
-        "copy",
-        "copyto",
-        "cholesky",
-        "divide",
-        "diag",
         "det",
+        "diag",
+        "divide",
         "dot",
         "dtype",
+        "equal",
+        "evaluate_binary_gini_split",
+        "expand_dims",
         "eye",
         "finfo",
-        "identity",
-        "equal",
-        "expand_dims",
         "flatten",
+        "flip",
         "from_arrow_primitive",
         "from_arrow_record_batch",
-        "flip",
         "full",
         "full_like",
         "greater",
         "greater_equal",
+        "identity",
+        "iinfo",
+        "inverse",
+        "isfinite",
+        "isinf",
+        "isnan",
+        "issubdtype",
+        "k_fold_split",
+        "kurtosis",
+        "least_squares",
         "less",
         "less_equal",
+        "linspace",
+        "log_loss",
         "masked_fill",
         "matmul",
         "matrix_norm",
@@ -782,108 +152,113 @@ __all__ = sorted(
         "mean_absolute_error",
         "mean_axis",
         "mean_squared_error",
+        "median",
+        "median_axis",
         "min",
         "min_axis",
         "min_scalar_type",
+        "moveaxis",
+        "multiply",
         "nanmax",
         "nanmean",
         "nanmin",
         "nanstd",
-        "norm",
-        "multiply",
-        "moveaxis",
-        "neg",
         "ndim",
+        "neg",
         "nonzero",
+        "norm",
         "not_equal",
         "ones",
         "ones_like",
         "pad",
         "partition",
         "promote_types",
-        "select",
+        "quantile",
+        "quantile_axis",
+        "qr",
+        "r_squared",
+        "ravel",
+        "repeat",
+        "reshape",
+        "result_type",
+        "roll",
+        "round",
         "searchsorted",
+        "select",
         "shape",
         "shares_memory",
+        "sign",
         "size",
-        "solve",
-        "solve_transpose",
+        "skewness",
         "slogdet",
+        "solve",
         "solve_spd",
-        "symmetric_eigendecomposition",
-        "conjugate_gradient",
-        "confusion_matrix",
-        "evaluate_binary_gini_split",
-        "log_loss",
-        "least_squares",
-        "split",
+        "solve_transpose",
         "sort",
+        "split",
+        "squeeze",
+        "stack",
+        "std",
+        "stddev",
+        "stratified_k_fold_split",
         "subtract",
         "sum",
         "sum_axis",
         "swap_axes",
         "swapaxes",
-        "squeeze",
-        "stddev",
-        "stratified_k_fold_split",
-        "kurtosis",
-        "k_fold_split",
-        "skewness",
-        "median",
-        "quantile",
-        "median_axis",
-        "quantile_axis",
-        "r_squared",
-        "weighted_mean",
-        "weighted_variance",
-        "covariance",
-        "correlation",
-        "covariance_matrix",
-        "correlation_matrix",
-        "std",
-        "stack",
+        "symmetric_eigendecomposition",
         "take",
         "tile",
-        "reshape",
-        "ravel",
-        "qr",
-        "repeat",
-        "result_type",
-        "roll",
-        "round",
-        "sign",
-        "isnan",
-        "inverse",
-        "iinfo",
-        "isinf",
-        "isfinite",
-        "issubdtype",
-        "transpose",
         "to_arrow_primitive",
         "to_arrow_record_batch",
         "trace",
         "train_test_split",
+        "transpose",
         "unique",
-        "variance",
         "var",
+        "variance",
+        "weighted_mean",
+        "weighted_variance",
         "where",
         "zeros",
         "zeros_like",
     ]
 )
 
+for _module in (_arrays, _interop, _linalg, _ml, _random, _statistics):
+    for _name in __all__:
+        if hasattr(_module, _name):
+            globals()[_name] = getattr(_module, _name)
+
+for _name in (
+    "atleast_1d",
+    "atleast_2d",
+    "atleast_3d",
+    "broadcast_arrays",
+    "broadcast_to",
+    "empty_like",
+    "may_share_memory",
+    "put",
+):
+    _value = getattr(_arrays, _name)
+    _value.__module__ = __name__
+    globals()[_name] = _value
+
+for _name in ("all", "any", "sum", "mean", "min", "max", "argmin", "argmax"):
+    globals()[_name] = _with_keepdims(globals()[_name])
+
 for _name in __all__:
+    if _name in {"std", "swapaxes", "var"}:
+        continue
     _value = globals()[_name]
     if isinstance(_value, type):
         _value.__module__ = __name__
-        continue
-    if not callable(_value):
-        continue
-    if getattr(_value, "__module__", None) == _native.__name__:
-        _value = _publish(_value)
-        globals()[_name] = _value
-    else:
-        _value.__module__ = __name__
+    elif callable(_value):
+        if getattr(_value, "__module__", None) == _native.__name__:
+            _value = _publish(_value)
+            globals()[_name] = _value
+        else:
+            _value.__module__ = __name__
 
 swapaxes = swap_axes
 var = variance
