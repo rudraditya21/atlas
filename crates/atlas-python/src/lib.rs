@@ -86,6 +86,8 @@ mod searchsorted_ops;
 mod shape_ops;
 #[path = "statistics/skewness.rs"]
 mod skewness_ops;
+#[path = "linalg/slogdet.rs"]
+mod slogdet_ops;
 #[path = "linalg/solve.rs"]
 mod solve_ops;
 #[path = "indexing/sort.rs"]
@@ -166,6 +168,8 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_function(wrap_pyfunction!(det, module)?)?;
     module.add_function(wrap_pyfunction!(inverse, module)?)?;
     module.add_function(wrap_pyfunction!(solve, module)?)?;
+    module.add_function(wrap_pyfunction!(solve_transpose, module)?)?;
+    module.add_function(wrap_pyfunction!(slogdet, module)?)?;
     module.add_function(wrap_pyfunction!(cholesky, module)?)?;
     module.add_function(wrap_pyfunction!(solve_spd, module)?)?;
     module.add_function(wrap_pyfunction!(ravel, module)?)?;
@@ -544,6 +548,20 @@ fn inverse(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
 #[pyfunction]
 fn solve(py: Python<'_>, matrix: &Bound<'_, PyAny>, rhs: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
     solve_ops::solve(py, matrix, rhs)
+}
+
+#[pyfunction]
+fn solve_transpose(
+    py: Python<'_>,
+    matrix: &Bound<'_, PyAny>,
+    rhs: &Bound<'_, PyAny>,
+) -> PyResult<Py<PyAny>> {
+    solve_ops::solve_transpose(py, matrix, rhs)
+}
+
+#[pyfunction]
+fn slogdet(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<(f64, f64)> {
+    slogdet_ops::slogdet(py, value)
 }
 
 #[pyfunction]
