@@ -1,7 +1,7 @@
 //! Shared native binding support modules.
 
 pub(crate) mod array;
-pub(crate) mod error;
+pub(crate) mod errors;
 pub(crate) mod gil;
 pub(crate) mod metadata;
 #[path = "dtype.rs"]

@@ -19,7 +19,7 @@ mod support;
 
 #[cfg(feature = "test-support")]
 pub(crate) use support::scalar;
-pub(crate) use support::{array, error, gil, python_dtype, results};
+pub(crate) use support::{array, errors as error, gil, python_dtype, results};
 
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
