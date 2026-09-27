@@ -1,7 +1,31 @@
-"""Public Python API for Atlas."""
+"""Atlas numerical computing, machine learning, and Arrow interoperability APIs."""
 
 from . import interop, linalg, ml, random, statistics
 from ._public import *
+
+# Common NumPy-style functions are deliberately available without a submodule import.
+from ._public import (
+    arange,
+    asarray,
+    concatenate,
+    dot,
+    full,
+    linspace,
+    matmul,
+    max,
+    mean,
+    min,
+    ones,
+    reshape,
+    sort,
+    stack,
+    sum,
+    take,
+    transpose,
+    unique,
+    where,
+    zeros,
+)
 
 # Root-only compatibility helpers and NumPy-compatible aliases remain intentionally explicit.
 from ._public import (

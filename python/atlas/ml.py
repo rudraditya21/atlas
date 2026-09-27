@@ -1,4 +1,4 @@
-"""Machine-learning models, metrics, and split utilities."""
+"""Machine-learning models, preprocessing, metrics, and split utilities."""
 
 from . import _ml as _bindings
 from . import _models
