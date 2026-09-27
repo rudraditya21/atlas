@@ -51,6 +51,8 @@ mod gil;
 mod inverse_ops;
 #[path = "statistics/kurtosis.rs"]
 mod kurtosis_ops;
+#[path = "ml/linear_regression.rs"]
+mod linear_regression_ops;
 #[path = "operations/logical.rs"]
 mod logical;
 #[path = "linalg/matmul.rs"]
@@ -132,6 +134,7 @@ fn version() -> &'static str {
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<generator::Generator>()?;
     module.add_class::<conjugate_gradient_ops::ConjugateGradientResult>()?;
+    module.add_class::<linear_regression_ops::LinearRegression>()?;
     module.add_function(wrap_pyfunction!(version, module)?)?;
     module.add_function(wrap_pyfunction!(asarray, module)?)?;
     module.add_function(wrap_pyfunction!(zeros, module)?)?;

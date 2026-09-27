@@ -19,6 +19,7 @@ from .errors import (
 __version__ = _native.version()
 Generator = _native.Generator
 ConjugateGradientResult = _native.ConjugateGradientResult
+LinearRegression = _native.LinearRegression
 
 _ATLAS_DTYPE_NAMES = frozenset(
     {
@@ -724,6 +725,7 @@ __all__ = sorted(
         "AxisError",
         "ConjugateGradientResult",
         "Generator",
+        "LinearRegression",
         "ModelError",
         "NumericError",
         "ShapeError",

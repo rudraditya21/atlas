@@ -44,6 +44,13 @@ pub(crate) fn label_vector_usize(
     from_numpy(readonly_from_python(py, value)?)
 }
 
+pub(crate) fn target_vector_f64(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+) -> PyResult<NDArray<f64>> {
+    from_numpy(readonly_from_python(py, value)?)
+}
+
 pub(crate) fn to_numpy_owned<'py, T>(
     py: Python<'py>,
     array: NDArray<T>,

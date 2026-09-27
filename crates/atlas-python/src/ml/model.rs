@@ -1,5 +1,5 @@
 use atlas_ml::AtlasMlError;
-use atlas_ndarray::NDArray;
+use atlas_ndarray::{ArrayElement, NDArray};
 use pyo3::prelude::*;
 
 use crate::array;
@@ -38,10 +38,24 @@ pub(crate) fn classifier_fit_inputs(
 ) -> PyResult<(NDArray<f64>, NDArray<usize>)> {
     let features = array::feature_matrix_f64(py, features)?;
     let labels = array::label_vector_usize(py, labels)?;
-    validate_fit_inputs(&features, &labels, operation)
+    validate_fit_inputs(&features, &labels, "a rank-1 label vector", operation)
         .map_err(|error| crate::error::ml(py, error))?;
 
     Ok((features, labels))
+}
+
+pub(crate) fn regression_fit_inputs(
+    py: Python<'_>,
+    features: &Bound<'_, PyAny>,
+    targets: &Bound<'_, PyAny>,
+    operation: &'static str,
+) -> PyResult<(NDArray<f64>, NDArray<f64>)> {
+    let features = array::feature_matrix_f64(py, features)?;
+    let targets = array::target_vector_f64(py, targets)?;
+    validate_fit_inputs(&features, &targets, "a rank-1 target vector", operation)
+        .map_err(|error| crate::error::ml(py, error))?;
+
+    Ok((features, targets))
 }
 
 pub(crate) fn predict_features(
@@ -64,9 +78,10 @@ pub(crate) fn predict_features(
     Ok(features)
 }
 
-fn validate_fit_inputs(
+fn validate_fit_inputs<T: ArrayElement>(
     features: &NDArray<f64>,
-    labels: &NDArray<usize>,
+    labels: &NDArray<T>,
+    target_description: &'static str,
     operation: &'static str,
 ) -> atlas_ml::AtlasMlResult<()> {
     if features.ndim() != 2 {
@@ -79,7 +94,7 @@ fn validate_fit_inputs(
     if labels.ndim() != 1 {
         return Err(AtlasMlError::InvalidInputRank {
             op: operation,
-            expected: "a rank-1 label vector",
+            expected: target_description,
             rank: labels.ndim(),
         });
     }
