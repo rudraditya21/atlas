@@ -7,8 +7,6 @@ use pyo3::prelude::*;
 
 #[path = "bindings/arrays.rs"]
 mod array_bindings;
-#[path = "bindings/random.rs"]
-mod random_bindings;
 #[path = "bindings/support.rs"]
 mod support_bindings;
 
@@ -38,8 +36,6 @@ mod error;
 mod flatten_ops;
 #[path = "manipulation/flip.rs"]
 mod flip_ops;
-#[path = "random/generator.rs"]
-mod generator;
 #[path = "support/gil.rs"]
 mod gil;
 mod interop;
@@ -57,6 +53,7 @@ mod partition_ops;
 mod put_ops;
 #[path = "support/dtype.rs"]
 mod python_dtype;
+mod random;
 #[path = "manipulation/ravel.rs"]
 mod ravel_ops;
 #[path = "reductions/reduction.rs"]
@@ -98,7 +95,7 @@ mod where_ops;
 #[pymodule]
 fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     support_bindings::register(module)?;
-    random_bindings::register(module)?;
+    random::register(module)?;
     array_bindings::register(module)?;
     linalg::register(module)?;
     statistics::register(module)?;
