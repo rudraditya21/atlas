@@ -51,6 +51,8 @@ mod generator;
 mod gil;
 #[path = "linalg/inverse.rs"]
 mod inverse_ops;
+#[path = "ml/knn_classifier.rs"]
+mod knn_classifier_ops;
 #[path = "statistics/kurtosis.rs"]
 mod kurtosis_ops;
 #[path = "ml/linear_regression.rs"]
@@ -150,6 +152,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<perceptron_ops::BinaryPerceptron>()?;
     module.add_class::<nearest_centroid_ops::NearestCentroidClassifier>()?;
     module.add_class::<gaussian_naive_bayes_ops::GaussianNaiveBayes>()?;
+    module.add_class::<knn_classifier_ops::KnnClassifier>()?;
     module.add_function(wrap_pyfunction!(version, module)?)?;
     module.add_function(wrap_pyfunction!(asarray, module)?)?;
     module.add_function(wrap_pyfunction!(zeros, module)?)?;
