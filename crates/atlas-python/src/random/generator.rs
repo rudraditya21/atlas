@@ -5,7 +5,6 @@ use crate::{array, gil};
 
 #[pyclass(module = "atlas._native")]
 pub(crate) struct Generator {
-    #[allow(dead_code, reason = "random distribution methods are registered incrementally")]
     pub(crate) rng: AtlasRng,
 }
 
@@ -34,19 +33,53 @@ impl Generator {
     ) -> PyResult<Py<PyAny>> {
         self.sample(py, shape, |shape, rng| atlas_random::uniform(shape, low, high, rng))
     }
+
+    #[pyo3(signature = (shape, mean = 0.0, stddev = 1.0))]
+    fn normal(
+        &mut self,
+        py: Python<'_>,
+        shape: &Bound<'_, PyAny>,
+        mean: f64,
+        stddev: f64,
+    ) -> PyResult<Py<PyAny>> {
+        self.sample(py, shape, |shape, rng| atlas_random::normal(shape, mean, stddev, rng))
+    }
+
+    fn randint(
+        &mut self,
+        py: Python<'_>,
+        shape: &Bound<'_, PyAny>,
+        low: i64,
+        high: i64,
+    ) -> PyResult<Py<PyAny>> {
+        self.sample(py, shape, |shape, rng| atlas_random::randint(shape, low, high, rng))
+    }
+
+    #[pyo3(signature = (shape, probability = 0.5))]
+    fn bernoulli(
+        &mut self,
+        py: Python<'_>,
+        shape: &Bound<'_, PyAny>,
+        probability: f64,
+    ) -> PyResult<Py<PyAny>> {
+        self.sample(py, shape, |shape, rng| atlas_random::bernoulli(shape, probability, rng))
+    }
 }
 
 impl Generator {
-    fn sample(
+    fn sample<T>(
         &mut self,
         py: Python<'_>,
         shape: &Bound<'_, PyAny>,
         sample: impl FnOnce(
             &[usize],
             &mut AtlasRng,
-        ) -> atlas_random::AtlasRandomResult<atlas_ndarray::NDArray<f64>>
+        ) -> atlas_random::AtlasRandomResult<atlas_ndarray::NDArray<T>>
         + Send,
-    ) -> PyResult<Py<PyAny>> {
+    ) -> PyResult<Py<PyAny>>
+    where
+        T: atlas_ndarray::ArrayElement + numpy::Element,
+    {
         let shape = shape_values(shape)?;
         let result = gil::without_gil(py, move || sample(&shape, &mut self.rng))
             .map_err(|error| crate::error::random(py, error))?;
