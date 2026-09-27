@@ -1,11 +1,10 @@
 //! Shared native binding support modules.
 
-pub(crate) mod array;
+pub(crate) mod arrays;
+pub(crate) mod dtypes;
 pub(crate) mod errors;
 pub(crate) mod gil;
 pub(crate) mod metadata;
-#[path = "dtype.rs"]
-pub(crate) mod python_dtype;
 pub(crate) mod results;
 #[cfg(feature = "test-support")]
 pub(crate) mod scalar;
