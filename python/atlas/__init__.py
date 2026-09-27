@@ -20,6 +20,7 @@ __version__ = _native.version()
 Generator = _native.Generator
 ConjugateGradientResult = _native.ConjugateGradientResult
 LinearRegression = _native.LinearRegression
+RidgeRegression = _native.RidgeRegression
 
 _ATLAS_DTYPE_NAMES = frozenset(
     {
@@ -726,6 +727,7 @@ __all__ = sorted(
         "ConjugateGradientResult",
         "Generator",
         "LinearRegression",
+        "RidgeRegression",
         "ModelError",
         "NumericError",
         "ShapeError",

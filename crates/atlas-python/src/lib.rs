@@ -86,6 +86,8 @@ mod ravel_ops;
 mod reduction;
 #[path = "manipulation/repeat.rs"]
 mod repeat_ops;
+#[path = "ml/ridge_regression.rs"]
+mod ridge_regression_ops;
 #[path = "manipulation/roll.rs"]
 mod roll_ops;
 #[cfg(feature = "test-support")]
@@ -135,6 +137,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<generator::Generator>()?;
     module.add_class::<conjugate_gradient_ops::ConjugateGradientResult>()?;
     module.add_class::<linear_regression_ops::LinearRegression>()?;
+    module.add_class::<ridge_regression_ops::RidgeRegression>()?;
     module.add_function(wrap_pyfunction!(version, module)?)?;
     module.add_function(wrap_pyfunction!(asarray, module)?)?;
     module.add_function(wrap_pyfunction!(zeros, module)?)?;
