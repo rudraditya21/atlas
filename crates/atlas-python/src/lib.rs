@@ -55,6 +55,8 @@ mod kurtosis_ops;
 mod linear_regression_ops;
 #[path = "operations/logical.rs"]
 mod logical;
+#[path = "ml/logistic_regression.rs"]
+mod logistic_regression_ops;
 #[path = "linalg/matmul.rs"]
 mod matmul_ops;
 #[path = "linalg/matrix_norm.rs"]
@@ -138,6 +140,7 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<conjugate_gradient_ops::ConjugateGradientResult>()?;
     module.add_class::<linear_regression_ops::LinearRegression>()?;
     module.add_class::<ridge_regression_ops::RidgeRegression>()?;
+    module.add_class::<logistic_regression_ops::BinaryLogisticRegression>()?;
     module.add_function(wrap_pyfunction!(version, module)?)?;
     module.add_function(wrap_pyfunction!(asarray, module)?)?;
     module.add_function(wrap_pyfunction!(zeros, module)?)?;

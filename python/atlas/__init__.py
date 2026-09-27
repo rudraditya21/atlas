@@ -21,6 +21,7 @@ Generator = _native.Generator
 ConjugateGradientResult = _native.ConjugateGradientResult
 LinearRegression = _native.LinearRegression
 RidgeRegression = _native.RidgeRegression
+BinaryLogisticRegression = _native.BinaryLogisticRegression
 
 _ATLAS_DTYPE_NAMES = frozenset(
     {
@@ -724,6 +725,7 @@ __all__ = sorted(
     [
         "AtlasError",
         "AxisError",
+        "BinaryLogisticRegression",
         "ConjugateGradientResult",
         "Generator",
         "LinearRegression",
