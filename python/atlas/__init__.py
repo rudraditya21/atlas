@@ -29,6 +29,8 @@ KnnClassifier = _native.KnnClassifier
 KnnRegressor = _native.KnnRegressor
 DecisionStumpClassifier = _native.DecisionStumpClassifier
 BinaryGiniSplit = _native.BinaryGiniSplit
+StandardScaler = _native.StandardScaler
+MinMaxScaler = _native.MinMaxScaler
 
 _ATLAS_DTYPE_NAMES = frozenset(
     {
@@ -747,12 +749,14 @@ __all__ = sorted(
         "LinearRegression",
         "KnnClassifier",
         "KnnRegressor",
+        "MinMaxScaler",
         "RidgeRegression",
         "ModelError",
         "NearestCentroidClassifier",
         "NumericError",
         "ShapeError",
         "SliceError",
+        "StandardScaler",
         "__version__",
         "add",
         "abs",

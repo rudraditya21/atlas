@@ -111,6 +111,8 @@ mod roll_ops;
 #[cfg(feature = "test-support")]
 #[path = "support/scalar.rs"]
 mod scalar;
+#[path = "ml/scalers.rs"]
+mod scaler_ops;
 #[path = "indexing/searchsorted.rs"]
 mod searchsorted_ops;
 #[path = "manipulation/shape_ops.rs"]
@@ -164,6 +166,8 @@ fn _native(module: &Bound<'_, PyModule>) -> PyResult<()> {
     module.add_class::<knn_regressor_ops::KnnRegressor>()?;
     module.add_class::<decision_stump_ops::DecisionStumpClassifier>()?;
     module.add_class::<decision_tree_ops::BinaryGiniSplit>()?;
+    module.add_class::<scaler_ops::StandardScaler>()?;
+    module.add_class::<scaler_ops::MinMaxScaler>()?;
     module.add_function(wrap_pyfunction!(version, module)?)?;
     module.add_function(wrap_pyfunction!(asarray, module)?)?;
     module.add_function(wrap_pyfunction!(zeros, module)?)?;
