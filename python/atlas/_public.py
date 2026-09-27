@@ -8,7 +8,7 @@ from . import _arrays, _interop, _linalg, _ml, _native, _random, _statistics
 from . import _errors, _models
 from ._exports import (
     ARRAY_EXPORTS,
-    COMPATIBILITY_EXPORTS,
+    NUMPY_COMPATIBILITY_ALIASES,
     INTEROP_EXPORTS,
     LINALG_EXPORTS,
     ML_EXPORTS,
@@ -56,7 +56,7 @@ _DOMAIN_EXPORTS = (
 __all__ = sorted(
     (
         "__version__",
-        *COMPATIBILITY_EXPORTS,
+        *NUMPY_COMPATIBILITY_ALIASES,
         *(name for _, names in _DOMAIN_EXPORTS for name in names),
     )
 )
@@ -94,6 +94,7 @@ for _name in __all__:
         else:
             _value.__module__ = "atlas"
 
+# Keep familiar NumPy spellings at the package root while using Atlas canonical names internally.
 swapaxes = swap_axes
 var = variance
 std = stddev

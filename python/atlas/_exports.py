@@ -170,7 +170,8 @@ INTEROP_EXPORTS = (
     "from_arrow_record_batch",
 )
 
-COMPATIBILITY_EXPORTS = (
+# NumPy-compatible root aliases. Atlas keeps the canonical names in the bindings.
+NUMPY_COMPATIBILITY_ALIASES = (
     "std",
     "swapaxes",
     "var",
