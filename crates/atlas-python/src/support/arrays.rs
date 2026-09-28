@@ -67,6 +67,10 @@ where
     PyArray1::from_vec(py, data).reshape(shape)
 }
 
+pub(crate) fn to_numpy_f64_vector(py: Python<'_>, values: &[f64]) -> Py<PyAny> {
+    PyArray1::from_slice(py, values).into_any().unbind()
+}
+
 fn validate_dtype<T>(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<()>
 where
     T: Element,

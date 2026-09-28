@@ -28,6 +28,16 @@ impl StandardScaler {
         self.model.is_fitted()
     }
 
+    #[getter]
+    fn mean_(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        Ok(array::to_numpy_f64_vector(py, self.model.fitted(py, STANDARD_TRANSFORM_OP)?.means()))
+    }
+
+    #[getter]
+    fn scale_(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        Ok(array::to_numpy_f64_vector(py, self.model.fitted(py, STANDARD_TRANSFORM_OP)?.scales()))
+    }
+
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         py: Python<'_>,
@@ -101,6 +111,16 @@ impl MinMaxScaler {
     #[getter]
     fn is_fitted(&self) -> bool {
         self.model.is_fitted()
+    }
+
+    #[getter]
+    fn data_min_(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        Ok(array::to_numpy_f64_vector(py, self.model.fitted(py, MIN_MAX_TRANSFORM_OP)?.minimums()))
+    }
+
+    #[getter]
+    fn data_max_(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        Ok(array::to_numpy_f64_vector(py, self.model.fitted(py, MIN_MAX_TRANSFORM_OP)?.maximums()))
     }
 
     fn fit<'py>(

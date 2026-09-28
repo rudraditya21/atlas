@@ -54,6 +54,17 @@ impl BinaryLogisticRegression {
         self.model.is_fitted()
     }
 
+    #[getter]
+    fn intercept_(&self, py: Python<'_>) -> PyResult<f64> {
+        Ok(self.model.fitted(py, FIT_OP)?.intercept())
+    }
+
+    #[getter]
+    fn coef_(&self, py: Python<'_>) -> crate::support::results::PyObjectResult {
+        let coefficients = self.model.fitted(py, FIT_OP)?.coefficients().clone();
+        Ok(array::to_numpy_owned(py, coefficients)?.into_any().unbind())
+    }
+
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         py: Python<'_>,
