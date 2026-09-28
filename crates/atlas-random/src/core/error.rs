@@ -11,6 +11,9 @@ pub enum AtlasRandomError {
     #[error("distribution initialization failed for {op}: {reason}")]
     DistributionInitializationFailed { op: &'static str, reason: &'static str },
 
+    #[error("random state serialization failed")]
+    StateSerialization,
+
     #[error(transparent)]
     NdArray(#[from] AtlasNdError),
 }

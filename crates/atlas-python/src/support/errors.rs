@@ -73,9 +73,8 @@ pub(crate) fn random(py: Python<'_>, error: AtlasRandomError) -> PyErr {
     match &error {
         AtlasRandomError::NdArray(error) => ndarray(py, error.clone()),
         AtlasRandomError::InvalidArgument { .. }
-        | AtlasRandomError::DistributionInitializationFailed { .. } => {
-            python_error(py, "NumericError", error)
-        }
+        | AtlasRandomError::DistributionInitializationFailed { .. }
+        | AtlasRandomError::StateSerialization => python_error(py, "NumericError", error),
     }
 }
 

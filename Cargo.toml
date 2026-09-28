@@ -40,9 +40,12 @@ atlas-random = { path = "crates/atlas-random" }
 atlas-stats = { path = "crates/atlas-stats" }
 criterion = "0.5"
 num-traits = "0.2"
-rand = "0.8"
+rand = { version = "0.8", features = ["serde1"] }
+rand_chacha = { version = "0.3", features = ["serde1"] }
 rand_distr = "0.4"
 rayon = "1.10"
+serde = { version = "1", features = ["derive"] }
+bincode = "1"
 thiserror = "2"
 
 [workspace.lints.rust]

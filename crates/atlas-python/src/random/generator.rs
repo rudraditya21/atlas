@@ -1,5 +1,9 @@
 use atlas_random::AtlasRng;
-use pyo3::{exceptions::PyTypeError, prelude::*, types::PySequence};
+use pyo3::{
+    exceptions::PyTypeError,
+    prelude::*,
+    types::{PyBytes, PySequence},
+};
 
 use crate::support::{arrays as array, gil};
 
@@ -25,6 +29,29 @@ impl Generator {
     #[new]
     fn new(seed: u64) -> Self {
         Self { rng: AtlasRng::seed_from_u64(seed) }
+    }
+
+    #[staticmethod]
+    fn from_state(py: Python<'_>, state: &[u8]) -> PyResult<Self> {
+        AtlasRng::from_state_bytes(state)
+            .map(|rng| Self { rng })
+            .map_err(|error| crate::support::errors::random(py, error))
+    }
+
+    fn __getnewargs__(&self) -> (u64,) {
+        (0,)
+    }
+
+    fn __getstate__(&self, py: Python<'_>) -> PyResult<Py<PyBytes>> {
+        let state =
+            self.rng.state_bytes().map_err(|error| crate::support::errors::random(py, error))?;
+        Ok(PyBytes::new(py, &state).unbind())
+    }
+
+    fn __setstate__(&mut self, py: Python<'_>, state: &[u8]) -> PyResult<()> {
+        self.rng = AtlasRng::from_state_bytes(state)
+            .map_err(|error| crate::support::errors::random(py, error))?;
+        Ok(())
     }
 
     fn get_state(&self) -> GeneratorState {

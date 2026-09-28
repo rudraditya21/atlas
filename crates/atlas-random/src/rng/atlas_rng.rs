@@ -3,10 +3,11 @@ use num_traits::Float;
 use rand::{
     Rng, RngCore, SeedableRng,
     distributions::{Distribution, Uniform, uniform::SampleUniform},
-    rngs::StdRng,
 };
+use rand_chacha::ChaCha12Rng;
 use rand_distr::{Bernoulli, Normal, StandardNormal};
 use rayon::prelude::*;
+use serde::{Deserialize, Serialize};
 
 use super::random_source::RandomSource;
 use crate::core::{
@@ -18,18 +19,26 @@ const PARALLEL_SAMPLING_THRESHOLD: usize = 1 << 20;
 const PARALLEL_SAMPLING_CHUNK_LEN: usize = 1 << 15;
 const PARALLEL_SAMPLING_MIN_CHUNKS_PER_THREAD: usize = 2;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct AtlasRng {
-    inner: StdRng,
+    inner: ChaCha12Rng,
 }
 
 impl AtlasRng {
     pub fn new() -> Self {
-        Self { inner: StdRng::from_entropy() }
+        Self { inner: ChaCha12Rng::from_entropy() }
     }
 
     pub fn seed_from_u64(seed: u64) -> Self {
-        Self { inner: StdRng::seed_from_u64(seed) }
+        Self { inner: ChaCha12Rng::seed_from_u64(seed) }
+    }
+
+    pub fn state_bytes(&self) -> AtlasRandomResult<Vec<u8>> {
+        bincode::serialize(self).map_err(|_| AtlasRandomError::StateSerialization)
+    }
+
+    pub fn from_state_bytes(state: &[u8]) -> AtlasRandomResult<Self> {
+        bincode::deserialize(state).map_err(|_| AtlasRandomError::StateSerialization)
     }
 
     fn should_parallelize_fill(len: usize) -> bool {
@@ -78,7 +87,7 @@ impl RandomSource for AtlasRng {
                 .for_each(|(chunk, seed)| {
                     let distribution = Bernoulli::new(probability)
                         .expect("validated probability must initialize Bernoulli");
-                    let mut rng = StdRng::seed_from_u64(seed);
+                    let mut rng = ChaCha12Rng::seed_from_u64(seed);
                     for value in chunk {
                         *value = distribution.sample(&mut rng);
                     }
@@ -128,7 +137,7 @@ impl RandomSource for AtlasRng {
                 .zip(chunk_seeds.into_par_iter())
                 .for_each(|(chunk, seed)| {
                     let distribution = Uniform::new(low, high);
-                    let mut rng = StdRng::seed_from_u64(seed);
+                    let mut rng = ChaCha12Rng::seed_from_u64(seed);
 
                     for value in chunk.iter_mut() {
                         *value = distribution.sample(&mut rng);
@@ -184,7 +193,7 @@ impl RandomSource for AtlasRng {
                 .for_each(|(chunk, seed)| {
                     let distribution = Normal::new(mean, stddev)
                         .expect("validated normal parameters must initialize the distribution");
-                    let mut rng = StdRng::seed_from_u64(seed);
+                    let mut rng = ChaCha12Rng::seed_from_u64(seed);
 
                     for value in chunk.iter_mut() {
                         *value = distribution.sample(&mut rng);
