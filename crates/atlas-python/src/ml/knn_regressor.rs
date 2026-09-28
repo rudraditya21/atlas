@@ -36,6 +36,11 @@ impl KnnRegressor {
         super::knn::repr("KnnRegressor", self.config)
     }
 
+    #[getter]
+    fn is_fitted(&self) -> bool {
+        self.model.is_fitted()
+    }
+
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         py: Python<'_>,

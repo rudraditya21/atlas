@@ -27,6 +27,11 @@ impl GaussianNaiveBayes {
         format!("GaussianNaiveBayes(variance_smoothing={})", self.config.variance_smoothing())
     }
 
+    #[getter]
+    fn is_fitted(&self) -> bool {
+        self.model.is_fitted()
+    }
+
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         py: Python<'_>,

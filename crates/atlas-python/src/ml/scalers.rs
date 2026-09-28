@@ -23,6 +23,11 @@ impl StandardScaler {
         "StandardScaler()"
     }
 
+    #[getter]
+    fn is_fitted(&self) -> bool {
+        self.model.is_fitted()
+    }
+
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         py: Python<'_>,
@@ -91,6 +96,11 @@ impl MinMaxScaler {
             "MinMaxScaler(output_minimum={}, output_maximum={})",
             self.output_minimum, self.output_maximum
         )
+    }
+
+    #[getter]
+    fn is_fitted(&self) -> bool {
+        self.model.is_fitted()
     }
 
     fn fit<'py>(

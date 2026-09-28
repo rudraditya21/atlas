@@ -49,6 +49,11 @@ impl BinaryLogisticRegression {
         )
     }
 
+    #[getter]
+    fn is_fitted(&self) -> bool {
+        self.model.is_fitted()
+    }
+
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         py: Python<'_>,

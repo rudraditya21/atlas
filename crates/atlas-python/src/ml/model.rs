@@ -17,6 +17,10 @@ impl<T> NativeModel<T> {
         self.inner = Some(model);
     }
 
+    pub(crate) const fn is_fitted(&self) -> bool {
+        self.inner.is_some()
+    }
+
     pub(crate) fn fitted(&self, py: Python<'_>, operation: &'static str) -> PyResult<&T> {
         self.inner.as_ref().ok_or_else(|| {
             crate::support::errors::ml(
