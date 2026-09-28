@@ -27,3 +27,10 @@ bindings = "pyo3"
 manifest-path = "crates/atlas-python/Cargo.toml"
 module-name = "atlas._native"
 python-source = "python"
+
+[tool.pyright]
+include = ["python/atlas"]
+pythonVersion = "3.10"
+typeCheckingMode = "basic"
+reportMissingImports = false
+reportMissingModuleSource = false

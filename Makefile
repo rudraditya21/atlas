@@ -6,7 +6,7 @@ WORKSPACE_FLAGS := --workspace --locked
 ROOT_PACKAGE := atlas-benchmarks
 BENCH_TARGETS := linalg_dense_kernels linalg_batched_kernels linalg_factorization_kernels ml_baselines ndarray_contiguous_kernels ndarray_view_kernels random_sampling_kernels stats_descriptive_kernels
 
-.PHONY: help build check test bench bench-one python-dev python-test format clean
+.PHONY: help build check test bench bench-one python-dev python-test python-typecheck format clean
 
 help:
 	@printf "Available targets:\n"
@@ -17,6 +17,7 @@ help:
 	@printf "  make bench-one BENCH=<name>  Run a specific benchmark target\n"
 	@printf "  make python-dev      Install the default Python extension into the uv environment\n"
 	@printf "  make python-test     Build test support and run the Python test suite\n"
+	@printf "  make python-typecheck Check public Python type information\n"
 	@printf "  make format          Format Rust imports and Python sources\n"
 	@printf "  make clean           Remove build artifacts\n"
 
@@ -55,6 +56,9 @@ python-test:
 	$(UV) sync --extra test
 	$(UV) run --with maturin maturin develop --features test-support
 	$(UV) run pytest python/tests
+
+python-typecheck:
+	$(UV) run --with pyright pyright
 
 format:
 	$(CARGO) fmt
