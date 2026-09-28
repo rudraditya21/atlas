@@ -1,4 +1,4 @@
-use pyo3::{exceptions::PyValueError, prelude::*};
+use pyo3::{exceptions::PyValueError, prelude::*, types::PyDict};
 
 pub(crate) fn config(
     py: Python<'_>,
@@ -32,20 +32,37 @@ pub(crate) fn config(
 }
 
 pub(crate) fn repr(name: &str, config: atlas_ml::KnnConfig) -> String {
-    let search_algorithm = match config.search_algorithm() {
-        atlas_ml::KnnSearchAlgorithm::BruteForce => "brute_force",
-        atlas_ml::KnnSearchAlgorithm::KdTree => "kd_tree",
-        atlas_ml::KnnSearchAlgorithm::BallTree => "ball_tree",
-        atlas_ml::KnnSearchAlgorithm::Auto => "auto",
-    };
-    let weighting = match config.weighting() {
-        atlas_ml::KnnWeighting::Uniform => "uniform",
-        atlas_ml::KnnWeighting::Distance => "distance",
-    };
+    let search_algorithm = search_algorithm(config);
+    let weighting = weighting(config);
 
     format!(
         "{name}(k={}, search_algorithm='{search_algorithm}', weighting='{weighting}', tree_leaf_size={})",
         config.k(),
         config.tree_leaf_size(),
     )
+}
+
+pub(crate) fn parameters(py: Python<'_>, config: atlas_ml::KnnConfig) -> PyResult<Py<PyDict>> {
+    let parameters = PyDict::new(py);
+    parameters.set_item("k", config.k())?;
+    parameters.set_item("search_algorithm", search_algorithm(config))?;
+    parameters.set_item("weighting", weighting(config))?;
+    parameters.set_item("tree_leaf_size", config.tree_leaf_size())?;
+    Ok(parameters.unbind())
+}
+
+pub(crate) fn search_algorithm(config: atlas_ml::KnnConfig) -> &'static str {
+    match config.search_algorithm() {
+        atlas_ml::KnnSearchAlgorithm::BruteForce => "brute_force",
+        atlas_ml::KnnSearchAlgorithm::KdTree => "kd_tree",
+        atlas_ml::KnnSearchAlgorithm::BallTree => "ball_tree",
+        atlas_ml::KnnSearchAlgorithm::Auto => "auto",
+    }
+}
+
+pub(crate) fn weighting(config: atlas_ml::KnnConfig) -> &'static str {
+    match config.weighting() {
+        atlas_ml::KnnWeighting::Uniform => "uniform",
+        atlas_ml::KnnWeighting::Distance => "distance",
+    }
 }

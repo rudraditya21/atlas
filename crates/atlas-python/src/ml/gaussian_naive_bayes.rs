@@ -1,4 +1,4 @@
-use pyo3::prelude::*;
+use pyo3::{prelude::*, types::PyDict};
 
 use crate::support::{arrays as array, gil};
 
@@ -30,6 +30,38 @@ impl GaussianNaiveBayes {
     #[getter]
     fn is_fitted(&self) -> bool {
         self.model.is_fitted()
+    }
+
+    #[pyo3(signature = (deep = true))]
+    fn get_params(&self, py: Python<'_>, deep: bool) -> PyResult<Py<PyDict>> {
+        let _ = deep;
+        let parameters = PyDict::new(py);
+        parameters.set_item("variance_smoothing", self.config.variance_smoothing())?;
+        Ok(parameters.unbind())
+    }
+
+    #[pyo3(signature = (**kwargs))]
+    fn set_params<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'_>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let mut variance_smoothing = slf.config.variance_smoothing();
+        if let Some(kwargs) = kwargs {
+            for (name, value) in kwargs.iter() {
+                match name.extract::<&str>()? {
+                    "variance_smoothing" => variance_smoothing = value.extract()?,
+                    name => return Err(super::model::unexpected_parameter(name)),
+                }
+            }
+        }
+        let config = atlas_ml::GaussianNaiveBayesConfig::new(variance_smoothing)
+            .map_err(|error| crate::support::errors::ml(py, error))?;
+        if config != slf.config {
+            slf.config = config;
+            slf.model.clear();
+        }
+        Ok(slf)
     }
 
     fn fit<'py>(

@@ -1,4 +1,4 @@
-use pyo3::prelude::*;
+use pyo3::{prelude::*, types::PyDict};
 
 use crate::support::{arrays as array, gil};
 
@@ -121,6 +121,44 @@ impl MinMaxScaler {
     #[getter]
     fn data_max_(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
         Ok(array::to_numpy_f64_vector(py, self.model.fitted(py, MIN_MAX_TRANSFORM_OP)?.maximums()))
+    }
+
+    #[pyo3(signature = (deep = true))]
+    fn get_params(&self, py: Python<'_>, deep: bool) -> PyResult<Py<PyDict>> {
+        let _ = deep;
+        let parameters = PyDict::new(py);
+        parameters.set_item("output_minimum", self.output_minimum)?;
+        parameters.set_item("output_maximum", self.output_maximum)?;
+        Ok(parameters.unbind())
+    }
+
+    #[pyo3(signature = (**kwargs))]
+    fn set_params<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let mut output_minimum = slf.output_minimum;
+        let mut output_maximum = slf.output_maximum;
+        if let Some(kwargs) = kwargs {
+            for (name, value) in kwargs.iter() {
+                match name.extract::<&str>()? {
+                    "output_minimum" => output_minimum = value.extract()?,
+                    "output_maximum" => output_maximum = value.extract()?,
+                    name => return Err(super::model::unexpected_parameter(name)),
+                }
+            }
+        }
+        if output_minimum >= output_maximum {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "output_minimum must be less than output_maximum",
+            ));
+        }
+        if output_minimum != slf.output_minimum || output_maximum != slf.output_maximum {
+            slf.output_minimum = output_minimum;
+            slf.output_maximum = output_maximum;
+            slf.model.clear();
+        }
+        Ok(slf)
     }
 
     fn fit<'py>(

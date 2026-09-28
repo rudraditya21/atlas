@@ -17,6 +17,10 @@ impl<T> NativeModel<T> {
         self.inner = Some(model);
     }
 
+    pub(crate) fn clear(&mut self) {
+        self.inner = None;
+    }
+
     pub(crate) const fn is_fitted(&self) -> bool {
         self.inner.is_some()
     }
@@ -32,6 +36,10 @@ impl<T> NativeModel<T> {
             )
         })
     }
+}
+
+pub(crate) fn unexpected_parameter(name: &str) -> PyErr {
+    pyo3::exceptions::PyValueError::new_err(format!("unknown parameter: {name}"))
 }
 
 pub(crate) fn classifier_fit_inputs(

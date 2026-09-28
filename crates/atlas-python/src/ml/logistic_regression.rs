@@ -1,4 +1,4 @@
-use pyo3::prelude::*;
+use pyo3::{prelude::*, types::PyDict};
 
 use crate::support::{arrays as array, gil};
 
@@ -63,6 +63,52 @@ impl BinaryLogisticRegression {
     fn coef_(&self, py: Python<'_>) -> crate::support::results::PyObjectResult {
         let coefficients = self.model.fitted(py, FIT_OP)?.coefficients().clone();
         Ok(array::to_numpy_owned(py, coefficients)?.into_any().unbind())
+    }
+
+    #[pyo3(signature = (deep = true))]
+    fn get_params(&self, py: Python<'_>, deep: bool) -> PyResult<Py<PyDict>> {
+        let _ = deep;
+        let parameters = PyDict::new(py);
+        parameters.set_item("learning_rate", self.config.learning_rate())?;
+        parameters.set_item("max_iterations", self.config.max_iterations())?;
+        parameters.set_item("convergence_tolerance", self.config.convergence_tolerance())?;
+        parameters.set_item("l2_regularization", self.config.l2_regularization())?;
+        Ok(parameters.unbind())
+    }
+
+    #[pyo3(signature = (**kwargs))]
+    fn set_params<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'_>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let mut learning_rate = slf.config.learning_rate();
+        let mut max_iterations = slf.config.max_iterations();
+        let mut convergence_tolerance = slf.config.convergence_tolerance();
+        let mut l2_regularization = slf.config.l2_regularization();
+        if let Some(kwargs) = kwargs {
+            for (name, value) in kwargs.iter() {
+                match name.extract::<&str>()? {
+                    "learning_rate" => learning_rate = value.extract()?,
+                    "max_iterations" => max_iterations = value.extract()?,
+                    "convergence_tolerance" => convergence_tolerance = value.extract()?,
+                    "l2_regularization" => l2_regularization = value.extract()?,
+                    name => return Err(super::model::unexpected_parameter(name)),
+                }
+            }
+        }
+        let config = atlas_ml::LogisticRegressionConfig::new(
+            learning_rate,
+            max_iterations,
+            convergence_tolerance,
+        )
+        .and_then(|config| config.with_l2_regularization(l2_regularization))
+        .map_err(|error| crate::support::errors::ml(py, error))?;
+        if config != slf.config {
+            slf.config = config;
+            slf.model.clear();
+        }
+        Ok(slf)
     }
 
     fn fit<'py>(

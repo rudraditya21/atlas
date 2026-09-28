@@ -1,4 +1,4 @@
-use pyo3::prelude::*;
+use pyo3::{prelude::*, types::PyDict};
 
 use crate::support::{arrays as array, gil};
 
@@ -40,6 +40,41 @@ impl KnnClassifier {
     #[getter]
     fn is_fitted(&self) -> bool {
         self.model.is_fitted()
+    }
+
+    #[pyo3(signature = (deep = true))]
+    fn get_params(&self, py: Python<'_>, deep: bool) -> PyResult<Py<PyDict>> {
+        let _ = deep;
+        super::knn::parameters(py, self.config)
+    }
+
+    #[pyo3(signature = (**kwargs))]
+    fn set_params<'py>(
+        mut slf: PyRefMut<'py, Self>,
+        py: Python<'_>,
+        kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> PyResult<PyRefMut<'py, Self>> {
+        let mut k = slf.config.k();
+        let mut search_algorithm = super::knn::search_algorithm(slf.config).to_owned();
+        let mut weighting = super::knn::weighting(slf.config).to_owned();
+        let mut tree_leaf_size = slf.config.tree_leaf_size();
+        if let Some(kwargs) = kwargs {
+            for (name, value) in kwargs.iter() {
+                match name.extract::<&str>()? {
+                    "k" => k = value.extract()?,
+                    "search_algorithm" => search_algorithm = value.extract()?,
+                    "weighting" => weighting = value.extract()?,
+                    "tree_leaf_size" => tree_leaf_size = value.extract()?,
+                    name => return Err(super::model::unexpected_parameter(name)),
+                }
+            }
+        }
+        let config = super::knn::config(py, k, &search_algorithm, &weighting, tree_leaf_size)?;
+        if config != slf.config {
+            slf.config = config;
+            slf.model.clear();
+        }
+        Ok(slf)
     }
 
     fn fit<'py>(
