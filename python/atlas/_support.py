@@ -45,6 +45,15 @@ def _array_or_scalar(value):
     return _array_like(value) if _is_array_like(value) else np.asarray(value)
 
 
+def _document(function, description):
+    @wraps(function)
+    def wrapper(*args, **kwargs):
+        return function(*args, **kwargs)
+
+    wrapper.__doc__ = description
+    return wrapper
+
+
 def _coerce_arrays(function, *, required=(), optional=()):
     """Coerce array-like public arguments before entering the native boundary."""
 

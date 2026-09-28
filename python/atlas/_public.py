@@ -93,6 +93,10 @@ for _name in __all__:
             globals()[_name] = _publish(_value)
         else:
             _value.__module__ = "atlas"
+        if not globals()[_name].__doc__:
+            globals()[
+                _name
+            ].__doc__ = f"Run the Atlas public operation {_name.replace('_', ' ')}."
 
 # Keep familiar NumPy spellings at the package root while using Atlas canonical names internally.
 swapaxes = swap_axes
