@@ -127,7 +127,7 @@ impl BinaryLogisticRegression {
     ) -> PyResult<PyRefMut<'py, Self>> {
         let (features, labels) = super::model::classifier_fit_inputs(py, features, labels, FIT_OP)?;
         let config = slf.config;
-        let model = gil::without_gil(py, move || {
+        let model = gil::without_gil(py, || {
             atlas_ml::BinaryLogisticRegression::fit(&features, &labels, config)
         })
         .map_err(|error| crate::support::errors::ml(py, error))?;
@@ -160,5 +160,37 @@ impl BinaryLogisticRegression {
             .map_err(|error| crate::support::errors::ml(py, error))?;
 
         Ok(array::to_numpy_owned(py, predictions)?.into_any().unbind())
+    }
+
+    fn fit_predict(
+        mut slf: PyRefMut<'_, Self>,
+        py: Python<'_>,
+        features: &Bound<'_, PyAny>,
+        labels: &Bound<'_, PyAny>,
+    ) -> crate::support::results::PyObjectResult {
+        let (features, labels) = super::model::classifier_fit_inputs(py, features, labels, FIT_OP)?;
+        let fit_features = features.clone();
+        let config = slf.config;
+        let model = gil::without_gil(py, move || {
+            atlas_ml::BinaryLogisticRegression::fit(&fit_features, &labels, config)
+        })
+        .map_err(|error| crate::support::errors::ml(py, error))?;
+        let predictions = gil::without_gil(py, || model.predict(&features))
+            .map_err(|error| crate::support::errors::ml(py, error))?;
+        slf.model.replace(model);
+        Ok(array::to_numpy_owned(py, predictions)?.into_any().unbind())
+    }
+
+    fn score(
+        &self,
+        py: Python<'_>,
+        features: &Bound<'_, PyAny>,
+        labels: &Bound<'_, PyAny>,
+    ) -> PyResult<f64> {
+        let (features, labels) =
+            super::model::classifier_fit_inputs(py, features, labels, PREDICT_OP)?;
+        let model = self.model.fitted(py, PREDICT_OP)?;
+        gil::without_gil(py, move || model.score(&features, &labels))
+            .map_err(|error| crate::support::errors::ml(py, error))
     }
 }

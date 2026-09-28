@@ -113,6 +113,19 @@ impl RidgeRegression {
         Ok(array::to_numpy_owned(py, predictions)?.into_any().unbind())
     }
 
+    fn score(
+        &self,
+        py: Python<'_>,
+        features: &Bound<'_, PyAny>,
+        targets: &Bound<'_, PyAny>,
+    ) -> PyResult<f64> {
+        let (features, targets) =
+            super::model::regression_fit_inputs(py, features, targets, PREDICT_OP)?;
+        let model = self.model.fitted(py, PREDICT_OP)?;
+        gil::without_gil(py, move || model.score(&features, &targets))
+            .map_err(|error| crate::support::errors::ml(py, error))
+    }
+
     #[getter]
     fn l2_regularization(&self) -> f64 {
         self.config.l2_regularization()
