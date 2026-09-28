@@ -20,6 +20,25 @@ impl ConfusionMatrix {
     fn counts(&self, py: Python<'_>) -> Py<PyAny> {
         self.counts.clone_ref(py)
     }
+
+    #[getter]
+    fn dtype(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        array::metadata_dtype(py, &self.counts)
+    }
+
+    #[getter]
+    fn shape(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        array::metadata_shape(py, &self.counts)
+    }
+
+    #[getter]
+    fn ndim(&self, py: Python<'_>) -> PyResult<usize> {
+        array::metadata_ndim(py, &self.counts)
+    }
+
+    fn __len__(&self, py: Python<'_>) -> PyResult<usize> {
+        array::metadata_len(py, &self.classes)
+    }
 }
 
 #[pyclass(module = "atlas._native")]
@@ -50,6 +69,10 @@ impl ClassificationReport {
     #[getter]
     fn f1_score(&self) -> f64 {
         self.f1_score
+    }
+
+    fn __len__(&self) -> usize {
+        4
     }
 }
 

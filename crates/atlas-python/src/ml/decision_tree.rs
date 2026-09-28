@@ -25,6 +25,10 @@ impl BinaryGiniSplit {
     fn right_count(&self) -> usize {
         self.right_count
     }
+
+    fn __len__(&self) -> usize {
+        self.left_count + self.right_count
+    }
 }
 
 pub(crate) fn evaluate_binary_gini_split(

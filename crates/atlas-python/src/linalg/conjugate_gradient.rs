@@ -32,6 +32,25 @@ impl ConjugateGradientResult {
     fn converged(&self) -> bool {
         self.converged
     }
+
+    #[getter]
+    fn dtype(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        array::metadata_dtype(py, &self.solution)
+    }
+
+    #[getter]
+    fn shape(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        array::metadata_shape(py, &self.solution)
+    }
+
+    #[getter]
+    fn ndim(&self, py: Python<'_>) -> PyResult<usize> {
+        array::metadata_ndim(py, &self.solution)
+    }
+
+    fn __len__(&self, py: Python<'_>) -> PyResult<usize> {
+        array::metadata_len(py, &self.solution)
+    }
 }
 
 pub(crate) fn conjugate_gradient(

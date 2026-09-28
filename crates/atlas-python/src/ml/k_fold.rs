@@ -20,6 +20,11 @@ impl KFold {
     fn validation_indices(&self, py: Python<'_>) -> Py<PyAny> {
         self.validation_indices.clone_ref(py)
     }
+
+    fn __len__(&self, py: Python<'_>) -> PyResult<usize> {
+        Ok(array::metadata_len(py, &self.train_indices)?
+            + array::metadata_len(py, &self.validation_indices)?)
+    }
 }
 
 pub(crate) fn k_fold_split(

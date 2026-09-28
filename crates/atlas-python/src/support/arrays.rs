@@ -71,6 +71,22 @@ pub(crate) fn to_numpy_f64_vector(py: Python<'_>, values: &[f64]) -> Py<PyAny> {
     PyArray1::from_slice(py, values).into_any().unbind()
 }
 
+pub(crate) fn metadata_dtype(py: Python<'_>, value: &Py<PyAny>) -> PyResult<Py<PyAny>> {
+    value.bind(py).getattr("dtype").map(|value| value.unbind())
+}
+
+pub(crate) fn metadata_shape(py: Python<'_>, value: &Py<PyAny>) -> PyResult<Py<PyAny>> {
+    value.bind(py).getattr("shape").map(|value| value.unbind())
+}
+
+pub(crate) fn metadata_ndim(py: Python<'_>, value: &Py<PyAny>) -> PyResult<usize> {
+    value.bind(py).getattr("ndim")?.extract()
+}
+
+pub(crate) fn metadata_len(py: Python<'_>, value: &Py<PyAny>) -> PyResult<usize> {
+    value.bind(py).len()
+}
+
 fn validate_dtype<T>(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<()>
 where
     T: Element,

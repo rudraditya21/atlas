@@ -33,6 +33,11 @@ impl TrainTestSplit {
     fn test_targets(&self, py: Python<'_>) -> Py<PyAny> {
         self.test_targets.clone_ref(py)
     }
+
+    fn __len__(&self, py: Python<'_>) -> PyResult<usize> {
+        Ok(array::metadata_len(py, &self.train_features)?
+            + array::metadata_len(py, &self.test_features)?)
+    }
 }
 
 pub(crate) fn train_test_split(
