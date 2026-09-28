@@ -108,6 +108,18 @@ impl MinMaxScaler {
         )
     }
 
+    fn copy(&self) -> Self {
+        Self {
+            output_minimum: self.output_minimum,
+            output_maximum: self.output_maximum,
+            model: super::model::NativeModel::new(),
+        }
+    }
+
+    fn __copy__(&self) -> Self {
+        self.copy()
+    }
+
     #[getter]
     fn is_fitted(&self) -> bool {
         self.model.is_fitted()

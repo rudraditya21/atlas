@@ -37,6 +37,14 @@ impl KnnClassifier {
         super::knn::repr("KnnClassifier", self.config)
     }
 
+    fn copy(&self) -> Self {
+        Self { config: self.config, model: super::model::NativeModel::new() }
+    }
+
+    fn __copy__(&self) -> Self {
+        self.copy()
+    }
+
     #[getter]
     fn is_fitted(&self) -> bool {
         self.model.is_fitted()

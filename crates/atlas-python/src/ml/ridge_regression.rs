@@ -26,6 +26,14 @@ impl RidgeRegression {
         format!("RidgeRegression(l2_regularization={})", self.config.l2_regularization())
     }
 
+    fn copy(&self) -> Self {
+        Self { config: self.config, model: super::model::NativeModel::new() }
+    }
+
+    fn __copy__(&self) -> Self {
+        self.copy()
+    }
+
     #[getter]
     fn is_fitted(&self) -> bool {
         self.model.is_fitted()
