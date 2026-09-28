@@ -1,5 +1,5 @@
 use numpy::PyArray1;
-use pyo3::prelude::*;
+use pyo3::{prelude::*, types::PyTuple};
 
 use crate::support::{arrays as array, gil};
 
@@ -24,6 +24,12 @@ impl KFold {
     fn __len__(&self, py: Python<'_>) -> PyResult<usize> {
         Ok(array::metadata_len(py, &self.train_indices)?
             + array::metadata_len(py, &self.validation_indices)?)
+    }
+
+    fn __iter__(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        PyTuple::new(py, [self.train_indices.clone_ref(py), self.validation_indices.clone_ref(py)])?
+            .call_method0("__iter__")
+            .map(|iterator| iterator.unbind())
     }
 }
 

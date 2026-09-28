@@ -1,5 +1,5 @@
 use numpy::PyArray1;
-use pyo3::prelude::*;
+use pyo3::{exceptions::PyKeyError, prelude::*, types::PyTuple};
 
 use crate::support::{arrays as array, gil};
 
@@ -39,6 +39,14 @@ impl ConfusionMatrix {
     fn __len__(&self, py: Python<'_>) -> PyResult<usize> {
         array::metadata_len(py, &self.classes)
     }
+
+    fn __eq__(&self, py: Python<'_>, other: &Bound<'_, PyAny>) -> PyResult<bool> {
+        let Ok(other) = other.extract::<PyRef<'_, Self>>() else {
+            return Ok(false);
+        };
+        Ok(array::values_equal(py, &self.classes, &other.classes)?
+            && array::values_equal(py, &self.counts, &other.counts)?)
+    }
 }
 
 #[pyclass(module = "atlas._native")]
@@ -73,6 +81,54 @@ impl ClassificationReport {
 
     fn __len__(&self) -> usize {
         4
+    }
+
+    fn __getitem__(&self, key: &str) -> PyResult<f64> {
+        match key {
+            "accuracy" => Ok(self.accuracy),
+            "precision" => Ok(self.precision),
+            "recall" => Ok(self.recall),
+            "f1_score" => Ok(self.f1_score),
+            _ => Err(PyKeyError::new_err(key.to_owned())),
+        }
+    }
+
+    fn keys(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        Ok(PyTuple::new(py, ["accuracy", "precision", "recall", "f1_score"])?.into_any().unbind())
+    }
+
+    fn values(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        Ok(PyTuple::new(py, [self.accuracy, self.precision, self.recall, self.f1_score])?
+            .into_any()
+            .unbind())
+    }
+
+    fn items(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        Ok(PyTuple::new(
+            py,
+            [
+                ("accuracy", self.accuracy),
+                ("precision", self.precision),
+                ("recall", self.recall),
+                ("f1_score", self.f1_score),
+            ],
+        )?
+        .into_any()
+        .unbind())
+    }
+
+    fn __iter__(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        self.keys(py)?.bind(py).call_method0("__iter__").map(|iterator| iterator.unbind())
+    }
+
+    fn __eq__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
+        let Ok(other) = other.extract::<PyRef<'_, Self>>() else {
+            return Ok(false);
+        };
+        Ok(self.accuracy == other.accuracy
+            && self.precision == other.precision
+            && self.recall == other.recall
+            && self.f1_score == other.f1_score)
     }
 }
 

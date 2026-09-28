@@ -29,6 +29,15 @@ impl BinaryGiniSplit {
     fn __len__(&self) -> usize {
         self.left_count + self.right_count
     }
+
+    fn __eq__(&self, other: &Bound<'_, PyAny>) -> PyResult<bool> {
+        let Ok(other) = other.extract::<PyRef<'_, Self>>() else {
+            return Ok(false);
+        };
+        Ok(self.impurity == other.impurity
+            && self.left_count == other.left_count
+            && self.right_count == other.right_count)
+    }
 }
 
 pub(crate) fn evaluate_binary_gini_split(

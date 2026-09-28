@@ -87,6 +87,13 @@ pub(crate) fn metadata_len(py: Python<'_>, value: &Py<PyAny>) -> PyResult<usize>
     value.bind(py).len()
 }
 
+pub(crate) fn values_equal(py: Python<'_>, left: &Py<PyAny>, right: &Py<PyAny>) -> PyResult<bool> {
+    PyModule::import(py, "numpy")?
+        .getattr("array_equal")?
+        .call1((left.bind(py), right.bind(py)))?
+        .extract()
+}
+
 fn validate_dtype<T>(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<()>
 where
     T: Element,

@@ -1,6 +1,6 @@
 use atlas_ndarray::ArrayElement;
 use numpy::Element;
-use pyo3::prelude::*;
+use pyo3::{prelude::*, types::PyTuple};
 
 use crate::support::{arrays as array, dtypes::with_dtype, gil};
 
@@ -37,6 +37,20 @@ impl TrainTestSplit {
     fn __len__(&self, py: Python<'_>) -> PyResult<usize> {
         Ok(array::metadata_len(py, &self.train_features)?
             + array::metadata_len(py, &self.test_features)?)
+    }
+
+    fn __iter__(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        PyTuple::new(
+            py,
+            [
+                self.train_features.clone_ref(py),
+                self.train_targets.clone_ref(py),
+                self.test_features.clone_ref(py),
+                self.test_targets.clone_ref(py),
+            ],
+        )?
+        .call_method0("__iter__")
+        .map(|iterator| iterator.unbind())
     }
 }
 

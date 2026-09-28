@@ -51,6 +51,16 @@ impl ConjugateGradientResult {
     fn __len__(&self, py: Python<'_>) -> PyResult<usize> {
         array::metadata_len(py, &self.solution)
     }
+
+    fn __eq__(&self, py: Python<'_>, other: &Bound<'_, PyAny>) -> PyResult<bool> {
+        let Ok(other) = other.extract::<PyRef<'_, Self>>() else {
+            return Ok(false);
+        };
+        Ok(array::values_equal(py, &self.solution, &other.solution)?
+            && self.iterations == other.iterations
+            && self.residual_norm == other.residual_norm
+            && self.converged == other.converged)
+    }
 }
 
 pub(crate) fn conjugate_gradient(
