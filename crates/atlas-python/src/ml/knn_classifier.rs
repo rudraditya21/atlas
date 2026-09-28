@@ -50,6 +50,17 @@ impl KnnClassifier {
         self.model.is_fitted()
     }
 
+    #[getter]
+    fn classes_(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        Ok(array::to_numpy_usize_vector(py, self.model.fitted(py, PREDICT_OP)?.classes()))
+    }
+
+    #[getter]
+    fn labels_(&self, py: Python<'_>) -> crate::support::results::PyObjectResult {
+        let labels = self.model.fitted(py, PREDICT_OP)?.labels().clone();
+        Ok(array::to_numpy_owned(py, labels)?.into_any().unbind())
+    }
+
     #[pyo3(signature = (deep = true))]
     fn get_params(&self, py: Python<'_>, deep: bool) -> PyResult<Py<PyDict>> {
         let _ = deep;

@@ -40,6 +40,29 @@ impl GaussianNaiveBayes {
         self.model.is_fitted()
     }
 
+    #[getter]
+    fn classes_(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        Ok(array::to_numpy_usize_vector(py, self.model.fitted(py, PREDICT_OP)?.classes()))
+    }
+
+    #[getter]
+    fn class_priors_(&self, py: Python<'_>) -> crate::support::results::PyObjectResult {
+        let priors = self.model.fitted(py, PREDICT_OP)?.class_priors().clone();
+        Ok(array::to_numpy_owned(py, priors)?.into_any().unbind())
+    }
+
+    #[getter]
+    fn means_(&self, py: Python<'_>) -> crate::support::results::PyObjectResult {
+        let means = self.model.fitted(py, PREDICT_OP)?.means().clone();
+        Ok(array::to_numpy_owned(py, means)?.into_any().unbind())
+    }
+
+    #[getter]
+    fn variances_(&self, py: Python<'_>) -> crate::support::results::PyObjectResult {
+        let variances = self.model.fitted(py, PREDICT_OP)?.variances().clone();
+        Ok(array::to_numpy_owned(py, variances)?.into_any().unbind())
+    }
+
     #[pyo3(signature = (deep = true))]
     fn get_params(&self, py: Python<'_>, deep: bool) -> PyResult<Py<PyDict>> {
         let _ = deep;

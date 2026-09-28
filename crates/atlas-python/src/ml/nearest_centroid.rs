@@ -26,6 +26,17 @@ impl NearestCentroidClassifier {
         self.model.is_fitted()
     }
 
+    #[getter]
+    fn classes_(&self, py: Python<'_>) -> PyResult<Py<PyAny>> {
+        Ok(array::to_numpy_usize_vector(py, self.model.fitted(py, PREDICT_OP)?.classes()))
+    }
+
+    #[getter]
+    fn centroids_(&self, py: Python<'_>) -> crate::support::results::PyObjectResult {
+        let centroids = self.model.fitted(py, PREDICT_OP)?.centroids().clone();
+        Ok(array::to_numpy_owned(py, centroids)?.into_any().unbind())
+    }
+
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         py: Python<'_>,

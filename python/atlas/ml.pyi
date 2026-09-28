@@ -59,6 +59,10 @@ class BinaryPerceptron(_Estimator):
 
 class GaussianNaiveBayes(_Estimator):
     variance_smoothing: float
+    classes_: Array
+    class_priors_: Array
+    means_: Array
+    variances_: Array
     def __init__(self, variance_smoothing: float = ...) -> None: ...
     def fit(self, features: ArrayLike, labels: ArrayLike) -> GaussianNaiveBayes: ...
     def predict(self, features: ArrayLike) -> Array: ...
@@ -66,6 +70,8 @@ class GaussianNaiveBayes(_Estimator):
     def fit_predict(self, features: ArrayLike, labels: ArrayLike) -> Array: ...
 
 class KnnClassifier(_Estimator):
+    classes_: Array
+    labels_: Array
     def __init__(
         self,
         k: int,
@@ -91,6 +97,8 @@ class KnnRegressor(_Estimator):
 
 class NearestCentroidClassifier:
     is_fitted: bool
+    classes_: Array
+    centroids_: Array
     def fit(
         self, features: ArrayLike, labels: ArrayLike
     ) -> NearestCentroidClassifier: ...
@@ -99,6 +107,10 @@ class NearestCentroidClassifier:
 
 class DecisionStumpClassifier:
     is_fitted: bool
+    feature_index_: int
+    threshold_: float
+    left_label_: int
+    right_label_: int
     def fit(
         self, features: ArrayLike, labels: ArrayLike
     ) -> DecisionStumpClassifier: ...

@@ -26,6 +26,26 @@ impl DecisionStumpClassifier {
         self.model.is_fitted()
     }
 
+    #[getter]
+    fn feature_index_(&self, py: Python<'_>) -> PyResult<usize> {
+        Ok(self.model.fitted(py, PREDICT_OP)?.feature_index())
+    }
+
+    #[getter]
+    fn threshold_(&self, py: Python<'_>) -> PyResult<f64> {
+        Ok(self.model.fitted(py, PREDICT_OP)?.threshold())
+    }
+
+    #[getter]
+    fn left_label_(&self, py: Python<'_>) -> PyResult<usize> {
+        Ok(self.model.fitted(py, PREDICT_OP)?.left_label())
+    }
+
+    #[getter]
+    fn right_label_(&self, py: Python<'_>) -> PyResult<usize> {
+        Ok(self.model.fitted(py, PREDICT_OP)?.right_label())
+    }
+
     fn fit<'py>(
         mut slf: PyRefMut<'py, Self>,
         py: Python<'_>,

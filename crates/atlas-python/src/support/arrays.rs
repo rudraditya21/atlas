@@ -71,6 +71,10 @@ pub(crate) fn to_numpy_f64_vector(py: Python<'_>, values: &[f64]) -> Py<PyAny> {
     PyArray1::from_slice(py, values).into_any().unbind()
 }
 
+pub(crate) fn to_numpy_usize_vector(py: Python<'_>, values: &[usize]) -> Py<PyAny> {
+    PyArray1::from_slice(py, values).into_any().unbind()
+}
+
 pub(crate) fn metadata_dtype(py: Python<'_>, value: &Py<PyAny>) -> PyResult<Py<PyAny>> {
     value.bind(py).getattr("dtype").map(|value| value.unbind())
 }
