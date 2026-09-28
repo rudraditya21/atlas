@@ -147,7 +147,7 @@ STATISTICS_EXPORTS = (
     "correlation_matrix",
 )
 
-RANDOM_EXPORTS = ("Generator",)
+RANDOM_EXPORTS = ("Generator", "default_rng", "seeded_rng")
 
 ML_EXPORTS = (
     "evaluate_binary_gini_split",

@@ -8,11 +8,31 @@ pub(crate) struct Generator {
     pub(crate) rng: AtlasRng,
 }
 
+#[pyclass(module = "atlas._native")]
+pub(crate) struct GeneratorState {
+    rng: AtlasRng,
+}
+
+#[pymethods]
+impl GeneratorState {
+    fn __repr__(&self) -> &'static str {
+        "GeneratorState()"
+    }
+}
+
 #[pymethods]
 impl Generator {
     #[new]
     fn new(seed: u64) -> Self {
         Self { rng: AtlasRng::seed_from_u64(seed) }
+    }
+
+    fn get_state(&self) -> GeneratorState {
+        GeneratorState { rng: self.rng.clone() }
+    }
+
+    fn set_state(&mut self, state: PyRef<'_, GeneratorState>) {
+        self.rng = state.rng.clone();
     }
 
     fn random(&mut self, py: Python<'_>, shape: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
