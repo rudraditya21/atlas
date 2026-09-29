@@ -1,3 +1,5 @@
+use std::cell::Cell;
+
 use atlas_ndarray::{NDArray, Numeric};
 
 use super::{
@@ -16,6 +18,10 @@ use crate::core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand};
 // on wider thread pools.
 const PARALLEL_MATMUL_WORK_THRESHOLD: usize = 128 * 128 * 128;
 const PARALLEL_MATMUL_MIN_ROWS_PER_THREAD: usize = 32;
+
+thread_local! {
+    static MATMUL_PARALLELISM_DISABLED: Cell<bool> = const { Cell::new(false) };
+}
 
 pub(super) fn dispatch_matmul<T: Numeric>(
     lhs: &LinalgOperand<'_, T>,
@@ -37,7 +43,27 @@ pub(super) fn dispatch_matmul<T: Numeric>(
 }
 
 pub(super) fn should_parallelize_matmul(rows: usize, inner: usize, cols: usize) -> bool {
-    should_parallelize_matmul_for_threads(rows, inner, cols, rayon::current_num_threads())
+    !MATMUL_PARALLELISM_DISABLED.get()
+        && should_parallelize_matmul_for_threads(rows, inner, cols, rayon::current_num_threads())
+}
+
+pub(super) fn with_matmul_parallelism_disabled<R>(operation: impl FnOnce() -> R) -> R {
+    MATMUL_PARALLELISM_DISABLED.with(|disabled| {
+        struct Restore<'a> {
+            disabled: &'a Cell<bool>,
+            previous: bool,
+        }
+
+        impl Drop for Restore<'_> {
+            fn drop(&mut self) {
+                self.disabled.set(self.previous);
+            }
+        }
+
+        let previous = disabled.replace(true);
+        let _restore = Restore { disabled, previous };
+        operation()
+    })
 }
 
 pub(super) fn should_parallelize_matmul_for_threads(

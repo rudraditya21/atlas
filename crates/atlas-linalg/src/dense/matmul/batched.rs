@@ -1,9 +1,12 @@
 use atlas_ndarray::{NDArray, Numeric, checked_element_count};
+use rayon::prelude::*;
 
 use super::{
-    matrix_matrix::matmul_matrix_refs, matrix_vector::matmul_matrix_vector_refs,
-    vector_matrix::matmul_vector_matrix_refs,
+    dispatch::with_matmul_parallelism_disabled, matrix_matrix::matmul_matrix_refs,
+    matrix_vector::matmul_matrix_vector_refs, vector_matrix::matmul_vector_matrix_refs,
 };
+
+const PARALLEL_BATCHED_MATMUL_WORK_THRESHOLD: usize = 1 << 18;
 use crate::{
     core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand},
     internal::dense::{MatrixRef, VectorRef},
@@ -39,13 +42,30 @@ pub(super) fn matmul_batched_matrix_matrix<T: Numeric>(
 
     let output_shape = [*lhs_batches, *lhs_rows, *rhs_columns];
     let output_len = checked_element_count(&output_shape)?;
-    let mut data = Vec::with_capacity(output_len);
+    let mut data = vec![T::zero(); output_len];
+    if output_len == 0 {
+        return Ok(NDArray::from_shape_vec(output_shape, data)?);
+    }
+    let batch_output_len = output_len / *lhs_batches;
 
-    for batch in 0..*lhs_batches {
-        data.extend(matmul_matrix_refs(
-            batch_matrix_ref(lhs, batch, *lhs_rows, *lhs_columns),
-            batch_matrix_ref(rhs, batch, *rhs_rows, *rhs_columns),
-        ));
+    if should_parallelize_batched_matmul(*lhs_batches, *lhs_rows, *lhs_columns, *rhs_columns) {
+        data.par_chunks_mut(batch_output_len).enumerate().for_each(|(batch, output)| {
+            let result = with_matmul_parallelism_disabled(|| {
+                matmul_matrix_refs(
+                    batch_matrix_ref(lhs, batch, *lhs_rows, *lhs_columns),
+                    batch_matrix_ref(rhs, batch, *rhs_rows, *rhs_columns),
+                )
+            });
+            output.copy_from_slice(&result);
+        });
+    } else {
+        for (batch, output) in data.chunks_exact_mut(batch_output_len).enumerate() {
+            let result = matmul_matrix_refs(
+                batch_matrix_ref(lhs, batch, *lhs_rows, *lhs_columns),
+                batch_matrix_ref(rhs, batch, *rhs_rows, *rhs_columns),
+            );
+            output.copy_from_slice(&result);
+        }
     }
 
     Ok(NDArray::from_shape_vec(output_shape, data)?)
@@ -81,13 +101,30 @@ pub(super) fn matmul_batched_matrix_vector<T: Numeric>(
 
     let output_shape = [*lhs_batches, *lhs_rows];
     let output_len = checked_element_count(&output_shape)?;
-    let mut data = Vec::with_capacity(output_len);
+    let mut data = vec![T::zero(); output_len];
+    if output_len == 0 {
+        return Ok(NDArray::from_shape_vec(output_shape, data)?);
+    }
+    let batch_output_len = output_len / *lhs_batches;
 
-    for batch in 0..*lhs_batches {
-        data.extend(matmul_matrix_vector_refs(
-            batch_matrix_ref(lhs, batch, *lhs_rows, *lhs_columns),
-            batch_vector_ref(rhs, batch, *rhs_length),
-        ));
+    if should_parallelize_batched_matmul(*lhs_batches, *lhs_rows, *lhs_columns, 1) {
+        data.par_chunks_mut(batch_output_len).enumerate().for_each(|(batch, output)| {
+            let result = with_matmul_parallelism_disabled(|| {
+                matmul_matrix_vector_refs(
+                    batch_matrix_ref(lhs, batch, *lhs_rows, *lhs_columns),
+                    batch_vector_ref(rhs, batch, *rhs_length),
+                )
+            });
+            output.copy_from_slice(&result);
+        });
+    } else {
+        for (batch, output) in data.chunks_exact_mut(batch_output_len).enumerate() {
+            let result = matmul_matrix_vector_refs(
+                batch_matrix_ref(lhs, batch, *lhs_rows, *lhs_columns),
+                batch_vector_ref(rhs, batch, *rhs_length),
+            );
+            output.copy_from_slice(&result);
+        }
     }
 
     Ok(NDArray::from_shape_vec(output_shape, data)?)
@@ -123,16 +160,45 @@ pub(super) fn matmul_batched_vector_matrix<T: Numeric>(
 
     let output_shape = [*lhs_batches, *rhs_columns];
     let output_len = checked_element_count(&output_shape)?;
-    let mut data = Vec::with_capacity(output_len);
+    let mut data = vec![T::zero(); output_len];
+    if output_len == 0 {
+        return Ok(NDArray::from_shape_vec(output_shape, data)?);
+    }
+    let batch_output_len = output_len / *lhs_batches;
 
-    for batch in 0..*lhs_batches {
-        data.extend(matmul_vector_matrix_refs(
-            batch_vector_ref(lhs, batch, *lhs_length),
-            batch_matrix_ref(rhs, batch, *rhs_rows, *rhs_columns),
-        ));
+    if should_parallelize_batched_matmul(*lhs_batches, 1, *lhs_length, *rhs_columns) {
+        data.par_chunks_mut(batch_output_len).enumerate().for_each(|(batch, output)| {
+            let result = with_matmul_parallelism_disabled(|| {
+                matmul_vector_matrix_refs(
+                    batch_vector_ref(lhs, batch, *lhs_length),
+                    batch_matrix_ref(rhs, batch, *rhs_rows, *rhs_columns),
+                )
+            });
+            output.copy_from_slice(&result);
+        });
+    } else {
+        for (batch, output) in data.chunks_exact_mut(batch_output_len).enumerate() {
+            let result = matmul_vector_matrix_refs(
+                batch_vector_ref(lhs, batch, *lhs_length),
+                batch_matrix_ref(rhs, batch, *rhs_rows, *rhs_columns),
+            );
+            output.copy_from_slice(&result);
+        }
     }
 
     Ok(NDArray::from_shape_vec(output_shape, data)?)
+}
+
+fn should_parallelize_batched_matmul(
+    batches: usize,
+    rows: usize,
+    inner: usize,
+    columns: usize,
+) -> bool {
+    batches > 1
+        && rayon::current_num_threads() > 1
+        && batches.saturating_mul(rows).saturating_mul(inner).saturating_mul(columns)
+            >= PARALLEL_BATCHED_MATMUL_WORK_THRESHOLD
 }
 
 fn batch_matrix_ref<'operand, 'data, T: Numeric>(
