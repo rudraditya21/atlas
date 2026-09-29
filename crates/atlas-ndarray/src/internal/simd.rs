@@ -1,5 +1,7 @@
 use num_traits::ToPrimitive;
 
+#[cfg(target_arch = "aarch64")]
+use super::neon;
 pub(crate) use crate::simd_support::{cast_slice, is_f32, is_f64};
 use crate::{
     AtlasNdError, AtlasNdResult, ElementwiseArithmetic, ElementwiseDivision, Numeric, UnaryAbs,
@@ -33,6 +35,18 @@ pub(crate) fn add_contiguous<T: ElementwiseArithmetic>(lhs: &[T], rhs: &[T], out
         }
     }
 
+    #[cfg(target_arch = "aarch64")]
+    {
+        if is_f32::<T>() {
+            neon::add_f32(cast_slice(lhs), cast_slice(rhs), cast_mut_slice(out));
+            return;
+        }
+        if is_f64::<T>() {
+            neon::add_f64(cast_slice(lhs), cast_slice(rhs), cast_mut_slice(out));
+            return;
+        }
+    }
+
     map_binary_scalar(lhs, rhs, out, ElementwiseArithmetic::elementwise_add);
 }
 
@@ -55,6 +69,18 @@ pub(crate) fn mul_contiguous<T: ElementwiseArithmetic>(lhs: &[T], rhs: &[T], out
             unsafe {
                 x86_64::mul_f64(cast_slice(lhs), cast_slice(rhs), cast_mut_slice(out));
             }
+            return;
+        }
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    {
+        if is_f32::<T>() {
+            neon::mul_f32(cast_slice(lhs), cast_slice(rhs), cast_mut_slice(out));
+            return;
+        }
+        if is_f64::<T>() {
+            neon::mul_f64(cast_slice(lhs), cast_slice(rhs), cast_mut_slice(out));
             return;
         }
     }
@@ -85,6 +111,18 @@ pub(crate) fn sub_contiguous<T: ElementwiseArithmetic>(lhs: &[T], rhs: &[T], out
         }
     }
 
+    #[cfg(target_arch = "aarch64")]
+    {
+        if is_f32::<T>() {
+            neon::sub_f32(cast_slice(lhs), cast_slice(rhs), cast_mut_slice(out));
+            return;
+        }
+        if is_f64::<T>() {
+            neon::sub_f64(cast_slice(lhs), cast_slice(rhs), cast_mut_slice(out));
+            return;
+        }
+    }
+
     map_binary_scalar(lhs, rhs, out, ElementwiseArithmetic::elementwise_sub);
 }
 
@@ -107,6 +145,18 @@ pub(crate) fn div_contiguous<T: ElementwiseDivision>(lhs: &[T], rhs: &[T], out: 
             unsafe {
                 x86_64::div_f64(cast_slice(lhs), cast_slice(rhs), cast_mut_slice(out));
             }
+            return;
+        }
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    {
+        if is_f32::<T>() {
+            neon::div_f32(cast_slice(lhs), cast_slice(rhs), cast_mut_slice(out));
+            return;
+        }
+        if is_f64::<T>() {
+            neon::div_f64(cast_slice(lhs), cast_slice(rhs), cast_mut_slice(out));
             return;
         }
     }
@@ -140,6 +190,18 @@ pub(crate) fn add_scalar_contiguous<T: ElementwiseArithmetic>(
         }
     }
 
+    #[cfg(target_arch = "aarch64")]
+    {
+        if is_f32::<T>() {
+            neon::add_scalar_f32(cast_slice(input), cast_value(scalar), cast_mut_slice(out));
+            return;
+        }
+        if is_f64::<T>() {
+            neon::add_scalar_f64(cast_slice(input), cast_value(scalar), cast_mut_slice(out));
+            return;
+        }
+    }
+
     map_scalar_scalar(input, scalar, out, ElementwiseArithmetic::elementwise_add);
 }
 
@@ -165,6 +227,18 @@ pub(crate) fn mul_scalar_contiguous<T: ElementwiseArithmetic>(
             unsafe {
                 x86_64::mul_scalar_f64(cast_slice(input), to_f64(scalar), cast_mut_slice(out));
             }
+            return;
+        }
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    {
+        if is_f32::<T>() {
+            neon::mul_scalar_f32(cast_slice(input), cast_value(scalar), cast_mut_slice(out));
+            return;
+        }
+        if is_f64::<T>() {
+            neon::mul_scalar_f64(cast_slice(input), cast_value(scalar), cast_mut_slice(out));
             return;
         }
     }
@@ -198,6 +272,18 @@ pub(crate) fn sub_scalar_contiguous<T: ElementwiseArithmetic>(
         }
     }
 
+    #[cfg(target_arch = "aarch64")]
+    {
+        if is_f32::<T>() {
+            neon::sub_scalar_f32(cast_slice(input), cast_value(scalar), cast_mut_slice(out));
+            return;
+        }
+        if is_f64::<T>() {
+            neon::sub_scalar_f64(cast_slice(input), cast_value(scalar), cast_mut_slice(out));
+            return;
+        }
+    }
+
     map_scalar_scalar(input, scalar, out, ElementwiseArithmetic::elementwise_sub);
 }
 
@@ -223,11 +309,35 @@ pub(crate) fn div_scalar_contiguous<T: ElementwiseDivision>(input: &[T], scalar:
         }
     }
 
+    #[cfg(target_arch = "aarch64")]
+    {
+        if is_f32::<T>() {
+            neon::div_scalar_f32(cast_slice(input), cast_value(scalar), cast_mut_slice(out));
+            return;
+        }
+        if is_f64::<T>() {
+            neon::div_scalar_f64(cast_slice(input), cast_value(scalar), cast_mut_slice(out));
+            return;
+        }
+    }
+
     map_scalar_scalar(input, scalar, out, ElementwiseDivision::elementwise_div);
 }
 
 pub(crate) fn neg_contiguous<T: UnaryNeg>(input: &[T], out: &mut [T]) {
     debug_assert_eq!(input.len(), out.len());
+
+    #[cfg(target_arch = "aarch64")]
+    {
+        if is_f32::<T>() {
+            neon::neg_f32(cast_slice(input), cast_mut_slice(out));
+            return;
+        }
+        if is_f64::<T>() {
+            neon::neg_f64(cast_slice(input), cast_mut_slice(out));
+            return;
+        }
+    }
 
     #[cfg(target_arch = "x86_64")]
     {
@@ -255,6 +365,18 @@ pub(crate) fn neg_contiguous<T: UnaryNeg>(input: &[T], out: &mut [T]) {
 
 pub(crate) fn abs_contiguous<T: UnaryAbs>(input: &[T], out: &mut [T]) {
     debug_assert_eq!(input.len(), out.len());
+
+    #[cfg(target_arch = "aarch64")]
+    {
+        if is_f32::<T>() {
+            neon::abs_f32(cast_slice(input), cast_mut_slice(out));
+            return;
+        }
+        if is_f64::<T>() {
+            neon::abs_f64(cast_slice(input), cast_mut_slice(out));
+            return;
+        }
+    }
 
     #[cfg(target_arch = "x86_64")]
     {
@@ -297,6 +419,16 @@ where
 }
 
 pub(crate) fn sum_contiguous<T: ElementwiseArithmetic>(values: &[T]) -> T {
+    #[cfg(target_arch = "aarch64")]
+    {
+        if values.len() >= SIMD_REDUCTION_THRESHOLD && is_f32::<T>() {
+            return cast_value_exact(neon::sum_f32(cast_slice(values)));
+        }
+        if values.len() >= SIMD_REDUCTION_THRESHOLD && is_f64::<T>() {
+            return cast_value_exact(neon::sum_f64(cast_slice(values)));
+        }
+    }
+
     #[cfg(target_arch = "x86_64")]
     {
         if values.len() >= SIMD_REDUCTION_THRESHOLD
@@ -328,6 +460,16 @@ pub(crate) fn sum_contiguous<T: ElementwiseArithmetic>(values: &[T]) -> T {
 }
 
 pub(crate) fn prod_contiguous<T: ElementwiseArithmetic>(values: &[T]) -> T {
+    #[cfg(target_arch = "aarch64")]
+    {
+        if is_f32::<T>() {
+            return cast_value_exact(neon::prod_f32(cast_slice(values)));
+        }
+        if is_f64::<T>() {
+            return cast_value_exact(neon::prod_f64(cast_slice(values)));
+        }
+    }
+
     #[cfg(target_arch = "x86_64")]
     {
         if is_f32::<T>() && std::is_x86_feature_detected!("avx") {
@@ -352,6 +494,19 @@ where
 {
     if let Some(value) = first_unordered(values) {
         return Ok(value);
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    {
+        if values.is_empty() {
+            return Err(AtlasNdError::EmptyReduction { op });
+        }
+        if is_f32::<T>() {
+            return Ok(cast_value_exact(neon::min_f32(cast_slice(values))));
+        }
+        if is_f64::<T>() {
+            return Ok(cast_value_exact(neon::min_f64(cast_slice(values))));
+        }
     }
 
     #[cfg(target_arch = "x86_64")]
@@ -386,6 +541,19 @@ where
 {
     if let Some(value) = first_unordered(values) {
         return Ok(value);
+    }
+
+    #[cfg(target_arch = "aarch64")]
+    {
+        if values.is_empty() {
+            return Err(AtlasNdError::EmptyReduction { op });
+        }
+        if is_f32::<T>() {
+            return Ok(cast_value_exact(neon::max_f32(cast_slice(values))));
+        }
+        if is_f64::<T>() {
+            return Ok(cast_value_exact(neon::max_f64(cast_slice(values))));
+        }
     }
 
     #[cfg(target_arch = "x86_64")]
@@ -423,6 +591,10 @@ where
     }
 
     if is_f32::<T>() {
+        #[cfg(target_arch = "aarch64")]
+        if values.len() >= SIMD_REDUCTION_THRESHOLD {
+            return Ok(neon::sum_f32(cast_slice(values)) as f64 / values.len() as f64);
+        }
         #[cfg(target_arch = "x86_64")]
         if values.len() >= SIMD_REDUCTION_THRESHOLD && std::is_x86_feature_detected!("avx") {
             // SAFETY: The type check guarantees exact element layout.
@@ -432,6 +604,10 @@ where
     }
 
     if is_f64::<T>() {
+        #[cfg(target_arch = "aarch64")]
+        if values.len() >= SIMD_REDUCTION_THRESHOLD {
+            return Ok(neon::sum_f64(cast_slice(values)) / values.len() as f64);
+        }
         #[cfg(target_arch = "x86_64")]
         if values.len() >= SIMD_REDUCTION_THRESHOLD && std::is_x86_feature_detected!("avx") {
             // SAFETY: The type check guarantees exact element layout.

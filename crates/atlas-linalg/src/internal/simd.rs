@@ -3,11 +3,24 @@ pub(crate) use atlas_ndarray::simd_support::{
     cast_mut_slice, cast_slice, cast_value, is_f32, is_f64,
 };
 
+#[cfg(target_arch = "aarch64")]
+use super::neon;
+
 const F32_LANES: usize = 8;
 const F64_LANES: usize = 4;
 
 pub(crate) fn dot_contiguous<T: Numeric>(lhs: &[T], rhs: &[T]) -> T {
     debug_assert_eq!(lhs.len(), rhs.len());
+
+    #[cfg(target_arch = "aarch64")]
+    {
+        if is_f32::<T>() {
+            return cast_value(neon::dot_f32(cast_slice(lhs), cast_slice(rhs)));
+        }
+        if is_f64::<T>() {
+            return cast_value(neon::dot_f64(cast_slice(lhs), cast_slice(rhs)));
+        }
+    }
 
     #[cfg(target_arch = "x86_64")]
     {
@@ -31,6 +44,26 @@ pub(crate) fn dot_contiguous<T: Numeric>(lhs: &[T], rhs: &[T]) -> T {
 
 pub(crate) fn scaled_accumulate_contiguous<T: Numeric>(output: &mut [T], input: &[T], scale: T) {
     debug_assert_eq!(output.len(), input.len());
+
+    #[cfg(target_arch = "aarch64")]
+    {
+        if is_f32::<T>() {
+            neon::scaled_accumulate_f32(
+                cast_mut_slice(output),
+                cast_slice(input),
+                cast_value(scale),
+            );
+            return;
+        }
+        if is_f64::<T>() {
+            neon::scaled_accumulate_f64(
+                cast_mut_slice(output),
+                cast_slice(input),
+                cast_value(scale),
+            );
+            return;
+        }
+    }
 
     #[cfg(target_arch = "x86_64")]
     {
@@ -83,6 +116,9 @@ fn scaled_accumulate_scalar<T: Numeric>(output: &mut [T], input: &[T], scale: T)
 pub(crate) fn dot_contiguous_f32(lhs: &[f32], rhs: &[f32]) -> f32 {
     debug_assert_eq!(lhs.len(), rhs.len());
 
+    #[cfg(target_arch = "aarch64")]
+    return neon::dot_f32(lhs, rhs);
+
     #[cfg(target_arch = "x86_64")]
     {
         if std::is_x86_feature_detected!("avx") {
@@ -97,6 +133,9 @@ pub(crate) fn dot_contiguous_f32(lhs: &[f32], rhs: &[f32]) -> f32 {
 pub(crate) fn dot_contiguous_f64(lhs: &[f64], rhs: &[f64]) -> f64 {
     debug_assert_eq!(lhs.len(), rhs.len());
 
+    #[cfg(target_arch = "aarch64")]
+    return neon::dot_f64(lhs, rhs);
+
     #[cfg(target_arch = "x86_64")]
     {
         if std::is_x86_feature_detected!("avx") {
@@ -110,6 +149,12 @@ pub(crate) fn dot_contiguous_f64(lhs: &[f64], rhs: &[f64]) -> f64 {
 
 pub(crate) fn scaled_accumulate_contiguous_f32(output: &mut [f32], input: &[f32], scale: f32) {
     debug_assert_eq!(output.len(), input.len());
+
+    #[cfg(target_arch = "aarch64")]
+    {
+        neon::scaled_accumulate_f32(output, input, scale);
+        return;
+    }
 
     #[cfg(target_arch = "x86_64")]
     {
@@ -129,6 +174,12 @@ pub(crate) fn scaled_accumulate_contiguous_f32(output: &mut [f32], input: &[f32]
 
 pub(crate) fn scaled_accumulate_contiguous_f64(output: &mut [f64], input: &[f64], scale: f64) {
     debug_assert_eq!(output.len(), input.len());
+
+    #[cfg(target_arch = "aarch64")]
+    {
+        neon::scaled_accumulate_f64(output, input, scale);
+        return;
+    }
 
     #[cfg(target_arch = "x86_64")]
     {
