@@ -24,6 +24,26 @@ pub(crate) fn dot_contiguous<T: Numeric>(lhs: &[T], rhs: &[T]) -> T {
 
     #[cfg(target_arch = "x86_64")]
     {
+        if is_f32::<T>()
+            && std::is_x86_feature_detected!("avx2")
+            && std::is_x86_feature_detected!("fma")
+        {
+            // SAFETY: Runtime checks guarantee AVX2 and FMA support, and the type check
+            // guarantees identical element layouts for the casted slices.
+            let value = unsafe { x86_64::dot_f32_fma(cast_slice(lhs), cast_slice(rhs)) };
+            return cast_value(value);
+        }
+
+        if is_f64::<T>()
+            && std::is_x86_feature_detected!("avx2")
+            && std::is_x86_feature_detected!("fma")
+        {
+            // SAFETY: Runtime checks guarantee AVX2 and FMA support, and the type check
+            // guarantees identical element layouts for the casted slices.
+            let value = unsafe { x86_64::dot_f64_fma(cast_slice(lhs), cast_slice(rhs)) };
+            return cast_value(value);
+        }
+
         if is_f32::<T>() && std::is_x86_feature_detected!("avx") {
             // SAFETY: The runtime check guarantees AVX support and the type check guarantees
             // identical element layouts for the casted slices.
@@ -67,6 +87,38 @@ pub(crate) fn scaled_accumulate_contiguous<T: Numeric>(output: &mut [T], input: 
 
     #[cfg(target_arch = "x86_64")]
     {
+        if is_f32::<T>()
+            && std::is_x86_feature_detected!("avx2")
+            && std::is_x86_feature_detected!("fma")
+        {
+            // SAFETY: Runtime checks guarantee AVX2 and FMA support, and the type check
+            // guarantees identical layouts for the casted slices and scalar.
+            unsafe {
+                x86_64::scaled_accumulate_f32_fma(
+                    cast_mut_slice(output),
+                    cast_slice(input),
+                    cast_value(scale),
+                );
+            }
+            return;
+        }
+
+        if is_f64::<T>()
+            && std::is_x86_feature_detected!("avx2")
+            && std::is_x86_feature_detected!("fma")
+        {
+            // SAFETY: Runtime checks guarantee AVX2 and FMA support, and the type check
+            // guarantees identical layouts for the casted slices and scalar.
+            unsafe {
+                x86_64::scaled_accumulate_f64_fma(
+                    cast_mut_slice(output),
+                    cast_slice(input),
+                    cast_value(scale),
+                );
+            }
+            return;
+        }
+
         if is_f32::<T>() && std::is_x86_feature_detected!("avx") {
             // SAFETY: The runtime check guarantees AVX support and the type check guarantees
             // identical element layouts for the casted slices and scalar.
@@ -121,6 +173,11 @@ pub(crate) fn dot_contiguous_f32(lhs: &[f32], rhs: &[f32]) -> f32 {
 
     #[cfg(target_arch = "x86_64")]
     {
+        if std::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
+            // SAFETY: AVX2 and FMA support are verified at runtime.
+            return unsafe { x86_64::dot_f32_fma(lhs, rhs) };
+        }
+
         if std::is_x86_feature_detected!("avx") {
             // SAFETY: AVX support is verified at runtime.
             return unsafe { x86_64::dot_f32(lhs, rhs) };
@@ -138,6 +195,11 @@ pub(crate) fn dot_contiguous_f64(lhs: &[f64], rhs: &[f64]) -> f64 {
 
     #[cfg(target_arch = "x86_64")]
     {
+        if std::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
+            // SAFETY: AVX2 and FMA support are verified at runtime.
+            return unsafe { x86_64::dot_f64_fma(lhs, rhs) };
+        }
+
         if std::is_x86_feature_detected!("avx") {
             // SAFETY: AVX support is verified at runtime.
             return unsafe { x86_64::dot_f64(lhs, rhs) };
@@ -158,6 +220,14 @@ pub(crate) fn scaled_accumulate_contiguous_f32(output: &mut [f32], input: &[f32]
 
     #[cfg(target_arch = "x86_64")]
     {
+        if std::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
+            // SAFETY: AVX2 and FMA support are verified at runtime.
+            unsafe {
+                x86_64::scaled_accumulate_f32_fma(output, input, scale);
+            }
+            return;
+        }
+
         if std::is_x86_feature_detected!("avx") {
             // SAFETY: AVX support is verified at runtime.
             unsafe {
@@ -183,6 +253,14 @@ pub(crate) fn scaled_accumulate_contiguous_f64(output: &mut [f64], input: &[f64]
 
     #[cfg(target_arch = "x86_64")]
     {
+        if std::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
+            // SAFETY: AVX2 and FMA support are verified at runtime.
+            unsafe {
+                x86_64::scaled_accumulate_f64_fma(output, input, scale);
+            }
+            return;
+        }
+
         if std::is_x86_feature_detected!("avx") {
             // SAFETY: AVX support is verified at runtime.
             unsafe {
@@ -202,6 +280,170 @@ mod x86_64 {
     use std::arch::x86_64::*;
 
     use super::{F32_LANES, F64_LANES};
+
+    #[target_feature(enable = "avx2,fma")]
+    pub(super) unsafe fn dot_f32_fma(lhs: &[f32], rhs: &[f32]) -> f32 {
+        let mut accumulator0 = _mm256_setzero_ps();
+        let mut accumulator1 = _mm256_setzero_ps();
+        let mut accumulator2 = _mm256_setzero_ps();
+        let mut accumulator3 = _mm256_setzero_ps();
+        let mut index = 0;
+
+        while index + 4 * F32_LANES <= lhs.len() {
+            unsafe {
+                accumulator0 = _mm256_fmadd_ps(
+                    _mm256_loadu_ps(lhs.as_ptr().add(index)),
+                    _mm256_loadu_ps(rhs.as_ptr().add(index)),
+                    accumulator0,
+                );
+                accumulator1 = _mm256_fmadd_ps(
+                    _mm256_loadu_ps(lhs.as_ptr().add(index + F32_LANES)),
+                    _mm256_loadu_ps(rhs.as_ptr().add(index + F32_LANES)),
+                    accumulator1,
+                );
+                accumulator2 = _mm256_fmadd_ps(
+                    _mm256_loadu_ps(lhs.as_ptr().add(index + 2 * F32_LANES)),
+                    _mm256_loadu_ps(rhs.as_ptr().add(index + 2 * F32_LANES)),
+                    accumulator2,
+                );
+                accumulator3 = _mm256_fmadd_ps(
+                    _mm256_loadu_ps(lhs.as_ptr().add(index + 3 * F32_LANES)),
+                    _mm256_loadu_ps(rhs.as_ptr().add(index + 3 * F32_LANES)),
+                    accumulator3,
+                );
+            }
+            index += 4 * F32_LANES;
+        }
+
+        let mut accumulator = _mm256_add_ps(
+            _mm256_add_ps(accumulator0, accumulator1),
+            _mm256_add_ps(accumulator2, accumulator3),
+        );
+        while index + F32_LANES <= lhs.len() {
+            unsafe {
+                accumulator = _mm256_fmadd_ps(
+                    _mm256_loadu_ps(lhs.as_ptr().add(index)),
+                    _mm256_loadu_ps(rhs.as_ptr().add(index)),
+                    accumulator,
+                );
+            }
+            index += F32_LANES;
+        }
+
+        let mut lanes = [0.0_f32; F32_LANES];
+        unsafe { _mm256_storeu_ps(lanes.as_mut_ptr(), accumulator) };
+        let mut total = lanes.into_iter().sum();
+        while index < lhs.len() {
+            total += lhs[index] * rhs[index];
+            index += 1;
+        }
+        total
+    }
+
+    #[target_feature(enable = "avx2,fma")]
+    pub(super) unsafe fn dot_f64_fma(lhs: &[f64], rhs: &[f64]) -> f64 {
+        let mut accumulator0 = _mm256_setzero_pd();
+        let mut accumulator1 = _mm256_setzero_pd();
+        let mut accumulator2 = _mm256_setzero_pd();
+        let mut accumulator3 = _mm256_setzero_pd();
+        let mut index = 0;
+
+        while index + 4 * F64_LANES <= lhs.len() {
+            unsafe {
+                accumulator0 = _mm256_fmadd_pd(
+                    _mm256_loadu_pd(lhs.as_ptr().add(index)),
+                    _mm256_loadu_pd(rhs.as_ptr().add(index)),
+                    accumulator0,
+                );
+                accumulator1 = _mm256_fmadd_pd(
+                    _mm256_loadu_pd(lhs.as_ptr().add(index + F64_LANES)),
+                    _mm256_loadu_pd(rhs.as_ptr().add(index + F64_LANES)),
+                    accumulator1,
+                );
+                accumulator2 = _mm256_fmadd_pd(
+                    _mm256_loadu_pd(lhs.as_ptr().add(index + 2 * F64_LANES)),
+                    _mm256_loadu_pd(rhs.as_ptr().add(index + 2 * F64_LANES)),
+                    accumulator2,
+                );
+                accumulator3 = _mm256_fmadd_pd(
+                    _mm256_loadu_pd(lhs.as_ptr().add(index + 3 * F64_LANES)),
+                    _mm256_loadu_pd(rhs.as_ptr().add(index + 3 * F64_LANES)),
+                    accumulator3,
+                );
+            }
+            index += 4 * F64_LANES;
+        }
+
+        let mut accumulator = _mm256_add_pd(
+            _mm256_add_pd(accumulator0, accumulator1),
+            _mm256_add_pd(accumulator2, accumulator3),
+        );
+        while index + F64_LANES <= lhs.len() {
+            unsafe {
+                accumulator = _mm256_fmadd_pd(
+                    _mm256_loadu_pd(lhs.as_ptr().add(index)),
+                    _mm256_loadu_pd(rhs.as_ptr().add(index)),
+                    accumulator,
+                );
+            }
+            index += F64_LANES;
+        }
+
+        let mut lanes = [0.0_f64; F64_LANES];
+        unsafe { _mm256_storeu_pd(lanes.as_mut_ptr(), accumulator) };
+        let mut total = lanes.into_iter().sum();
+        while index < lhs.len() {
+            total += lhs[index] * rhs[index];
+            index += 1;
+        }
+        total
+    }
+
+    #[target_feature(enable = "avx2,fma")]
+    pub(super) unsafe fn scaled_accumulate_f32_fma(output: &mut [f32], input: &[f32], scale: f32) {
+        let scale_vector = _mm256_set1_ps(scale);
+        let mut index = 0;
+
+        while index + F32_LANES <= output.len() {
+            unsafe {
+                let accumulated = _mm256_loadu_ps(output.as_ptr().add(index));
+                let values = _mm256_loadu_ps(input.as_ptr().add(index));
+                _mm256_storeu_ps(
+                    output.as_mut_ptr().add(index),
+                    _mm256_fmadd_ps(values, scale_vector, accumulated),
+                );
+            }
+            index += F32_LANES;
+        }
+
+        while index < output.len() {
+            output[index] += input[index] * scale;
+            index += 1;
+        }
+    }
+
+    #[target_feature(enable = "avx2,fma")]
+    pub(super) unsafe fn scaled_accumulate_f64_fma(output: &mut [f64], input: &[f64], scale: f64) {
+        let scale_vector = _mm256_set1_pd(scale);
+        let mut index = 0;
+
+        while index + F64_LANES <= output.len() {
+            unsafe {
+                let accumulated = _mm256_loadu_pd(output.as_ptr().add(index));
+                let values = _mm256_loadu_pd(input.as_ptr().add(index));
+                _mm256_storeu_pd(
+                    output.as_mut_ptr().add(index),
+                    _mm256_fmadd_pd(values, scale_vector, accumulated),
+                );
+            }
+            index += F64_LANES;
+        }
+
+        while index < output.len() {
+            output[index] += input[index] * scale;
+            index += 1;
+        }
+    }
 
     #[target_feature(enable = "avx")]
     pub(super) unsafe fn dot_f32(lhs: &[f32], rhs: &[f32]) -> f32 {
