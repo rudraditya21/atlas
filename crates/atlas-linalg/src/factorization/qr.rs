@@ -281,6 +281,7 @@ where
     let matrix = matrix.into();
     let (rows, columns) = validate_rank_two(&matrix, "matrix_rank")?;
     let matrix = copy_matrix_row_major(&matrix);
+    validate_finite(&matrix, "matrix_rank")?;
     let mut basis = vec![T::zero(); rows * rows.min(columns)];
     let mut work = vec![T::zero(); rows];
     let mut rank = 0;
