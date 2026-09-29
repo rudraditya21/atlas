@@ -4,7 +4,9 @@ use crate::{
     ArrayElement, NDArray, Numeric, OperandMetadata,
     internal::{
         layout::is_contiguous_layout,
+        logical_span_iter,
         parallel::{ELEMENTWISE_CHUNK_LEN, should_parallelize_elementwise},
+        shape::element_count,
         simd, value_iter,
     },
     view::ArrayView,
@@ -170,11 +172,10 @@ where
         .expect("unary operations preserve ndarray invariants")
 }
 
-fn map_unary_numeric<T, O, F, C>(operand: &O, op: F, contiguous_op: C) -> NDArray<T>
+fn map_unary_numeric<T, O, C>(operand: &O, contiguous_op: C) -> NDArray<T>
 where
     T: Numeric,
     O: OperandMetadata<T> + ?Sized,
-    F: Fn(T) -> T + Sync,
     C: Fn(&[T], &mut [T]) + Sync,
 {
     let data = if is_contiguous_layout(operand.shape(), operand.strides()) {
@@ -190,10 +191,19 @@ where
         }
         data
     } else {
-        value_iter(operand.data(), operand.offset(), operand.shape(), operand.strides())
-            .copied()
-            .map(op)
-            .collect()
+        let mut data = vec![T::zero(); element_count(operand.shape())];
+        let mut output_offset = 0;
+
+        for span in
+            logical_span_iter(operand.data(), operand.offset(), operand.shape(), operand.strides())
+        {
+            let output_end = output_offset + span.len();
+            contiguous_op(span, &mut data[output_offset..output_end]);
+            output_offset = output_end;
+        }
+
+        debug_assert_eq!(output_offset, data.len());
+        data
     };
 
     NDArray::from_row_major_parts(operand.shape().to_vec(), data)
@@ -230,14 +240,14 @@ macro_rules! impl_unary_operations {
         impl<T: UnaryNeg> $operand {
             /// Returns the elementwise additive inverse; signed integer minima wrap unchanged.
             pub fn neg(&self) -> NDArray<T> {
-                map_unary_numeric(self, UnaryNeg::unary_neg, simd::neg_contiguous)
+                map_unary_numeric(self, simd::neg_contiguous)
             }
         }
 
         impl<T: UnaryAbs> $operand {
             /// Returns elementwise magnitudes; unsigned integers are unchanged and signed minima wrap unchanged.
             pub fn abs(&self) -> NDArray<T> {
-                map_unary_numeric(self, UnaryAbs::unary_abs, simd::abs_contiguous)
+                map_unary_numeric(self, simd::abs_contiguous)
             }
         }
 
