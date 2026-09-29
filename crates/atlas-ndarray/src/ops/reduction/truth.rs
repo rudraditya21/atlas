@@ -9,7 +9,7 @@ use crate::{
     AtlasNdResult, AxisIndex, NDArray,
     internal::{
         layout::{LayoutKind, dense_storage_slice},
-        logical_span_iter, offset_iter,
+        logical_span_iter, offset_iter, simd,
     },
 };
 
@@ -46,12 +46,10 @@ pub(super) fn count_true_all(
     strides: &[usize],
 ) -> usize {
     if let Some(values) = dense_storage_slice(data, offset, shape, strides) {
-        return values.iter().filter(|&&value| value).count();
+        return count_true_contiguous(values);
     }
 
-    logical_span_iter(data, offset, shape, strides)
-        .map(|span| span.iter().filter(|&&value| value).count())
-        .sum()
+    logical_span_iter(data, offset, shape, strides).map(count_true_contiguous).sum()
 }
 
 pub(super) fn all_axis_impl(
@@ -133,7 +131,7 @@ fn all_contiguous(values: &[bool]) -> bool {
             .all(all_contiguous);
     }
 
-    values.iter().copied().all(|value| value)
+    simd::all_contiguous(values)
 }
 
 fn any_contiguous(values: &[bool]) -> bool {
@@ -143,7 +141,18 @@ fn any_contiguous(values: &[bool]) -> bool {
             .any(any_contiguous);
     }
 
-    values.iter().copied().any(|value| value)
+    simd::any_contiguous(values)
+}
+
+fn count_true_contiguous(values: &[bool]) -> usize {
+    if should_parallelize_reduction(values.len()) {
+        return values
+            .par_chunks(super::dispatch::parallel_reduction_chunk_len())
+            .map(simd::count_true_contiguous)
+            .sum();
+    }
+
+    simd::count_true_contiguous(values)
 }
 
 fn all_axis_dense_contiguous(

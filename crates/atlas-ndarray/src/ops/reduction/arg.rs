@@ -1,7 +1,11 @@
 use super::metadata::{AxisReductionMetadata, ReductionOperand, WholeReductionMetadata};
 use crate::{
     AtlasNdError, AtlasNdResult, AxisIndex, NDArray, Numeric, OperandMetadata,
-    internal::{for_each_value, layout::LayoutKind, offset_iter},
+    internal::{
+        for_each_value,
+        layout::{LayoutKind, is_contiguous_layout},
+        offset_iter, simd,
+    },
 };
 
 pub(super) fn argmin_all<T: Numeric + PartialOrd>(
@@ -10,7 +14,7 @@ pub(super) fn argmin_all<T: Numeric + PartialOrd>(
     shape: &[usize],
     strides: &[usize],
 ) -> AtlasNdResult<usize> {
-    arg_all(data, offset, shape, strides, "argmin", replaces_min)
+    arg_all(data, offset, shape, strides, "argmin", replaces_min, simd::argmin_contiguous)
 }
 
 pub(super) fn argmax_all<T: Numeric + PartialOrd>(
@@ -19,7 +23,7 @@ pub(super) fn argmax_all<T: Numeric + PartialOrd>(
     shape: &[usize],
     strides: &[usize],
 ) -> AtlasNdResult<usize> {
-    arg_all(data, offset, shape, strides, "argmax", replaces_max)
+    arg_all(data, offset, shape, strides, "argmax", replaces_max, simd::argmax_contiguous)
 }
 
 pub(super) fn argmin_axis<T: Numeric + PartialOrd, O: OperandMetadata<T> + ?Sized>(
@@ -27,7 +31,14 @@ pub(super) fn argmin_axis<T: Numeric + PartialOrd, O: OperandMetadata<T> + ?Size
     axis: impl AxisIndex,
     keepdims: bool,
 ) -> AtlasNdResult<NDArray<usize>> {
-    arg_axis(ReductionOperand::new(operand), axis, keepdims, "argmin", replaces_min)
+    arg_axis(
+        ReductionOperand::new(operand),
+        axis,
+        keepdims,
+        "argmin",
+        replaces_min,
+        simd::argmin_contiguous,
+    )
 }
 
 pub(super) fn argmax_axis<T: Numeric + PartialOrd, O: OperandMetadata<T> + ?Sized>(
@@ -35,7 +46,14 @@ pub(super) fn argmax_axis<T: Numeric + PartialOrd, O: OperandMetadata<T> + ?Size
     axis: impl AxisIndex,
     keepdims: bool,
 ) -> AtlasNdResult<NDArray<usize>> {
-    arg_axis(ReductionOperand::new(operand), axis, keepdims, "argmax", replaces_max)
+    arg_axis(
+        ReductionOperand::new(operand),
+        axis,
+        keepdims,
+        "argmax",
+        replaces_max,
+        simd::argmax_contiguous,
+    )
 }
 
 fn arg_all<T: Numeric + PartialOrd>(
@@ -45,8 +63,14 @@ fn arg_all<T: Numeric + PartialOrd>(
     strides: &[usize],
     op: &'static str,
     replaces: fn(T, T) -> bool,
+    contiguous: fn(&[T], &'static str) -> AtlasNdResult<usize>,
 ) -> AtlasNdResult<usize> {
-    WholeReductionMetadata::from_shape(shape).require_non_empty(op)?;
+    let metadata = WholeReductionMetadata::from_shape(shape);
+    metadata.require_non_empty(op)?;
+    if is_contiguous_layout(shape, strides) && (simd::is_f32::<T>() || simd::is_f64::<T>()) {
+        return contiguous(&data[offset..offset + metadata.len], op);
+    }
+
     let mut best = None;
     let mut index = 0;
 
@@ -67,9 +91,23 @@ fn arg_axis<T: Numeric + PartialOrd>(
     keepdims: bool,
     op: &'static str,
     replaces: fn(T, T) -> bool,
+    contiguous: fn(&[T], &'static str) -> AtlasNdResult<usize>,
 ) -> AtlasNdResult<NDArray<usize>> {
     let metadata = AxisReductionMetadata::new(operand.shape, operand.strides, axis, keepdims)?;
     metadata.require_non_empty(op)?;
+
+    if metadata.axis_layout == LayoutKind::Contiguous
+        && (simd::is_f32::<T>() || simd::is_f64::<T>())
+    {
+        let mut indices = Vec::with_capacity(metadata.output.len);
+        for lane_offset in
+            offset_iter(operand.offset, &metadata.output.shape, &metadata.output.outer_strides)
+        {
+            indices
+                .push(contiguous(&operand.data[lane_offset..lane_offset + metadata.axis_len], op)?);
+        }
+        return NDArray::from_shape_vec(metadata.output.shape, indices);
+    }
 
     if metadata.source_layout == LayoutKind::Contiguous {
         return arg_axis_dense_contiguous(operand.data, operand.offset, metadata, replaces);

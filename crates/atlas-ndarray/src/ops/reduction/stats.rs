@@ -3,7 +3,11 @@ use num_traits::ToPrimitive;
 use super::metadata::{AxisReductionMetadata, ReductionOperand, WholeReductionMetadata};
 use crate::{
     AtlasNdError, AtlasNdResult, AxisIndex, NDArray, Numeric, OperandMetadata,
-    internal::{for_each_value, offset_iter},
+    internal::{
+        for_each_value,
+        layout::{LayoutKind, dense_storage_slice},
+        offset_iter, simd,
+    },
 };
 
 #[derive(Default)]
@@ -33,7 +37,13 @@ pub(super) fn variance_all<T: Numeric + ToPrimitive>(
     strides: &[usize],
     op: &'static str,
 ) -> AtlasNdResult<f64> {
-    WholeReductionMetadata::from_shape(shape).require_non_empty(op)?;
+    let metadata = WholeReductionMetadata::from_shape(shape);
+    metadata.require_non_empty(op)?;
+
+    if let Some(values) = dense_storage_slice(data, offset, shape, strides) {
+        return variance_contiguous(values, op);
+    }
+
     let mut variance = RunningVariance::default();
     try_add_all(&mut variance, data, offset, shape, strides, op)?;
     Ok(variance.population())
@@ -58,6 +68,23 @@ fn variance_axis_impl<T: Numeric + ToPrimitive>(
 ) -> AtlasNdResult<NDArray<f64>> {
     let metadata = AxisReductionMetadata::new(operand.shape, operand.strides, axis, keepdims)?;
     metadata.require_non_empty(op)?;
+
+    if metadata.axis_layout == LayoutKind::Contiguous
+        && (simd::is_f32::<T>() || simd::is_f64::<T>())
+    {
+        let mut values = Vec::with_capacity(metadata.output.len);
+        for lane_offset in
+            offset_iter(operand.offset, &metadata.output.shape, &metadata.output.outer_strides)
+        {
+            let variance = variance_contiguous(
+                &operand.data[lane_offset..lane_offset + metadata.axis_len],
+                op,
+            )?;
+            values.push(if stddev { variance.sqrt() } else { variance });
+        }
+        return NDArray::from_shape_vec(metadata.output.shape, values);
+    }
+
     let mut values = Vec::with_capacity(metadata.output.len);
 
     for lane_offset in
@@ -76,6 +103,29 @@ fn variance_axis_impl<T: Numeric + ToPrimitive>(
     }
 
     NDArray::from_shape_vec(metadata.output.shape, values)
+}
+
+fn variance_contiguous<T: Numeric + ToPrimitive>(
+    values: &[T],
+    op: &'static str,
+) -> AtlasNdResult<f64> {
+    if simd::is_f32::<T>() {
+        let values = simd::cast_slice::<T, f32>(values);
+        let mean = simd::compensated_sum_f32_as_f64(values) / values.len() as f64;
+        return Ok(simd::squared_deviations_f32(values, mean) / values.len() as f64);
+    }
+
+    if simd::is_f64::<T>() {
+        let values = simd::cast_slice::<T, f64>(values);
+        let mean = simd::compensated_sum_f64(values) / values.len() as f64;
+        return Ok(simd::squared_deviations_f64(values, mean) / values.len() as f64);
+    }
+
+    let mut variance = RunningVariance::default();
+    for value in values {
+        variance.add(value.to_f64().ok_or(AtlasNdError::NumericConversionFailed { op })?);
+    }
+    Ok(variance.population())
 }
 
 fn try_add_all<T: ToPrimitive>(

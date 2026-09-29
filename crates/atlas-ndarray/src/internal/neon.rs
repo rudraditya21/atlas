@@ -107,6 +107,83 @@ pub(crate) fn sum_f64(values: &[f64]) -> f64 {
     total
 }
 
+pub(crate) fn all_bool(values: &[bool]) -> bool {
+    let mut index = 0;
+    while index + 16 <= values.len() {
+        let lanes = unsafe { vld1q_u8(values.as_ptr().add(index).cast()) };
+        if unsafe { vminvq_u8(lanes) } == 0 {
+            return false;
+        }
+        index += 16;
+    }
+    values[index..].iter().all(|&value| value)
+}
+
+pub(crate) fn any_bool(values: &[bool]) -> bool {
+    let mut index = 0;
+    while index + 16 <= values.len() {
+        let lanes = unsafe { vld1q_u8(values.as_ptr().add(index).cast()) };
+        if unsafe { vmaxvq_u8(lanes) } != 0 {
+            return true;
+        }
+        index += 16;
+    }
+    values[index..].iter().any(|&value| value)
+}
+
+pub(crate) fn count_true(values: &[bool]) -> usize {
+    let mut total = 0;
+    let mut index = 0;
+    while index + 16 <= values.len() {
+        let lanes = unsafe { vld1q_u8(values.as_ptr().add(index).cast()) };
+        total += usize::from(unsafe { vaddvq_u8(lanes) });
+        index += 16;
+    }
+    total + values[index..].iter().filter(|&&value| value).count()
+}
+
+pub(crate) fn squared_deviations_f32(values: &[f32], mean: f64) -> f64 {
+    let mean_vector = unsafe { vdupq_n_f64(mean) };
+    let mut accumulator_low = unsafe { vdupq_n_f64(0.0) };
+    let mut accumulator_high = unsafe { vdupq_n_f64(0.0) };
+    let mut index = 0;
+    while index + 4 <= values.len() {
+        unsafe {
+            let lanes = vld1q_f32(values.as_ptr().add(index));
+            let difference_low = vsubq_f64(vcvt_f64_f32(vget_low_f32(lanes)), mean_vector);
+            let difference_high = vsubq_f64(vcvt_f64_f32(vget_high_f32(lanes)), mean_vector);
+            accumulator_low = vfmaq_f64(accumulator_low, difference_low, difference_low);
+            accumulator_high = vfmaq_f64(accumulator_high, difference_high, difference_high);
+        }
+        index += 4;
+    }
+    let mut total = unsafe { vaddvq_f64(vaddq_f64(accumulator_low, accumulator_high)) };
+    for &value in &values[index..] {
+        let difference = f64::from(value) - mean;
+        total += difference * difference;
+    }
+    total
+}
+
+pub(crate) fn squared_deviations_f64(values: &[f64], mean: f64) -> f64 {
+    let mean_vector = unsafe { vdupq_n_f64(mean) };
+    let mut accumulator = unsafe { vdupq_n_f64(0.0) };
+    let mut index = 0;
+    while index + 2 <= values.len() {
+        unsafe {
+            let difference = vsubq_f64(vld1q_f64(values.as_ptr().add(index)), mean_vector);
+            accumulator = vfmaq_f64(accumulator, difference, difference);
+        }
+        index += 2;
+    }
+    let mut total = unsafe { vaddvq_f64(accumulator) };
+    for &value in &values[index..] {
+        let difference = value - mean;
+        total += difference * difference;
+    }
+    total
+}
+
 pub(crate) fn prod_f32(values: &[f32]) -> f32 {
     let mut accumulator = unsafe { vdupq_n_f32(1.0) };
     let mut index = 0;

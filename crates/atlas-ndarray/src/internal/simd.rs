@@ -418,6 +418,105 @@ where
     map_scalar_scalar(input, scalar, out, op);
 }
 
+pub(crate) fn all_contiguous(values: &[bool]) -> bool {
+    #[cfg(target_arch = "aarch64")]
+    return neon::all_bool(values);
+
+    #[cfg(target_arch = "x86_64")]
+    if std::is_x86_feature_detected!("avx2") {
+        return unsafe { x86_64::all_bool(values) };
+    }
+
+    values.iter().all(|&value| value)
+}
+
+pub(crate) fn any_contiguous(values: &[bool]) -> bool {
+    #[cfg(target_arch = "aarch64")]
+    return neon::any_bool(values);
+
+    #[cfg(target_arch = "x86_64")]
+    if std::is_x86_feature_detected!("avx2") {
+        return unsafe { x86_64::any_bool(values) };
+    }
+
+    values.iter().any(|&value| value)
+}
+
+pub(crate) fn count_true_contiguous(values: &[bool]) -> usize {
+    #[cfg(target_arch = "aarch64")]
+    return neon::count_true(values);
+
+    #[cfg(target_arch = "x86_64")]
+    if std::is_x86_feature_detected!("avx2") {
+        return unsafe { x86_64::count_true(values) };
+    }
+
+    values.iter().filter(|&&value| value).count()
+}
+
+pub(crate) fn squared_deviations_f32(values: &[f32], mean: f64) -> f64 {
+    #[cfg(target_arch = "aarch64")]
+    return neon::squared_deviations_f32(values, mean);
+
+    #[cfg(target_arch = "x86_64")]
+    if std::is_x86_feature_detected!("avx") {
+        return unsafe { x86_64::squared_deviations_f32(values, mean) };
+    }
+
+    values
+        .iter()
+        .map(|&value| {
+            let difference = f64::from(value) - mean;
+            difference * difference
+        })
+        .sum()
+}
+
+pub(crate) fn squared_deviations_f64(values: &[f64], mean: f64) -> f64 {
+    #[cfg(target_arch = "aarch64")]
+    return neon::squared_deviations_f64(values, mean);
+
+    #[cfg(target_arch = "x86_64")]
+    if std::is_x86_feature_detected!("avx") {
+        return unsafe { x86_64::squared_deviations_f64(values, mean) };
+    }
+
+    values
+        .iter()
+        .map(|&value| {
+            let difference = value - mean;
+            difference * difference
+        })
+        .sum()
+}
+
+pub(crate) fn argmin_contiguous<T>(values: &[T], op: &'static str) -> AtlasNdResult<usize>
+where
+    T: Numeric + PartialOrd,
+{
+    let minimum = min_contiguous(values, op)?;
+    values
+        .iter()
+        .position(|&value| same_reduction_value(value, minimum))
+        .ok_or(AtlasNdError::EmptyReduction { op })
+}
+
+pub(crate) fn argmax_contiguous<T>(values: &[T], op: &'static str) -> AtlasNdResult<usize>
+where
+    T: Numeric + PartialOrd,
+{
+    let maximum = max_contiguous(values, op)?;
+    values
+        .iter()
+        .position(|&value| same_reduction_value(value, maximum))
+        .ok_or(AtlasNdError::EmptyReduction { op })
+}
+
+fn same_reduction_value<T: PartialOrd>(value: T, reduced: T) -> bool {
+    value == reduced
+        || (value.partial_cmp(&value).is_none() && reduced.partial_cmp(&reduced).is_none())
+}
+
 pub(crate) fn sum_contiguous<T: ElementwiseArithmetic>(values: &[T]) -> T {
     #[cfg(target_arch = "aarch64")]
     {
@@ -932,6 +1031,104 @@ pub(crate) fn compensated_sum_strided_f64(
 #[cfg(target_arch = "x86_64")]
 mod x86_64 {
     use std::arch::x86_64::*;
+
+    #[target_feature(enable = "avx2")]
+    pub(super) unsafe fn all_bool(values: &[bool]) -> bool {
+        let zero = _mm256_setzero_si256();
+        let mut index = 0;
+        while index + 32 <= values.len() {
+            let lanes = unsafe { _mm256_loadu_si256(values.as_ptr().add(index).cast()) };
+            if _mm256_movemask_epi8(_mm256_cmpeq_epi8(lanes, zero)) != 0 {
+                return false;
+            }
+            index += 32;
+        }
+        values[index..].iter().all(|&value| value)
+    }
+
+    #[target_feature(enable = "avx2")]
+    pub(super) unsafe fn any_bool(values: &[bool]) -> bool {
+        let zero = _mm256_setzero_si256();
+        let mut index = 0;
+        while index + 32 <= values.len() {
+            let lanes = unsafe { _mm256_loadu_si256(values.as_ptr().add(index).cast()) };
+            if _mm256_movemask_epi8(_mm256_cmpeq_epi8(lanes, zero)) != -1 {
+                return true;
+            }
+            index += 32;
+        }
+        values[index..].iter().any(|&value| value)
+    }
+
+    #[target_feature(enable = "avx2")]
+    pub(super) unsafe fn count_true(values: &[bool]) -> usize {
+        let zero = _mm256_setzero_si256();
+        let mut total = 0_u64;
+        let mut index = 0;
+        while index + 32 <= values.len() {
+            let lanes = unsafe { _mm256_loadu_si256(values.as_ptr().add(index).cast()) };
+            let sums = _mm256_sad_epu8(lanes, zero);
+            let mut partials = [0_u64; 4];
+            unsafe { _mm256_storeu_si256(partials.as_mut_ptr().cast(), sums) };
+            total += partials.into_iter().sum::<u64>();
+            index += 32;
+        }
+        total as usize + values[index..].iter().filter(|&&value| value).count()
+    }
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn squared_deviations_f32(values: &[f32], mean: f64) -> f64 {
+        let mean_vector = _mm256_set1_pd(mean);
+        let mut accumulator_low = _mm256_setzero_pd();
+        let mut accumulator_high = _mm256_setzero_pd();
+        let mut index = 0;
+        while index + 8 <= values.len() {
+            let lanes = unsafe { _mm256_loadu_ps(values.as_ptr().add(index)) };
+            let low = _mm256_cvtps_pd(_mm256_castps256_ps128(lanes));
+            let high = _mm256_cvtps_pd(_mm256_extractf128_ps::<1>(lanes));
+            let difference_low = _mm256_sub_pd(low, mean_vector);
+            let difference_high = _mm256_sub_pd(high, mean_vector);
+            accumulator_low =
+                _mm256_add_pd(accumulator_low, _mm256_mul_pd(difference_low, difference_low));
+            accumulator_high =
+                _mm256_add_pd(accumulator_high, _mm256_mul_pd(difference_high, difference_high));
+            index += 8;
+        }
+        let mut partials = [0.0_f64; 4];
+        unsafe {
+            _mm256_storeu_pd(
+                partials.as_mut_ptr(),
+                _mm256_add_pd(accumulator_low, accumulator_high),
+            )
+        };
+        let mut total = partials.into_iter().sum::<f64>();
+        for &value in &values[index..] {
+            let difference = f64::from(value) - mean;
+            total += difference * difference;
+        }
+        total
+    }
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn squared_deviations_f64(values: &[f64], mean: f64) -> f64 {
+        let mean_vector = _mm256_set1_pd(mean);
+        let mut accumulator = _mm256_setzero_pd();
+        let mut index = 0;
+        while index + 4 <= values.len() {
+            let lanes = unsafe { _mm256_loadu_pd(values.as_ptr().add(index)) };
+            let difference = _mm256_sub_pd(lanes, mean_vector);
+            accumulator = _mm256_add_pd(accumulator, _mm256_mul_pd(difference, difference));
+            index += 4;
+        }
+        let mut partials = [0.0_f64; 4];
+        unsafe { _mm256_storeu_pd(partials.as_mut_ptr(), accumulator) };
+        let mut total = partials.into_iter().sum::<f64>();
+        for &value in &values[index..] {
+            let difference = value - mean;
+            total += difference * difference;
+        }
+        total
+    }
 
     #[target_feature(enable = "avx")]
     pub(super) unsafe fn add_f32(lhs: &[f32], rhs: &[f32], out: &mut [f32]) {
