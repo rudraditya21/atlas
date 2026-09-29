@@ -1,7 +1,9 @@
+use std::collections::HashSet;
+
 use atlas_ndarray::{ArrayElement, NDArray};
 use numpy::Element;
 use pyo3::{
-    exceptions::PyTypeError,
+    exceptions::{PyTypeError, PyValueError},
     prelude::*,
     types::{PyDict, PyList, PyModule},
 };
@@ -66,6 +68,11 @@ pub(crate) fn to_arrow_record_batch(
     matrix: &Bound<'_, PyAny>,
     column_names: Vec<String>,
 ) -> crate::support::results::PyObjectResult {
+    let mut unique_names = HashSet::with_capacity(column_names.len());
+    if column_names.iter().any(|name| !unique_names.insert(name)) {
+        return Err(PyValueError::new_err("Arrow record batch column names must be unique"));
+    }
+
     let dtype = array::source_dtype(py, matrix)?;
 
     with_dtype!(
