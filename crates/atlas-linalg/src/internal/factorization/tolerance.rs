@@ -49,3 +49,9 @@ pub(crate) fn is_symmetric<T: Float>(matrix: &[T], n: usize, tolerance: T) -> bo
 pub(crate) fn tolerance<T: Float>() -> T {
     T::epsilon().sqrt()
 }
+
+pub(crate) fn scaled_tolerance<T: Float>(values: &[T]) -> T {
+    let scale = values.iter().fold(T::zero(), |scale, value| scale.max(value.abs()));
+
+    tolerance::<T>() * scale
+}

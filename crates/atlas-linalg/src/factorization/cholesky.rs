@@ -5,7 +5,7 @@ use crate::{
     core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand},
     dense::triangular::{solve_lower_triangular_with_op, solve_upper_triangular_with_op},
     internal::factorization::{
-        copy_matrix_row_major, dot_slice, is_symmetric, tolerance, validate_finite,
+        copy_matrix_row_major, dot_slice, is_symmetric, scaled_tolerance, validate_finite,
         validate_lower_triangular, validate_rank_two, zero_matrix_data,
     },
 };
@@ -53,9 +53,10 @@ impl<T: Numeric + Float> CholeskyFactorization<T> {
                 });
             }
         }
+        let tolerance = scaled_tolerance(self.l.data());
         for row in 0..order {
             let diagonal = self.l.data()[row * order + row];
-            if diagonal <= tolerance::<T>() {
+            if diagonal <= tolerance {
                 return Err(AtlasLinalgError::NotPositiveDefinite { op: "solve_spd", index: row });
             }
         }
@@ -112,9 +113,9 @@ where
     }
 
     let n = rows;
-    let tolerance = tolerance::<T>();
     let a = copy_matrix_row_major(matrix);
     validate_finite(&a, "cholesky")?;
+    let tolerance = scaled_tolerance(&a);
 
     if !is_symmetric(&a, n, tolerance) {
         return Err(AtlasLinalgError::InvalidInputShape {

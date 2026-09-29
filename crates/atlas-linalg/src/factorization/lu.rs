@@ -6,8 +6,8 @@ use crate::{
     dense::triangular::{solve_lower_triangular_with_op, solve_upper_triangular_with_op},
     internal::factorization::{
         copy_matrix_row_major, find_pivot_row, identity_matrix_data, swap_l_prefix_rows, swap_rows,
-        tolerance, validate_finite, validate_lower_triangular, validate_rank_two,
-        validate_upper_triangular, zero_matrix_data,
+        validate_finite, validate_lower_triangular, validate_rank_two, validate_upper_triangular,
+        zero_matrix_data,
     },
 };
 
@@ -270,7 +270,6 @@ where
     }
 
     let n = rows;
-    let tolerance = tolerance::<T>();
     let mut a = copy_matrix_row_major(&matrix);
     validate_finite(&a, "lu")?;
     let mut p = identity_matrix_data(n);
@@ -284,7 +283,7 @@ where
         let pivot_row = find_pivot_row(&a, n, k);
         let pivot_value = a[pivot_row * n + k].abs();
 
-        if pivot_value <= tolerance {
+        if pivot_value.is_zero() {
             return Err(AtlasLinalgError::SingularMatrix { op: "lu", pivot: k });
         }
 
