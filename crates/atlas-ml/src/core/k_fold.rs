@@ -75,11 +75,13 @@ where
     }
 
     let mut validation_indices = vec![Vec::new(); fold_count];
+    let mut fold_offset = 0;
     for (class_index, indices) in class_indices.values_mut().enumerate() {
         shuffle(indices, seed.wrapping_add(class_index as u64));
         for (sample_offset, &sample_index) in indices.iter().enumerate() {
-            validation_indices[(class_index + sample_offset) % fold_count].push(sample_index);
+            validation_indices[(fold_offset + sample_offset) % fold_count].push(sample_index);
         }
+        fold_offset = (fold_offset + indices.len()) % fold_count;
     }
 
     let sample_count = features.shape()[0];
