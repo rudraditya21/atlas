@@ -18,9 +18,10 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Rust",
 ]
+dependencies = ["numpy>=1.26"]
 
 [project.optional-dependencies]
-test = ["numpy>=1.26", "polars>=1", "pyarrow>=16", "pytest>=8"]
+test = ["polars>=1", "pyarrow>=16", "pytest>=8"]
 
 [tool.maturin]
 bindings = "pyo3"
