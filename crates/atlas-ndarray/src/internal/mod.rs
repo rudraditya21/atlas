@@ -2,6 +2,7 @@ pub(crate) mod layout;
 pub(crate) mod materialize;
 #[cfg(target_arch = "aarch64")]
 pub(crate) mod neon;
+pub(crate) mod parallel;
 pub(crate) mod shape;
 pub(crate) mod simd;
 pub(crate) mod traversal;

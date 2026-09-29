@@ -1,5 +1,27 @@
+use rayon::prelude::*;
+
 use super::{ElementwiseArithmetic, ElementwiseDivision, from_owned_parts};
-use crate::{NDArray, Numeric, internal::simd};
+use crate::{
+    NDArray, Numeric,
+    internal::{
+        parallel::{ELEMENTWISE_CHUNK_LEN, should_parallelize_elementwise},
+        simd,
+    },
+};
+
+fn apply_scalar<T, F>(input: &[T], scalar: T, out: &mut [T], kernel: F)
+where
+    T: Numeric,
+    F: Fn(&[T], T, &mut [T]) + Sync,
+{
+    if should_parallelize_elementwise(out.len()) {
+        out.par_chunks_mut(ELEMENTWISE_CHUNK_LEN)
+            .zip(input.par_chunks(ELEMENTWISE_CHUNK_LEN))
+            .for_each(|(out, input)| kernel(input, scalar, out));
+    } else {
+        kernel(input, scalar, out);
+    }
+}
 
 pub(super) fn add_scalar_rhs<T: ElementwiseArithmetic>(
     array: &NDArray<T>,
@@ -7,7 +29,7 @@ pub(super) fn add_scalar_rhs<T: ElementwiseArithmetic>(
 ) -> NDArray<T> {
     let len = array.data().len();
     let mut data = vec![T::zero(); len];
-    simd::add_scalar_contiguous(array.data(), scalar, &mut data);
+    apply_scalar(array.data(), scalar, &mut data, simd::add_scalar_contiguous);
 
     from_owned_parts(array.shape().to_vec(), data)
 }
@@ -25,7 +47,7 @@ pub(super) fn mul_scalar_rhs<T: ElementwiseArithmetic>(
 ) -> NDArray<T> {
     let len = array.data().len();
     let mut data = vec![T::zero(); len];
-    simd::mul_scalar_contiguous(array.data(), scalar, &mut data);
+    apply_scalar(array.data(), scalar, &mut data, simd::mul_scalar_contiguous);
 
     from_owned_parts(array.shape().to_vec(), data)
 }
@@ -43,7 +65,7 @@ pub(super) fn sub_scalar_rhs<T: ElementwiseArithmetic>(
 ) -> NDArray<T> {
     let len = array.data().len();
     let mut data = vec![T::zero(); len];
-    simd::sub_scalar_contiguous(array.data(), scalar, &mut data);
+    apply_scalar(array.data(), scalar, &mut data, simd::sub_scalar_contiguous);
 
     from_owned_parts(array.shape().to_vec(), data)
 }
@@ -51,7 +73,7 @@ pub(super) fn sub_scalar_rhs<T: ElementwiseArithmetic>(
 pub(super) fn div_scalar_rhs<T: ElementwiseDivision>(array: &NDArray<T>, scalar: T) -> NDArray<T> {
     let len = array.data().len();
     let mut data = vec![T::zero(); len];
-    simd::div_scalar_contiguous(array.data(), scalar, &mut data);
+    apply_scalar(array.data(), scalar, &mut data, simd::div_scalar_contiguous);
 
     from_owned_parts(array.shape().to_vec(), data)
 }

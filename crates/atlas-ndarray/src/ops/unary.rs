@@ -1,6 +1,12 @@
+use rayon::prelude::*;
+
 use crate::{
     ArrayElement, NDArray, Numeric, OperandMetadata,
-    internal::{layout::is_contiguous_layout, simd, value_iter},
+    internal::{
+        layout::is_contiguous_layout,
+        parallel::{ELEMENTWISE_CHUNK_LEN, should_parallelize_elementwise},
+        simd, value_iter,
+    },
     view::ArrayView,
 };
 
@@ -143,20 +149,20 @@ fn map_unary<T, O, F>(operand: &O, op: F) -> NDArray<T>
 where
     T: ArrayElement,
     O: OperandMetadata<T> + ?Sized,
-    F: Fn(T) -> T,
+    F: Fn(T) -> T + Sync,
 {
     let data = if is_contiguous_layout(operand.shape(), operand.strides()) {
-        operand
-            .dense_slice()
-            .expect("contiguous operands always expose a dense storage slice")
-            .iter()
-            .copied()
-            .map(op)
-            .collect()
+        let values =
+            operand.dense_slice().expect("contiguous operands always expose a dense storage slice");
+        if should_parallelize_elementwise(values.len()) {
+            values.par_iter().copied().map(|value| op(value)).collect()
+        } else {
+            values.iter().copied().map(|value| op(value)).collect()
+        }
     } else {
         value_iter(operand.data(), operand.offset(), operand.shape(), operand.strides())
             .copied()
-            .map(op)
+            .map(|value| op(value))
             .collect()
     };
 
@@ -168,14 +174,20 @@ fn map_unary_numeric<T, O, F, C>(operand: &O, op: F, contiguous_op: C) -> NDArra
 where
     T: Numeric,
     O: OperandMetadata<T> + ?Sized,
-    F: Fn(T) -> T,
-    C: Fn(&[T], &mut [T]),
+    F: Fn(T) -> T + Sync,
+    C: Fn(&[T], &mut [T]) + Sync,
 {
     let data = if is_contiguous_layout(operand.shape(), operand.strides()) {
         let values =
             operand.dense_slice().expect("contiguous operands always expose a dense storage slice");
         let mut data = vec![T::zero(); values.len()];
-        contiguous_op(values, &mut data);
+        if should_parallelize_elementwise(values.len()) {
+            data.par_chunks_mut(ELEMENTWISE_CHUNK_LEN)
+                .zip(values.par_chunks(ELEMENTWISE_CHUNK_LEN))
+                .for_each(|(output, values)| contiguous_op(values, output));
+        } else {
+            contiguous_op(values, &mut data);
+        }
         data
     } else {
         value_iter(operand.data(), operand.offset(), operand.shape(), operand.strides())
@@ -192,20 +204,20 @@ fn map_unary_bool<T, O, F>(operand: &O, op: F) -> NDArray<bool>
 where
     T: ArrayElement,
     O: OperandMetadata<T> + ?Sized,
-    F: Fn(T) -> bool,
+    F: Fn(T) -> bool + Sync,
 {
     let data = if is_contiguous_layout(operand.shape(), operand.strides()) {
-        operand
-            .dense_slice()
-            .expect("contiguous operands always expose a dense storage slice")
-            .iter()
-            .copied()
-            .map(op)
-            .collect()
+        let values =
+            operand.dense_slice().expect("contiguous operands always expose a dense storage slice");
+        if should_parallelize_elementwise(values.len()) {
+            values.par_iter().copied().map(|value| op(value)).collect()
+        } else {
+            values.iter().copied().map(|value| op(value)).collect()
+        }
     } else {
         value_iter(operand.data(), operand.offset(), operand.shape(), operand.strides())
             .copied()
-            .map(op)
+            .map(|value| op(value))
             .collect()
     };
 

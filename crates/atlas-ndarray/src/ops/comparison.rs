@@ -1,9 +1,12 @@
+use rayon::prelude::*;
+
 use crate::{
     ArrayElement, AtlasNdResult, NDArray,
     internal::{
         broadcast_offset_pair_iter,
         layout::{PairLayoutKind, pair_layout_kind},
         offset_pair_iter,
+        parallel::should_parallelize_elementwise,
     },
     layout::broadcast::{BroadcastMetadata, broadcast_pair},
 };
@@ -16,24 +19,36 @@ fn from_bool_parts(shape: Vec<usize>, data: Vec<bool>) -> NDArray<bool> {
 fn compare_scalar<T, F>(lhs: &NDArray<T>, rhs: T, op: F) -> NDArray<bool>
 where
     T: ArrayElement,
-    F: Fn(T, T) -> bool + Copy,
+    F: Fn(T, T) -> bool + Copy + Sync,
 {
-    let data = lhs.data().iter().copied().map(|value| op(value, rhs)).collect();
+    let data = if should_parallelize_elementwise(lhs.data().len()) {
+        lhs.data().par_iter().copied().map(|value| op(value, rhs)).collect()
+    } else {
+        lhs.data().iter().copied().map(|value| op(value, rhs)).collect()
+    };
     from_bool_parts(lhs.shape().to_vec(), data)
 }
 
 fn compare_contiguous<T, F>(lhs: &NDArray<T>, rhs: &NDArray<T>, op: F) -> NDArray<bool>
 where
     T: ArrayElement,
-    F: Fn(T, T) -> bool + Copy,
+    F: Fn(T, T) -> bool + Copy + Sync,
 {
-    let data = lhs
-        .data()
-        .iter()
-        .copied()
-        .zip(rhs.data().iter().copied())
-        .map(|(left, right)| op(left, right))
-        .collect();
+    let data = if should_parallelize_elementwise(lhs.data().len()) {
+        lhs.data()
+            .par_iter()
+            .copied()
+            .zip(rhs.data().par_iter().copied())
+            .map(|(left, right)| op(left, right))
+            .collect()
+    } else {
+        lhs.data()
+            .iter()
+            .copied()
+            .zip(rhs.data().iter().copied())
+            .map(|(left, right)| op(left, right))
+            .collect()
+    };
 
     from_bool_parts(lhs.shape().to_vec(), data)
 }
@@ -46,7 +61,7 @@ fn compare_broadcast<T, F>(
 ) -> NDArray<bool>
 where
     T: ArrayElement,
-    F: Fn(T, T) -> bool + Copy,
+    F: Fn(T, T) -> bool + Copy + Sync,
 {
     let mut data = Vec::with_capacity(crate::element_count(&metadata.shape));
 
@@ -87,7 +102,7 @@ where
 fn compare_arrays<T, F>(lhs: &NDArray<T>, rhs: &NDArray<T>, op: F) -> AtlasNdResult<NDArray<bool>>
 where
     T: ArrayElement,
-    F: Fn(T, T) -> bool + Copy,
+    F: Fn(T, T) -> bool + Copy + Sync,
 {
     let metadata = broadcast_pair(lhs.shape(), lhs.strides(), rhs.shape(), rhs.strides())?;
     let layout_kind =

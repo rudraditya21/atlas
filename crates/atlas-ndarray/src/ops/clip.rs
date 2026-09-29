@@ -1,8 +1,10 @@
+use rayon::prelude::*;
+
 use crate::{
     ArithmeticPromote, ArrayElement, AtlasNdError, AtlasNdResult, CastMode, NDArray, Numeric,
     OperandMetadata, RuntimeScalar, ScalarValue,
     core::{asarray::cast_array, dtype::cast_scalar_to_dtype},
-    internal::value_iter,
+    internal::{parallel::should_parallelize_elementwise, value_iter},
     view::ArrayView,
 };
 
@@ -65,7 +67,11 @@ where
         value_iter(operand.data(), operand.offset(), operand.shape(), operand.strides()).copied(),
         CastMode::Lossy,
     )?;
-    let data = values.data().iter().copied().map(|value| clip_value(value, min, max)).collect();
+    let data = if should_parallelize_elementwise(values.data().len()) {
+        values.data().par_iter().copied().map(|value| clip_value(value, min, max)).collect()
+    } else {
+        values.data().iter().copied().map(|value| clip_value(value, min, max)).collect()
+    };
 
     NDArray::from_row_major_parts(values.shape().to_vec(), data)
 }

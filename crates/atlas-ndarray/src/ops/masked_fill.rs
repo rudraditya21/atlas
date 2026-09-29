@@ -1,6 +1,12 @@
+use rayon::prelude::*;
+
 use crate::{
     ArrayElement, AtlasNdError, AtlasNdResult, NDArray, OperandMetadata,
-    internal::logical_span_iter,
+    internal::{
+        layout::is_contiguous_layout,
+        logical_span_iter,
+        parallel::{ELEMENTWISE_CHUNK_LEN, should_parallelize_elementwise},
+    },
 };
 
 impl<T: ArrayElement> NDArray<T> {
@@ -15,6 +21,24 @@ impl<T: ArrayElement> NDArray<T> {
                 array: self.shape().to_vec(),
                 mask: mask.shape().to_vec(),
             });
+        }
+
+        if should_parallelize_elementwise(self.data.len())
+            && is_contiguous_layout(mask.shape(), mask.strides())
+        {
+            let selections =
+                mask.dense_slice().expect("contiguous masks always expose a dense storage slice");
+            self.data
+                .par_chunks_mut(ELEMENTWISE_CHUNK_LEN)
+                .zip(selections.par_chunks(ELEMENTWISE_CHUNK_LEN))
+                .for_each(|(values, selections)| {
+                    for (slot, &selected) in values.iter_mut().zip(selections) {
+                        if selected {
+                            *slot = value;
+                        }
+                    }
+                });
+            return Ok(());
         }
 
         let mut remaining = self.data.as_mut_slice();
