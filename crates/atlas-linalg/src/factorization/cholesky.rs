@@ -115,9 +115,9 @@ where
     let n = rows;
     let a = copy_matrix_row_major(matrix);
     validate_finite(&a, "cholesky")?;
-    let tolerance = scaled_tolerance(&a);
+    let symmetry_tolerance = scaled_tolerance(&a);
 
-    if !is_symmetric(&a, n, tolerance) {
+    if !is_symmetric(&a, n, symmetry_tolerance) {
         return Err(AtlasLinalgError::InvalidInputShape {
             op: "cholesky",
             shape: matrix.shape().to_vec(),
@@ -141,7 +141,7 @@ where
 
         let diagonal = a_row[row] - dot_slice(&l_row[..row], &l_row[..row]);
 
-        if diagonal <= tolerance {
+        if diagonal <= T::zero() {
             return Err(AtlasLinalgError::NotPositiveDefinite { op: "cholesky", index: row });
         }
 
