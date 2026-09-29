@@ -154,15 +154,81 @@ pub(crate) fn broadcast_offset_pair_iter<'a>(
     shape: &'a [usize],
     lhs_strides: &'a [usize],
     rhs_strides: &'a [usize],
-) -> BroadcastOffsetPairIter<'a> {
+) -> BroadcastOffsetPairIter {
+    let (shape, lhs_strides, rhs_strides) =
+        collapse_broadcast_dimensions(shape, lhs_strides, rhs_strides);
+    let remaining = element_count(&shape);
     BroadcastOffsetPairIter {
+        coordinates: vec![0; shape.len()],
         shape,
         lhs_strides,
         rhs_strides,
-        coordinates: vec![0; shape.len()],
         lhs_offset: lhs_base_offset,
         rhs_offset: rhs_base_offset,
-        remaining: element_count(shape),
+        remaining,
+    }
+}
+
+fn collapse_broadcast_dimensions(
+    shape: &[usize],
+    lhs_strides: &[usize],
+    rhs_strides: &[usize],
+) -> (Vec<usize>, Vec<usize>, Vec<usize>) {
+    let mut collapsed_shape = Vec::with_capacity(shape.len());
+    let mut collapsed_lhs_strides = Vec::with_capacity(shape.len());
+    let mut collapsed_rhs_strides = Vec::with_capacity(shape.len());
+
+    for ((&dimension, &lhs_stride), &rhs_stride) in shape.iter().zip(lhs_strides).zip(rhs_strides) {
+        let Some(&outer_dimension) = collapsed_shape.last() else {
+            collapsed_shape.push(dimension);
+            collapsed_lhs_strides.push(lhs_stride);
+            collapsed_rhs_strides.push(rhs_stride);
+            continue;
+        };
+
+        let lhs_merged = collapsed_stride(
+            outer_dimension,
+            dimension,
+            *collapsed_lhs_strides.last().expect("collapsed strides stay aligned"),
+            lhs_stride,
+        );
+        let rhs_merged = collapsed_stride(
+            outer_dimension,
+            dimension,
+            *collapsed_rhs_strides.last().expect("collapsed strides stay aligned"),
+            rhs_stride,
+        );
+
+        if let (Some(lhs_merged), Some(rhs_merged)) = (lhs_merged, rhs_merged) {
+            *collapsed_shape.last_mut().expect("collapsed shape is non-empty") *= dimension;
+            *collapsed_lhs_strides.last_mut().expect("collapsed strides stay aligned") = lhs_merged;
+            *collapsed_rhs_strides.last_mut().expect("collapsed strides stay aligned") = rhs_merged;
+        } else {
+            collapsed_shape.push(dimension);
+            collapsed_lhs_strides.push(lhs_stride);
+            collapsed_rhs_strides.push(rhs_stride);
+        }
+    }
+
+    (collapsed_shape, collapsed_lhs_strides, collapsed_rhs_strides)
+}
+
+fn collapsed_stride(
+    outer_dimension: usize,
+    inner_dimension: usize,
+    outer_stride: usize,
+    inner_stride: usize,
+) -> Option<usize> {
+    if outer_dimension == 1 {
+        Some(inner_stride)
+    } else if inner_dimension == 1 {
+        Some(outer_stride)
+    } else if outer_stride == 0 && inner_stride == 0 {
+        Some(0)
+    } else if inner_dimension.checked_mul(inner_stride) == Some(outer_stride) {
+        Some(inner_stride)
+    } else {
+        None
     }
 }
 
@@ -282,7 +348,7 @@ impl Iterator for OffsetIter<'_> {
 pub(crate) enum OffsetPairIter<'a> {
     Empty,
     Contiguous { lhs_next: usize, rhs_next: usize, remaining: usize },
-    Broadcast(BroadcastOffsetPairIter<'a>),
+    Broadcast(BroadcastOffsetPairIter),
     Strided(StridedOffsetPairIter<'a>),
 }
 
@@ -415,17 +481,17 @@ impl Iterator for StridedOffsetPairIter<'_> {
     }
 }
 
-pub(crate) struct BroadcastOffsetPairIter<'a> {
-    shape: &'a [usize],
-    lhs_strides: &'a [usize],
-    rhs_strides: &'a [usize],
+pub(crate) struct BroadcastOffsetPairIter {
+    shape: Vec<usize>,
+    lhs_strides: Vec<usize>,
+    rhs_strides: Vec<usize>,
     coordinates: Vec<usize>,
     lhs_offset: usize,
     rhs_offset: usize,
     remaining: usize,
 }
 
-impl<'a> Iterator for BroadcastOffsetPairIter<'a> {
+impl Iterator for BroadcastOffsetPairIter {
     type Item = (usize, usize);
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -440,7 +506,7 @@ impl<'a> Iterator for BroadcastOffsetPairIter<'a> {
     }
 }
 
-impl BroadcastOffsetPairIter<'_> {
+impl BroadcastOffsetPairIter {
     fn advance(&mut self) {
         for axis in (0..self.shape.len()).rev() {
             let coordinate = &mut self.coordinates[axis];

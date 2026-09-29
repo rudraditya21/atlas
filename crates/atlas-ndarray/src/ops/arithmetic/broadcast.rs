@@ -84,22 +84,40 @@ where
     T: Numeric,
     F: Fn(T, T) -> T + Copy,
 {
-    let [rows, cols] = metadata.shape.as_slice() else {
+    let Some(&cols) = metadata.shape.last() else {
         return None;
     };
+    if cols == 0 {
+        return None;
+    }
+    let rows = element_count(&metadata.shape) / cols;
 
     if is_output_contiguous(&metadata.shape, &metadata.lhs_strides)
         && is_row_broadcast_strides(&metadata.rhs_strides)
-        && rhs.data().len() == *cols
+        && rhs.data().len() == cols
     {
-        return Some(elementwise_row_broadcast_rhs(lhs.data(), rhs.data(), *rows, *cols, op));
+        return Some(elementwise_row_broadcast_rhs(
+            lhs.data(),
+            rhs.data(),
+            rows,
+            cols,
+            &metadata.shape,
+            op,
+        ));
     }
 
     if is_output_contiguous(&metadata.shape, &metadata.rhs_strides)
         && is_row_broadcast_strides(&metadata.lhs_strides)
-        && lhs.data().len() == *cols
+        && lhs.data().len() == cols
     {
-        return Some(elementwise_row_broadcast_lhs(lhs.data(), rhs.data(), *rows, *cols, op));
+        return Some(elementwise_row_broadcast_lhs(
+            lhs.data(),
+            rhs.data(),
+            rows,
+            cols,
+            &metadata.shape,
+            op,
+        ));
     }
 
     None
@@ -115,22 +133,40 @@ where
     T: Numeric,
     F: Fn(T, T) -> T + Copy,
 {
-    let [rows, cols] = metadata.shape.as_slice() else {
+    let Some(&cols) = metadata.shape.last() else {
         return None;
     };
+    if cols == 0 {
+        return None;
+    }
+    let rows = element_count(&metadata.shape) / cols;
 
     if is_output_contiguous(&metadata.shape, &metadata.lhs_strides)
-        && is_column_broadcast_strides(&metadata.rhs_strides)
-        && rhs.data().len() == *rows
+        && is_column_broadcast_strides(&metadata.shape, &metadata.rhs_strides)
+        && rhs.data().len() == rows
     {
-        return Some(elementwise_column_broadcast_rhs(lhs.data(), rhs.data(), *rows, *cols, op));
+        return Some(elementwise_column_broadcast_rhs(
+            lhs.data(),
+            rhs.data(),
+            rows,
+            cols,
+            &metadata.shape,
+            op,
+        ));
     }
 
     if is_output_contiguous(&metadata.shape, &metadata.rhs_strides)
-        && is_column_broadcast_strides(&metadata.lhs_strides)
-        && lhs.data().len() == *rows
+        && is_column_broadcast_strides(&metadata.shape, &metadata.lhs_strides)
+        && lhs.data().len() == rows
     {
-        return Some(elementwise_column_broadcast_lhs(lhs.data(), rhs.data(), *rows, *cols, op));
+        return Some(elementwise_column_broadcast_lhs(
+            lhs.data(),
+            rhs.data(),
+            rows,
+            cols,
+            &metadata.shape,
+            op,
+        ));
     }
 
     None
@@ -173,6 +209,7 @@ fn elementwise_row_broadcast_rhs<T, F>(
     row: &[T],
     rows: usize,
     cols: usize,
+    shape: &[usize],
     op: F,
 ) -> NDArray<T>
 where
@@ -185,7 +222,7 @@ where
         simd::map_binary_contiguous(matrix_row, row, out_row, op);
     }
 
-    from_owned_parts(vec![rows, cols], data)
+    from_owned_parts(shape.to_vec(), data)
 }
 
 fn elementwise_row_broadcast_lhs<T, F>(
@@ -193,6 +230,7 @@ fn elementwise_row_broadcast_lhs<T, F>(
     matrix: &[T],
     rows: usize,
     cols: usize,
+    shape: &[usize],
     op: F,
 ) -> NDArray<T>
 where
@@ -205,7 +243,7 @@ where
         simd::map_binary_contiguous(row, matrix_row, out_row, op);
     }
 
-    from_owned_parts(vec![rows, cols], data)
+    from_owned_parts(shape.to_vec(), data)
 }
 
 fn elementwise_column_broadcast_rhs<T, F>(
@@ -213,6 +251,7 @@ fn elementwise_column_broadcast_rhs<T, F>(
     column: &[T],
     rows: usize,
     cols: usize,
+    shape: &[usize],
     op: F,
 ) -> NDArray<T>
 where
@@ -227,7 +266,7 @@ where
         simd::map_scalar_contiguous(matrix_row, scalar, out_row, op);
     }
 
-    from_owned_parts(vec![rows, cols], data)
+    from_owned_parts(shape.to_vec(), data)
 }
 
 fn elementwise_column_broadcast_lhs<T, F>(
@@ -235,6 +274,7 @@ fn elementwise_column_broadcast_lhs<T, F>(
     matrix: &[T],
     rows: usize,
     cols: usize,
+    shape: &[usize],
     op: F,
 ) -> NDArray<T>
 where
@@ -249,7 +289,7 @@ where
         simd::map_scalar_contiguous(matrix_row, scalar, out_row, |value, rhs| op(rhs, value));
     }
 
-    from_owned_parts(vec![rows, cols], data)
+    from_owned_parts(shape.to_vec(), data)
 }
 
 fn is_output_contiguous(shape: &[usize], strides: &[usize]) -> bool {
@@ -261,9 +301,13 @@ fn is_scalar_broadcast(strides: &[usize], len: usize) -> bool {
 }
 
 fn is_row_broadcast_strides(strides: &[usize]) -> bool {
-    matches!(strides, [0, 1])
+    matches!(strides.split_last(), Some((&1, leading)) if leading.iter().all(|&stride| stride == 0))
 }
 
-fn is_column_broadcast_strides(strides: &[usize]) -> bool {
-    matches!(strides, [1, 0])
+fn is_column_broadcast_strides(shape: &[usize], strides: &[usize]) -> bool {
+    matches!(
+        strides.split_last(),
+        Some((&0, leading))
+            if leading == compute_strides(&shape[..shape.len() - 1]).as_slice()
+    )
 }
