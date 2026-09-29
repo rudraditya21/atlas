@@ -1,7 +1,16 @@
+use std::cell::RefCell;
+
 use atlas_ndarray::{AtlasNdError, AxisIndex, NDArray, Numeric, checked_element_count};
 use num_traits::ToPrimitive;
+use rayon::prelude::*;
 
 use crate::{AtlasStatsError, AtlasStatsResult, StatsOperand};
+
+const PARALLEL_QUANTILE_WORK_THRESHOLD: usize = 1 << 16;
+
+thread_local! {
+    static QUANTILE_LANE_SCRATCH: RefCell<Vec<f64>> = const { RefCell::new(Vec::new()) };
+}
 
 /// Interpolation used when a quantile rank lies between two sorted values.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -199,23 +208,62 @@ where
     }
     let inner = shape[axis + 1..].iter().product::<usize>();
     let block = axis_len * inner;
-    let mut lanes = vec![Vec::with_capacity(axis_len); output_len];
-    for (index, value) in input.iter().enumerate() {
-        lanes[(index / block) * inner + index % inner]
-            .push(value.to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op })?);
-    }
-    let mut result = Vec::with_capacity(output_len);
-    for mut lane in lanes {
-        if lane.iter().any(|value| value.is_nan()) {
-            result.push(f64::NAN);
-            continue;
+    let values = input
+        .iter()
+        .map(|value| value.to_f64().ok_or(AtlasStatsError::NumericConversionFailed { op }))
+        .collect::<AtlasStatsResult<Vec<_>>>()?;
+    let mut result = vec![0.0; output_len];
+
+    if should_parallelize_quantile(output_len, values.len()) {
+        result.par_iter_mut().enumerate().for_each(|(lane_index, output)| {
+            *output = quantile_lane(&values, lane_index, axis_len, inner, block, q, interpolation);
+        });
+    } else {
+        for (lane_index, output) in result.iter_mut().enumerate() {
+            *output = quantile_lane(&values, lane_index, axis_len, inner, block, q, interpolation);
         }
-        result.push(select_quantile(&mut lane, q, interpolation));
     }
     if keepdims {
         output_shape.insert(axis, 1);
     }
     NDArray::from_shape_vec(output_shape, result).map_err(Into::into)
+}
+
+fn should_parallelize_quantile(output_len: usize, input_len: usize) -> bool {
+    output_len > 1
+        && input_len >= PARALLEL_QUANTILE_WORK_THRESHOLD
+        && rayon::current_num_threads() > 1
+}
+
+fn quantile_lane(
+    values: &[f64],
+    lane_index: usize,
+    axis_len: usize,
+    inner: usize,
+    block: usize,
+    q: f64,
+    interpolation: QuantileInterpolation,
+) -> f64 {
+    QUANTILE_LANE_SCRATCH.with(|scratch| {
+        let mut scratch = scratch.borrow_mut();
+        scratch.clear();
+        if scratch.capacity() < axis_len {
+            scratch.reserve(axis_len);
+        }
+
+        let outer = lane_index / inner;
+        let inner_index = lane_index % inner;
+        let lane_start = outer * block + inner_index;
+        for axis_index in 0..axis_len {
+            let value = values[lane_start + axis_index * inner];
+            if value.is_nan() {
+                return f64::NAN;
+            }
+            scratch.push(value);
+        }
+
+        select_quantile(&mut scratch, q, interpolation)
+    })
 }
 
 fn validate_quantile(q: f64) -> AtlasStatsResult<()> {
