@@ -72,6 +72,17 @@ fn variance_axis_impl<T: Numeric + ToPrimitive>(
     if metadata.axis_layout == LayoutKind::Contiguous
         && (simd::is_f32::<T>() || simd::is_f64::<T>())
     {
+        if metadata.source_layout == LayoutKind::Contiguous {
+            let source = &operand.data[operand.offset
+                ..operand.offset + metadata.output.len.saturating_mul(metadata.axis_len)];
+            let mut values = Vec::with_capacity(metadata.output.len);
+            for lane in source.chunks_exact(metadata.axis_len) {
+                let variance = variance_contiguous(lane, op)?;
+                values.push(if stddev { variance.sqrt() } else { variance });
+            }
+            return NDArray::from_shape_vec(metadata.output.shape, values);
+        }
+
         let mut values = Vec::with_capacity(metadata.output.len);
         for lane_offset in
             offset_iter(operand.offset, &metadata.output.shape, &metadata.output.outer_strides)

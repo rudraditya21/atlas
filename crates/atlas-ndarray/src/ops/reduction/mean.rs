@@ -203,6 +203,27 @@ where
 
     let mut reduced = vec![0.0_f64; metadata.output.len];
 
+    if metadata.source_layout == crate::internal::layout::LayoutKind::Contiguous {
+        let values = super::axis::contiguous_region(
+            data,
+            base_offset,
+            metadata.output.len.saturating_mul(metadata.axis_len),
+        );
+        if should_parallelize_reduction(values.len()) && !reduced.is_empty() {
+            reduced.par_iter_mut().zip(values.par_chunks(metadata.axis_len)).try_for_each(
+                |(slot, lane)| -> AtlasNdResult<()> {
+                    *slot = mean_contiguous(lane, "mean")?;
+                    Ok(())
+                },
+            )?;
+        } else {
+            for (slot, lane) in reduced.iter_mut().zip(values.chunks_exact(metadata.axis_len)) {
+                *slot = mean_contiguous(lane, "mean")?;
+            }
+        }
+        return NDArray::from_shape_vec(metadata.output.shape, reduced);
+    }
+
     if should_parallelize_reduction(metadata.output.len.saturating_mul(metadata.axis_len))
         && !reduced.is_empty()
     {
@@ -425,6 +446,26 @@ fn mean_axis_contiguous_f32(
 ) -> AtlasNdResult<NDArray<f64>> {
     let mut reduced = vec![0.0_f64; metadata.output.len];
 
+    if metadata.source_layout == crate::internal::layout::LayoutKind::Contiguous {
+        let values = super::axis::contiguous_region(
+            data,
+            base_offset,
+            metadata.output.len.saturating_mul(metadata.axis_len),
+        );
+        if should_parallelize_reduction(values.len()) && !reduced.is_empty() {
+            reduced.par_iter_mut().zip(values.par_chunks(metadata.axis_len)).for_each(
+                |(slot, lane)| {
+                    *slot = simd::compensated_sum_f32_as_f64(lane) / metadata.axis_len as f64;
+                },
+            );
+        } else {
+            for (slot, lane) in reduced.iter_mut().zip(values.chunks_exact(metadata.axis_len)) {
+                *slot = simd::compensated_sum_f32_as_f64(lane) / metadata.axis_len as f64;
+            }
+        }
+        return NDArray::from_shape_vec(metadata.output.shape, reduced);
+    }
+
     if should_parallelize_reduction(metadata.output.len.saturating_mul(metadata.axis_len))
         && !reduced.is_empty()
     {
@@ -458,6 +499,26 @@ fn mean_axis_contiguous_f64(
     metadata: AxisReductionMetadata,
 ) -> AtlasNdResult<NDArray<f64>> {
     let mut reduced = vec![0.0_f64; metadata.output.len];
+
+    if metadata.source_layout == crate::internal::layout::LayoutKind::Contiguous {
+        let values = super::axis::contiguous_region(
+            data,
+            base_offset,
+            metadata.output.len.saturating_mul(metadata.axis_len),
+        );
+        if should_parallelize_reduction(values.len()) && !reduced.is_empty() {
+            reduced.par_iter_mut().zip(values.par_chunks(metadata.axis_len)).for_each(
+                |(slot, lane)| {
+                    *slot = simd::compensated_sum_f64(lane) / metadata.axis_len as f64;
+                },
+            );
+        } else {
+            for (slot, lane) in reduced.iter_mut().zip(values.chunks_exact(metadata.axis_len)) {
+                *slot = simd::compensated_sum_f64(lane) / metadata.axis_len as f64;
+            }
+        }
+        return NDArray::from_shape_vec(metadata.output.shape, reduced);
+    }
 
     if should_parallelize_reduction(metadata.output.len.saturating_mul(metadata.axis_len))
         && !reduced.is_empty()

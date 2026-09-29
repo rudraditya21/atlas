@@ -99,6 +99,16 @@ fn arg_axis<T: Numeric + PartialOrd>(
     if metadata.axis_layout == LayoutKind::Contiguous
         && (simd::is_f32::<T>() || simd::is_f64::<T>())
     {
+        if metadata.source_layout == LayoutKind::Contiguous {
+            let values = &operand.data[operand.offset
+                ..operand.offset + metadata.output.len.saturating_mul(metadata.axis_len)];
+            let indices = values
+                .chunks_exact(metadata.axis_len)
+                .map(|lane| contiguous(lane, op))
+                .collect::<AtlasNdResult<Vec<_>>>()?;
+            return NDArray::from_shape_vec(metadata.output.shape, indices);
+        }
+
         let mut indices = Vec::with_capacity(metadata.output.len);
         for lane_offset in
             offset_iter(operand.offset, &metadata.output.shape, &metadata.output.outer_strides)

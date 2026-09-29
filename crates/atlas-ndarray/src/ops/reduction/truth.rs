@@ -263,6 +263,28 @@ fn all_axis_contiguous(
     metadata: AxisReductionMetadata,
 ) -> AtlasNdResult<NDArray<bool>> {
     let mut reduced = vec![true; metadata.output.len];
+    if metadata.axis_len == 0 {
+        return NDArray::from_shape_vec(metadata.output.shape, reduced);
+    }
+
+    if metadata.source_layout == LayoutKind::Contiguous {
+        let values = contiguous_region(
+            data,
+            base_offset,
+            metadata.output.len.saturating_mul(metadata.axis_len),
+        );
+        if should_parallelize_reduction(values.len()) && !reduced.is_empty() {
+            reduced
+                .par_iter_mut()
+                .zip(values.par_chunks(metadata.axis_len))
+                .for_each(|(slot, lane)| *slot = all_contiguous(lane));
+        } else {
+            for (slot, lane) in reduced.iter_mut().zip(values.chunks_exact(metadata.axis_len)) {
+                *slot = all_contiguous(lane);
+            }
+        }
+        return NDArray::from_shape_vec(metadata.output.shape, reduced);
+    }
 
     if should_parallelize_reduction(metadata.output.len.saturating_mul(metadata.axis_len))
         && !reduced.is_empty()
@@ -295,6 +317,28 @@ fn any_axis_contiguous(
     metadata: AxisReductionMetadata,
 ) -> AtlasNdResult<NDArray<bool>> {
     let mut reduced = vec![false; metadata.output.len];
+    if metadata.axis_len == 0 {
+        return NDArray::from_shape_vec(metadata.output.shape, reduced);
+    }
+
+    if metadata.source_layout == LayoutKind::Contiguous {
+        let values = contiguous_region(
+            data,
+            base_offset,
+            metadata.output.len.saturating_mul(metadata.axis_len),
+        );
+        if should_parallelize_reduction(values.len()) && !reduced.is_empty() {
+            reduced
+                .par_iter_mut()
+                .zip(values.par_chunks(metadata.axis_len))
+                .for_each(|(slot, lane)| *slot = any_contiguous(lane));
+        } else {
+            for (slot, lane) in reduced.iter_mut().zip(values.chunks_exact(metadata.axis_len)) {
+                *slot = any_contiguous(lane);
+            }
+        }
+        return NDArray::from_shape_vec(metadata.output.shape, reduced);
+    }
 
     if should_parallelize_reduction(metadata.output.len.saturating_mul(metadata.axis_len))
         && !reduced.is_empty()
