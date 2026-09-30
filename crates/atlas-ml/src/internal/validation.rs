@@ -1,6 +1,6 @@
 use atlas_ndarray::{ArrayElement, OperandMetadata, checked_element_count};
 
-use super::error::{AtlasMlError, AtlasMlResult};
+use crate::{AtlasMlError, AtlasMlResult};
 
 pub(crate) fn validate_supervised_training_inputs<F, T, X, Y>(
     features: &F,

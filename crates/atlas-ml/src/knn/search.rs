@@ -1,7 +1,7 @@
 use atlas_ndarray::OperandMetadata;
 
 use super::{metric::DistanceMetric, neighbor::Neighbor, neighbor_set::BoundedNeighborSet};
-use crate::{AtlasMlError, AtlasMlResult, core::row::LogicalRow};
+use crate::{AtlasMlError, AtlasMlResult, internal::row::LogicalRow};
 
 const OP: &str = "brute_force_knn_search";
 

@@ -2,7 +2,7 @@ use atlas_ndarray::OperandMetadata;
 
 use crate::{
     AtlasMlError, AtlasMlResult,
-    core::validation::{validate_binary_labels, validate_finite_feature_values},
+    internal::validation::{validate_binary_labels, validate_finite_feature_values},
 };
 
 const BINARY_GINI_SPLIT_OP: &str = "binary_gini_split";

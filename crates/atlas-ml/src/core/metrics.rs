@@ -2,7 +2,7 @@ use atlas_ndarray::{ArrayElement, OperandMetadata};
 
 use crate::{
     AtlasMlError, AtlasMlResult,
-    core::validation::{validate_binary_labels, validate_finite_feature_values},
+    internal::validation::{validate_binary_labels, validate_finite_feature_values},
 };
 
 const ACCURACY_OP: &str = "classification_accuracy";

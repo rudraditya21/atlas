@@ -3,7 +3,7 @@ use atlas_ndarray::{NDArray, OperandMetadata};
 
 use crate::{
     AtlasMlError, AtlasMlResult, binary_log_loss, classification_accuracy,
-    core::validation::{
+    internal::validation::{
         validate_binary_labels, validate_finite_feature_values, validate_prediction_feature_inputs,
         validate_prediction_feature_row, validate_sample_weights,
         validate_supervised_training_inputs,

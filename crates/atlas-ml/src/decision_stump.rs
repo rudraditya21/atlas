@@ -5,7 +5,7 @@ use rayon::prelude::*;
 
 use crate::{
     AtlasMlError, AtlasMlResult,
-    core::{
+    internal::{
         parallel::should_parallelize_inference,
         validation::{
             validate_finite_feature_values, validate_prediction_feature_inputs,

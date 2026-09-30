@@ -12,7 +12,7 @@ use super::{
 };
 use crate::{
     AtlasMlError, AtlasMlResult,
-    core::{parallel::should_parallelize_inference, row::copy_logical_row},
+    internal::{parallel::should_parallelize_inference, row::copy_logical_row},
 };
 
 const DISTANCE_BLOCK_TARGET_BYTES: usize = 1024 * 1024;

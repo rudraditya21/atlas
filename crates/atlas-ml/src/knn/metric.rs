@@ -1,4 +1,4 @@
-use crate::core::row::LogicalRow;
+use crate::internal::row::LogicalRow;
 #[cfg(test)]
 use crate::{AtlasMlError, AtlasMlResult};
 

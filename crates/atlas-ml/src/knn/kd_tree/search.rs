@@ -6,7 +6,7 @@ use super::{
 };
 use crate::{
     AtlasMlError, AtlasMlResult,
-    core::row::LogicalRow,
+    internal::row::LogicalRow,
     knn::{metric::DistanceMetric, neighbor::Neighbor, neighbor_set::BoundedNeighborSet},
 };
 
