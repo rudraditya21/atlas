@@ -5,6 +5,7 @@ use atlas_ndarray::{NDArray, OperandMetadata};
 use super::{
     config::{KnnConfig, KnnSearchAlgorithm, KnnWeighting},
     index::TrainingIndex,
+    top_k::Neighbor,
 };
 use crate::{
     AtlasMlResult,
@@ -93,7 +94,7 @@ impl KnnClassifier {
     }
 
     pub fn feature_count(&self) -> usize {
-        self.index.features().shape()[1]
+        self.index.feature_count()
     }
 
     pub fn labels(&self) -> &NDArray<usize> {
@@ -164,7 +165,7 @@ impl KnnClassifier {
         Ok(self.class_from_neighbors(&neighbors, &mut VoteScratch::new(self.classes.len())))
     }
 
-    fn collect_votes(&self, neighbors: &[super::top_k::Neighbor], votes: &mut VoteScratch) {
+    fn collect_votes(&self, neighbors: &[Neighbor], votes: &mut VoteScratch) {
         let exact_matches = self.config.weighting() == KnnWeighting::Distance
             && neighbors.iter().any(|neighbor| neighbor.distance == 0.0);
 
@@ -188,11 +189,7 @@ impl KnnClassifier {
         }
     }
 
-    fn class_from_neighbors(
-        &self,
-        neighbors: &[super::top_k::Neighbor],
-        votes: &mut VoteScratch,
-    ) -> usize {
+    fn class_from_neighbors(&self, neighbors: &[Neighbor], votes: &mut VoteScratch) -> usize {
         self.collect_votes(neighbors, votes);
         let mut best =
             *votes.touched.first().expect("a fitted classifier always has at least one neighbor");
@@ -212,7 +209,7 @@ impl KnnClassifier {
 
     fn write_probabilities(
         &self,
-        neighbors: &[super::top_k::Neighbor],
+        neighbors: &[Neighbor],
         votes: &mut VoteScratch,
         probabilities: &mut [f64],
     ) {

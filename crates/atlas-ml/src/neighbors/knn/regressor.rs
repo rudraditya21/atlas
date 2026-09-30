@@ -56,7 +56,7 @@ impl KnnRegressor {
     }
 
     pub fn feature_count(&self) -> usize {
-        self.index.features().shape()[1]
+        self.index.feature_count()
     }
 
     pub fn targets(&self) -> &NDArray<f64> {
@@ -73,10 +73,7 @@ impl KnnRegressor {
         let query_count = queries.shape()[0];
         let mut predictions = Vec::with_capacity(query_count);
         for neighbors in self.index.search_batch(queries, self.config.k())? {
-            predictions.push(match self.config.weighting() {
-                KnnWeighting::Uniform => mean_targets(&neighbors, self.targets.data()),
-                KnnWeighting::Distance => distance_weighted_mean(&neighbors, self.targets.data()),
-            });
+            predictions.push(self.target_from_neighbors(&neighbors));
         }
 
         Ok(NDArray::from_shape_vec([query_count], predictions)?)
@@ -87,11 +84,14 @@ impl KnnRegressor {
         validate_prediction_feature_row(query, self.feature_count(), PREDICT_ONE_OP)?;
 
         let neighbors = self.index.search(query, self.config.k())?;
+        Ok(self.target_from_neighbors(&neighbors))
+    }
 
-        Ok(match self.config.weighting() {
-            KnnWeighting::Uniform => mean_targets(&neighbors, self.targets.data()),
-            KnnWeighting::Distance => distance_weighted_mean(&neighbors, self.targets.data()),
-        })
+    fn target_from_neighbors(&self, neighbors: &[Neighbor]) -> f64 {
+        match self.config.weighting() {
+            KnnWeighting::Uniform => mean_targets(neighbors, self.targets.data()),
+            KnnWeighting::Distance => distance_weighted_mean(neighbors, self.targets.data()),
+        }
     }
 }
 

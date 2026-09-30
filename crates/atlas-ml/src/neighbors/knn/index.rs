@@ -18,8 +18,13 @@ impl TrainingIndex {
         Ok(Self { features, backend })
     }
 
+    #[cfg(test)]
     pub(crate) fn features(&self) -> &NDArray<f64> {
         &self.features
+    }
+
+    pub(crate) fn feature_count(&self) -> usize {
+        self.features.shape()[1]
     }
 
     pub(crate) fn search_algorithm(&self) -> KnnSearchAlgorithm {
