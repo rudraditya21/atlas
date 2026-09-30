@@ -1,3 +1,4 @@
-pub(crate) mod node;
-pub(crate) mod search;
-pub(crate) mod tree;
+mod node;
+mod tree;
+
+pub(crate) use tree::BallTree;

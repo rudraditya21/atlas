@@ -3,9 +3,9 @@ use std::sync::Arc;
 use atlas_ndarray::NDArray;
 
 use super::{
-    ball_tree::tree::BallTree,
+    ball_tree::BallTree,
     config::{AUTO_BRUTE_FORCE_MAX_SAMPLES, KnnSearchAlgorithm},
-    kd_tree::tree::KdTree,
+    kd_tree::KdTree,
     metric::DistanceMetric,
     neighbor::Neighbor,
     search::{brute_force_search, brute_force_search_batch},
