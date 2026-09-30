@@ -4,7 +4,8 @@ use atlas_ndarray::{NDArray, OperandMetadata};
 use rayon::prelude::*;
 
 use super::{
-    metric::squared_distance_to_row, neighbor::Neighbor, neighbor_set::BoundedNeighborSet,
+    metric::squared_distance_to_row,
+    top_k::{BoundedNeighborSet, Neighbor},
 };
 use crate::{AtlasMlError, AtlasMlResult, internal::row::copy_logical_row};
 
@@ -164,15 +165,13 @@ impl BruteForceSearch {
                     &products.data()[block_row * training_len..(block_row + 1) * training_len];
                 let training_norms =
                     &self.training_squared_norms[training_start..training_start + training_len];
-                for (training_offset, (&training_norm, &product)) in
-                    training_norms.iter().zip(product_row).enumerate()
-                {
-                    let distance = query_norm + training_norm - 2.0 * product;
-                    neighbors.insert(Neighbor {
-                        index: training_start + training_offset,
-                        distance: if distance < 0.0 { 0.0 } else { distance },
-                    });
-                }
+                neighbors.insert_distance_block(
+                    training_start,
+                    training_norms.iter().zip(product_row).map(|(&training_norm, &product)| {
+                        let distance = query_norm + training_norm - 2.0 * product;
+                        if distance < 0.0 { 0.0 } else { distance }
+                    }),
+                );
             }
         }
 
@@ -197,15 +196,15 @@ where
     F: OperandMetadata<f64> + ?Sized,
 {
     let mut neighbors = BoundedNeighborSet::new(k);
-    for sample_index in 0..training_features.shape()[0] {
-        neighbors.insert(Neighbor {
-            index: sample_index,
-            distance: squared_distance_to_row(
+    neighbors.insert_distance_block(
+        0,
+        (0..training_features.shape()[0]).map(|sample_index| {
+            squared_distance_to_row(
                 crate::internal::row::LogicalRow::from_operand(training_features, sample_index),
                 query,
-            ),
-        });
-    }
+            )
+        }),
+    );
     neighbors.neighbors().to_vec()
 }
 
@@ -284,7 +283,7 @@ mod tests {
     use atlas_ndarray::NDArray;
 
     use super::brute_force_search;
-    use crate::neighbors::knn::neighbor::Neighbor;
+    use crate::neighbors::knn::top_k::Neighbor;
 
     fn neighbor(index: usize, distance: f64) -> Neighbor {
         Neighbor { index, distance }

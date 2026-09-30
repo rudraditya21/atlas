@@ -61,7 +61,7 @@ impl NeighborSearchBackend {
         features: &NDArray<f64>,
         query: &[f64],
         k: usize,
-    ) -> AtlasMlResult<Vec<super::neighbor::Neighbor>> {
+    ) -> AtlasMlResult<Vec<super::top_k::Neighbor>> {
         match self {
             Self::BruteForce(search) => search.search(features, query, k),
             Self::KdTree(tree) => tree.search(features, query, k),
@@ -74,7 +74,7 @@ impl NeighborSearchBackend {
         features: &NDArray<f64>,
         queries: &Q,
         k: usize,
-    ) -> AtlasMlResult<Vec<Vec<super::neighbor::Neighbor>>>
+    ) -> AtlasMlResult<Vec<Vec<super::top_k::Neighbor>>>
     where
         Q: OperandMetadata<f64> + Sync + ?Sized,
     {
@@ -98,7 +98,7 @@ impl NeighborSearchBackend {
         queries: &Q,
         block_start: usize,
         k: usize,
-    ) -> AtlasMlResult<Vec<Vec<super::neighbor::Neighbor>>>
+    ) -> AtlasMlResult<Vec<Vec<super::top_k::Neighbor>>>
     where
         Q: OperandMetadata<f64> + ?Sized,
     {

@@ -162,7 +162,7 @@ impl KnnClassifier {
 
     fn with_votes<R>(
         &self,
-        neighbors: &[super::neighbor::Neighbor],
+        neighbors: &[super::top_k::Neighbor],
         operation: impl FnOnce(&VoteScratch) -> R,
     ) -> R {
         let exact_matches = self.config.weighting() == KnnWeighting::Distance
@@ -193,7 +193,7 @@ impl KnnClassifier {
         })
     }
 
-    fn class_from_neighbors(&self, neighbors: &[super::neighbor::Neighbor]) -> usize {
+    fn class_from_neighbors(&self, neighbors: &[super::top_k::Neighbor]) -> usize {
         self.with_votes(neighbors, |votes| {
             let mut best = *votes
                 .touched
@@ -216,7 +216,7 @@ impl KnnClassifier {
 
     fn append_probabilities(
         &self,
-        neighbors: &[super::neighbor::Neighbor],
+        neighbors: &[super::top_k::Neighbor],
         probabilities: &mut Vec<f64>,
     ) {
         self.with_votes(neighbors, |votes| {

@@ -1,6 +1,6 @@
 use atlas_ndarray::{NDArray, OperandMetadata};
 
-use super::{backend::NeighborSearchBackend, config::KnnSearchAlgorithm, neighbor::Neighbor};
+use super::{backend::NeighborSearchBackend, config::KnnSearchAlgorithm, top_k::Neighbor};
 use crate::{AtlasMlError, AtlasMlResult};
 
 pub(crate) struct TrainingIndex {
@@ -70,7 +70,7 @@ mod tests {
     use atlas_ndarray::NDArray;
 
     use super::TrainingIndex;
-    use crate::neighbors::knn::{config::KnnSearchAlgorithm, neighbor::Neighbor};
+    use crate::neighbors::knn::{config::KnnSearchAlgorithm, top_k::Neighbor};
 
     #[test]
     fn retains_owned_training_features_and_shape() {

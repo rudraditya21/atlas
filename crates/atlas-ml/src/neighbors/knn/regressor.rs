@@ -3,7 +3,7 @@ use atlas_ndarray::{NDArray, OperandMetadata};
 use super::{
     config::{KnnConfig, KnnSearchAlgorithm, KnnWeighting},
     index::TrainingIndex,
-    neighbor::Neighbor,
+    top_k::Neighbor,
 };
 use crate::{
     AtlasMlResult,

@@ -6,8 +6,7 @@ use crate::{
     internal::row::LogicalRow,
     neighbors::knn::{
         metric::{axis_squared_distance_lower_bound, squared_distance_to_row},
-        neighbor::Neighbor,
-        neighbor_set::BoundedNeighborSet,
+        top_k::{BoundedNeighborSet, Neighbor},
     },
 };
 
@@ -181,10 +180,10 @@ fn search_node<F>(
 {
     if let Some(indices) = node.leaf_indices() {
         for &index in indices {
-            candidates.insert(Neighbor {
+            candidates.insert(
                 index,
-                distance: squared_distance_to_row(LogicalRow::from_operand(features, index), query),
-            });
+                squared_distance_to_row(LogicalRow::from_operand(features, index), query),
+            );
         }
         return;
     }
