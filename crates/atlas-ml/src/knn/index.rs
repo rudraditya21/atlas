@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{mem::size_of, sync::Arc};
 
 use atlas_ndarray::{NDArray, OperandMetadata};
 use rayon::prelude::*;
@@ -16,6 +16,7 @@ use crate::{
 };
 
 const QUERY_BLOCK_SIZE: usize = 32;
+const DISTANCE_BLOCK_TARGET_BYTES: usize = 1024 * 1024;
 const BRUTE_FORCE_OP: &str = "brute_force_knn_search";
 
 pub(crate) struct TrainingIndex {
@@ -172,27 +173,36 @@ impl TrainingIndex {
         }
 
         let query_block = NDArray::from_shape_vec([block_len, feature_count], query_values)?;
-        let products = atlas_linalg::matmul(&query_block, self.features.view().transpose())?;
         let sample_count = self.features.shape()[0];
+        let training_block_size = distance_training_block_size(feature_count, block_len);
+        let mut neighbor_sets =
+            (0..block_len).map(|_| BoundedNeighborSet::new(k)).collect::<Vec<_>>();
 
-        Ok((0..block_len)
-            .map(|block_row| {
+        for training_start in (0..sample_count).step_by(training_block_size) {
+            let training_len = training_block_size.min(sample_count - training_start);
+            let training_block =
+                self.features.view().slice([training_start, 0], [training_len, feature_count])?;
+            let products = atlas_linalg::matmul(&query_block, training_block.transpose())?;
+
+            for (block_row, neighbors) in neighbor_sets.iter_mut().enumerate() {
                 let query_norm = query_squared_norms[block_start + block_row];
                 let product_row =
-                    &products.data()[block_row * sample_count..(block_row + 1) * sample_count];
-                let mut neighbors = BoundedNeighborSet::new(k);
-                for (sample_index, (&training_norm, &product)) in
-                    self.training_squared_norms.iter().zip(product_row).enumerate()
+                    &products.data()[block_row * training_len..(block_row + 1) * training_len];
+                let training_norms =
+                    &self.training_squared_norms[training_start..training_start + training_len];
+                for (training_offset, (&training_norm, &product)) in
+                    training_norms.iter().zip(product_row).enumerate()
                 {
                     let distance = query_norm + training_norm - 2.0 * product;
                     neighbors.insert(Neighbor {
-                        index: sample_index,
+                        index: training_start + training_offset,
                         distance: if distance < 0.0 { 0.0 } else { distance },
                     });
                 }
-                neighbors.neighbors().to_vec()
-            })
-            .collect())
+            }
+        }
+
+        Ok(neighbor_sets.into_iter().map(|neighbors| neighbors.neighbors().to_vec()).collect())
     }
 
     fn search_block<Q>(
@@ -233,6 +243,12 @@ impl TrainingIndex {
             self.backend.search_batch(&query_rows, k, metric)
         }
     }
+}
+
+fn distance_training_block_size(feature_count: usize, query_count: usize) -> usize {
+    let bytes_per_training_sample =
+        feature_count.saturating_add(query_count).saturating_mul(size_of::<f64>());
+    DISTANCE_BLOCK_TARGET_BYTES.checked_div(bytes_per_training_sample).unwrap_or(1).max(1)
 }
 
 fn squared_row_norms<O>(values: &O) -> Vec<f64>
