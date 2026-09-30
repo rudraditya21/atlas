@@ -8,13 +8,19 @@ use super::{
     config::KnnSearchAlgorithm,
     metric::DistanceMetric,
     neighbor::Neighbor,
+    neighbor_set::BoundedNeighborSet,
 };
-use crate::{AtlasMlResult, core::parallel::should_parallelize_inference};
+use crate::{
+    AtlasMlError, AtlasMlResult,
+    core::{parallel::should_parallelize_inference, row::copy_logical_row},
+};
 
 const QUERY_BLOCK_SIZE: usize = 32;
+const BRUTE_FORCE_OP: &str = "brute_force_knn_search";
 
 pub(crate) struct TrainingIndex {
     features: Arc<NDArray<f64>>,
+    training_squared_norms: Box<[f64]>,
     backend: Box<dyn NeighborSearchBackend>,
 }
 
@@ -27,8 +33,13 @@ impl TrainingIndex {
         let features = Arc::new(features);
         let backend =
             build_search_backend_with_leaf_size(Arc::clone(&features), algorithm, tree_leaf_size)?;
+        let training_squared_norms = if backend.algorithm() == KnnSearchAlgorithm::BruteForce {
+            squared_row_norms(features.as_ref()).into_boxed_slice()
+        } else {
+            Box::default()
+        };
 
-        Ok(Self { features, backend })
+        Ok(Self { features, training_squared_norms, backend })
     }
 
     pub(crate) fn features(&self) -> &Arc<NDArray<f64>> {
@@ -45,6 +56,16 @@ impl TrainingIndex {
         k: usize,
         metric: &dyn DistanceMetric,
     ) -> AtlasMlResult<Vec<Neighbor>> {
+        if self.backend.algorithm() == KnnSearchAlgorithm::BruteForce
+            && metric.supports_squared_euclidean_expansion()
+        {
+            let queries = NDArray::from_shape_vec([1, query.len()], query.to_vec())?;
+            return Ok(self
+                .search_gemm_batch(&queries, k)?
+                .pop()
+                .expect("one query produces one neighbor batch"));
+        }
+
         self.backend.search(query, k, metric)
     }
 
@@ -57,6 +78,12 @@ impl TrainingIndex {
     where
         Q: OperandMetadata<f64> + Sync + ?Sized,
     {
+        if self.backend.algorithm() == KnnSearchAlgorithm::BruteForce
+            && metric.supports_squared_euclidean_expansion()
+        {
+            return self.search_gemm_batch(queries, k);
+        }
+
         let query_count = queries.shape()[0];
         let feature_count = queries.shape()[1];
         let block_starts = (0..query_count).step_by(QUERY_BLOCK_SIZE).collect::<Vec<_>>();
@@ -76,6 +103,96 @@ impl TrainingIndex {
         };
 
         Ok(blocks.into_iter().flatten().collect())
+    }
+
+    fn search_gemm_batch<Q>(&self, queries: &Q, k: usize) -> AtlasMlResult<Vec<Vec<Neighbor>>>
+    where
+        Q: OperandMetadata<f64> + ?Sized,
+    {
+        if queries.ndim() != 2 {
+            return Err(AtlasMlError::InvalidInputRank {
+                op: BRUTE_FORCE_OP,
+                expected: "a rank-2 [samples, features] matrix",
+                rank: queries.ndim(),
+            });
+        }
+
+        let sample_count = self.features.shape()[0];
+        if k == 0 || k > sample_count {
+            return Err(AtlasMlError::InvalidArgument {
+                op: BRUTE_FORCE_OP,
+                reason: "k must be between 1 and the number of training samples",
+            });
+        }
+
+        let feature_count = self.features.shape()[1];
+        if queries.shape()[1] != feature_count {
+            return Err(AtlasMlError::ShapeMismatch {
+                op: BRUTE_FORCE_OP,
+                left: vec![feature_count],
+                right: vec![queries.shape()[1]],
+                reason: "feature dimensions must match",
+            });
+        }
+
+        let query_squared_norms = squared_row_norms(queries);
+        let mut neighbors = Vec::with_capacity(queries.shape()[0]);
+        for block_start in (0..queries.shape()[0]).step_by(QUERY_BLOCK_SIZE) {
+            neighbors.extend(self.search_gemm_block(
+                queries,
+                &query_squared_norms,
+                block_start,
+                k,
+            )?);
+        }
+        Ok(neighbors)
+    }
+
+    fn search_gemm_block<Q>(
+        &self,
+        queries: &Q,
+        query_squared_norms: &[f64],
+        block_start: usize,
+        k: usize,
+    ) -> AtlasMlResult<Vec<Vec<Neighbor>>>
+    where
+        Q: OperandMetadata<f64> + ?Sized,
+    {
+        let feature_count = queries.shape()[1];
+        let block_end = (block_start + QUERY_BLOCK_SIZE).min(queries.shape()[0]);
+        let block_len = block_end - block_start;
+        let mut query_values = vec![0.0; block_len * feature_count];
+        for (block_row, query_index) in (block_start..block_end).enumerate() {
+            let row_start = block_row * feature_count;
+            copy_logical_row(
+                queries,
+                query_index,
+                &mut query_values[row_start..row_start + feature_count],
+            );
+        }
+
+        let query_block = NDArray::from_shape_vec([block_len, feature_count], query_values)?;
+        let products = atlas_linalg::matmul(&query_block, self.features.view().transpose())?;
+        let sample_count = self.features.shape()[0];
+
+        Ok((0..block_len)
+            .map(|block_row| {
+                let query_norm = query_squared_norms[block_start + block_row];
+                let product_row =
+                    &products.data()[block_row * sample_count..(block_row + 1) * sample_count];
+                let mut neighbors = BoundedNeighborSet::new(k);
+                for (sample_index, (&training_norm, &product)) in
+                    self.training_squared_norms.iter().zip(product_row).enumerate()
+                {
+                    let distance = query_norm + training_norm - 2.0 * product;
+                    neighbors.insert(Neighbor {
+                        index: sample_index,
+                        distance: if distance < 0.0 { 0.0 } else { distance },
+                    });
+                }
+                neighbors.neighbors().to_vec()
+            })
+            .collect())
     }
 
     fn search_block<Q>(
@@ -116,6 +233,25 @@ impl TrainingIndex {
             self.backend.search_batch(&query_rows, k, metric)
         }
     }
+}
+
+fn squared_row_norms<O>(values: &O) -> Vec<f64>
+where
+    O: OperandMetadata<f64> + ?Sized,
+{
+    let row_count = values.shape()[0];
+    let column_count = values.shape()[1];
+    (0..row_count)
+        .map(|row| {
+            let row_offset = values.offset() + row * values.strides()[0];
+            (0..column_count)
+                .map(|column| {
+                    let value = values.data()[row_offset + column * values.strides()[1]];
+                    value * value
+                })
+                .sum()
+        })
+        .collect()
 }
 
 #[cfg(test)]

@@ -5,6 +5,10 @@ use crate::{AtlasMlError, AtlasMlResult};
 pub(crate) trait DistanceMetric: Sync {
     fn distance_same_dimension(&self, lhs: &[f64], rhs: &[f64]) -> f64;
 
+    fn supports_squared_euclidean_expansion(&self) -> bool {
+        false
+    }
+
     fn distance_to_row(&self, lhs: LogicalRow<'_, f64>, rhs: &[f64]) -> f64 {
         if let Some(lhs) = lhs.contiguous_slice() {
             self.distance_same_dimension(lhs, rhs)
@@ -57,6 +61,10 @@ impl DistanceMetric for SquaredEuclideanDistance {
         } else {
             distance_to_row_scalar(lhs, rhs)
         }
+    }
+
+    fn supports_squared_euclidean_expansion(&self) -> bool {
+        true
     }
 
     fn axis_distance_lower_bound(&self, axis_delta: f64) -> Option<f64> {
