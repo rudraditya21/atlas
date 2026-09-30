@@ -15,8 +15,8 @@ use crate::{
     core::{parallel::should_parallelize_inference, row::copy_logical_row},
 };
 
-const QUERY_BLOCK_SIZE: usize = 32;
 const DISTANCE_BLOCK_TARGET_BYTES: usize = 1024 * 1024;
+const QUERY_BLOCK_SIZE: usize = 32;
 const BRUTE_FORCE_OP: &str = "brute_force_knn_search";
 
 pub(crate) struct TrainingIndex {
@@ -108,7 +108,7 @@ impl TrainingIndex {
 
     fn search_gemm_batch<Q>(&self, queries: &Q, k: usize) -> AtlasMlResult<Vec<Vec<Neighbor>>>
     where
-        Q: OperandMetadata<f64> + ?Sized,
+        Q: OperandMetadata<f64> + Sync + ?Sized,
     {
         if queries.ndim() != 2 {
             return Err(AtlasMlError::InvalidInputRank {
@@ -137,16 +137,70 @@ impl TrainingIndex {
         }
 
         let query_squared_norms = squared_row_norms(queries);
-        let mut neighbors = Vec::with_capacity(queries.shape()[0]);
-        for block_start in (0..queries.shape()[0]).step_by(QUERY_BLOCK_SIZE) {
-            neighbors.extend(self.search_gemm_block(
-                queries,
-                &query_squared_norms,
-                block_start,
-                k,
-            )?);
-        }
-        Ok(neighbors)
+        let query_count = queries.shape()[0];
+        let thread_count = rayon::current_num_threads();
+        let probe_query_count = query_count.min(32).max(1);
+        let probe_training_count = distance_training_block_size(
+            sample_count,
+            feature_count,
+            probe_query_count,
+            thread_count,
+            false,
+        );
+        let blas_active = atlas_linalg::will_use_blas_matmul::<f64>(
+            probe_query_count,
+            feature_count,
+            probe_training_count,
+        );
+        let query_block_size = distance_query_block_size(
+            query_count,
+            sample_count,
+            feature_count,
+            thread_count,
+            blas_active,
+        );
+        let training_block_size = distance_training_block_size(
+            sample_count,
+            feature_count,
+            query_block_size,
+            thread_count,
+            blas_active,
+        );
+        let block_starts = (0..query_count).step_by(query_block_size).collect::<Vec<_>>();
+        let work_items = query_count.saturating_mul(sample_count).saturating_mul(feature_count);
+
+        let blocks = if !blas_active && should_parallelize_inference(block_starts.len(), work_items)
+        {
+            block_starts
+                .into_par_iter()
+                .map(|block_start| {
+                    self.search_gemm_block(
+                        queries,
+                        &query_squared_norms,
+                        block_start,
+                        query_block_size,
+                        training_block_size,
+                        k,
+                    )
+                })
+                .collect::<AtlasMlResult<Vec<_>>>()?
+        } else {
+            block_starts
+                .into_iter()
+                .map(|block_start| {
+                    self.search_gemm_block(
+                        queries,
+                        &query_squared_norms,
+                        block_start,
+                        query_block_size,
+                        training_block_size,
+                        k,
+                    )
+                })
+                .collect::<AtlasMlResult<Vec<_>>>()?
+        };
+
+        Ok(blocks.into_iter().flatten().collect())
     }
 
     fn search_gemm_block<Q>(
@@ -154,13 +208,15 @@ impl TrainingIndex {
         queries: &Q,
         query_squared_norms: &[f64],
         block_start: usize,
+        query_block_size: usize,
+        training_block_size: usize,
         k: usize,
     ) -> AtlasMlResult<Vec<Vec<Neighbor>>>
     where
         Q: OperandMetadata<f64> + ?Sized,
     {
         let feature_count = queries.shape()[1];
-        let block_end = (block_start + QUERY_BLOCK_SIZE).min(queries.shape()[0]);
+        let block_end = (block_start + query_block_size).min(queries.shape()[0]);
         let block_len = block_end - block_start;
         let mut query_values = vec![0.0; block_len * feature_count];
         for (block_row, query_index) in (block_start..block_end).enumerate() {
@@ -174,7 +230,6 @@ impl TrainingIndex {
 
         let query_block = NDArray::from_shape_vec([block_len, feature_count], query_values)?;
         let sample_count = self.features.shape()[0];
-        let training_block_size = distance_training_block_size(feature_count, block_len);
         let mut neighbor_sets =
             (0..block_len).map(|_| BoundedNeighborSet::new(k)).collect::<Vec<_>>();
 
@@ -245,10 +300,50 @@ impl TrainingIndex {
     }
 }
 
-fn distance_training_block_size(feature_count: usize, query_count: usize) -> usize {
+fn distance_query_block_size(
+    query_count: usize,
+    training_count: usize,
+    feature_count: usize,
+    thread_count: usize,
+    blas_active: bool,
+) -> usize {
+    if query_count == 0 {
+        return 1;
+    }
+
+    let blocks_per_thread = if blas_active { 1 } else { 4 };
+    let target_block_count = thread_count.max(1).saturating_mul(blocks_per_thread);
+    let parallel_block_size = query_count.div_ceil(target_block_count);
+    let work_per_query = training_count.saturating_mul(feature_count).max(1);
+    let work_block_size = (1_usize << 20).div_ceil(work_per_query).clamp(1, 128);
+
+    if blas_active {
+        parallel_block_size.max(work_block_size).clamp(1, 128).min(query_count)
+    } else {
+        parallel_block_size.min(work_block_size).clamp(1, 64).min(query_count)
+    }
+}
+
+fn distance_training_block_size(
+    training_count: usize,
+    feature_count: usize,
+    query_count: usize,
+    thread_count: usize,
+    blas_active: bool,
+) -> usize {
+    let target_bytes = if blas_active {
+        DISTANCE_BLOCK_TARGET_BYTES * 4
+    } else {
+        (DISTANCE_BLOCK_TARGET_BYTES * 4 / thread_count.max(1))
+            .clamp(DISTANCE_BLOCK_TARGET_BYTES / 4, DISTANCE_BLOCK_TARGET_BYTES)
+    };
     let bytes_per_training_sample =
         feature_count.saturating_add(query_count).saturating_mul(size_of::<f64>());
-    DISTANCE_BLOCK_TARGET_BYTES.checked_div(bytes_per_training_sample).unwrap_or(1).max(1)
+    target_bytes
+        .checked_div(bytes_per_training_sample)
+        .unwrap_or(1)
+        .max(1)
+        .min(training_count.max(1))
 }
 
 fn squared_row_norms<O>(values: &O) -> Vec<f64>

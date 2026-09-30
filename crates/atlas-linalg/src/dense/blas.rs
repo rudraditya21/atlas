@@ -249,15 +249,20 @@ pub(crate) fn should_use_matrix_matrix<T: Numeric>(
     lhs: MatrixRef<'_, T>,
     rhs: MatrixRef<'_, T>,
 ) -> bool {
-    available()
-        && supported_dtype::<T>()
-        && lhs.rows.saturating_mul(lhs.cols).saturating_mul(rhs.cols) >= GEMM_MIN_WORK
+    will_use_blas_matmul::<T>(lhs.rows, lhs.cols, rhs.cols)
         && matrix_parameters(lhs).is_some_and(|(_, _, _, leading_dimension)| {
             dimensions_fit_blas(&[lhs.rows, lhs.cols, leading_dimension])
         })
         && matrix_parameters(rhs).is_some_and(|(_, _, _, leading_dimension)| {
             dimensions_fit_blas(&[rhs.rows, rhs.cols, leading_dimension])
         })
+}
+
+pub fn will_use_blas_matmul<T: Numeric>(rows: usize, inner: usize, cols: usize) -> bool {
+    available()
+        && supported_dtype::<T>()
+        && rows.saturating_mul(inner).saturating_mul(cols) >= GEMM_MIN_WORK
+        && dimensions_fit_blas(&[rows, inner, cols])
 }
 
 fn available() -> bool {
