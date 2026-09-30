@@ -2,7 +2,7 @@ use crate::core::row::LogicalRow;
 #[cfg(test)]
 use crate::{AtlasMlError, AtlasMlResult};
 
-pub(crate) trait DistanceMetric {
+pub(crate) trait DistanceMetric: Sync {
     fn distance_same_dimension(&self, lhs: &[f64], rhs: &[f64]) -> f64;
 
     fn distance_to_row(&self, lhs: LogicalRow<'_, f64>, rhs: &[f64]) -> f64 {

@@ -42,8 +42,9 @@ pub(super) fn dispatch_matmul<T: Numeric>(
     }
 }
 
-pub(super) fn should_parallelize_matmul(rows: usize, inner: usize, cols: usize) -> bool {
+pub(crate) fn should_parallelize_matmul(rows: usize, inner: usize, cols: usize) -> bool {
     !MATMUL_PARALLELISM_DISABLED.get()
+        && rayon::current_thread_index().is_none()
         && should_parallelize_matmul_for_threads(rows, inner, cols, rayon::current_num_threads())
 }
 

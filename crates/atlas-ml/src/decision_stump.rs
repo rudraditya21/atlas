@@ -1,12 +1,16 @@
 use std::collections::BTreeMap;
 
 use atlas_ndarray::{NDArray, OperandMetadata};
+use rayon::prelude::*;
 
 use crate::{
     AtlasMlError, AtlasMlResult,
-    core::validation::{
-        validate_finite_feature_values, validate_prediction_feature_inputs,
-        validate_supervised_training_inputs,
+    core::{
+        parallel::should_parallelize_inference,
+        validation::{
+            validate_finite_feature_values, validate_prediction_feature_inputs,
+            validate_supervised_training_inputs,
+        },
     },
 };
 
@@ -135,20 +139,23 @@ impl DecisionStumpClassifier {
     /// Predicts one class label for every query row.
     pub fn predict<Q>(&self, queries: &Q) -> AtlasMlResult<NDArray<usize>>
     where
-        Q: OperandMetadata<f64> + ?Sized,
+        Q: OperandMetadata<f64> + Sync + ?Sized,
     {
         validate_prediction_feature_inputs(queries, self.feature_count, PREDICT_OP)?;
         validate_finite_feature_values(queries, PREDICT_OP)?;
 
-        let predictions = (0..queries.shape()[0])
-            .map(|query_index| {
-                if feature(queries, query_index, self.feature_index) <= self.threshold {
-                    self.left_label
-                } else {
-                    self.right_label
-                }
-            })
-            .collect();
+        let predict = |query_index| {
+            if feature(queries, query_index, self.feature_index) <= self.threshold {
+                self.left_label
+            } else {
+                self.right_label
+            }
+        };
+        let predictions = if should_parallelize_inference(queries.shape()[0], queries.shape()[0]) {
+            (0..queries.shape()[0]).into_par_iter().map(predict).collect()
+        } else {
+            (0..queries.shape()[0]).map(predict).collect()
+        };
         Ok(NDArray::from_shape_vec([queries.shape()[0]], predictions)?)
     }
 }

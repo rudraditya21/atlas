@@ -1,9 +1,10 @@
 use atlas_ndarray::{NDArray, Numeric, OperandMetadata};
+use rayon::prelude::*;
 
 use crate::{
     core::{AtlasLinalgError, AtlasLinalgResult},
-    dense::matmul::matmul_matrix_vector_refs,
-    internal::dense::{MatrixRef, VectorRef},
+    dense::matmul::{matmul_matrix_vector_refs, should_parallelize_matmul},
+    internal::dense::{MatrixRef, VectorRef, dot_contiguous},
 };
 
 /// Computes one affine score per matrix row.
@@ -38,8 +39,24 @@ where
     };
     let coefficients =
         VectorRef { data: coefficients, offset: 0, len: coefficients.len(), stride: 1 };
-    let mut scores = matmul_matrix_vector_refs(matrix, coefficients);
-    scores.iter_mut().for_each(|score| *score += intercept);
+    let scores = if should_parallelize_matmul(matrix.rows, matrix.cols, 1) {
+        let mut scores = vec![T::zero(); matrix.rows];
+        scores.par_iter_mut().enumerate().for_each(|(row, score)| {
+            let product = if matrix.is_row_major_contiguous() {
+                dot_contiguous(matrix.contiguous_row_slice(row), coefficients.contiguous_slice())
+            } else {
+                (0..matrix.cols).fold(T::zero(), |total, column| {
+                    total + matrix.value_at(row, column) * coefficients.value_at(column)
+                })
+            };
+            *score = product + intercept;
+        });
+        scores
+    } else {
+        let mut scores = matmul_matrix_vector_refs(matrix, coefficients);
+        scores.iter_mut().for_each(|score| *score += intercept);
+        scores
+    };
 
     Ok(NDArray::from_shape_vec([matrix.rows], scores)?)
 }

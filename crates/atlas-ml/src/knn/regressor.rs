@@ -66,7 +66,7 @@ impl KnnRegressor {
 
     pub fn predict<Q>(&self, queries: &Q) -> AtlasMlResult<NDArray<f64>>
     where
-        Q: OperandMetadata<f64> + ?Sized,
+        Q: OperandMetadata<f64> + Sync + ?Sized,
     {
         validate_prediction_feature_inputs(queries, self.feature_count(), PREDICT_OP)?;
         validate_finite_feature_values(queries, PREDICT_OP)?;

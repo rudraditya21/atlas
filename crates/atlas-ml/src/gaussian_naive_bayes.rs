@@ -1,10 +1,14 @@
 use atlas_ndarray::{NDArray, OperandMetadata};
+use rayon::prelude::*;
 
 use crate::{
     AtlasMlError, AtlasMlResult, LabelEncoder,
-    core::validation::{
-        validate_finite_feature_values, validate_prediction_feature_inputs,
-        validate_supervised_training_inputs,
+    core::{
+        parallel::should_parallelize_inference,
+        validation::{
+            validate_finite_feature_values, validate_prediction_feature_inputs,
+            validate_supervised_training_inputs,
+        },
     },
 };
 
@@ -145,18 +149,30 @@ impl GaussianNaiveBayes {
     /// Columns follow the ascending class order returned by [`Self::classes`].
     pub fn predict_proba<Q>(&self, queries: &Q) -> AtlasMlResult<NDArray<f64>>
     where
-        Q: OperandMetadata<f64> + ?Sized,
+        Q: OperandMetadata<f64> + Sync + ?Sized,
     {
         validate_prediction_feature_inputs(queries, self.feature_count(), PREDICT_PROBA_OP)?;
         validate_finite_feature_values(queries, PREDICT_PROBA_OP)?;
 
-        let mut probabilities = Vec::with_capacity(queries.shape()[0] * self.classes.len());
-        for query_index in 0..queries.shape()[0] {
-            let scores = self.log_scores(queries, query_index);
-            probabilities.extend(normalize_log_scores(&scores));
-        }
+        let query_count = queries.shape()[0];
+        let work_items =
+            query_count.saturating_mul(self.classes.len()).saturating_mul(self.feature_count());
+        let probabilities = if should_parallelize_inference(query_count, work_items) {
+            (0..query_count)
+                .into_par_iter()
+                .flat_map_iter(|query_index| {
+                    normalize_log_scores(&self.log_scores(queries, query_index))
+                })
+                .collect()
+        } else {
+            (0..query_count)
+                .flat_map(|query_index| {
+                    normalize_log_scores(&self.log_scores(queries, query_index))
+                })
+                .collect()
+        };
 
-        Ok(NDArray::from_shape_vec([queries.shape()[0], self.classes.len()], probabilities)?)
+        Ok(NDArray::from_shape_vec([query_count, self.classes.len()], probabilities)?)
     }
 
     /// Predicts the most probable class for every query row.
@@ -164,13 +180,13 @@ impl GaussianNaiveBayes {
     /// Equal probabilities resolve to the lowest class label.
     pub fn predict<Q>(&self, queries: &Q) -> AtlasMlResult<NDArray<usize>>
     where
-        Q: OperandMetadata<f64> + ?Sized,
+        Q: OperandMetadata<f64> + Sync + ?Sized,
     {
         validate_prediction_feature_inputs(queries, self.feature_count(), PREDICT_OP)?;
         validate_finite_feature_values(queries, PREDICT_OP)?;
 
-        let mut predictions = Vec::with_capacity(queries.shape()[0]);
-        for query_index in 0..queries.shape()[0] {
+        let query_count = queries.shape()[0];
+        let predict = |query_index| {
             let scores = self.log_scores(queries, query_index);
             let class_index = scores
                 .iter()
@@ -180,10 +196,17 @@ impl GaussianNaiveBayes {
                 })
                 .map(|(index, _)| index)
                 .expect("a fitted Gaussian Naive Bayes model has at least one class");
-            predictions.push(self.classes[class_index]);
-        }
+            self.classes[class_index]
+        };
+        let work_items =
+            query_count.saturating_mul(self.classes.len()).saturating_mul(self.feature_count());
+        let predictions = if should_parallelize_inference(query_count, work_items) {
+            (0..query_count).into_par_iter().map(predict).collect()
+        } else {
+            (0..query_count).map(predict).collect()
+        };
 
-        Ok(NDArray::from_shape_vec([queries.shape()[0]], predictions)?)
+        Ok(NDArray::from_shape_vec([query_count], predictions)?)
     }
 
     fn log_scores<Q>(&self, queries: &Q, query_index: usize) -> Vec<f64>

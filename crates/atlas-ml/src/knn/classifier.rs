@@ -88,7 +88,7 @@ impl KnnClassifier {
     /// then the lower class label.
     pub fn predict<Q>(&self, queries: &Q) -> AtlasMlResult<NDArray<usize>>
     where
-        Q: OperandMetadata<f64> + ?Sized,
+        Q: OperandMetadata<f64> + Sync + ?Sized,
     {
         validate_prediction_feature_inputs(queries, self.feature_count(), PREDICT_OP)?;
         validate_finite_feature_values(queries, PREDICT_OP)?;
@@ -109,7 +109,7 @@ impl KnnClassifier {
     /// Columns follow the ascending label order returned by [`Self::classes`].
     pub fn predict_proba<Q>(&self, queries: &Q) -> AtlasMlResult<NDArray<f64>>
     where
-        Q: OperandMetadata<f64> + ?Sized,
+        Q: OperandMetadata<f64> + Sync + ?Sized,
     {
         validate_prediction_feature_inputs(queries, self.feature_count(), PREDICT_PROBA_OP)?;
         validate_finite_feature_values(queries, PREDICT_PROBA_OP)?;

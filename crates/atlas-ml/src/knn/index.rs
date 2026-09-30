@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use atlas_ndarray::{NDArray, OperandMetadata};
+use rayon::prelude::*;
 
 use super::{
     backend::{NeighborSearchBackend, build_search_backend_with_leaf_size},
@@ -8,7 +9,7 @@ use super::{
     metric::DistanceMetric,
     neighbor::Neighbor,
 };
-use crate::AtlasMlResult;
+use crate::{AtlasMlResult, core::parallel::should_parallelize_inference};
 
 const QUERY_BLOCK_SIZE: usize = 32;
 
@@ -54,42 +55,66 @@ impl TrainingIndex {
         metric: &dyn DistanceMetric,
     ) -> AtlasMlResult<Vec<Vec<Neighbor>>>
     where
-        Q: OperandMetadata<f64> + ?Sized,
+        Q: OperandMetadata<f64> + Sync + ?Sized,
     {
         let query_count = queries.shape()[0];
         let feature_count = queries.shape()[1];
-        let mut batches = Vec::with_capacity(query_count);
+        let block_starts = (0..query_count).step_by(QUERY_BLOCK_SIZE).collect::<Vec<_>>();
+        let work_items =
+            query_count.saturating_mul(self.features.shape()[0]).saturating_mul(feature_count);
 
-        for block_start in (0..query_count).step_by(QUERY_BLOCK_SIZE) {
-            let block_end = (block_start + QUERY_BLOCK_SIZE).min(query_count);
-            if queries.strides()[1] == 1 {
-                let query_rows = (block_start..block_end)
-                    .map(|query_index| {
-                        let start = queries.offset() + query_index * queries.strides()[0];
-                        &queries.data()[start..start + feature_count]
-                    })
-                    .collect::<Vec<_>>();
-                batches.extend(self.backend.search_batch(&query_rows, k, metric)?);
-            } else {
-                let block_len = block_end - block_start;
-                let mut values = Vec::with_capacity(block_len * feature_count);
-                for query_index in block_start..block_end {
-                    let row_offset = queries.offset() + query_index * queries.strides()[0];
-                    values.extend((0..feature_count).map(|feature_index| {
-                        queries.data()[row_offset + feature_index * queries.strides()[1]]
-                    }));
-                }
-                let query_rows = (0..block_len)
-                    .map(|query_index| {
-                        let start = query_index * feature_count;
-                        &values[start..start + feature_count]
-                    })
-                    .collect::<Vec<_>>();
-                batches.extend(self.backend.search_batch(&query_rows, k, metric)?);
+        let blocks = if should_parallelize_inference(block_starts.len(), work_items) {
+            block_starts
+                .into_par_iter()
+                .map(|block_start| self.search_block(queries, block_start, k, metric))
+                .collect::<AtlasMlResult<Vec<_>>>()?
+        } else {
+            block_starts
+                .into_iter()
+                .map(|block_start| self.search_block(queries, block_start, k, metric))
+                .collect::<AtlasMlResult<Vec<_>>>()?
+        };
+
+        Ok(blocks.into_iter().flatten().collect())
+    }
+
+    fn search_block<Q>(
+        &self,
+        queries: &Q,
+        block_start: usize,
+        k: usize,
+        metric: &dyn DistanceMetric,
+    ) -> AtlasMlResult<Vec<Vec<Neighbor>>>
+    where
+        Q: OperandMetadata<f64> + ?Sized,
+    {
+        let feature_count = queries.shape()[1];
+        let block_end = (block_start + QUERY_BLOCK_SIZE).min(queries.shape()[0]);
+        if queries.strides()[1] == 1 {
+            let query_rows = (block_start..block_end)
+                .map(|query_index| {
+                    let start = queries.offset() + query_index * queries.strides()[0];
+                    &queries.data()[start..start + feature_count]
+                })
+                .collect::<Vec<_>>();
+            self.backend.search_batch(&query_rows, k, metric)
+        } else {
+            let block_len = block_end - block_start;
+            let mut values = Vec::with_capacity(block_len * feature_count);
+            for query_index in block_start..block_end {
+                let row_offset = queries.offset() + query_index * queries.strides()[0];
+                values.extend((0..feature_count).map(|feature_index| {
+                    queries.data()[row_offset + feature_index * queries.strides()[1]]
+                }));
             }
+            let query_rows = (0..block_len)
+                .map(|query_index| {
+                    let start = query_index * feature_count;
+                    &values[start..start + feature_count]
+                })
+                .collect::<Vec<_>>();
+            self.backend.search_batch(&query_rows, k, metric)
         }
-
-        Ok(batches)
     }
 }
 
