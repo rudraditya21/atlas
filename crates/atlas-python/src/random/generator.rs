@@ -1,4 +1,5 @@
-use atlas_random::AtlasRng;
+use atlas_random::{AtlasRng, RandomSource};
+use numpy::{Element, PyArray1, PyArrayDyn, PyArrayMethods};
 use pyo3::{
     exceptions::PyTypeError,
     prelude::*,
@@ -63,11 +64,11 @@ impl Generator {
     }
 
     fn random(&mut self, py: Python<'_>, shape: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-        self.sample(py, shape, |shape, rng| atlas_random::rand(shape, rng))
+        self.sample(py, shape, |output, rng| rng.fill_uniform(0.0_f64, 1.0, output))
     }
 
     fn randn(&mut self, py: Python<'_>, shape: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-        self.sample(py, shape, |shape, rng| atlas_random::randn(shape, rng))
+        self.sample(py, shape, |output, rng| rng.fill_normal(0.0_f64, 1.0, output))
     }
 
     #[pyo3(signature = (shape, low = 0.0, high = 1.0))]
@@ -78,7 +79,7 @@ impl Generator {
         low: f64,
         high: f64,
     ) -> PyResult<Py<PyAny>> {
-        self.sample(py, shape, |shape, rng| atlas_random::uniform(shape, low, high, rng))
+        self.sample(py, shape, |output, rng| rng.fill_uniform(low, high, output))
     }
 
     #[pyo3(signature = (shape, mean = 0.0, stddev = 1.0))]
@@ -89,7 +90,7 @@ impl Generator {
         mean: f64,
         stddev: f64,
     ) -> PyResult<Py<PyAny>> {
-        self.sample(py, shape, |shape, rng| atlas_random::normal(shape, mean, stddev, rng))
+        self.sample(py, shape, |output, rng| rng.fill_normal(mean, stddev, output))
     }
 
     fn randint(
@@ -99,7 +100,7 @@ impl Generator {
         low: i64,
         high: i64,
     ) -> PyResult<Py<PyAny>> {
-        self.sample(py, shape, |shape, rng| atlas_random::randint(shape, low, high, rng))
+        self.sample(py, shape, |output, rng| rng.fill_uniform(low, high, output))
     }
 
     #[pyo3(signature = (shape, probability = 0.5))]
@@ -109,7 +110,7 @@ impl Generator {
         shape: &Bound<'_, PyAny>,
         probability: f64,
     ) -> PyResult<Py<PyAny>> {
-        self.sample(py, shape, |shape, rng| atlas_random::bernoulli(shape, probability, rng))
+        self.sample(py, shape, |output, rng| rng.fill_bernoulli(probability, output))
     }
 
     fn categorical(
@@ -119,7 +120,7 @@ impl Generator {
         weights: &Bound<'_, PyAny>,
     ) -> PyResult<Py<PyAny>> {
         let weights = weights.extract::<Vec<f64>>()?;
-        self.sample(py, shape, |shape, rng| atlas_random::categorical(shape, &weights, rng))
+        self.sample(py, shape, |output, rng| atlas_random::fill_categorical(output, &weights, rng))
     }
 
     fn choice(
@@ -134,11 +135,13 @@ impl Generator {
         macro_rules! apply {
             ($ty:ty) => {{
                 let values = array::from_numpy(array::readonly_from_python::<$ty>(py, values)?)?;
-                let result = gil::without_gil(py, move || {
-                    atlas_random::choice(&values, sample_count, &mut self.rng)
-                })
-                .map_err(|error| crate::support::errors::random(py, error))?;
-                Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
+                let output = PyArray1::<$ty>::zeros(py, [sample_count], false);
+                let result = {
+                    let mut destination = output.readwrite();
+                    atlas_random::fill_choice(&values, destination.as_slice_mut()?, &mut self.rng)
+                };
+                result.map_err(|error| crate::support::errors::random(py, error))?;
+                Ok(output.into_any().unbind())
             }};
         }
 
@@ -159,10 +162,17 @@ impl Generator {
     }
 
     fn permutation(&mut self, py: Python<'_>, size: usize) -> PyResult<Py<PyAny>> {
-        let result = gil::without_gil(py, move || atlas_random::permutation(size, &mut self.rng))
-            .map_err(|error| crate::support::errors::random(py, error))?;
+        let output = PyArray1::<usize>::zeros(py, [size], false);
+        {
+            let mut destination = output.readwrite();
+            let values = destination.as_slice_mut()?;
+            for (index, value) in values.iter_mut().enumerate() {
+                *value = index;
+            }
+            self.rng.shuffle(values);
+        }
 
-        Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
+        Ok(output.into_any().unbind())
     }
 
     #[pyo3(signature = (values, axis = 0))]
@@ -208,20 +218,22 @@ impl Generator {
         &mut self,
         py: Python<'_>,
         shape: &Bound<'_, PyAny>,
-        sample: impl FnOnce(
-            &[usize],
-            &mut AtlasRng,
-        ) -> atlas_random::AtlasRandomResult<atlas_ndarray::NDArray<T>>
-        + Send,
+        fill: impl FnOnce(&mut [T], &mut AtlasRng) -> atlas_random::AtlasRandomResult<()>,
     ) -> PyResult<Py<PyAny>>
     where
-        T: atlas_ndarray::ArrayElement + numpy::Element,
+        T: atlas_ndarray::ArrayElement + Element,
     {
         let shape = shape_values(shape)?;
-        let result = gil::without_gil(py, move || sample(&shape, &mut self.rng))
-            .map_err(|error| crate::support::errors::random(py, error))?;
+        atlas_ndarray::checked_element_count(&shape)
+            .map_err(|error| crate::support::errors::random(py, error.into()))?;
+        let output = PyArrayDyn::<T>::zeros(py, shape.as_slice(), false);
+        let result = {
+            let mut destination = output.readwrite();
+            fill(destination.as_slice_mut()?, &mut self.rng)
+        };
+        result.map_err(|error| crate::support::errors::random(py, error))?;
 
-        Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
+        Ok(output.into_any().unbind())
     }
 }
 

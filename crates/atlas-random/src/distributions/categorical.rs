@@ -15,23 +15,30 @@ where
     S: AsRef<[usize]>,
     R: RandomSource,
 {
+    sample_ndarray(shape, |output| fill_categorical(output, weights, rng))
+}
+
+/// Fills `output` with category indices sampled from `weights`.
+pub fn fill_categorical<R: RandomSource>(
+    output: &mut [usize],
+    weights: &[f64],
+    rng: &mut R,
+) -> AtlasRandomResult<()> {
     let total = validate_weights(weights)?;
-    sample_ndarray(shape, |output| {
-        for value in output {
-            let sample = rng.sample_uniform(0.0_f64, total)?;
-            let mut cumulative = 0.0;
-            let mut category = weights.len() - 1;
-            for (index, weight) in weights.iter().enumerate() {
-                cumulative += weight;
-                if sample < cumulative {
-                    category = index;
-                    break;
-                }
+    for value in output {
+        let sample = rng.sample_uniform(0.0_f64, total)?;
+        let mut cumulative = 0.0;
+        let mut category = weights.len() - 1;
+        for (index, weight) in weights.iter().enumerate() {
+            cumulative += weight;
+            if sample < cumulative {
+                category = index;
+                break;
             }
-            *value = category;
         }
-        Ok(())
-    })
+        *value = category;
+    }
+    Ok(())
 }
 
 fn validate_weights(weights: &[f64]) -> AtlasRandomResult<f64> {

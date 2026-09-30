@@ -55,6 +55,21 @@ where
     NDArray::from_shape_vec([sample_count], values).map_err(Into::into)
 }
 
+/// Fills `output` with distinct logical values sampled from `input` without replacement.
+pub fn fill_choice<T, O, R>(input: &O, output: &mut [T], rng: &mut R) -> AtlasRandomResult<()>
+where
+    T: ArrayElement,
+    O: OperandMetadata<T> + ?Sized,
+    R: RandomSource,
+{
+    let population_size = checked_element_count(input.shape())?;
+    let indices = sample_indices(population_size, output.len(), rng, "choice")?;
+    for (value, index) in output.iter_mut().zip(indices) {
+        *value = input.data()[logical_offset(input, index)];
+    }
+    Ok(())
+}
+
 fn sample_indices<R: RandomSource>(
     population_size: usize,
     sample_count: usize,
