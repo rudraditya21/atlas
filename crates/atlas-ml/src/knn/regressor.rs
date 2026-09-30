@@ -8,13 +8,10 @@ use super::{
 };
 use crate::{
     AtlasMlResult,
-    core::{
-        row::copy_logical_row,
-        validation::{
-            validate_finite_feature_values, validate_finite_target_values,
-            validate_prediction_feature_inputs, validate_prediction_feature_row,
-            validate_supervised_training_inputs,
-        },
+    core::validation::{
+        validate_finite_feature_values, validate_finite_target_values,
+        validate_prediction_feature_inputs, validate_prediction_feature_row,
+        validate_supervised_training_inputs,
     },
 };
 
@@ -75,11 +72,14 @@ impl KnnRegressor {
         validate_finite_feature_values(queries, PREDICT_OP)?;
 
         let query_count = queries.shape()[0];
-        let mut query = vec![0.0; self.feature_count()];
         let mut predictions = Vec::with_capacity(query_count);
-        for query_index in 0..query_count {
-            copy_logical_row(queries, query_index, &mut query);
-            predictions.push(self.predict_one(&query)?);
+        for neighbors in
+            self.index.search_batch(queries, self.config.k(), &SquaredEuclideanDistance)?
+        {
+            predictions.push(match self.config.weighting() {
+                KnnWeighting::Uniform => mean_targets(&neighbors, self.targets.data()),
+                KnnWeighting::Distance => distance_weighted_mean(&neighbors, self.targets.data()),
+            });
         }
 
         Ok(NDArray::from_shape_vec([query_count], predictions)?)

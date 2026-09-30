@@ -8,7 +8,7 @@ use super::{
     kd_tree::tree::KdTree,
     metric::DistanceMetric,
     neighbor::Neighbor,
-    search::brute_force_search,
+    search::{brute_force_search, brute_force_search_batch},
 };
 use crate::AtlasMlResult;
 
@@ -21,6 +21,15 @@ pub(crate) trait NeighborSearchBackend: Send + Sync {
         k: usize,
         metric: &dyn DistanceMetric,
     ) -> AtlasMlResult<Vec<Neighbor>>;
+
+    fn search_batch(
+        &self,
+        queries: &[&[f64]],
+        k: usize,
+        metric: &dyn DistanceMetric,
+    ) -> AtlasMlResult<Vec<Vec<Neighbor>>> {
+        queries.iter().map(|query| self.search(query, k, metric)).collect()
+    }
 }
 
 #[cfg(test)]
@@ -65,6 +74,15 @@ impl NeighborSearchBackend for BruteForceBackend {
         metric: &dyn DistanceMetric,
     ) -> AtlasMlResult<Vec<Neighbor>> {
         brute_force_search(self.features.as_ref(), query, k, metric)
+    }
+
+    fn search_batch(
+        &self,
+        queries: &[&[f64]],
+        k: usize,
+        metric: &dyn DistanceMetric,
+    ) -> AtlasMlResult<Vec<Vec<Neighbor>>> {
+        brute_force_search_batch(self.features.as_ref(), queries, k, metric)
     }
 }
 

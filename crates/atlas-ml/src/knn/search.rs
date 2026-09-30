@@ -15,6 +15,20 @@ where
     F: OperandMetadata<f64> + ?Sized,
     M: DistanceMetric + ?Sized,
 {
+    let mut batches = brute_force_search_batch(training_features, &[query], k, metric)?;
+    Ok(batches.pop().expect("one query produces one neighbor batch"))
+}
+
+pub(crate) fn brute_force_search_batch<F, M>(
+    training_features: &F,
+    queries: &[&[f64]],
+    k: usize,
+    metric: &M,
+) -> AtlasMlResult<Vec<Vec<Neighbor>>>
+where
+    F: OperandMetadata<f64> + ?Sized,
+    M: DistanceMetric + ?Sized,
+{
     if training_features.ndim() != 2 {
         return Err(AtlasMlError::InvalidInputRank {
             op: OP,
@@ -32,25 +46,30 @@ where
     }
 
     let feature_count = training_features.shape()[1];
-    if query.len() != feature_count {
-        return Err(AtlasMlError::ShapeMismatch {
-            op: OP,
-            left: vec![feature_count],
-            right: vec![query.len()],
-            reason: "feature dimensions must match",
-        });
+    for query in queries {
+        if query.len() != feature_count {
+            return Err(AtlasMlError::ShapeMismatch {
+                op: OP,
+                left: vec![feature_count],
+                right: vec![query.len()],
+                reason: "feature dimensions must match",
+            });
+        }
     }
 
-    let mut neighbors = BoundedNeighborSet::new(k);
+    let mut neighbor_sets =
+        (0..queries.len()).map(|_| BoundedNeighborSet::new(k)).collect::<Vec<_>>();
     for sample_index in 0..sample_count {
-        neighbors.insert(Neighbor {
-            index: sample_index,
-            distance: metric
-                .distance_to_row(LogicalRow::from_operand(training_features, sample_index), query),
-        });
+        let row = LogicalRow::from_operand(training_features, sample_index);
+        for (&query, neighbors) in queries.iter().zip(&mut neighbor_sets) {
+            neighbors.insert(Neighbor {
+                index: sample_index,
+                distance: metric.distance_to_row(row, query),
+            });
+        }
     }
 
-    Ok(neighbors.neighbors().to_vec())
+    Ok(neighbor_sets.into_iter().map(|neighbors| neighbors.neighbors().to_vec()).collect())
 }
 
 #[cfg(test)]

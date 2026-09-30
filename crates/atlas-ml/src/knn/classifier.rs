@@ -9,12 +9,9 @@ use super::{
 };
 use crate::{
     AtlasMlResult,
-    core::{
-        row::copy_logical_row,
-        validation::{
-            validate_finite_feature_values, validate_prediction_feature_inputs,
-            validate_prediction_feature_row, validate_supervised_training_inputs,
-        },
+    core::validation::{
+        validate_finite_feature_values, validate_prediction_feature_inputs,
+        validate_prediction_feature_row, validate_supervised_training_inputs,
     },
 };
 
@@ -97,11 +94,11 @@ impl KnnClassifier {
         validate_finite_feature_values(queries, PREDICT_OP)?;
 
         let query_count = queries.shape()[0];
-        let mut query = vec![0.0; self.feature_count()];
         let mut predictions = Vec::with_capacity(query_count);
-        for query_index in 0..query_count {
-            copy_logical_row(queries, query_index, &mut query);
-            predictions.push(self.predict_one(&query)?);
+        for neighbors in
+            self.index.search_batch(queries, self.config.k(), &SquaredEuclideanDistance)?
+        {
+            predictions.push(self.class_from_votes(self.votes_from_neighbors(&neighbors)));
         }
 
         Ok(NDArray::from_shape_vec([query_count], predictions)?)
@@ -118,11 +115,12 @@ impl KnnClassifier {
         validate_finite_feature_values(queries, PREDICT_PROBA_OP)?;
 
         let query_count = queries.shape()[0];
-        let mut query = vec![0.0; self.feature_count()];
         let mut probabilities = Vec::with_capacity(query_count * self.classes.len());
-        for query_index in 0..query_count {
-            copy_logical_row(queries, query_index, &mut query);
-            probabilities.extend(self.probabilities_for(&query)?);
+        for neighbors in
+            self.index.search_batch(queries, self.config.k(), &SquaredEuclideanDistance)?
+        {
+            probabilities
+                .extend(self.probabilities_from_votes(self.votes_from_neighbors(&neighbors)));
         }
 
         Ok(NDArray::from_shape_vec([query_count, self.classes.len()], probabilities)?)
@@ -137,6 +135,13 @@ impl KnnClassifier {
 
     fn votes_for(&self, query: &[f64]) -> AtlasMlResult<BTreeMap<usize, ClassVote>> {
         let neighbors = self.index.search(query, self.config.k(), &SquaredEuclideanDistance)?;
+        Ok(self.votes_from_neighbors(&neighbors))
+    }
+
+    fn votes_from_neighbors(
+        &self,
+        neighbors: &[super::neighbor::Neighbor],
+    ) -> BTreeMap<usize, ClassVote> {
         let exact_matches = self.config.weighting() == KnnWeighting::Distance
             && neighbors.iter().any(|neighbor| neighbor.distance == 0.0);
         let mut votes = BTreeMap::new();
@@ -156,7 +161,7 @@ impl KnnClassifier {
             vote.total_distance += neighbor.distance;
         }
 
-        Ok(votes)
+        votes
     }
 
     fn class_from_votes(&self, votes: BTreeMap<usize, ClassVote>) -> usize {
@@ -173,8 +178,7 @@ impl KnnClassifier {
             .0
     }
 
-    fn probabilities_for(&self, query: &[f64]) -> AtlasMlResult<Vec<f64>> {
-        let votes = self.votes_for(query)?;
+    fn probabilities_from_votes(&self, votes: BTreeMap<usize, ClassVote>) -> Vec<f64> {
         let total_weight = votes.values().map(|vote| vote.weight).sum::<f64>();
         let fallback_to_counts = total_weight == 0.0;
         let normalizer = if fallback_to_counts {
@@ -183,8 +187,7 @@ impl KnnClassifier {
             total_weight
         };
 
-        Ok(self
-            .classes
+        self.classes
             .iter()
             .map(|class| {
                 votes.get(class).map_or(0.0, |vote| {
@@ -192,7 +195,7 @@ impl KnnClassifier {
                     weight / normalizer
                 })
             })
-            .collect())
+            .collect()
     }
 }
 
