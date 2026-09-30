@@ -3,6 +3,7 @@ use atlas_ndarray::{NDArray, Numeric};
 use super::{col_major, generic, row_major};
 use crate::{
     core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand},
+    dense::blas,
     internal::dense::{MatrixRef, matrix_ref},
 };
 
@@ -34,6 +35,10 @@ pub(super) fn matmul_matrix_refs<T: Numeric>(
     }
     if lhs.cols == 0 {
         return vec![T::zero(); lhs.rows * rhs.cols];
+    }
+
+    if let Some(data) = blas::matrix_matrix(lhs, rhs) {
+        return data;
     }
 
     if lhs.is_row_major_contiguous() && rhs.is_row_major_contiguous() {

@@ -9,6 +9,7 @@ name = "atlas_native"
 crate-type = ["cdylib"]
 
 [features]
+openblas = ["atlas-linalg/openblas"]
 test-support = []
 
 [dependencies]

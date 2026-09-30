@@ -92,7 +92,10 @@ pub(crate) fn matrix_ref<'a, T: Numeric>(operand: &'a LinalgOperand<'a, T>) -> M
 
 pub(crate) fn dot_kernel<T: Numeric>(lhs: VectorRef<'_, T>, rhs: VectorRef<'_, T>) -> T {
     if lhs.is_contiguous() && rhs.is_contiguous() {
-        dot_contiguous(lhs.contiguous_slice(), rhs.contiguous_slice())
+        let lhs = lhs.contiguous_slice();
+        let rhs = rhs.contiguous_slice();
+
+        crate::dense::blas::dot(lhs, rhs).unwrap_or_else(|| dot_contiguous(lhs, rhs))
     } else {
         dot_strided(lhs, rhs)
     }

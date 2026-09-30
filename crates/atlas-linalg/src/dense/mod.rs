@@ -1,4 +1,5 @@
 pub(crate) mod affine;
+pub(crate) mod blas;
 pub(crate) mod condition;
 pub(crate) mod diag;
 pub(crate) mod distance;
