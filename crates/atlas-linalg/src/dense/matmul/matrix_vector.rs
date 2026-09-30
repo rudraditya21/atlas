@@ -27,7 +27,7 @@ pub(super) fn matmul_matrix_vector<T: Numeric>(
     Ok(NDArray::from_shape_vec([lhs.rows], data)?)
 }
 
-pub(super) fn matmul_matrix_vector_refs<T: Numeric>(
+pub(crate) fn matmul_matrix_vector_refs<T: Numeric>(
     lhs: MatrixRef<'_, T>,
     rhs: VectorRef<'_, T>,
 ) -> Vec<T> {

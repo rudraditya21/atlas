@@ -1,3 +1,4 @@
+use atlas_linalg::affine;
 use atlas_ndarray::{NDArray, OperandMetadata};
 
 use crate::{
@@ -190,15 +191,8 @@ impl BinaryPerceptron {
         validate_prediction_feature_inputs(queries, self.feature_count(), PREDICT_OP)?;
         validate_finite_feature_values(queries, PREDICT_OP)?;
 
-        let predictions = (0..queries.shape()[0])
-            .map(|query_index| {
-                classify((0..self.feature_count()).fold(self.intercept, |total, feature_index| {
-                    total
-                        + feature(queries, query_index, feature_index)
-                            * self.coefficients.data()[feature_index]
-                }))
-            })
-            .collect();
+        let scores = affine(queries, self.coefficients.data(), self.intercept)?;
+        let predictions = scores.data().iter().copied().map(classify).collect();
 
         Ok(NDArray::from_shape_vec([queries.shape()[0]], predictions)?)
     }

@@ -1,4 +1,4 @@
-use atlas_linalg::qr;
+use atlas_linalg::{affine, qr};
 use atlas_ndarray::{NDArray, OperandMetadata};
 
 use crate::{
@@ -144,18 +144,7 @@ impl RidgeRegression {
         validate_prediction_feature_inputs(features, self.feature_count(), PREDICT_OP)?;
         validate_finite_feature_values(features, PREDICT_OP)?;
 
-        let mut predictions = Vec::with_capacity(features.shape()[0]);
-        for sample_index in 0..features.shape()[0] {
-            let prediction =
-                (0..self.feature_count()).fold(self.intercept, |total, feature_index| {
-                    total
-                        + feature(features, sample_index, feature_index)
-                            * self.coefficients.data()[feature_index]
-                });
-            predictions.push(prediction);
-        }
-
-        Ok(NDArray::from_shape_vec([features.shape()[0]], predictions)?)
+        Ok(affine(features, self.coefficients.data(), self.intercept)?)
     }
 
     /// Returns the coefficient of determination (R²) for the provided samples.

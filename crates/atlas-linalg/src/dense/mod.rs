@@ -1,3 +1,4 @@
+pub(crate) mod affine;
 pub(crate) mod condition;
 pub(crate) mod diag;
 pub(crate) mod dot;

@@ -9,6 +9,7 @@ mod vector_matrix;
 mod vector_vector;
 
 use atlas_ndarray::{NDArray, Numeric};
+pub(crate) use matrix_vector::matmul_matrix_vector_refs;
 
 use crate::core::{AtlasLinalgResult, LinalgOperand};
 

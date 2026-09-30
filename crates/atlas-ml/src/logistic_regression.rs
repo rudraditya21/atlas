@@ -1,3 +1,4 @@
+use atlas_linalg::affine;
 use atlas_ndarray::{NDArray, OperandMetadata};
 
 use crate::{
@@ -258,12 +259,8 @@ impl BinaryLogisticRegression {
         validate_prediction_feature_inputs(queries, self.feature_count(), PREDICT_PROBA_OP)?;
         validate_finite_feature_values(queries, PREDICT_PROBA_OP)?;
 
-        let mut query = vec![0.0; self.feature_count()];
-        let mut probabilities = Vec::with_capacity(queries.shape()[0]);
-        for sample_index in 0..queries.shape()[0] {
-            copy_feature_row(queries, sample_index, &mut query);
-            probabilities.push(self.predict_proba_one(&query)?);
-        }
+        let scores = affine(queries, self.coefficients.data(), self.intercept)?;
+        let probabilities = scores.data().iter().copied().map(sigmoid).collect();
 
         Ok(NDArray::from_shape_vec([queries.shape()[0]], probabilities)?)
     }
@@ -328,12 +325,13 @@ impl BinaryLogisticRegression {
         validate_prediction_feature_inputs(queries, self.feature_count(), op)?;
         validate_finite_feature_values(queries, op)?;
 
-        let mut query = vec![0.0; self.feature_count()];
-        let mut predictions = Vec::with_capacity(queries.shape()[0]);
-        for sample_index in 0..queries.shape()[0] {
-            copy_feature_row(queries, sample_index, &mut query);
-            predictions.push(self.predict_one_with_threshold(&query, threshold)?);
-        }
+        let scores = affine(queries, self.coefficients.data(), self.intercept)?;
+        let predictions = scores
+            .data()
+            .iter()
+            .copied()
+            .map(|score| classify(sigmoid(score), threshold))
+            .collect();
 
         Ok(NDArray::from_shape_vec([queries.shape()[0]], predictions)?)
     }
@@ -392,15 +390,6 @@ where
     features.data()[features.offset()
         + sample_index * features.strides()[0]
         + feature_index * features.strides()[1]]
-}
-
-fn copy_feature_row<F>(features: &F, sample_index: usize, destination: &mut [f64])
-where
-    F: OperandMetadata<f64> + ?Sized,
-{
-    for (feature_index, value) in destination.iter_mut().enumerate() {
-        *value = feature(features, sample_index, feature_index);
-    }
 }
 
 fn label<L>(labels: &L, sample_index: usize) -> usize

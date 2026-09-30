@@ -1,3 +1,4 @@
+use atlas_linalg::affine;
 use atlas_ndarray::{NDArray, OperandMetadata};
 
 use crate::{
@@ -15,6 +16,7 @@ const PREDICT_OP: &str = "nearest_centroid_predict";
 pub struct NearestCentroidClassifier {
     classes: Box<[usize]>,
     centroids: NDArray<f64>,
+    centroid_squared_norms: Box<[f64]>,
 }
 
 impl NearestCentroidClassifier {
@@ -48,12 +50,21 @@ impl NearestCentroidClassifier {
             }
         }
 
+        let centroid_squared_norms = (0..encoder.classes().len())
+            .map(|class_index| {
+                let start = class_index * feature_count;
+                centroids[start..start + feature_count].iter().map(|value| value * value).sum()
+            })
+            .collect::<Vec<_>>()
+            .into_boxed_slice();
+
         Ok(Self {
             classes: encoder.classes().to_vec().into(),
             centroids: NDArray::from_shape_vec(
                 [encoder.classes().len(), feature_count],
                 centroids,
             )?,
+            centroid_squared_norms,
         })
     }
 
@@ -79,27 +90,27 @@ impl NearestCentroidClassifier {
         validate_prediction_feature_inputs(queries, self.feature_count(), PREDICT_OP)?;
         validate_finite_feature_values(queries, PREDICT_OP)?;
 
-        let mut predictions = Vec::with_capacity(queries.shape()[0]);
-        for query_index in 0..queries.shape()[0] {
-            predictions.push(self.predict_row(queries, query_index));
+        let query_count = queries.shape()[0];
+        let mut predictions = vec![self.classes[0]; query_count];
+        let mut best_scores = vec![f64::NEG_INFINITY; query_count];
+
+        for (class_index, &class) in self.classes.iter().enumerate() {
+            let start = class_index * self.feature_count();
+            let centroid = &self.centroids.data()[start..start + self.feature_count()];
+            let scores =
+                affine(queries, centroid, -0.5 * self.centroid_squared_norms[class_index])?;
+
+            for ((prediction, best_score), &score) in
+                predictions.iter_mut().zip(&mut best_scores).zip(scores.data())
+            {
+                if score > *best_score || (score == *best_score && class < *prediction) {
+                    *prediction = class;
+                    *best_score = score;
+                }
+            }
         }
 
-        Ok(NDArray::from_shape_vec([queries.shape()[0]], predictions)?)
-    }
-
-    fn predict_row<Q>(&self, queries: &Q, query_index: usize) -> usize
-    where
-        Q: OperandMetadata<f64> + ?Sized,
-    {
-        let class_index = (0..self.classes.len())
-            .min_by(|&left, &right| {
-                squared_distance(self, queries, query_index, left)
-                    .total_cmp(&squared_distance(self, queries, query_index, right))
-                    .then_with(|| self.classes[left].cmp(&self.classes[right]))
-            })
-            .expect("a fitted nearest-centroid classifier has at least one class");
-
-        self.classes[class_index]
+        Ok(NDArray::from_shape_vec([query_count], predictions)?)
     }
 }
 
@@ -117,25 +128,6 @@ where
     L: OperandMetadata<usize> + ?Sized,
 {
     labels.data()[labels.offset() + sample_index * labels.strides()[0]]
-}
-
-fn squared_distance<Q>(
-    classifier: &NearestCentroidClassifier,
-    queries: &Q,
-    query_index: usize,
-    class_index: usize,
-) -> f64
-where
-    Q: OperandMetadata<f64> + ?Sized,
-{
-    (0..classifier.feature_count())
-        .map(|feature_index| {
-            let delta = feature(queries, query_index, feature_index)
-                - classifier.centroids.data()
-                    [class_index * classifier.feature_count() + feature_index];
-            delta * delta
-        })
-        .sum()
 }
 
 #[cfg(test)]

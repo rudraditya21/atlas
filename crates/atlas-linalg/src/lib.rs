@@ -9,6 +9,7 @@ pub use core::{
 };
 
 pub use dense::{
+    affine::affine,
     condition::condition_number,
     diag::{batched_diag, diag, diag_view},
     dot::{DotOutput, batched_dot, dot},
