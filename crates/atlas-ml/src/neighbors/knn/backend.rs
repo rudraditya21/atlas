@@ -171,7 +171,7 @@ mod tests {
     use super::{
         assert_backend_equivalence, build_search_backend, build_search_backend_with_leaf_size,
     };
-    use crate::knn::config::{AUTO_BRUTE_FORCE_MAX_SAMPLES, KnnSearchAlgorithm};
+    use crate::neighbors::knn::config::{AUTO_BRUTE_FORCE_MAX_SAMPLES, KnnSearchAlgorithm};
 
     fn assert_all_backends_equivalent(features: Arc<NDArray<f64>>, queries: &[&[f64]]) {
         for algorithm in [

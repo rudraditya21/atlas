@@ -2,21 +2,15 @@
 
 mod error;
 mod internal;
-mod knn;
 mod linear_model;
 mod metrics;
 mod model_selection;
 mod naive_bayes;
-mod nearest_centroid;
+mod neighbors;
 mod preprocessing;
 mod tree;
 
 pub use error::{AtlasMlError, AtlasMlResult};
-pub use knn::{
-    classifier::KnnClassifier,
-    config::{AUTO_BRUTE_FORCE_MAX_SAMPLES, KnnConfig, KnnSearchAlgorithm, KnnWeighting},
-    regressor::KnnRegressor,
-};
 pub use linear_model::{
     BinaryLogisticRegression, BinaryPerceptron, LinearRegression, LogisticRegressionConfig,
     PerceptronConfig, PerceptronShufflePolicy, RidgeRegression, RidgeRegressionConfig,
@@ -31,6 +25,9 @@ pub use model_selection::{
     stratified_train_test_split, train_test_split,
 };
 pub use naive_bayes::{GaussianNaiveBayes, GaussianNaiveBayesConfig};
-pub use nearest_centroid::NearestCentroidClassifier;
+pub use neighbors::{
+    AUTO_BRUTE_FORCE_MAX_SAMPLES, KnnClassifier, KnnConfig, KnnRegressor, KnnSearchAlgorithm,
+    KnnWeighting, NearestCentroidClassifier,
+};
 pub use preprocessing::{LabelEncoder, MinMaxScaler, StandardScaler};
 pub use tree::{BinaryGiniSplit, DecisionStumpClassifier, evaluate_binary_gini_split};

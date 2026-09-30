@@ -77,7 +77,7 @@ mod tests {
     use atlas_ndarray::NDArray;
 
     use super::brute_force_search;
-    use crate::knn::{metric::SquaredEuclideanDistance, neighbor::Neighbor};
+    use crate::neighbors::knn::{metric::SquaredEuclideanDistance, neighbor::Neighbor};
 
     fn neighbor(index: usize, distance: f64) -> Neighbor {
         Neighbor { index, distance }

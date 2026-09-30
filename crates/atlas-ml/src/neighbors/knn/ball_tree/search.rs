@@ -4,7 +4,9 @@ use super::{node::BallTreeNode, tree::BallTree};
 use crate::{
     AtlasMlError, AtlasMlResult,
     internal::row::LogicalRow,
-    knn::{metric::DistanceMetric, neighbor::Neighbor, neighbor_set::BoundedNeighborSet},
+    neighbors::knn::{
+        metric::DistanceMetric, neighbor::Neighbor, neighbor_set::BoundedNeighborSet,
+    },
 };
 
 const SEARCH_OP: &str = "ball_tree_search";
@@ -124,7 +126,7 @@ mod tests {
     use atlas_ndarray::NDArray;
 
     use super::BallTree;
-    use crate::knn::{metric::SquaredEuclideanDistance, search::brute_force_search};
+    use crate::neighbors::knn::{metric::SquaredEuclideanDistance, search::brute_force_search};
 
     #[test]
     fn matches_brute_force_neighbors_distances_ties_and_all_neighbor_counts() {

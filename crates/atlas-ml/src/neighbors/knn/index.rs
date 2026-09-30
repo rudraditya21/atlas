@@ -372,7 +372,7 @@ mod tests {
     use atlas_ndarray::NDArray;
 
     use super::TrainingIndex;
-    use crate::knn::{
+    use crate::neighbors::knn::{
         config::KnnSearchAlgorithm, metric::SquaredEuclideanDistance, neighbor::Neighbor,
     };
 

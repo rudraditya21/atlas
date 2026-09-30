@@ -36,7 +36,7 @@ impl BoundedNeighborSet {
 #[cfg(test)]
 mod tests {
     use super::BoundedNeighborSet;
-    use crate::knn::neighbor::Neighbor;
+    use crate::neighbors::knn::neighbor::Neighbor;
 
     fn neighbor(index: usize, distance: f64) -> Neighbor {
         Neighbor { index, distance }
