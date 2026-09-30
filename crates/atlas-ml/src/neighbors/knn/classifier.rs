@@ -1,4 +1,4 @@
-use std::{cell::RefCell, collections::BTreeSet};
+use std::collections::BTreeSet;
 
 use atlas_ndarray::{NDArray, OperandMetadata};
 
@@ -19,7 +19,6 @@ const PREDICT_OP: &str = "knn_classifier_predict";
 const PREDICT_ONE_OP: &str = "knn_classifier_predict_one";
 const PREDICT_PROBA_OP: &str = "knn_classifier_predict_proba";
 
-#[derive(Default)]
 struct VoteScratch {
     counts: Vec<usize>,
     weights: Vec<f64>,
@@ -28,27 +27,22 @@ struct VoteScratch {
 }
 
 impl VoteScratch {
-    fn reset(&mut self, class_count: usize) {
+    fn new(class_count: usize) -> Self {
+        Self {
+            counts: vec![0; class_count],
+            weights: vec![0.0; class_count],
+            total_distances: vec![0.0; class_count],
+            touched: Vec::with_capacity(class_count),
+        }
+    }
+
+    fn reset(&mut self) {
         while let Some(class_index) = self.touched.pop() {
             self.counts[class_index] = 0;
             self.weights[class_index] = 0.0;
             self.total_distances[class_index] = 0.0;
         }
-        self.counts.resize(class_count, 0);
-        self.weights.resize(class_count, 0.0);
-        self.total_distances.resize(class_count, 0.0);
     }
-}
-
-thread_local! {
-    static VOTE_SCRATCH: RefCell<VoteScratch> = const {
-        RefCell::new(VoteScratch {
-            counts: Vec::new(),
-            weights: Vec::new(),
-            total_distances: Vec::new(),
-            touched: Vec::new(),
-        })
-    };
 }
 
 pub struct KnnClassifier {
@@ -126,8 +120,9 @@ impl KnnClassifier {
 
         let query_count = queries.shape()[0];
         let mut predictions = Vec::with_capacity(query_count);
+        let mut votes = VoteScratch::new(self.classes.len());
         for neighbors in self.index.search_batch(queries, self.config.k())? {
-            predictions.push(self.class_from_neighbors(&neighbors));
+            predictions.push(self.class_from_neighbors(&neighbors, &mut votes));
         }
 
         Ok(NDArray::from_shape_vec([query_count], predictions)?)
@@ -144,12 +139,21 @@ impl KnnClassifier {
         validate_finite_feature_values(queries, PREDICT_PROBA_OP)?;
 
         let query_count = queries.shape()[0];
-        let mut probabilities = Vec::with_capacity(query_count * self.classes.len());
-        for neighbors in self.index.search_batch(queries, self.config.k())? {
-            self.append_probabilities(&neighbors, &mut probabilities);
+        let class_count = self.classes.len();
+        let mut probabilities = vec![0.0; query_count * class_count];
+        let mut votes = VoteScratch::new(class_count);
+        for (query_index, neighbors) in
+            self.index.search_batch(queries, self.config.k())?.into_iter().enumerate()
+        {
+            let output_start = query_index * class_count;
+            self.write_probabilities(
+                &neighbors,
+                &mut votes,
+                &mut probabilities[output_start..output_start + class_count],
+            );
         }
 
-        Ok(NDArray::from_shape_vec([query_count, self.classes.len()], probabilities)?)
+        Ok(NDArray::from_shape_vec([query_count, class_count], probabilities)?)
     }
 
     /// Predicts the class for one feature row.
@@ -157,87 +161,77 @@ impl KnnClassifier {
         validate_prediction_feature_row(query, self.feature_count(), PREDICT_ONE_OP)?;
 
         let neighbors = self.index.search(query, self.config.k())?;
-        Ok(self.class_from_neighbors(&neighbors))
+        Ok(self.class_from_neighbors(&neighbors, &mut VoteScratch::new(self.classes.len())))
     }
 
-    fn with_votes<R>(
-        &self,
-        neighbors: &[super::top_k::Neighbor],
-        operation: impl FnOnce(&VoteScratch) -> R,
-    ) -> R {
+    fn collect_votes(&self, neighbors: &[super::top_k::Neighbor], votes: &mut VoteScratch) {
         let exact_matches = self.config.weighting() == KnnWeighting::Distance
             && neighbors.iter().any(|neighbor| neighbor.distance == 0.0);
 
-        VOTE_SCRATCH.with(|storage| {
-            let mut votes = storage.borrow_mut();
-            votes.reset(self.classes.len());
-            for neighbor in neighbors {
-                if exact_matches && neighbor.distance != 0.0 {
-                    continue;
-                }
-
-                let class_index = self.label_class_indices[neighbor.index];
-                if votes.counts[class_index] == 0 {
-                    votes.touched.push(class_index);
-                }
-                votes.counts[class_index] += 1;
-                votes.weights[class_index] += match self.config.weighting() {
-                    KnnWeighting::Uniform => 1.0,
-                    KnnWeighting::Distance if exact_matches => 1.0,
-                    KnnWeighting::Distance => neighbor.distance.sqrt().recip(),
-                };
-                votes.total_distances[class_index] += neighbor.distance;
+        votes.reset();
+        for neighbor in neighbors {
+            if exact_matches && neighbor.distance != 0.0 {
+                continue;
             }
 
-            operation(&votes)
-        })
-    }
-
-    fn class_from_neighbors(&self, neighbors: &[super::top_k::Neighbor]) -> usize {
-        self.with_votes(neighbors, |votes| {
-            let mut best = *votes
-                .touched
-                .first()
-                .expect("a fitted classifier always has at least one neighbor");
-            for &candidate in &votes.touched[1..] {
-                let ordering = votes.weights[candidate]
-                    .total_cmp(&votes.weights[best])
-                    .then_with(|| {
-                        votes.total_distances[best].total_cmp(&votes.total_distances[candidate])
-                    })
-                    .then_with(|| self.classes[best].cmp(&self.classes[candidate]));
-                if ordering.is_gt() {
-                    best = candidate;
-                }
+            let class_index = self.label_class_indices[neighbor.index];
+            if votes.counts[class_index] == 0 {
+                votes.touched.push(class_index);
             }
-            self.classes[best]
-        })
+            votes.counts[class_index] += 1;
+            votes.weights[class_index] += match self.config.weighting() {
+                KnnWeighting::Uniform => 1.0,
+                KnnWeighting::Distance if exact_matches => 1.0,
+                KnnWeighting::Distance => neighbor.distance.sqrt().recip(),
+            };
+            votes.total_distances[class_index] += neighbor.distance;
+        }
     }
 
-    fn append_probabilities(
+    fn class_from_neighbors(
         &self,
         neighbors: &[super::top_k::Neighbor],
-        probabilities: &mut Vec<f64>,
-    ) {
-        self.with_votes(neighbors, |votes| {
-            let total_weight = votes.touched.iter().map(|&index| votes.weights[index]).sum::<f64>();
-            let fallback_to_counts = total_weight == 0.0;
-            let normalizer = if fallback_to_counts {
-                votes.touched.iter().map(|&index| votes.counts[index]).sum::<usize>() as f64
-            } else {
-                total_weight
-            };
-            let output_start = probabilities.len();
-            probabilities.resize(output_start + self.classes.len(), 0.0);
-            for &class_index in &votes.touched {
-                let weight = if fallback_to_counts {
-                    votes.counts[class_index] as f64
-                } else {
-                    votes.weights[class_index]
-                };
-                probabilities[output_start + class_index] = weight / normalizer;
+        votes: &mut VoteScratch,
+    ) -> usize {
+        self.collect_votes(neighbors, votes);
+        let mut best =
+            *votes.touched.first().expect("a fitted classifier always has at least one neighbor");
+        for &candidate in &votes.touched[1..] {
+            let ordering = votes.weights[candidate]
+                .total_cmp(&votes.weights[best])
+                .then_with(|| {
+                    votes.total_distances[best].total_cmp(&votes.total_distances[candidate])
+                })
+                .then_with(|| self.classes[best].cmp(&self.classes[candidate]));
+            if ordering.is_gt() {
+                best = candidate;
             }
-        });
+        }
+        self.classes[best]
+    }
+
+    fn write_probabilities(
+        &self,
+        neighbors: &[super::top_k::Neighbor],
+        votes: &mut VoteScratch,
+        probabilities: &mut [f64],
+    ) {
+        self.collect_votes(neighbors, votes);
+        let total_weight = votes.touched.iter().map(|&index| votes.weights[index]).sum::<f64>();
+        let fallback_to_counts = total_weight == 0.0;
+        let normalizer = if fallback_to_counts {
+            votes.touched.iter().map(|&index| votes.counts[index]).sum::<usize>() as f64
+        } else {
+            total_weight
+        };
+        for &class_index in &votes.touched {
+            let weight = if fallback_to_counts {
+                votes.counts[class_index] as f64
+            } else {
+                votes.weights[class_index]
+            };
+            probabilities[class_index] = weight / normalizer;
+        }
     }
 }
 
