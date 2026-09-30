@@ -2,11 +2,12 @@ use atlas_linalg::{affine, qr};
 use atlas_ndarray::{NDArray, OperandMetadata};
 
 use crate::{
-    AtlasMlResult, coefficient_of_determination,
+    error::AtlasMlResult,
     internal::validation::{
         validate_finite_feature_values, validate_finite_target_values,
         validate_prediction_feature_inputs, validate_supervised_training_inputs,
     },
+    metrics::coefficient_of_determination,
 };
 
 const FIT_OP: &str = "linear_regression_fit";

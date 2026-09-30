@@ -2,12 +2,13 @@ use atlas_linalg::{affine, qr};
 use atlas_ndarray::{NDArray, OperandMetadata};
 
 use crate::{
-    AtlasMlError, AtlasMlResult, coefficient_of_determination,
+    error::{AtlasMlError, AtlasMlResult},
     internal::validation::{
         validate_finite_feature_values, validate_finite_target_values,
         validate_prediction_feature_inputs, validate_sample_weights,
         validate_supervised_training_inputs,
     },
+    metrics::coefficient_of_determination,
 };
 
 const CONFIG_OP: &str = "ridge_regression_config";

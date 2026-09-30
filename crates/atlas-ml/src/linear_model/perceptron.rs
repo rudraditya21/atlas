@@ -2,7 +2,7 @@ use atlas_linalg::affine;
 use atlas_ndarray::{NDArray, OperandMetadata};
 
 use crate::{
-    AtlasMlError, AtlasMlResult,
+    error::{AtlasMlError, AtlasMlResult},
     internal::validation::{
         validate_binary_labels, validate_finite_feature_values, validate_prediction_feature_inputs,
         validate_supervised_training_inputs,
