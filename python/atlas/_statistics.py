@@ -1,7 +1,7 @@
 """Statistical functions exposed by Atlas."""
 
 from . import _native
-from ._support import _coerce_arrays, _coerce_binary_operands, _coerce_weighted_operands
+from ._support import _coerce_arrays, _coerce_weighted_operands
 
 kurtosis = _native.kurtosis
 skewness = _native.skewness
@@ -48,7 +48,9 @@ for _name in (
     globals()[_name] = _coerce_arrays(globals()[_name], required=((0, "value"),))
 
 for _name in ("covariance", "correlation"):
-    globals()[_name] = _coerce_binary_operands(globals()[_name])
+    globals()[_name] = _coerce_arrays(
+        globals()[_name], required=((0, "lhs"), (1, "rhs"))
+    )
 
 for _name in ("weighted_mean", "weighted_variance"):
     globals()[_name] = _coerce_weighted_operands(globals()[_name])

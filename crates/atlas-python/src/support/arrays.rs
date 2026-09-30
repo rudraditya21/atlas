@@ -1,4 +1,4 @@
-use atlas_ndarray::{ArrayElement, NDArray};
+use atlas_ndarray::{ArrayElement, NDArray, RuntimeScalar};
 use numpy::{
     Element, PyArray1, PyArrayDescr, PyArrayDescrMethods, PyArrayDyn, PyArrayMethods,
     PyReadonlyArrayDyn, dtype,
@@ -28,6 +28,28 @@ where
 
     NDArray::from_shape_vec(shape, data)
         .map_err(|error| Python::attach(|py| crate::support::errors::ndarray(py, error)))
+}
+
+pub(crate) fn from_numpy_promoted<T>(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    source: DType,
+) -> PyResult<NDArray<T>>
+where
+    T: ArrayElement + Element + RuntimeScalar,
+{
+    if source.name() == T::dtype().name() {
+        return from_numpy(readonly_from_python::<T>(py, value)?);
+    }
+
+    crate::support::dtypes::with_dtype!(
+        source,
+        all | S | {
+            from_numpy(readonly_from_python::<S>(py, value)?)?
+                .astype_with_mode::<T>(atlas_ndarray::CastMode::Lossy)
+                .map_err(|error| crate::support::errors::ndarray(py, error))
+        }
+    )
 }
 
 pub(crate) fn feature_matrix_f64(

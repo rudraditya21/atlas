@@ -77,16 +77,28 @@ def _coerce_arrays(function, *, required=(), optional=()):
 
 
 def _coerce_binary_operands(function):
-    """Coerce binary operands to their NumPy-promoted dtype."""
+    """Coerce array-like operands without performing dtype promotion."""
 
     @wraps(function)
     def wrapper(lhs, rhs):
         lhs_value = _array_like(lhs) if _is_array_like(lhs) else lhs
         rhs_value = _array_like(rhs) if _is_array_like(rhs) else rhs
-        dtype = np.result_type(lhs_value, rhs_value)
-        return function(
-            np.asarray(lhs_value, dtype=dtype), np.asarray(rhs_value, dtype=dtype)
-        )
+        if not isinstance(lhs_value, np.ndarray):
+            if isinstance(lhs_value, (bool, int)) and isinstance(rhs_value, np.ndarray):
+                lhs_value = np.asarray(lhs_value, dtype=rhs_value.dtype)
+            else:
+                lhs_value = np.asarray(lhs_value)
+        if isinstance(rhs_value, bool) and lhs_value.dtype != np.dtype(bool):
+            rhs_value = np.asarray(rhs_value, dtype=lhs_value.dtype)
+        elif isinstance(rhs_value, int) and lhs_value.dtype == np.dtype(bool):
+            rhs_value = np.asarray(rhs_value)
+        elif isinstance(rhs_value, np.generic):
+            rhs_value = np.asarray(rhs_value)
+        elif isinstance(rhs_value, float) and not np.issubdtype(
+            lhs_value.dtype, np.floating
+        ):
+            rhs_value = np.asarray(rhs_value)
+        return function(lhs_value, rhs_value)
 
     return wrapper
 

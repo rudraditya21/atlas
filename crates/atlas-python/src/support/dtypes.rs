@@ -195,6 +195,47 @@ impl DType {
         matches!(self, Self::UInt8 | Self::UInt16 | Self::UInt32 | Self::UInt64)
     }
 
+    pub(crate) fn promote_with(self, other: Self) -> Self {
+        let promoted = self.as_runtime().promote_with(other.as_runtime());
+
+        Self::from_runtime(promoted)
+    }
+
+    fn as_runtime(self) -> atlas_ndarray::DType {
+        match self {
+            Self::Bool => atlas_ndarray::DType::Bool,
+            Self::Int8 => atlas_ndarray::DType::I8,
+            Self::Int16 => atlas_ndarray::DType::I16,
+            Self::Int32 => atlas_ndarray::DType::I32,
+            Self::Int64 => atlas_ndarray::DType::I64,
+            Self::UInt8 => atlas_ndarray::DType::U8,
+            Self::UInt16 => atlas_ndarray::DType::U16,
+            Self::UInt32 => atlas_ndarray::DType::U32,
+            Self::UInt64 => atlas_ndarray::DType::U64,
+            Self::Float32 => atlas_ndarray::DType::F32,
+            Self::Float64 => atlas_ndarray::DType::F64,
+        }
+    }
+
+    fn from_runtime(dtype: atlas_ndarray::DType) -> Self {
+        match dtype {
+            atlas_ndarray::DType::Bool => Self::Bool,
+            atlas_ndarray::DType::I8 => Self::Int8,
+            atlas_ndarray::DType::I16 => Self::Int16,
+            atlas_ndarray::DType::I32 => Self::Int32,
+            atlas_ndarray::DType::I64 => Self::Int64,
+            atlas_ndarray::DType::U8 => Self::UInt8,
+            atlas_ndarray::DType::U16 => Self::UInt16,
+            atlas_ndarray::DType::U32 => Self::UInt32,
+            atlas_ndarray::DType::U64 => Self::UInt64,
+            atlas_ndarray::DType::F32 => Self::Float32,
+            atlas_ndarray::DType::F64 => Self::Float64,
+            atlas_ndarray::DType::Isize | atlas_ndarray::DType::Usize => {
+                unreachable!("fixed-width Python dtypes do not promote to pointer-width dtypes")
+            }
+        }
+    }
+
     fn from_name(name: &str) -> Option<Self> {
         match name {
             "bool" => Some(Self::Bool),

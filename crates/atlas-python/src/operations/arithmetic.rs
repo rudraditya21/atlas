@@ -1,6 +1,10 @@
 use pyo3::{exceptions::PyTypeError, prelude::*};
 
-use crate::support::{arrays as array, gil};
+use crate::support::{
+    arrays as array,
+    dtypes::{DType, with_dtype},
+    gil,
+};
 
 #[derive(Clone, Copy)]
 enum Operation {
@@ -48,22 +52,43 @@ fn apply(
     rhs: &Bound<'_, PyAny>,
     operation: Operation,
 ) -> PyResult<Py<PyAny>> {
-    array::require_numpy_array(py, lhs)?;
-    let dtype: String = lhs.getattr("dtype")?.getattr("name")?.extract()?;
+    let lhs_dtype = array::source_dtype(py, lhs)?;
+    if array::is_numpy_array(py, rhs)? {
+        let rhs_dtype = array::source_dtype(py, rhs)?;
+        let promoted = lhs_dtype.promote_with(rhs_dtype);
+        if matches!(promoted, DType::Bool) {
+            return Err(PyTypeError::new_err("arithmetic does not support bool dtype"));
+        }
 
-    match dtype.as_str() {
-        "int8" => apply_i8(py, lhs, rhs, operation),
-        "int16" => apply_i16(py, lhs, rhs, operation),
-        "int32" => apply_i32(py, lhs, rhs, operation),
-        "int64" => apply_i64(py, lhs, rhs, operation),
-        "uint8" => apply_u8(py, lhs, rhs, operation),
-        "uint16" => apply_u16(py, lhs, rhs, operation),
-        "uint32" => apply_u32(py, lhs, rhs, operation),
-        "uint64" => apply_u64(py, lhs, rhs, operation),
-        "float32" => apply_f32(py, lhs, rhs, operation),
-        "float64" => apply_f64(py, lhs, rhs, operation),
-        "bool" => Err(PyTypeError::new_err("arithmetic does not support bool dtype")),
-        _ => Err(PyTypeError::new_err(format!("unsupported NumPy dtype {dtype}"))),
+        return with_dtype!(
+            promoted,
+            numeric | T | {
+                let lhs = array::from_numpy_promoted::<T>(py, lhs, lhs_dtype)?;
+                let rhs = array::from_numpy_promoted::<T>(py, rhs, rhs_dtype)?;
+                let result = gil::without_gil(py, move || match operation {
+                    Operation::Add => &lhs + &rhs,
+                    Operation::Subtract => &lhs - &rhs,
+                    Operation::Multiply => &lhs * &rhs,
+                    Operation::Divide => &lhs / &rhs,
+                })
+                .map_err(|error| crate::support::errors::ndarray(py, error))?;
+                Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
+            }
+        );
+    }
+
+    match lhs_dtype {
+        DType::Int8 => apply_i8(py, lhs, rhs, operation),
+        DType::Int16 => apply_i16(py, lhs, rhs, operation),
+        DType::Int32 => apply_i32(py, lhs, rhs, operation),
+        DType::Int64 => apply_i64(py, lhs, rhs, operation),
+        DType::UInt8 => apply_u8(py, lhs, rhs, operation),
+        DType::UInt16 => apply_u16(py, lhs, rhs, operation),
+        DType::UInt32 => apply_u32(py, lhs, rhs, operation),
+        DType::UInt64 => apply_u64(py, lhs, rhs, operation),
+        DType::Float32 => apply_f32(py, lhs, rhs, operation),
+        DType::Float64 => apply_f64(py, lhs, rhs, operation),
+        DType::Bool => Err(PyTypeError::new_err("arithmetic does not support bool dtype")),
     }
 }
 

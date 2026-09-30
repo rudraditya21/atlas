@@ -193,22 +193,40 @@ fn compare(
     rhs: &Bound<'_, PyAny>,
     comparison: Comparison,
 ) -> PyResult<Py<PyAny>> {
-    array::require_numpy_array(py, lhs)?;
-    let dtype: String = lhs.getattr("dtype")?.getattr("name")?.extract()?;
+    let lhs_dtype = array::source_dtype(py, lhs)?;
+    if array::is_numpy_array(py, rhs)? {
+        let rhs_dtype = array::source_dtype(py, rhs)?;
+        let promoted = lhs_dtype.promote_with(rhs_dtype);
+        return with_dtype!(
+            promoted,
+            all | T | {
+                let lhs = array::from_numpy_promoted::<T>(py, lhs, lhs_dtype)?;
+                let rhs = array::from_numpy_promoted::<T>(py, rhs, rhs_dtype)?;
+                let result = gil::without_gil(py, move || match comparison {
+                    Comparison::Equal => lhs.eq(&rhs),
+                    Comparison::NotEqual => lhs.ne(&rhs),
+                    Comparison::Less => lhs.lt(&rhs),
+                    Comparison::LessEqual => lhs.le(&rhs),
+                    Comparison::Greater => lhs.gt(&rhs),
+                    Comparison::GreaterEqual => lhs.ge(&rhs),
+                });
+                output(py, result)
+            }
+        );
+    }
 
-    match dtype.as_str() {
-        "bool" => compare_bool(py, lhs, rhs, comparison),
-        "int8" => compare_i8(py, lhs, rhs, comparison),
-        "int16" => compare_i16(py, lhs, rhs, comparison),
-        "int32" => compare_i32(py, lhs, rhs, comparison),
-        "int64" => compare_i64(py, lhs, rhs, comparison),
-        "uint8" => compare_u8(py, lhs, rhs, comparison),
-        "uint16" => compare_u16(py, lhs, rhs, comparison),
-        "uint32" => compare_u32(py, lhs, rhs, comparison),
-        "uint64" => compare_u64(py, lhs, rhs, comparison),
-        "float32" => compare_f32(py, lhs, rhs, comparison),
-        "float64" => compare_f64(py, lhs, rhs, comparison),
-        _ => Err(PyTypeError::new_err(format!("unsupported NumPy dtype {dtype}"))),
+    match lhs_dtype {
+        crate::support::dtypes::DType::Bool => compare_bool(py, lhs, rhs, comparison),
+        crate::support::dtypes::DType::Int8 => compare_i8(py, lhs, rhs, comparison),
+        crate::support::dtypes::DType::Int16 => compare_i16(py, lhs, rhs, comparison),
+        crate::support::dtypes::DType::Int32 => compare_i32(py, lhs, rhs, comparison),
+        crate::support::dtypes::DType::Int64 => compare_i64(py, lhs, rhs, comparison),
+        crate::support::dtypes::DType::UInt8 => compare_u8(py, lhs, rhs, comparison),
+        crate::support::dtypes::DType::UInt16 => compare_u16(py, lhs, rhs, comparison),
+        crate::support::dtypes::DType::UInt32 => compare_u32(py, lhs, rhs, comparison),
+        crate::support::dtypes::DType::UInt64 => compare_u64(py, lhs, rhs, comparison),
+        crate::support::dtypes::DType::Float32 => compare_f32(py, lhs, rhs, comparison),
+        crate::support::dtypes::DType::Float64 => compare_f64(py, lhs, rhs, comparison),
     }
 }
 
