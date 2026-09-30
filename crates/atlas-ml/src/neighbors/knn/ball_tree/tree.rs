@@ -5,7 +5,9 @@ use crate::{
     AtlasMlError, AtlasMlResult,
     internal::row::LogicalRow,
     neighbors::knn::{
-        metric::DistanceMetric, neighbor::Neighbor, neighbor_set::BoundedNeighborSet,
+        metric::{ball_squared_distance_lower_bound, squared_distance_to_row},
+        neighbor::Neighbor,
+        neighbor_set::BoundedNeighborSet,
     },
 };
 
@@ -55,21 +57,19 @@ impl BallTree {
         })
     }
 
-    pub(crate) fn search<F, M>(
+    pub(crate) fn search<F>(
         &self,
         features: &F,
         query: &[f64],
         k: usize,
-        metric: &M,
     ) -> AtlasMlResult<Vec<Neighbor>>
     where
         F: OperandMetadata<f64> + ?Sized,
-        M: DistanceMetric + ?Sized,
     {
         validate_search_inputs(self, features, query, k)?;
 
         let mut candidates = BoundedNeighborSet::new(k);
-        search_node(self.root(), features, query, metric, &mut candidates);
+        search_node(self.root(), features, query, &mut candidates);
 
         Ok(candidates.neighbors().to_vec())
     }
@@ -251,44 +251,39 @@ where
     Ok(())
 }
 
-fn search_node<F, M>(
+fn search_node<F>(
     node: &BallTreeNode,
     features: &F,
     query: &[f64],
-    metric: &M,
     candidates: &mut BoundedNeighborSet,
 ) where
     F: OperandMetadata<f64> + ?Sized,
-    M: DistanceMetric + ?Sized,
 {
     if let Some(indices) = node.leaf_indices() {
         for &index in indices {
             candidates.insert(Neighbor {
                 index,
-                distance: metric.distance_to_row(LogicalRow::from_operand(features, index), query),
+                distance: squared_distance_to_row(LogicalRow::from_operand(features, index), query),
             });
         }
         return;
     }
 
     let (left, right) = node.children().expect("internal Ball-tree nodes have two children");
-    let left_bound = metric.ball_distance_lower_bound(query, left.center(), left.radius());
-    let right_bound = metric.ball_distance_lower_bound(query, right.center(), right.radius());
-    let (near, far, far_bound) = match (left_bound, right_bound) {
-        (Some(left_bound), Some(right_bound)) if right_bound < left_bound => {
-            (right, left, Some(left_bound))
-        }
-        _ => (left, right, right_bound),
+    let left_bound = ball_squared_distance_lower_bound(query, left.center(), left.radius());
+    let right_bound = ball_squared_distance_lower_bound(query, right.center(), right.radius());
+    let (near, far, far_bound) = if right_bound < left_bound {
+        (right, left, left_bound)
+    } else {
+        (left, right, right_bound)
     };
 
-    search_node(near, features, query, metric, candidates);
+    search_node(near, features, query, candidates);
 
     let should_visit_far = !candidates.is_full()
-        || far_bound.is_none_or(|lower_bound| {
-            can_match_candidate(lower_bound, candidates.neighbors().last().unwrap().distance)
-        });
+        || can_match_candidate(far_bound, candidates.neighbors().last().unwrap().distance);
     if should_visit_far {
-        search_node(far, features, query, metric, candidates);
+        search_node(far, features, query, candidates);
     }
 }
 
@@ -303,7 +298,7 @@ mod tests {
     use atlas_ndarray::NDArray;
 
     use super::{BallTree, BallTreeNode};
-    use crate::neighbors::knn::{metric::SquaredEuclideanDistance, search::brute_force_search};
+    use crate::neighbors::knn::search::brute_force_search;
 
     #[test]
     fn partitions_duplicate_points_deterministically() {
@@ -358,8 +353,8 @@ mod tests {
         for query in [&[0.0_f64, 0.0][..], &[4.0_f64, 4.0][..]] {
             for k in 1..=features.shape()[0] {
                 assert_eq!(
-                    tree.search(&features, query, k, &SquaredEuclideanDistance),
-                    brute_force_search(&features, query, k, &SquaredEuclideanDistance)
+                    tree.search(&features, query, k),
+                    brute_force_search(&features, query, k)
                 );
             }
         }
@@ -374,10 +369,7 @@ mod tests {
         let query = [1.5_f64, 1.5];
 
         for k in 1..=features.shape()[0] {
-            assert_eq!(
-                tree.search(&features, &query, k, &SquaredEuclideanDistance),
-                brute_force_search(&features, &query, k, &SquaredEuclideanDistance)
-            );
+            assert_eq!(tree.search(&features, &query, k), brute_force_search(&features, &query, k));
         }
     }
 
@@ -388,10 +380,7 @@ mod tests {
         let tree = BallTree::build(&features).unwrap();
         let query = [1.0_f64, 1.0];
 
-        assert_eq!(
-            tree.search(&features, &query, 2, &SquaredEuclideanDistance),
-            brute_force_search(&features, &query, 2, &SquaredEuclideanDistance)
-        );
+        assert_eq!(tree.search(&features, &query, 2), brute_force_search(&features, &query, 2));
     }
 
     fn leaf_indices(node: &BallTreeNode) -> Vec<usize> {

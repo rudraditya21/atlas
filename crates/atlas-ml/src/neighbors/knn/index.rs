@@ -4,8 +4,8 @@ use atlas_ndarray::{NDArray, OperandMetadata};
 use rayon::prelude::*;
 
 use super::{
-    backend::NeighborSearchBackend, config::KnnSearchAlgorithm, metric::DistanceMetric,
-    neighbor::Neighbor, neighbor_set::BoundedNeighborSet, search::brute_force_search,
+    backend::NeighborSearchBackend, config::KnnSearchAlgorithm, neighbor::Neighbor,
+    neighbor_set::BoundedNeighborSet,
 };
 use crate::{
     AtlasMlError, AtlasMlResult,
@@ -46,40 +46,25 @@ impl TrainingIndex {
         self.backend.algorithm()
     }
 
-    pub(crate) fn search(
-        &self,
-        query: &[f64],
-        k: usize,
-        metric: &dyn DistanceMetric,
-    ) -> AtlasMlResult<Vec<Neighbor>> {
+    pub(crate) fn search(&self, query: &[f64], k: usize) -> AtlasMlResult<Vec<Neighbor>> {
         match &self.backend {
-            NeighborSearchBackend::BruteForce if metric.supports_squared_euclidean_expansion() => {
+            NeighborSearchBackend::BruteForce => {
                 let queries = NDArray::from_shape_vec([1, query.len()], query.to_vec())?;
                 Ok(self
                     .search_gemm_batch(&queries, k)?
                     .pop()
                     .expect("one query produces one neighbor batch"))
             }
-            NeighborSearchBackend::BruteForce => {
-                brute_force_search(&self.features, query, k, metric)
-            }
-            NeighborSearchBackend::KdTree(tree) => tree.search(&self.features, query, k, metric),
-            NeighborSearchBackend::BallTree(tree) => tree.search(&self.features, query, k, metric),
+            NeighborSearchBackend::KdTree(tree) => tree.search(&self.features, query, k),
+            NeighborSearchBackend::BallTree(tree) => tree.search(&self.features, query, k),
         }
     }
 
-    pub(crate) fn search_batch<Q>(
-        &self,
-        queries: &Q,
-        k: usize,
-        metric: &dyn DistanceMetric,
-    ) -> AtlasMlResult<Vec<Vec<Neighbor>>>
+    pub(crate) fn search_batch<Q>(&self, queries: &Q, k: usize) -> AtlasMlResult<Vec<Vec<Neighbor>>>
     where
         Q: OperandMetadata<f64> + Sync + ?Sized,
     {
-        if self.backend.algorithm() == KnnSearchAlgorithm::BruteForce
-            && metric.supports_squared_euclidean_expansion()
-        {
+        if self.backend.algorithm() == KnnSearchAlgorithm::BruteForce {
             return self.search_gemm_batch(queries, k);
         }
 
@@ -92,12 +77,12 @@ impl TrainingIndex {
         let blocks = if should_parallelize_inference(block_starts.len(), work_items) {
             block_starts
                 .into_par_iter()
-                .map(|block_start| self.search_block(queries, block_start, k, metric))
+                .map(|block_start| self.search_block(queries, block_start, k))
                 .collect::<AtlasMlResult<Vec<_>>>()?
         } else {
             block_starts
                 .into_iter()
-                .map(|block_start| self.search_block(queries, block_start, k, metric))
+                .map(|block_start| self.search_block(queries, block_start, k))
                 .collect::<AtlasMlResult<Vec<_>>>()?
         };
 
@@ -263,7 +248,6 @@ impl TrainingIndex {
         queries: &Q,
         block_start: usize,
         k: usize,
-        metric: &dyn DistanceMetric,
     ) -> AtlasMlResult<Vec<Vec<Neighbor>>>
     where
         Q: OperandMetadata<f64> + ?Sized,
@@ -277,7 +261,7 @@ impl TrainingIndex {
                     &queries.data()[start..start + feature_count]
                 })
                 .collect::<Vec<_>>();
-            query_rows.iter().map(|query| self.search(query, k, metric)).collect()
+            query_rows.iter().map(|query| self.search(query, k)).collect()
         } else {
             let block_len = block_end - block_start;
             let mut values = Vec::with_capacity(block_len * feature_count);
@@ -293,7 +277,7 @@ impl TrainingIndex {
                     &values[start..start + feature_count]
                 })
                 .collect::<Vec<_>>();
-            query_rows.iter().map(|query| self.search(query, k, metric)).collect()
+            query_rows.iter().map(|query| self.search(query, k)).collect()
         }
     }
 }
@@ -368,9 +352,7 @@ mod tests {
     use atlas_ndarray::NDArray;
 
     use super::TrainingIndex;
-    use crate::neighbors::knn::{
-        config::KnnSearchAlgorithm, metric::SquaredEuclideanDistance, neighbor::Neighbor,
-    };
+    use crate::neighbors::knn::{config::KnnSearchAlgorithm, neighbor::Neighbor};
 
     #[test]
     fn retains_owned_training_features_and_shape() {
@@ -395,10 +377,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(index.search_algorithm(), KnnSearchAlgorithm::BruteForce);
-        assert_eq!(
-            index.search(&[1.0], 1, &SquaredEuclideanDistance),
-            Ok(vec![Neighbor { index: 0, distance: 1.0 }])
-        );
+        assert_eq!(index.search(&[1.0], 1), Ok(vec![Neighbor { index: 0, distance: 1.0 }]));
     }
 
     #[test]
@@ -431,16 +410,10 @@ mod tests {
             )
             .unwrap();
 
+            assert_eq!(index.search_batch(&queries, 2), Ok(expected.clone()));
+            assert_eq!(index.search_batch(&empty_queries, 2), Ok(Vec::new()));
             assert_eq!(
-                index.search_batch(&queries, 2, &SquaredEuclideanDistance),
-                Ok(expected.clone())
-            );
-            assert_eq!(
-                index.search_batch(&empty_queries, 2, &SquaredEuclideanDistance),
-                Ok(Vec::new())
-            );
-            assert_eq!(
-                index.search_batch(&invalid_queries, 2, &SquaredEuclideanDistance),
+                index.search_batch(&invalid_queries, 2),
                 Err(crate::AtlasMlError::ShapeMismatch {
                     op: error_op,
                     left: vec![2],

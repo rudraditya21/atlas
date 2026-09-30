@@ -1,33 +1,31 @@
 use atlas_ndarray::OperandMetadata;
 
-use super::{metric::DistanceMetric, neighbor::Neighbor, neighbor_set::BoundedNeighborSet};
+use super::{
+    metric::squared_distance_to_row, neighbor::Neighbor, neighbor_set::BoundedNeighborSet,
+};
 use crate::{AtlasMlError, AtlasMlResult, internal::row::LogicalRow};
 
 const OP: &str = "brute_force_knn_search";
 
-pub(crate) fn brute_force_search<F, M>(
+pub(crate) fn brute_force_search<F>(
     training_features: &F,
     query: &[f64],
     k: usize,
-    metric: &M,
 ) -> AtlasMlResult<Vec<Neighbor>>
 where
     F: OperandMetadata<f64> + ?Sized,
-    M: DistanceMetric + ?Sized,
 {
-    let mut batches = brute_force_search_batch(training_features, &[query], k, metric)?;
+    let mut batches = brute_force_search_batch(training_features, &[query], k)?;
     Ok(batches.pop().expect("one query produces one neighbor batch"))
 }
 
-pub(crate) fn brute_force_search_batch<F, M>(
+pub(crate) fn brute_force_search_batch<F>(
     training_features: &F,
     queries: &[&[f64]],
     k: usize,
-    metric: &M,
 ) -> AtlasMlResult<Vec<Vec<Neighbor>>>
 where
     F: OperandMetadata<f64> + ?Sized,
-    M: DistanceMetric + ?Sized,
 {
     if training_features.ndim() != 2 {
         return Err(AtlasMlError::InvalidInputRank {
@@ -64,7 +62,7 @@ where
         for (&query, neighbors) in queries.iter().zip(&mut neighbor_sets) {
             neighbors.insert(Neighbor {
                 index: sample_index,
-                distance: metric.distance_to_row(row, query),
+                distance: squared_distance_to_row(row, query),
             });
         }
     }
@@ -77,7 +75,7 @@ mod tests {
     use atlas_ndarray::NDArray;
 
     use super::brute_force_search;
-    use crate::neighbors::knn::{metric::SquaredEuclideanDistance, neighbor::Neighbor};
+    use crate::neighbors::knn::neighbor::Neighbor;
 
     fn neighbor(index: usize, distance: f64) -> Neighbor {
         Neighbor { index, distance }
@@ -90,7 +88,7 @@ mod tests {
                 .unwrap();
 
         assert_eq!(
-            brute_force_search(&training, &[1.5, 1.5], 2, &SquaredEuclideanDistance),
+            brute_force_search(&training, &[1.5, 1.5], 2),
             Ok(vec![neighbor(1, 0.5), neighbor(0, 4.5)])
         );
     }
@@ -102,7 +100,7 @@ mod tests {
         let training = values.view().transpose();
 
         assert_eq!(
-            brute_force_search(&training, &[1.5, 1.5], 2, &SquaredEuclideanDistance),
+            brute_force_search(&training, &[1.5, 1.5], 2),
             Ok(vec![neighbor(1, 0.5), neighbor(0, 4.5)])
         );
     }
@@ -113,7 +111,7 @@ mod tests {
             NDArray::from_shape_vec([3, 2], vec![-1.0_f64, 0.0, 1.0, 0.0, 0.0, 2.0]).unwrap();
 
         assert_eq!(
-            brute_force_search(&training, &[0.0, 0.0], 2, &SquaredEuclideanDistance),
+            brute_force_search(&training, &[0.0, 0.0], 2),
             Ok(vec![neighbor(0, 1.0), neighbor(1, 1.0)])
         );
     }
@@ -128,10 +126,7 @@ mod tests {
         ];
 
         for (k, neighbors) in (1..=3).zip(expected) {
-            assert_eq!(
-                brute_force_search(&training, &[0.0], k, &SquaredEuclideanDistance),
-                Ok(neighbors)
-            );
+            assert_eq!(brute_force_search(&training, &[0.0], k), Ok(neighbors));
         }
     }
 }

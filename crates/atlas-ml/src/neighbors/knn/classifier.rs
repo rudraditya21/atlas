@@ -5,7 +5,6 @@ use atlas_ndarray::{NDArray, OperandMetadata};
 use super::{
     config::{KnnConfig, KnnSearchAlgorithm, KnnWeighting},
     index::TrainingIndex,
-    metric::SquaredEuclideanDistance,
 };
 use crate::{
     AtlasMlResult,
@@ -127,9 +126,7 @@ impl KnnClassifier {
 
         let query_count = queries.shape()[0];
         let mut predictions = Vec::with_capacity(query_count);
-        for neighbors in
-            self.index.search_batch(queries, self.config.k(), &SquaredEuclideanDistance)?
-        {
+        for neighbors in self.index.search_batch(queries, self.config.k())? {
             predictions.push(self.class_from_neighbors(&neighbors));
         }
 
@@ -148,9 +145,7 @@ impl KnnClassifier {
 
         let query_count = queries.shape()[0];
         let mut probabilities = Vec::with_capacity(query_count * self.classes.len());
-        for neighbors in
-            self.index.search_batch(queries, self.config.k(), &SquaredEuclideanDistance)?
-        {
+        for neighbors in self.index.search_batch(queries, self.config.k())? {
             self.append_probabilities(&neighbors, &mut probabilities);
         }
 
@@ -161,7 +156,7 @@ impl KnnClassifier {
     pub fn predict_one(&self, query: &[f64]) -> AtlasMlResult<usize> {
         validate_prediction_feature_row(query, self.feature_count(), PREDICT_ONE_OP)?;
 
-        let neighbors = self.index.search(query, self.config.k(), &SquaredEuclideanDistance)?;
+        let neighbors = self.index.search(query, self.config.k())?;
         Ok(self.class_from_neighbors(&neighbors))
     }
 

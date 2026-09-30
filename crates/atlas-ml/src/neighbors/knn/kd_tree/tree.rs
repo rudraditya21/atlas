@@ -5,7 +5,9 @@ use crate::{
     AtlasMlError, AtlasMlResult,
     internal::row::LogicalRow,
     neighbors::knn::{
-        metric::DistanceMetric, neighbor::Neighbor, neighbor_set::BoundedNeighborSet,
+        metric::{axis_squared_distance_lower_bound, squared_distance_to_row},
+        neighbor::Neighbor,
+        neighbor_set::BoundedNeighborSet,
     },
 };
 
@@ -60,21 +62,19 @@ impl KdTree {
         Ok(Self { root, sample_count, feature_count })
     }
 
-    pub(crate) fn search<F, M>(
+    pub(crate) fn search<F>(
         &self,
         features: &F,
         query: &[f64],
         k: usize,
-        metric: &M,
     ) -> AtlasMlResult<Vec<Neighbor>>
     where
         F: OperandMetadata<f64> + ?Sized,
-        M: DistanceMetric + ?Sized,
     {
         validate_search_inputs(self, features, query, k)?;
 
         let mut candidates = BoundedNeighborSet::new(k);
-        search_node(self.root(), features, query, metric, &mut candidates);
+        search_node(self.root(), features, query, &mut candidates);
 
         Ok(candidates.neighbors().to_vec())
     }
@@ -171,21 +171,19 @@ where
     Ok(())
 }
 
-fn search_node<F, M>(
+fn search_node<F>(
     node: &KdTreeNode,
     features: &F,
     query: &[f64],
-    metric: &M,
     candidates: &mut BoundedNeighborSet,
 ) where
     F: OperandMetadata<f64> + ?Sized,
-    M: DistanceMetric + ?Sized,
 {
     if let Some(indices) = node.leaf_indices() {
         for &index in indices {
             candidates.insert(Neighbor {
                 index,
-                distance: metric.distance_to_row(LogicalRow::from_operand(features, index), query),
+                distance: squared_distance_to_row(LogicalRow::from_operand(features, index), query),
             });
         }
         return;
@@ -197,14 +195,13 @@ fn search_node<F, M>(
     let (left, right) = node.children().expect("internal KD-tree nodes have two children");
     let (near, far) = if query[split_axis] <= split_value { (left, right) } else { (right, left) };
 
-    search_node(near, features, query, metric, candidates);
+    search_node(near, features, query, candidates);
 
     let should_visit_far = !candidates.is_full()
-        || metric.axis_distance_lower_bound(query[split_axis] - split_value).is_none_or(
-            |lower_bound| lower_bound <= candidates.neighbors().last().unwrap().distance,
-        );
+        || axis_squared_distance_lower_bound(query[split_axis] - split_value)
+            <= candidates.neighbors().last().unwrap().distance;
     if should_visit_far {
-        search_node(far, features, query, metric, candidates);
+        search_node(far, features, query, candidates);
     }
 }
 
@@ -213,7 +210,7 @@ mod tests {
     use atlas_ndarray::NDArray;
 
     use super::{KdTree, KdTreeNode};
-    use crate::neighbors::knn::{metric::SquaredEuclideanDistance, search::brute_force_search};
+    use crate::neighbors::knn::search::brute_force_search;
 
     #[test]
     fn builds_a_single_point_as_a_leaf() {
@@ -275,8 +272,8 @@ mod tests {
         for query in [&[0.0_f64, 0.0][..], &[4.0_f64, 4.0][..]] {
             for k in 1..=features.shape()[0] {
                 assert_eq!(
-                    tree.search(&features, query, k, &SquaredEuclideanDistance),
-                    brute_force_search(&features, query, k, &SquaredEuclideanDistance)
+                    tree.search(&features, query, k),
+                    brute_force_search(&features, query, k)
                 );
             }
         }
@@ -291,10 +288,7 @@ mod tests {
         let query = [1.5_f64, 1.5];
 
         for k in 1..=features.shape()[0] {
-            assert_eq!(
-                tree.search(&features, &query, k, &SquaredEuclideanDistance),
-                brute_force_search(&features, &query, k, &SquaredEuclideanDistance)
-            );
+            assert_eq!(tree.search(&features, &query, k), brute_force_search(&features, &query, k));
         }
     }
 

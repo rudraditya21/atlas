@@ -52,7 +52,6 @@ mod tests {
     use super::NeighborSearchBackend;
     use crate::neighbors::knn::{
         config::{AUTO_BRUTE_FORCE_MAX_SAMPLES, KnnSearchAlgorithm},
-        metric::SquaredEuclideanDistance,
         search::brute_force_search,
     };
 
@@ -64,19 +63,13 @@ mod tests {
         for query in queries {
             for k in 1..=features.shape()[0] {
                 let actual = match backend {
-                    NeighborSearchBackend::BruteForce => {
-                        brute_force_search(features, query, k, &SquaredEuclideanDistance)
-                    }
-                    NeighborSearchBackend::KdTree(tree) => {
-                        tree.search(features, query, k, &SquaredEuclideanDistance)
-                    }
-                    NeighborSearchBackend::BallTree(tree) => {
-                        tree.search(features, query, k, &SquaredEuclideanDistance)
-                    }
+                    NeighborSearchBackend::BruteForce => brute_force_search(features, query, k),
+                    NeighborSearchBackend::KdTree(tree) => tree.search(features, query, k),
+                    NeighborSearchBackend::BallTree(tree) => tree.search(features, query, k),
                 };
                 assert_eq!(
                     actual,
-                    brute_force_search(features, query, k, &SquaredEuclideanDistance),
+                    brute_force_search(features, query, k),
                     "backend diverged for query {query:?} and k = {k}"
                 );
             }

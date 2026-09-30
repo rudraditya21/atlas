@@ -3,7 +3,6 @@ use atlas_ndarray::{NDArray, OperandMetadata};
 use super::{
     config::{KnnConfig, KnnSearchAlgorithm, KnnWeighting},
     index::TrainingIndex,
-    metric::SquaredEuclideanDistance,
     neighbor::Neighbor,
 };
 use crate::{
@@ -73,9 +72,7 @@ impl KnnRegressor {
 
         let query_count = queries.shape()[0];
         let mut predictions = Vec::with_capacity(query_count);
-        for neighbors in
-            self.index.search_batch(queries, self.config.k(), &SquaredEuclideanDistance)?
-        {
+        for neighbors in self.index.search_batch(queries, self.config.k())? {
             predictions.push(match self.config.weighting() {
                 KnnWeighting::Uniform => mean_targets(&neighbors, self.targets.data()),
                 KnnWeighting::Distance => distance_weighted_mean(&neighbors, self.targets.data()),
@@ -89,7 +86,7 @@ impl KnnRegressor {
     pub fn predict_one(&self, query: &[f64]) -> AtlasMlResult<f64> {
         validate_prediction_feature_row(query, self.feature_count(), PREDICT_ONE_OP)?;
 
-        let neighbors = self.index.search(query, self.config.k(), &SquaredEuclideanDistance)?;
+        let neighbors = self.index.search(query, self.config.k())?;
 
         Ok(match self.config.weighting() {
             KnnWeighting::Uniform => mean_targets(&neighbors, self.targets.data()),
