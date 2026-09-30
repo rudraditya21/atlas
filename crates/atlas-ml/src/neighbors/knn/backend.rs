@@ -7,7 +7,7 @@ use super::{
     config::{AUTO_BRUTE_FORCE_MAX_SAMPLES, KnnSearchAlgorithm},
     kd_tree::KdTree,
 };
-use crate::{AtlasMlResult, internal::parallel::should_parallelize_inference};
+use crate::AtlasMlResult;
 
 const QUERY_BLOCK_SIZE: usize = 32;
 
@@ -83,22 +83,11 @@ impl NeighborSearchBackend {
         }
 
         let query_count = queries.shape()[0];
-        let feature_count = queries.shape()[1];
         let block_starts = (0..query_count).step_by(QUERY_BLOCK_SIZE).collect::<Vec<_>>();
-        let work_items =
-            query_count.saturating_mul(features.shape()[0]).saturating_mul(feature_count);
-
-        let blocks = if should_parallelize_inference(block_starts.len(), work_items) {
-            block_starts
-                .into_par_iter()
-                .map(|block_start| self.search_block(features, queries, block_start, k))
-                .collect::<AtlasMlResult<Vec<_>>>()?
-        } else {
-            block_starts
-                .into_iter()
-                .map(|block_start| self.search_block(features, queries, block_start, k))
-                .collect::<AtlasMlResult<Vec<_>>>()?
-        };
+        let blocks = block_starts
+            .into_par_iter()
+            .map(|block_start| self.search_block(features, queries, block_start, k))
+            .collect::<AtlasMlResult<Vec<_>>>()?;
 
         Ok(blocks.into_iter().flatten().collect())
     }

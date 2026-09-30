@@ -6,10 +6,7 @@ use rayon::prelude::*;
 use super::{
     metric::squared_distance_to_row, neighbor::Neighbor, neighbor_set::BoundedNeighborSet,
 };
-use crate::{
-    AtlasMlError, AtlasMlResult,
-    internal::{parallel::should_parallelize_inference, row::copy_logical_row},
-};
+use crate::{AtlasMlError, AtlasMlResult, internal::row::copy_logical_row};
 
 const QUERY_BLOCK_ROWS: usize = 64;
 const TRAINING_BLOCK_TARGET_BYTES: usize = 4 * 1024 * 1024;
@@ -87,12 +84,9 @@ impl BruteForceSearch {
             training_block_size,
         );
         let block_starts = (0..query_count).step_by(query_block_size).collect::<Vec<_>>();
-        let work_items = query_count.saturating_mul(sample_count).saturating_mul(feature_count);
-
-        let blocks = if !blas_active && should_parallelize_inference(block_starts.len(), work_items)
-        {
+        let blocks = if blas_active {
             block_starts
-                .into_par_iter()
+                .into_iter()
                 .map(|block_start| {
                     self.search_block(
                         training_features,
@@ -107,7 +101,7 @@ impl BruteForceSearch {
                 .collect::<AtlasMlResult<Vec<_>>>()?
         } else {
             block_starts
-                .into_iter()
+                .into_par_iter()
                 .map(|block_start| {
                     self.search_block(
                         training_features,
