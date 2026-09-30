@@ -1,0 +1,228 @@
+use atlas_ndarray::OperandMetadata;
+
+use crate::{AtlasMlError, AtlasMlResult, internal::validation::validate_finite_feature_values};
+
+const MAE_OP: &str = "mean_absolute_error";
+const MSE_OP: &str = "mean_squared_error";
+const R_SQUARED_OP: &str = "coefficient_of_determination";
+
+/// Returns the mean absolute error between two rank-1 target vectors.
+pub fn mean_absolute_error<A, P>(actual: &A, predicted: &P) -> AtlasMlResult<f64>
+where
+    A: OperandMetadata<f64> + ?Sized,
+    P: OperandMetadata<f64> + ?Sized,
+{
+    validate_regression_vectors(actual, predicted, MAE_OP)?;
+
+    Ok((0..actual.shape()[0])
+        .map(|index| (value(actual, index) - value(predicted, index)).abs())
+        .sum::<f64>()
+        / actual.shape()[0] as f64)
+}
+
+/// Returns the mean squared error between two rank-1 target vectors.
+pub fn mean_squared_error<A, P>(actual: &A, predicted: &P) -> AtlasMlResult<f64>
+where
+    A: OperandMetadata<f64> + ?Sized,
+    P: OperandMetadata<f64> + ?Sized,
+{
+    validate_regression_vectors(actual, predicted, MSE_OP)?;
+
+    Ok((0..actual.shape()[0])
+        .map(|index| {
+            let error = value(actual, index) - value(predicted, index);
+            error * error
+        })
+        .sum::<f64>()
+        / actual.shape()[0] as f64)
+}
+
+/// Returns the coefficient of determination (R²) between two rank-1 target vectors.
+pub fn coefficient_of_determination<A, P>(actual: &A, predicted: &P) -> AtlasMlResult<f64>
+where
+    A: OperandMetadata<f64> + ?Sized,
+    P: OperandMetadata<f64> + ?Sized,
+{
+    validate_regression_vectors(actual, predicted, R_SQUARED_OP)?;
+
+    let mean = (0..actual.shape()[0]).map(|index| value(actual, index)).sum::<f64>()
+        / actual.shape()[0] as f64;
+    let total_sum_squares = (0..actual.shape()[0])
+        .map(|index| {
+            let deviation = value(actual, index) - mean;
+            deviation * deviation
+        })
+        .sum::<f64>();
+    if total_sum_squares == 0.0 {
+        return Err(AtlasMlError::InvalidArgument {
+            op: R_SQUARED_OP,
+            reason: "actual targets must have non-zero variance",
+        });
+    }
+
+    let residual_sum_squares = (0..actual.shape()[0])
+        .map(|index| {
+            let residual = value(actual, index) - value(predicted, index);
+            residual * residual
+        })
+        .sum::<f64>();
+
+    Ok(1.0 - residual_sum_squares / total_sum_squares)
+}
+
+fn validate_regression_vectors<A, P>(
+    actual: &A,
+    predicted: &P,
+    op: &'static str,
+) -> AtlasMlResult<()>
+where
+    A: OperandMetadata<f64> + ?Sized,
+    P: OperandMetadata<f64> + ?Sized,
+{
+    if actual.ndim() != 1 {
+        return Err(AtlasMlError::InvalidInputRank {
+            op,
+            expected: "a rank-1 actual target vector",
+            rank: actual.ndim(),
+        });
+    }
+    if predicted.ndim() != 1 {
+        return Err(AtlasMlError::InvalidInputRank {
+            op,
+            expected: "a rank-1 predicted target vector",
+            rank: predicted.ndim(),
+        });
+    }
+    if actual.shape() != predicted.shape() {
+        return Err(AtlasMlError::ShapeMismatch {
+            op,
+            left: actual.shape().to_vec(),
+            right: predicted.shape().to_vec(),
+            reason: "target counts must match",
+        });
+    }
+    if actual.shape()[0] == 0 {
+        return Err(AtlasMlError::EmptyInput { op });
+    }
+
+    validate_finite_feature_values(actual, op)?;
+    validate_finite_feature_values(predicted, op)
+}
+
+fn value<O>(values: &O, index: usize) -> f64
+where
+    O: OperandMetadata<f64> + ?Sized,
+{
+    values.data()[values.offset() + index * values.strides()[0]]
+}
+
+#[cfg(test)]
+mod tests {
+    use atlas_ndarray::NDArray;
+
+    use super::{coefficient_of_determination, mean_absolute_error, mean_squared_error};
+    use crate::AtlasMlError;
+
+    #[test]
+    fn reports_exact_and_known_regression_errors() {
+        let actual = NDArray::from_shape_vec([3], vec![1.0_f64, 2.0, 3.0]).unwrap();
+        let exact = NDArray::from_shape_vec([3], vec![1.0_f64, 2.0, 3.0]).unwrap();
+        let predicted = NDArray::from_shape_vec([3], vec![2.0_f64, 0.0, 5.0]).unwrap();
+
+        assert_eq!(mean_absolute_error(&actual, &exact), Ok(0.0));
+        assert_eq!(mean_squared_error(&actual, &exact), Ok(0.0));
+        assert_eq!(mean_absolute_error(&actual, &predicted), Ok(5.0 / 3.0));
+        assert_eq!(mean_squared_error(&actual, &predicted), Ok(3.0));
+    }
+
+    #[test]
+    fn regression_metrics_support_logical_views() {
+        let actual = NDArray::from_shape_vec([3], vec![1.0_f64, 2.0, 3.0]).unwrap();
+        let predicted = NDArray::from_shape_vec([3], vec![2.0_f64, 0.0, 5.0]).unwrap();
+
+        assert_eq!(mean_absolute_error(&actual.view(), &predicted.view()), Ok(5.0 / 3.0));
+        assert_eq!(mean_squared_error(&actual.view(), &predicted.view()), Ok(3.0));
+    }
+
+    #[test]
+    fn regression_metrics_reject_empty_non_finite_and_mismatched_targets() {
+        let empty = NDArray::<f64>::zeros([0]).unwrap();
+        let finite = NDArray::from_shape_vec([1], vec![1.0_f64]).unwrap();
+        let non_finite = NDArray::from_shape_vec([1], vec![f64::NAN]).unwrap();
+        let mismatched = NDArray::from_shape_vec([2], vec![1.0_f64, 2.0]).unwrap();
+
+        assert_eq!(
+            mean_absolute_error(&empty, &empty),
+            Err(AtlasMlError::EmptyInput { op: "mean_absolute_error" })
+        );
+        assert_eq!(
+            mean_absolute_error(&non_finite, &finite),
+            Err(AtlasMlError::NonFiniteInput { op: "mean_absolute_error" })
+        );
+        assert_eq!(
+            mean_squared_error(&finite, &non_finite),
+            Err(AtlasMlError::NonFiniteInput { op: "mean_squared_error" })
+        );
+        assert_eq!(
+            mean_squared_error(&finite, &mismatched),
+            Err(AtlasMlError::ShapeMismatch {
+                op: "mean_squared_error",
+                left: vec![1],
+                right: vec![2],
+                reason: "target counts must match",
+            })
+        );
+    }
+
+    #[test]
+    fn reports_perfect_and_known_coefficients_of_determination() {
+        let actual = NDArray::from_shape_vec([3], vec![1.0_f64, 2.0, 3.0]).unwrap();
+        let exact = NDArray::from_shape_vec([3], vec![1.0_f64, 2.0, 3.0]).unwrap();
+        let predicted = NDArray::from_shape_vec([3], vec![1.0_f64, 2.0, 1.0]).unwrap();
+
+        assert_eq!(coefficient_of_determination(&actual, &exact), Ok(1.0));
+        assert_eq!(coefficient_of_determination(&actual, &predicted), Ok(-1.0));
+    }
+
+    #[test]
+    fn coefficient_of_determination_supports_views_and_rejects_constant_targets() {
+        let actual = NDArray::from_shape_vec([3], vec![1.0_f64, 2.0, 3.0]).unwrap();
+        let predicted = NDArray::from_shape_vec([3], vec![1.0_f64, 2.0, 1.0]).unwrap();
+        let constant = NDArray::from_shape_vec([2], vec![3.0_f64, 3.0]).unwrap();
+
+        assert_eq!(coefficient_of_determination(&actual.view(), &predicted.view()), Ok(-1.0));
+        assert_eq!(
+            coefficient_of_determination(&constant, &constant),
+            Err(AtlasMlError::InvalidArgument {
+                op: "coefficient_of_determination",
+                reason: "actual targets must have non-zero variance",
+            })
+        );
+    }
+
+    #[test]
+    fn coefficient_of_determination_rejects_invalid_targets() {
+        let empty = NDArray::<f64>::zeros([0]).unwrap();
+        let finite = NDArray::from_shape_vec([1], vec![1.0_f64]).unwrap();
+        let non_finite = NDArray::from_shape_vec([1], vec![f64::NAN]).unwrap();
+        let mismatched = NDArray::from_shape_vec([2], vec![1.0_f64, 2.0]).unwrap();
+
+        assert_eq!(
+            coefficient_of_determination(&empty, &empty),
+            Err(AtlasMlError::EmptyInput { op: "coefficient_of_determination" })
+        );
+        assert_eq!(
+            coefficient_of_determination(&non_finite, &finite),
+            Err(AtlasMlError::NonFiniteInput { op: "coefficient_of_determination" })
+        );
+        assert_eq!(
+            coefficient_of_determination(&finite, &mismatched),
+            Err(AtlasMlError::ShapeMismatch {
+                op: "coefficient_of_determination",
+                left: vec![1],
+                right: vec![2],
+                reason: "target counts must match",
+            })
+        );
+    }
+}
