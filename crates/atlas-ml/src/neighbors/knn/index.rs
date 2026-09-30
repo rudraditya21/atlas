@@ -1,10 +1,7 @@
 use atlas_ndarray::{NDArray, OperandMetadata};
-use rayon::prelude::*;
 
 use super::{backend::NeighborSearchBackend, config::KnnSearchAlgorithm, neighbor::Neighbor};
-use crate::{AtlasMlResult, internal::parallel::should_parallelize_inference};
-
-const QUERY_BLOCK_SIZE: usize = 32;
+use crate::{AtlasMlError, AtlasMlResult};
 
 pub(crate) struct TrainingIndex {
     features: NDArray<f64>,
@@ -30,78 +27,41 @@ impl TrainingIndex {
     }
 
     pub(crate) fn search(&self, query: &[f64], k: usize) -> AtlasMlResult<Vec<Neighbor>> {
-        match &self.backend {
-            NeighborSearchBackend::BruteForce(search) => search.search(&self.features, query, k),
-            NeighborSearchBackend::KdTree(tree) => tree.search(&self.features, query, k),
-            NeighborSearchBackend::BallTree(tree) => tree.search(&self.features, query, k),
-        }
+        self.validate_request(query.len(), k)?;
+        self.backend.search(&self.features, query, k)
     }
 
     pub(crate) fn search_batch<Q>(&self, queries: &Q, k: usize) -> AtlasMlResult<Vec<Vec<Neighbor>>>
     where
         Q: OperandMetadata<f64> + Sync + ?Sized,
     {
-        if let NeighborSearchBackend::BruteForce(search) = &self.backend {
-            return search.search_batch(&self.features, queries, k);
+        if queries.ndim() != 2 {
+            return Err(AtlasMlError::InvalidInputRank {
+                op: self.backend.search_op(),
+                expected: "a rank-2 [samples, features] matrix",
+                rank: queries.ndim(),
+            });
         }
-
-        let query_count = queries.shape()[0];
-        let feature_count = queries.shape()[1];
-        let block_starts = (0..query_count).step_by(QUERY_BLOCK_SIZE).collect::<Vec<_>>();
-        let work_items =
-            query_count.saturating_mul(self.features.shape()[0]).saturating_mul(feature_count);
-
-        let blocks = if should_parallelize_inference(block_starts.len(), work_items) {
-            block_starts
-                .into_par_iter()
-                .map(|block_start| self.search_block(queries, block_start, k))
-                .collect::<AtlasMlResult<Vec<_>>>()?
-        } else {
-            block_starts
-                .into_iter()
-                .map(|block_start| self.search_block(queries, block_start, k))
-                .collect::<AtlasMlResult<Vec<_>>>()?
-        };
-
-        Ok(blocks.into_iter().flatten().collect())
+        self.validate_request(queries.shape()[1], k)?;
+        self.backend.search_batch(&self.features, queries, k)
     }
 
-    fn search_block<Q>(
-        &self,
-        queries: &Q,
-        block_start: usize,
-        k: usize,
-    ) -> AtlasMlResult<Vec<Vec<Neighbor>>>
-    where
-        Q: OperandMetadata<f64> + ?Sized,
-    {
-        let feature_count = queries.shape()[1];
-        let block_end = (block_start + QUERY_BLOCK_SIZE).min(queries.shape()[0]);
-        if queries.strides()[1] == 1 {
-            let query_rows = (block_start..block_end)
-                .map(|query_index| {
-                    let start = queries.offset() + query_index * queries.strides()[0];
-                    &queries.data()[start..start + feature_count]
-                })
-                .collect::<Vec<_>>();
-            query_rows.iter().map(|query| self.search(query, k)).collect()
-        } else {
-            let block_len = block_end - block_start;
-            let mut values = Vec::with_capacity(block_len * feature_count);
-            for query_index in block_start..block_end {
-                let row_offset = queries.offset() + query_index * queries.strides()[0];
-                values.extend((0..feature_count).map(|feature_index| {
-                    queries.data()[row_offset + feature_index * queries.strides()[1]]
-                }));
-            }
-            let query_rows = (0..block_len)
-                .map(|query_index| {
-                    let start = query_index * feature_count;
-                    &values[start..start + feature_count]
-                })
-                .collect::<Vec<_>>();
-            query_rows.iter().map(|query| self.search(query, k)).collect()
+    fn validate_request(&self, query_feature_count: usize, k: usize) -> AtlasMlResult<()> {
+        if k == 0 || k > self.features.shape()[0] {
+            return Err(AtlasMlError::InvalidArgument {
+                op: self.backend.search_op(),
+                reason: "k must be between 1 and the number of training samples",
+            });
         }
+        if query_feature_count != self.features.shape()[1] {
+            return Err(AtlasMlError::ShapeMismatch {
+                op: self.backend.search_op(),
+                left: vec![self.features.shape()[1]],
+                right: vec![query_feature_count],
+                reason: "feature dimensions must match",
+            });
+        }
+        Ok(())
     }
 }
 

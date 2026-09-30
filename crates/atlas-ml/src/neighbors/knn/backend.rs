@@ -1,4 +1,5 @@
-use atlas_ndarray::NDArray;
+use atlas_ndarray::{NDArray, OperandMetadata};
+use rayon::prelude::*;
 
 use super::{
     ball_tree::BallTree,
@@ -6,7 +7,9 @@ use super::{
     config::{AUTO_BRUTE_FORCE_MAX_SAMPLES, KnnSearchAlgorithm},
     kd_tree::KdTree,
 };
-use crate::AtlasMlResult;
+use crate::{AtlasMlResult, internal::parallel::should_parallelize_inference};
+
+const QUERY_BLOCK_SIZE: usize = 32;
 
 pub(crate) enum NeighborSearchBackend {
     BruteForce(BruteForceSearch),
@@ -42,6 +45,91 @@ impl NeighborSearchBackend {
             Self::BruteForce(_) => KnnSearchAlgorithm::BruteForce,
             Self::KdTree(_) => KnnSearchAlgorithm::KdTree,
             Self::BallTree(_) => KnnSearchAlgorithm::BallTree,
+        }
+    }
+
+    pub(crate) const fn search_op(&self) -> &'static str {
+        match self {
+            Self::BruteForce(_) => "brute_force_knn_search",
+            Self::KdTree(_) => "kd_tree_search",
+            Self::BallTree(_) => "ball_tree_search",
+        }
+    }
+
+    pub(crate) fn search(
+        &self,
+        features: &NDArray<f64>,
+        query: &[f64],
+        k: usize,
+    ) -> AtlasMlResult<Vec<super::neighbor::Neighbor>> {
+        match self {
+            Self::BruteForce(search) => search.search(features, query, k),
+            Self::KdTree(tree) => tree.search(features, query, k),
+            Self::BallTree(tree) => tree.search(features, query, k),
+        }
+    }
+
+    pub(crate) fn search_batch<Q>(
+        &self,
+        features: &NDArray<f64>,
+        queries: &Q,
+        k: usize,
+    ) -> AtlasMlResult<Vec<Vec<super::neighbor::Neighbor>>>
+    where
+        Q: OperandMetadata<f64> + Sync + ?Sized,
+    {
+        if let Self::BruteForce(search) = self {
+            return search.search_batch(features, queries, k);
+        }
+
+        let query_count = queries.shape()[0];
+        let feature_count = queries.shape()[1];
+        let block_starts = (0..query_count).step_by(QUERY_BLOCK_SIZE).collect::<Vec<_>>();
+        let work_items =
+            query_count.saturating_mul(features.shape()[0]).saturating_mul(feature_count);
+
+        let blocks = if should_parallelize_inference(block_starts.len(), work_items) {
+            block_starts
+                .into_par_iter()
+                .map(|block_start| self.search_block(features, queries, block_start, k))
+                .collect::<AtlasMlResult<Vec<_>>>()?
+        } else {
+            block_starts
+                .into_iter()
+                .map(|block_start| self.search_block(features, queries, block_start, k))
+                .collect::<AtlasMlResult<Vec<_>>>()?
+        };
+
+        Ok(blocks.into_iter().flatten().collect())
+    }
+
+    fn search_block<Q>(
+        &self,
+        features: &NDArray<f64>,
+        queries: &Q,
+        block_start: usize,
+        k: usize,
+    ) -> AtlasMlResult<Vec<Vec<super::neighbor::Neighbor>>>
+    where
+        Q: OperandMetadata<f64> + ?Sized,
+    {
+        let feature_count = queries.shape()[1];
+        let block_end = (block_start + QUERY_BLOCK_SIZE).min(queries.shape()[0]);
+        if queries.strides()[1] == 1 {
+            (block_start..block_end)
+                .map(|query_index| {
+                    let start = queries.offset() + query_index * queries.strides()[0];
+                    self.search(features, &queries.data()[start..start + feature_count], k)
+                })
+                .collect()
+        } else {
+            let mut query = vec![0.0; feature_count];
+            (block_start..block_end)
+                .map(|query_index| {
+                    crate::internal::row::copy_logical_row(queries, query_index, &mut query);
+                    self.search(features, &query, k)
+                })
+                .collect()
         }
     }
 }
