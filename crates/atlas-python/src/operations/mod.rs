@@ -22,24 +22,44 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
-#[pyfunction]
-fn add(py: Python<'_>, lhs: &Bound<'_, PyAny>, rhs: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    arithmetic::add(py, lhs, rhs)
+#[pyfunction(signature = (lhs, rhs, *, out = None))]
+fn add(
+    py: Python<'_>,
+    lhs: &Bound<'_, PyAny>,
+    rhs: &Bound<'_, PyAny>,
+    out: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Py<PyAny>> {
+    arithmetic::add(py, lhs, rhs, out)
 }
 
-#[pyfunction]
-fn subtract(py: Python<'_>, lhs: &Bound<'_, PyAny>, rhs: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    arithmetic::subtract(py, lhs, rhs)
+#[pyfunction(signature = (lhs, rhs, *, out = None))]
+fn subtract(
+    py: Python<'_>,
+    lhs: &Bound<'_, PyAny>,
+    rhs: &Bound<'_, PyAny>,
+    out: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Py<PyAny>> {
+    arithmetic::subtract(py, lhs, rhs, out)
 }
 
-#[pyfunction]
-fn multiply(py: Python<'_>, lhs: &Bound<'_, PyAny>, rhs: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    arithmetic::multiply(py, lhs, rhs)
+#[pyfunction(signature = (lhs, rhs, *, out = None))]
+fn multiply(
+    py: Python<'_>,
+    lhs: &Bound<'_, PyAny>,
+    rhs: &Bound<'_, PyAny>,
+    out: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Py<PyAny>> {
+    arithmetic::multiply(py, lhs, rhs, out)
 }
 
-#[pyfunction]
-fn divide(py: Python<'_>, lhs: &Bound<'_, PyAny>, rhs: &Bound<'_, PyAny>) -> PyResult<Py<PyAny>> {
-    arithmetic::divide(py, lhs, rhs)
+#[pyfunction(signature = (lhs, rhs, *, out = None))]
+fn divide(
+    py: Python<'_>,
+    lhs: &Bound<'_, PyAny>,
+    rhs: &Bound<'_, PyAny>,
+    out: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Py<PyAny>> {
+    arithmetic::divide(py, lhs, rhs, out)
 }
 
 #[pyfunction]

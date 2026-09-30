@@ -1,4 +1,4 @@
-use pyo3::{IntoPyObjectExt, exceptions::PyTypeError, prelude::*, types::PyTuple};
+use pyo3::{IntoPyObjectExt, prelude::*, types::PyTuple};
 
 use crate::support::{arrays as array, dtypes::with_dtype, gil};
 

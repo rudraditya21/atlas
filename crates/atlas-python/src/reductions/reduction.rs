@@ -109,43 +109,48 @@ pub(crate) fn cumsum(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
     axis: Option<i64>,
+    out: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
-    cumulative_optional_axis(py, value, axis, CumulativeReduction::Sum)
+    cumulative_optional_axis(py, value, axis, out, CumulativeReduction::Sum)
 }
 
 pub(crate) fn cumprod(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
     axis: Option<i64>,
+    out: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
-    cumulative_optional_axis(py, value, axis, CumulativeReduction::Product)
+    cumulative_optional_axis(py, value, axis, out, CumulativeReduction::Product)
 }
 
 pub(crate) fn cumsum_axis(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
     axis: i64,
+    out: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
-    cumsum(py, value, Some(axis))
+    cumsum(py, value, Some(axis), out)
 }
 
 pub(crate) fn cumprod_axis(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
     axis: i64,
+    out: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
-    cumprod(py, value, Some(axis))
+    cumprod(py, value, Some(axis), out)
 }
 
 fn cumulative_optional_axis(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
     axis: Option<i64>,
+    out: Option<&Bound<'_, PyAny>>,
     reduction: CumulativeReduction,
 ) -> PyResult<Py<PyAny>> {
     match axis {
-        Some(axis) => cumulative_axis(py, value, axis, reduction),
-        None => cumulative(py, value, reduction),
+        Some(axis) => cumulative_axis(py, value, axis, out, reduction),
+        None => cumulative(py, value, out, reduction),
     }
 }
 
@@ -194,24 +199,40 @@ fn index_reduce_optional_axis(
     }
 }
 
-pub(crate) fn sum_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
-    sum(py, value, Some(axis))
+pub(crate) fn sum_axis(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axis: i64,
+    out: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Py<PyAny>> {
+    reduce_axis(py, value, axis, out, AxisReduction::Sum)
 }
 
 pub(crate) fn mean_axis(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
     axis: i64,
+    out: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
-    mean(py, value, Some(axis))
+    reduce_axis(py, value, axis, out, AxisReduction::Mean)
 }
 
-pub(crate) fn min_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
-    min(py, value, Some(axis))
+pub(crate) fn min_axis(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axis: i64,
+    out: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Py<PyAny>> {
+    reduce_axis(py, value, axis, out, AxisReduction::Min)
 }
 
-pub(crate) fn max_axis(py: Python<'_>, value: &Bound<'_, PyAny>, axis: i64) -> PyResult<Py<PyAny>> {
-    max(py, value, Some(axis))
+pub(crate) fn max_axis(
+    py: Python<'_>,
+    value: &Bound<'_, PyAny>,
+    axis: i64,
+    out: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Py<PyAny>> {
+    reduce_axis(py, value, axis, out, AxisReduction::Max)
 }
 
 fn reduce_optional_axis(
@@ -222,7 +243,7 @@ fn reduce_optional_axis(
     axis_reduction: AxisReduction,
 ) -> PyResult<Py<PyAny>> {
     match axis {
-        Some(axis) => reduce_axis(py, value, axis, axis_reduction),
+        Some(axis) => reduce_axis(py, value, axis, None, axis_reduction),
         None => reduce(py, value, reduction),
     }
 }
@@ -266,6 +287,7 @@ fn reduce_axis(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
     axis: i64,
+    out: Option<&Bound<'_, PyAny>>,
     reduction: AxisReduction,
 ) -> PyResult<Py<PyAny>> {
     array::require_numpy_array(py, value)?;
@@ -275,10 +297,10 @@ fn reduce_axis(
         ($ty:ty) => {{
             let array = array::from_numpy(array::readonly_from_python::<$ty>(py, value)?)?;
             match reduction {
-                AxisReduction::Sum => reduce_sum_axis(py, array, axis),
-                AxisReduction::Mean => reduce_mean_axis(py, array, axis),
-                AxisReduction::Min => reduce_min_axis(py, array, axis),
-                AxisReduction::Max => reduce_max_axis(py, array, axis),
+                AxisReduction::Sum => reduce_sum_axis(py, array, axis, out),
+                AxisReduction::Mean => reduce_mean_axis(py, array, axis, out),
+                AxisReduction::Min => reduce_min_axis(py, array, axis, out),
+                AxisReduction::Max => reduce_max_axis(py, array, axis, out),
             }
         }};
     }
@@ -301,6 +323,7 @@ fn reduce_axis(
 fn cumulative(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
+    out: Option<&Bound<'_, PyAny>>,
     reduction: CumulativeReduction,
 ) -> PyResult<Py<PyAny>> {
     array::require_numpy_array(py, value)?;
@@ -313,7 +336,7 @@ fn cumulative(
                 CumulativeReduction::Sum => array.cumsum(),
                 CumulativeReduction::Product => array.cumprod(),
             });
-            array_output(py, result)
+            array_output_into(py, result, out)
         }};
     }
 
@@ -336,6 +359,7 @@ fn cumulative_axis(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
     axis: i64,
+    out: Option<&Bound<'_, PyAny>>,
     reduction: CumulativeReduction,
 ) -> PyResult<Py<PyAny>> {
     array::require_numpy_array(py, value)?;
@@ -348,7 +372,7 @@ fn cumulative_axis(
                 CumulativeReduction::Sum => array.cumsum_axis(axis),
                 CumulativeReduction::Product => array.cumprod_axis(axis),
             });
-            array_output(py, result)
+            array_output_into(py, result, out)
         }};
     }
 
@@ -532,32 +556,52 @@ where
     scalar(py, gil::without_gil(py, move || array.nanstd()))
 }
 
-fn reduce_sum_axis<T>(py: Python<'_>, array: NDArray<T>, axis: i64) -> PyResult<Py<PyAny>>
+fn reduce_sum_axis<T>(
+    py: Python<'_>,
+    array: NDArray<T>,
+    axis: i64,
+    out: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Py<PyAny>>
 where
     T: Numeric + ElementwiseArithmetic + Element,
 {
-    array_output(py, gil::without_gil(py, move || array.sum_axis(axis)))
+    array_output_into(py, gil::without_gil(py, move || array.sum_axis(axis)), out)
 }
 
-fn reduce_mean_axis<T>(py: Python<'_>, array: NDArray<T>, axis: i64) -> PyResult<Py<PyAny>>
+fn reduce_mean_axis<T>(
+    py: Python<'_>,
+    array: NDArray<T>,
+    axis: i64,
+    out: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Py<PyAny>>
 where
     T: Numeric + ToPrimitive + Element,
 {
-    array_output(py, gil::without_gil(py, move || array.mean_axis(axis)))
+    array_output_into(py, gil::without_gil(py, move || array.mean_axis(axis)), out)
 }
 
-fn reduce_min_axis<T>(py: Python<'_>, array: NDArray<T>, axis: i64) -> PyResult<Py<PyAny>>
+fn reduce_min_axis<T>(
+    py: Python<'_>,
+    array: NDArray<T>,
+    axis: i64,
+    out: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Py<PyAny>>
 where
     T: Numeric + PartialOrd + Element,
 {
-    array_output(py, gil::without_gil(py, move || array.min_axis(axis)))
+    array_output_into(py, gil::without_gil(py, move || array.min_axis(axis)), out)
 }
 
-fn reduce_max_axis<T>(py: Python<'_>, array: NDArray<T>, axis: i64) -> PyResult<Py<PyAny>>
+fn reduce_max_axis<T>(
+    py: Python<'_>,
+    array: NDArray<T>,
+    axis: i64,
+    out: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Py<PyAny>>
 where
     T: Numeric + PartialOrd + Element,
 {
-    array_output(py, gil::without_gil(py, move || array.max_axis(axis)))
+    array_output_into(py, gil::without_gil(py, move || array.max_axis(axis)), out)
 }
 
 fn scalar<T>(py: Python<'_>, result: atlas_ndarray::AtlasNdResult<T>) -> PyResult<Py<PyAny>>
@@ -580,4 +624,19 @@ where
     )?
     .into_any()
     .unbind())
+}
+
+fn array_output_into<T>(
+    py: Python<'_>,
+    result: atlas_ndarray::AtlasNdResult<NDArray<T>>,
+    out: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Py<PyAny>>
+where
+    T: atlas_ndarray::ArrayElement + Element,
+{
+    array::to_numpy_output(
+        py,
+        result.map_err(|error| crate::support::errors::ndarray(py, error))?,
+        out,
+    )
 }

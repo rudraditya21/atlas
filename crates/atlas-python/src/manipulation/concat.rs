@@ -7,6 +7,7 @@ pub(crate) fn concatenate(
     py: Python<'_>,
     arrays: Vec<Py<PyAny>>,
     axis: i64,
+    out: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
     let first = arrays.first().ok_or_else(|| {
         crate::support::errors::ndarray(
@@ -35,7 +36,7 @@ pub(crate) fn concatenate(
                 NDArray::concatenate(&views, axis)
             })
             .map_err(|error| crate::support::errors::ndarray(py, error))?;
-            Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
+            array::to_numpy_output(py, result, out)
         }};
     }
 

@@ -30,14 +30,24 @@ pub(crate) fn register(module: &Bound<'_, PyModule>) -> PyResult<()> {
     Ok(())
 }
 
-#[pyfunction(signature = (arrays, axis = 0))]
-fn concatenate(py: Python<'_>, arrays: Vec<Py<PyAny>>, axis: i64) -> PyResult<Py<PyAny>> {
-    concat_ops::concatenate(py, arrays, axis)
+#[pyfunction(signature = (arrays, axis = 0, *, out = None))]
+fn concatenate(
+    py: Python<'_>,
+    arrays: Vec<Py<PyAny>>,
+    axis: i64,
+    out: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Py<PyAny>> {
+    concat_ops::concatenate(py, arrays, axis, out)
 }
 
-#[pyfunction(signature = (arrays, axis = 0))]
-fn stack(py: Python<'_>, arrays: Vec<Py<PyAny>>, axis: i64) -> PyResult<Py<PyAny>> {
-    stack_ops::stack(py, arrays, axis)
+#[pyfunction(signature = (arrays, axis = 0, *, out = None))]
+fn stack(
+    py: Python<'_>,
+    arrays: Vec<Py<PyAny>>,
+    axis: i64,
+    out: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Py<PyAny>> {
+    stack_ops::stack(py, arrays, axis, out)
 }
 
 #[pyfunction]

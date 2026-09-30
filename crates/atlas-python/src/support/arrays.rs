@@ -1,9 +1,12 @@
 use atlas_ndarray::{ArrayElement, NDArray, RuntimeScalar};
 use numpy::{
     Element, PyArray1, PyArrayDescr, PyArrayDescrMethods, PyArrayDyn, PyArrayMethods,
-    PyReadonlyArrayDyn, dtype,
+    PyReadonlyArrayDyn, PyReadwriteArrayDyn, PyUntypedArrayMethods, dtype,
 };
-use pyo3::{exceptions::PyTypeError, prelude::*};
+use pyo3::{
+    exceptions::{PyTypeError, PyValueError},
+    prelude::*,
+};
 
 use crate::support::dtypes::DType;
 
@@ -89,6 +92,35 @@ where
     PyArray1::from_vec(py, data).reshape(shape)
 }
 
+pub(crate) fn to_numpy_output<T>(
+    py: Python<'_>,
+    array: NDArray<T>,
+    out: Option<&Bound<'_, PyAny>>,
+) -> PyResult<Py<PyAny>>
+where
+    T: ArrayElement + Element,
+{
+    let Some(out) = out else {
+        return Ok(to_numpy_owned(py, array)?.into_any().unbind());
+    };
+
+    validate_dtype::<T>(py, out)?;
+    let mut destination = out.extract::<PyReadwriteArrayDyn<'_, T>>()?;
+    if destination.shape() != array.shape() {
+        return Err(PyValueError::new_err(format!(
+            "out has shape {:?}, expected {:?}",
+            destination.shape(),
+            array.shape(),
+        )));
+    }
+
+    for (destination, &value) in destination.as_array_mut().iter_mut().zip(array.data()) {
+        *destination = value;
+    }
+
+    Ok(out.clone().unbind())
+}
+
 pub(crate) fn to_numpy_f64_vector(py: Python<'_>, values: &[f64]) -> Py<PyAny> {
     PyArray1::from_slice(py, values).into_any().unbind()
 }
@@ -120,7 +152,7 @@ pub(crate) fn values_equal(py: Python<'_>, left: &Py<PyAny>, right: &Py<PyAny>) 
         .extract()
 }
 
-fn validate_dtype<T>(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<()>
+pub(crate) fn validate_dtype<T>(py: Python<'_>, value: &Bound<'_, PyAny>) -> PyResult<()>
 where
     T: Element,
 {

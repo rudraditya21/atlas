@@ -80,7 +80,7 @@ def _coerce_binary_operands(function):
     """Coerce array-like operands without performing dtype promotion."""
 
     @wraps(function)
-    def wrapper(lhs, rhs):
+    def wrapper(lhs, rhs, *, out=None):
         lhs_value = _array_like(lhs) if _is_array_like(lhs) else lhs
         rhs_value = _array_like(rhs) if _is_array_like(rhs) else rhs
         if not isinstance(lhs_value, np.ndarray):
@@ -98,7 +98,9 @@ def _coerce_binary_operands(function):
             lhs_value.dtype, np.floating
         ):
             rhs_value = np.asarray(rhs_value)
-        return function(lhs_value, rhs_value)
+        if out is None:
+            return function(lhs_value, rhs_value)
+        return function(lhs_value, rhs_value, out=out)
 
     return wrapper
 
@@ -118,14 +120,14 @@ def _coerce_weighted_operands(function):
 
 def _coerce_array_collection(function):
     @wraps(function)
-    def wrapper(arrays, axis=0):
+    def wrapper(arrays, axis=0, *, out=None):
         if isinstance(arrays, (str, bytes, bytearray)):
             raise TypeError("expected an iterable of array-like values")
         try:
             arrays = iter(arrays)
         except TypeError:
             raise TypeError("expected an iterable of array-like values") from None
-        return function([_array_like(value) for value in arrays], axis)
+        return function([_array_like(value) for value in arrays], axis, out=out)
 
     return wrapper
 

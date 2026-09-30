@@ -18,38 +18,43 @@ pub(crate) fn add(
     py: Python<'_>,
     lhs: &Bound<'_, PyAny>,
     rhs: &Bound<'_, PyAny>,
+    out: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
-    apply(py, lhs, rhs, Operation::Add)
+    apply(py, lhs, rhs, out, Operation::Add)
 }
 
 pub(crate) fn subtract(
     py: Python<'_>,
     lhs: &Bound<'_, PyAny>,
     rhs: &Bound<'_, PyAny>,
+    out: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
-    apply(py, lhs, rhs, Operation::Subtract)
+    apply(py, lhs, rhs, out, Operation::Subtract)
 }
 
 pub(crate) fn multiply(
     py: Python<'_>,
     lhs: &Bound<'_, PyAny>,
     rhs: &Bound<'_, PyAny>,
+    out: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
-    apply(py, lhs, rhs, Operation::Multiply)
+    apply(py, lhs, rhs, out, Operation::Multiply)
 }
 
 pub(crate) fn divide(
     py: Python<'_>,
     lhs: &Bound<'_, PyAny>,
     rhs: &Bound<'_, PyAny>,
+    out: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<Py<PyAny>> {
-    apply(py, lhs, rhs, Operation::Divide)
+    apply(py, lhs, rhs, out, Operation::Divide)
 }
 
 fn apply(
     py: Python<'_>,
     lhs: &Bound<'_, PyAny>,
     rhs: &Bound<'_, PyAny>,
+    out: Option<&Bound<'_, PyAny>>,
     operation: Operation,
 ) -> PyResult<Py<PyAny>> {
     let lhs_dtype = array::source_dtype(py, lhs)?;
@@ -72,22 +77,22 @@ fn apply(
                     Operation::Divide => &lhs / &rhs,
                 })
                 .map_err(|error| crate::support::errors::ndarray(py, error))?;
-                Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
+                array::to_numpy_output(py, result, out)
             }
         );
     }
 
     match lhs_dtype {
-        DType::Int8 => apply_i8(py, lhs, rhs, operation),
-        DType::Int16 => apply_i16(py, lhs, rhs, operation),
-        DType::Int32 => apply_i32(py, lhs, rhs, operation),
-        DType::Int64 => apply_i64(py, lhs, rhs, operation),
-        DType::UInt8 => apply_u8(py, lhs, rhs, operation),
-        DType::UInt16 => apply_u16(py, lhs, rhs, operation),
-        DType::UInt32 => apply_u32(py, lhs, rhs, operation),
-        DType::UInt64 => apply_u64(py, lhs, rhs, operation),
-        DType::Float32 => apply_f32(py, lhs, rhs, operation),
-        DType::Float64 => apply_f64(py, lhs, rhs, operation),
+        DType::Int8 => apply_i8(py, lhs, rhs, out, operation),
+        DType::Int16 => apply_i16(py, lhs, rhs, out, operation),
+        DType::Int32 => apply_i32(py, lhs, rhs, out, operation),
+        DType::Int64 => apply_i64(py, lhs, rhs, out, operation),
+        DType::UInt8 => apply_u8(py, lhs, rhs, out, operation),
+        DType::UInt16 => apply_u16(py, lhs, rhs, out, operation),
+        DType::UInt32 => apply_u32(py, lhs, rhs, out, operation),
+        DType::UInt64 => apply_u64(py, lhs, rhs, out, operation),
+        DType::Float32 => apply_f32(py, lhs, rhs, out, operation),
+        DType::Float64 => apply_f64(py, lhs, rhs, out, operation),
         DType::Bool => Err(PyTypeError::new_err("arithmetic does not support bool dtype")),
     }
 }
@@ -98,6 +103,7 @@ macro_rules! impl_apply {
             py: Python<'_>,
             lhs: &Bound<'_, PyAny>,
             rhs: &Bound<'_, PyAny>,
+            out: Option<&Bound<'_, PyAny>>,
             operation: Operation,
         ) -> PyResult<Py<PyAny>> {
             let lhs = array::from_numpy(array::readonly_from_python::<$ty>(py, lhs)?)?;
@@ -141,7 +147,7 @@ macro_rules! impl_apply {
             };
 
             let result = result.map_err(|error| crate::support::errors::ndarray(py, error))?;
-            Ok(array::to_numpy_owned(py, result)?.into_any().unbind())
+            array::to_numpy_output(py, result, out)
         }
     };
 }
