@@ -45,6 +45,8 @@ thread_local! {
         RefCell::new(RowMajorMatmulScratch::default());
     static ROW_MAJOR_MATMUL_SCRATCH_F64: RefCell<RowMajorMatmulScratch<f64>> =
         RefCell::new(RowMajorMatmulScratch::default());
+    static ROW_MAJOR_PACKED_RHS_F32: RefCell<Vec<f32>> = const { RefCell::new(Vec::new()) };
+    static ROW_MAJOR_PACKED_RHS_F64: RefCell<Vec<f64>> = const { RefCell::new(Vec::new()) };
 }
 
 fn with_row_major_matmul_scratch_f32<R>(
@@ -66,6 +68,38 @@ fn with_row_major_matmul_scratch_f64<R>(
         let mut scratch = scratch.borrow_mut();
         scratch.ensure_capacity(block);
         f(&mut scratch)
+    })
+}
+
+fn with_packed_rhs_f32<R>(
+    rhs: &[f32],
+    rows: usize,
+    cols: usize,
+    block: usize,
+    operation: impl FnOnce(&[f32]) -> R,
+) -> R {
+    ROW_MAJOR_PACKED_RHS_F32.with(|storage| {
+        let mut packed = storage.take();
+        pack_rhs_panels_into(rhs, rows, cols, block, &mut packed);
+        let result = operation(&packed);
+        storage.replace(packed);
+        result
+    })
+}
+
+fn with_packed_rhs_f64<R>(
+    rhs: &[f64],
+    rows: usize,
+    cols: usize,
+    block: usize,
+    operation: impl FnOnce(&[f64]) -> R,
+) -> R {
+    ROW_MAJOR_PACKED_RHS_F64.with(|storage| {
+        let mut packed = storage.take();
+        pack_rhs_panels_into(rhs, rows, cols, block, &mut packed);
+        let result = operation(&packed);
+        storage.replace(packed);
+        result
     })
 }
 
@@ -198,15 +232,29 @@ fn matrix_matrix_blocked<T: Numeric>(lhs: MatrixRef<'_, T>, rhs: MatrixRef<'_, T
     let rhs_values = rhs.row_major_region();
     let mut data = vec![T::zero(); lhs.rows * rhs.cols];
     let block = ROW_MAJOR_MATMUL_BLOCK_SIZE;
-    let packed_rhs = pack_rhs_panels(rhs_values, lhs.cols, rhs.cols, block);
 
     if simd::is_f32::<T>() {
-        return matrix_matrix_blocked_f32(lhs, rhs, lhs_values, &packed_rhs, data, block);
+        return with_packed_rhs_f32(
+            simd::cast_slice(rhs_values),
+            lhs.cols,
+            rhs.cols,
+            block,
+            |packed_rhs| matrix_matrix_blocked_f32(lhs, rhs, lhs_values, packed_rhs, data, block),
+        );
     }
 
     if simd::is_f64::<T>() {
-        return matrix_matrix_blocked_f64(lhs, rhs, lhs_values, &packed_rhs, data, block);
+        return with_packed_rhs_f64(
+            simd::cast_slice(rhs_values),
+            lhs.cols,
+            rhs.cols,
+            block,
+            |packed_rhs| matrix_matrix_blocked_f64(lhs, rhs, lhs_values, packed_rhs, data, block),
+        );
     }
+
+    let mut packed_rhs = Vec::new();
+    pack_rhs_panels_into(rhs_values, lhs.cols, rhs.cols, block, &mut packed_rhs);
 
     if should_parallelize_matmul(lhs.rows, lhs.cols, rhs.cols) {
         data.par_chunks_mut(rhs.cols * block).enumerate().for_each(|(block_index, out_block)| {
@@ -399,12 +447,11 @@ fn matrix_matrix_blocked_f32<T: Numeric>(
     lhs: MatrixRef<'_, T>,
     rhs: MatrixRef<'_, T>,
     lhs_values: &[T],
-    packed_rhs: &[T],
+    packed_rhs: &[f32],
     mut data: Vec<T>,
     block: usize,
 ) -> Vec<T> {
     let lhs_values = simd::cast_slice::<T, f32>(lhs_values);
-    let packed_rhs = simd::cast_slice::<T, f32>(packed_rhs);
     {
         let data_f32 = simd::cast_mut_slice::<T, f32>(data.as_mut_slice());
 
@@ -523,12 +570,11 @@ fn matrix_matrix_blocked_f64<T: Numeric>(
     lhs: MatrixRef<'_, T>,
     rhs: MatrixRef<'_, T>,
     lhs_values: &[T],
-    packed_rhs: &[T],
+    packed_rhs: &[f64],
     mut data: Vec<T>,
     block: usize,
 ) -> Vec<T> {
     let lhs_values = simd::cast_slice::<T, f64>(lhs_values);
-    let packed_rhs = simd::cast_slice::<T, f64>(packed_rhs);
     {
         let data_f64 = simd::cast_mut_slice::<T, f64>(data.as_mut_slice());
 
@@ -660,13 +706,17 @@ fn pack_lhs_block<T: Copy>(
     }
 }
 
-fn pack_rhs_panels<T: Copy>(
+fn pack_rhs_panels_into<T: Copy>(
     rhs_values: &[T],
     rhs_rows: usize,
     rhs_cols: usize,
     block: usize,
-) -> Vec<T> {
-    let mut panels = Vec::with_capacity(rhs_values.len());
+    panels: &mut Vec<T>,
+) {
+    panels.clear();
+    if panels.capacity() < rhs_values.len() {
+        panels.reserve(rhs_values.len());
+    }
 
     for k_block in (0..rhs_rows).step_by(block) {
         let k_end = (k_block + block).min(rhs_rows);
@@ -680,7 +730,6 @@ fn pack_rhs_panels<T: Copy>(
     }
 
     debug_assert_eq!(panels.len(), rhs_values.len());
-    panels
 }
 
 fn packed_rhs_panel<T>(

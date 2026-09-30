@@ -3,7 +3,9 @@ use rayon::prelude::*;
 
 use super::{
     axis::{contiguous_lane, linear_offset},
-    dispatch::{parallel_reduction_chunk_len, should_parallelize_reduction},
+    dispatch::{
+        parallel_reduction_chunk_len, should_parallelize_reduction, with_reduction_scratch_f64,
+    },
     metadata::{AxisReductionMetadata, WholeReductionMetadata},
 };
 use crate::{
@@ -20,17 +22,23 @@ where
             return Err(AtlasNdError::EmptyReduction { op });
         }
 
-        let partials: Vec<AtlasNdResult<f64>> = values
-            .par_chunks(parallel_reduction_chunk_len())
-            .map(|chunk| sum_chunk_as_f64(chunk, op))
-            .collect();
-        let mut total = simd::CompensatedSum::new();
+        let chunk_len = parallel_reduction_chunk_len();
+        let partial_count = values.len().div_ceil(chunk_len);
+        return with_reduction_scratch_f64(partial_count, |partials| {
+            partials.par_iter_mut().zip(values.par_chunks(chunk_len)).try_for_each(
+                |(partial, chunk)| -> AtlasNdResult<()> {
+                    *partial = sum_chunk_as_f64(chunk, op)?;
+                    Ok(())
+                },
+            )?;
 
-        for partial in partials {
-            total.add(partial?);
-        }
+            let mut total = simd::CompensatedSum::new();
+            for &partial in partials.iter() {
+                total.add(partial);
+            }
 
-        return Ok(total.finish() / values.len() as f64);
+            Ok(total.finish() / values.len() as f64)
+        });
     }
 
     simd::mean_contiguous(values, op)

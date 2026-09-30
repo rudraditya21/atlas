@@ -1,6 +1,41 @@
+use std::cell::RefCell;
+
 pub(super) const PARALLEL_REDUCTION_THRESHOLD: usize = 1 << 20;
 const PARALLEL_REDUCTION_CHUNK_LEN: usize = 1 << 14;
 const PARALLEL_REDUCTION_MIN_CHUNKS_PER_THREAD: usize = 2;
+
+thread_local! {
+    static REDUCTION_SCRATCH_F32: RefCell<Vec<f32>> = const { RefCell::new(Vec::new()) };
+    static REDUCTION_SCRATCH_F64: RefCell<Vec<f64>> = const { RefCell::new(Vec::new()) };
+}
+
+pub(super) fn with_reduction_scratch_f32<R>(
+    len: usize,
+    operation: impl FnOnce(&mut [f32]) -> R,
+) -> R {
+    REDUCTION_SCRATCH_F32.with(|storage| {
+        let mut scratch = storage.take();
+        scratch.resize(len, 0.0);
+        let result = operation(&mut scratch);
+        scratch.clear();
+        storage.replace(scratch);
+        result
+    })
+}
+
+pub(super) fn with_reduction_scratch_f64<R>(
+    len: usize,
+    operation: impl FnOnce(&mut [f64]) -> R,
+) -> R {
+    REDUCTION_SCRATCH_F64.with(|storage| {
+        let mut scratch = storage.take();
+        scratch.resize(len, 0.0);
+        let result = operation(&mut scratch);
+        scratch.clear();
+        storage.replace(scratch);
+        result
+    })
+}
 
 pub(super) const fn parallel_reduction_chunk_len() -> usize {
     PARALLEL_REDUCTION_CHUNK_LEN
