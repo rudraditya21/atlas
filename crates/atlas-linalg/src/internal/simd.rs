@@ -303,11 +303,313 @@ pub(crate) fn scaled_accumulate_contiguous_f64(output: &mut [f64], input: &[f64]
     }
 }
 
+pub(crate) fn matmul_tile_f32(
+    lhs: &[f32],
+    rhs: &[f32],
+    output: &mut [f32],
+    output_stride: usize,
+    rows: usize,
+    inner: usize,
+    cols: usize,
+) {
+    debug_assert_eq!(lhs.len(), rows * inner);
+    debug_assert_eq!(rhs.len(), inner * cols);
+
+    #[cfg(target_arch = "aarch64")]
+    {
+        neon::matmul_tile_f32(lhs, rhs, output, output_stride, rows, inner, cols);
+        return;
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    if std::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
+        unsafe {
+            x86_64::matmul_tile_f32_fma(lhs, rhs, output, output_stride, rows, inner, cols);
+        }
+        return;
+    }
+
+    matmul_tile_f32_fallback(lhs, rhs, output, output_stride, rows, inner, cols);
+}
+
+pub(crate) fn matmul_tile_f64(
+    lhs: &[f64],
+    rhs: &[f64],
+    output: &mut [f64],
+    output_stride: usize,
+    rows: usize,
+    inner: usize,
+    cols: usize,
+) {
+    debug_assert_eq!(lhs.len(), rows * inner);
+    debug_assert_eq!(rhs.len(), inner * cols);
+
+    #[cfg(target_arch = "aarch64")]
+    {
+        neon::matmul_tile_f64(lhs, rhs, output, output_stride, rows, inner, cols);
+        return;
+    }
+
+    #[cfg(target_arch = "x86_64")]
+    if std::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
+        unsafe {
+            x86_64::matmul_tile_f64_fma(lhs, rhs, output, output_stride, rows, inner, cols);
+        }
+        return;
+    }
+
+    matmul_tile_f64_fallback(lhs, rhs, output, output_stride, rows, inner, cols);
+}
+
+fn matmul_tile_f32_fallback(
+    lhs: &[f32],
+    rhs: &[f32],
+    output: &mut [f32],
+    output_stride: usize,
+    rows: usize,
+    inner: usize,
+    cols: usize,
+) {
+    for row in 0..rows {
+        let lhs_row = &lhs[row * inner..(row + 1) * inner];
+        let output_row = &mut output[row * output_stride..row * output_stride + cols];
+        for (k, &scale) in lhs_row.iter().enumerate() {
+            scaled_accumulate_contiguous_f32(output_row, &rhs[k * cols..(k + 1) * cols], scale);
+        }
+    }
+}
+
+fn matmul_tile_f64_fallback(
+    lhs: &[f64],
+    rhs: &[f64],
+    output: &mut [f64],
+    output_stride: usize,
+    rows: usize,
+    inner: usize,
+    cols: usize,
+) {
+    for row in 0..rows {
+        let lhs_row = &lhs[row * inner..(row + 1) * inner];
+        let output_row = &mut output[row * output_stride..row * output_stride + cols];
+        for (k, &scale) in lhs_row.iter().enumerate() {
+            scaled_accumulate_contiguous_f64(output_row, &rhs[k * cols..(k + 1) * cols], scale);
+        }
+    }
+}
+
 #[cfg(target_arch = "x86_64")]
 mod x86_64 {
     use std::arch::x86_64::*;
 
     use super::{F32_LANES, F64_LANES};
+
+    #[target_feature(enable = "avx2,fma")]
+    pub(super) unsafe fn matmul_tile_f32_fma(
+        lhs: &[f32],
+        rhs: &[f32],
+        output: &mut [f32],
+        output_stride: usize,
+        rows: usize,
+        inner: usize,
+        cols: usize,
+    ) {
+        const ROWS: usize = 4;
+        let row_body = rows / ROWS * ROWS;
+        let col_body = cols / F32_LANES * F32_LANES;
+
+        for row in (0..row_body).step_by(ROWS) {
+            for col in (0..col_body).step_by(F32_LANES) {
+                unsafe {
+                    let mut accumulator0 =
+                        _mm256_loadu_ps(output.as_ptr().add(row * output_stride + col));
+                    let mut accumulator1 =
+                        _mm256_loadu_ps(output.as_ptr().add((row + 1) * output_stride + col));
+                    let mut accumulator2 =
+                        _mm256_loadu_ps(output.as_ptr().add((row + 2) * output_stride + col));
+                    let mut accumulator3 =
+                        _mm256_loadu_ps(output.as_ptr().add((row + 3) * output_stride + col));
+
+                    for k in 0..inner {
+                        let right = _mm256_loadu_ps(rhs.as_ptr().add(k * cols + col));
+                        accumulator0 = _mm256_fmadd_ps(
+                            _mm256_set1_ps(lhs[row * inner + k]),
+                            right,
+                            accumulator0,
+                        );
+                        accumulator1 = _mm256_fmadd_ps(
+                            _mm256_set1_ps(lhs[(row + 1) * inner + k]),
+                            right,
+                            accumulator1,
+                        );
+                        accumulator2 = _mm256_fmadd_ps(
+                            _mm256_set1_ps(lhs[(row + 2) * inner + k]),
+                            right,
+                            accumulator2,
+                        );
+                        accumulator3 = _mm256_fmadd_ps(
+                            _mm256_set1_ps(lhs[(row + 3) * inner + k]),
+                            right,
+                            accumulator3,
+                        );
+                    }
+
+                    _mm256_storeu_ps(
+                        output.as_mut_ptr().add(row * output_stride + col),
+                        accumulator0,
+                    );
+                    _mm256_storeu_ps(
+                        output.as_mut_ptr().add((row + 1) * output_stride + col),
+                        accumulator1,
+                    );
+                    _mm256_storeu_ps(
+                        output.as_mut_ptr().add((row + 2) * output_stride + col),
+                        accumulator2,
+                    );
+                    _mm256_storeu_ps(
+                        output.as_mut_ptr().add((row + 3) * output_stride + col),
+                        accumulator3,
+                    );
+                }
+            }
+        }
+
+        accumulate_tail_f32(
+            lhs,
+            rhs,
+            output,
+            output_stride,
+            inner,
+            cols,
+            0..row_body,
+            col_body..cols,
+        );
+        accumulate_tail_f32(lhs, rhs, output, output_stride, inner, cols, row_body..rows, 0..cols);
+    }
+
+    #[target_feature(enable = "avx2,fma")]
+    pub(super) unsafe fn matmul_tile_f64_fma(
+        lhs: &[f64],
+        rhs: &[f64],
+        output: &mut [f64],
+        output_stride: usize,
+        rows: usize,
+        inner: usize,
+        cols: usize,
+    ) {
+        const ROWS: usize = 4;
+        let row_body = rows / ROWS * ROWS;
+        let col_body = cols / F64_LANES * F64_LANES;
+
+        for row in (0..row_body).step_by(ROWS) {
+            for col in (0..col_body).step_by(F64_LANES) {
+                unsafe {
+                    let mut accumulator0 =
+                        _mm256_loadu_pd(output.as_ptr().add(row * output_stride + col));
+                    let mut accumulator1 =
+                        _mm256_loadu_pd(output.as_ptr().add((row + 1) * output_stride + col));
+                    let mut accumulator2 =
+                        _mm256_loadu_pd(output.as_ptr().add((row + 2) * output_stride + col));
+                    let mut accumulator3 =
+                        _mm256_loadu_pd(output.as_ptr().add((row + 3) * output_stride + col));
+
+                    for k in 0..inner {
+                        let right = _mm256_loadu_pd(rhs.as_ptr().add(k * cols + col));
+                        accumulator0 = _mm256_fmadd_pd(
+                            _mm256_set1_pd(lhs[row * inner + k]),
+                            right,
+                            accumulator0,
+                        );
+                        accumulator1 = _mm256_fmadd_pd(
+                            _mm256_set1_pd(lhs[(row + 1) * inner + k]),
+                            right,
+                            accumulator1,
+                        );
+                        accumulator2 = _mm256_fmadd_pd(
+                            _mm256_set1_pd(lhs[(row + 2) * inner + k]),
+                            right,
+                            accumulator2,
+                        );
+                        accumulator3 = _mm256_fmadd_pd(
+                            _mm256_set1_pd(lhs[(row + 3) * inner + k]),
+                            right,
+                            accumulator3,
+                        );
+                    }
+
+                    _mm256_storeu_pd(
+                        output.as_mut_ptr().add(row * output_stride + col),
+                        accumulator0,
+                    );
+                    _mm256_storeu_pd(
+                        output.as_mut_ptr().add((row + 1) * output_stride + col),
+                        accumulator1,
+                    );
+                    _mm256_storeu_pd(
+                        output.as_mut_ptr().add((row + 2) * output_stride + col),
+                        accumulator2,
+                    );
+                    _mm256_storeu_pd(
+                        output.as_mut_ptr().add((row + 3) * output_stride + col),
+                        accumulator3,
+                    );
+                }
+            }
+        }
+
+        accumulate_tail_f64(
+            lhs,
+            rhs,
+            output,
+            output_stride,
+            inner,
+            cols,
+            0..row_body,
+            col_body..cols,
+        );
+        accumulate_tail_f64(lhs, rhs, output, output_stride, inner, cols, row_body..rows, 0..cols);
+    }
+
+    fn accumulate_tail_f32(
+        lhs: &[f32],
+        rhs: &[f32],
+        output: &mut [f32],
+        output_stride: usize,
+        inner: usize,
+        cols: usize,
+        rows: std::ops::Range<usize>,
+        columns: std::ops::Range<usize>,
+    ) {
+        for row in rows {
+            for col in columns.clone() {
+                let mut value = output[row * output_stride + col];
+                for k in 0..inner {
+                    value += lhs[row * inner + k] * rhs[k * cols + col];
+                }
+                output[row * output_stride + col] = value;
+            }
+        }
+    }
+
+    fn accumulate_tail_f64(
+        lhs: &[f64],
+        rhs: &[f64],
+        output: &mut [f64],
+        output_stride: usize,
+        inner: usize,
+        cols: usize,
+        rows: std::ops::Range<usize>,
+        columns: std::ops::Range<usize>,
+    ) {
+        for row in rows {
+            for col in columns.clone() {
+                let mut value = output[row * output_stride + col];
+                for k in 0..inner {
+                    value += lhs[row * inner + k] * rhs[k * cols + col];
+                }
+                output[row * output_stride + col] = value;
+            }
+        }
+    }
 
     #[target_feature(enable = "avx2,fma")]
     pub(super) unsafe fn dot_f32_fma(lhs: &[f32], rhs: &[f32]) -> f32 {

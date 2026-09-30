@@ -10,6 +10,8 @@ use crate::internal::{
 };
 
 const ROW_MAJOR_MATMUL_BLOCK_SIZE: usize = 32;
+const ROW_MAJOR_MATMUL_F32_BLOCK_SIZE: usize = 64;
+const ROW_MAJOR_MATMUL_F64_BLOCK_SIZE: usize = 32;
 // The blocked traversal starts once workloads move beyond the medium square
 // regime covered by the baseline Criterion benches. This keeps 64x64 work on
 // the lighter simple kernel while moving 96x96 and larger products onto the
@@ -231,9 +233,8 @@ fn matrix_matrix_blocked<T: Numeric>(lhs: MatrixRef<'_, T>, rhs: MatrixRef<'_, T
     let lhs_values = lhs.row_major_region();
     let rhs_values = rhs.row_major_region();
     let mut data = vec![T::zero(); lhs.rows * rhs.cols];
-    let block = ROW_MAJOR_MATMUL_BLOCK_SIZE;
-
     if simd::is_f32::<T>() {
+        let block = ROW_MAJOR_MATMUL_F32_BLOCK_SIZE;
         return with_packed_rhs_f32(
             simd::cast_slice(rhs_values),
             lhs.cols,
@@ -244,6 +245,7 @@ fn matrix_matrix_blocked<T: Numeric>(lhs: MatrixRef<'_, T>, rhs: MatrixRef<'_, T
     }
 
     if simd::is_f64::<T>() {
+        let block = ROW_MAJOR_MATMUL_F64_BLOCK_SIZE;
         return with_packed_rhs_f64(
             simd::cast_slice(rhs_values),
             lhs.cols,
@@ -253,6 +255,7 @@ fn matrix_matrix_blocked<T: Numeric>(lhs: MatrixRef<'_, T>, rhs: MatrixRef<'_, T
         );
     }
 
+    let block = ROW_MAJOR_MATMUL_BLOCK_SIZE;
     let mut packed_rhs = Vec::new();
     pack_rhs_panels_into(rhs_values, lhs.cols, rhs.cols, block, &mut packed_rhs);
 
@@ -488,22 +491,15 @@ fn matrix_matrix_blocked_f32<T: Numeric>(
                                     panel_width,
                                 );
 
-                                for local_row in 0..row_count {
-                                    let lhs_row = &scratch.lhs_block
-                                        [local_row * k_width..(local_row + 1) * k_width];
-                                    let out_row = &mut out_block[local_row * rhs.cols + col_block
-                                        ..local_row * rhs.cols + col_end];
-
-                                    for (local_k, lhs_value) in lhs_row.iter().copied().enumerate()
-                                    {
-                                        let panel_offset = local_k * panel_width;
-                                        let rhs_row =
-                                            &rhs_panel[panel_offset..panel_offset + panel_width];
-                                        simd::scaled_accumulate_contiguous_f32(
-                                            out_row, rhs_row, lhs_value,
-                                        );
-                                    }
-                                }
+                                simd::matmul_tile_f32(
+                                    &scratch.lhs_block,
+                                    rhs_panel,
+                                    &mut out_block[col_block..],
+                                    rhs.cols,
+                                    row_count,
+                                    k_width,
+                                    panel_width,
+                                );
                             }
                         }
                     });
@@ -540,22 +536,15 @@ fn matrix_matrix_blocked_f32<T: Numeric>(
                                 panel_width,
                             );
 
-                            for local_row in 0..row_count {
-                                let lhs_row = &scratch.lhs_block
-                                    [local_row * k_width..(local_row + 1) * k_width];
-                                let row = row_block + local_row;
-                                let out_row = &mut data_f32
-                                    [row * rhs.cols + col_block..row * rhs.cols + col_end];
-
-                                for (local_k, lhs_value) in lhs_row.iter().copied().enumerate() {
-                                    let panel_offset = local_k * panel_width;
-                                    let rhs_row =
-                                        &rhs_panel[panel_offset..panel_offset + panel_width];
-                                    simd::scaled_accumulate_contiguous_f32(
-                                        out_row, rhs_row, lhs_value,
-                                    );
-                                }
-                            }
+                            simd::matmul_tile_f32(
+                                &scratch.lhs_block,
+                                rhs_panel,
+                                &mut data_f32[row_block * rhs.cols + col_block..],
+                                rhs.cols,
+                                row_count,
+                                k_width,
+                                panel_width,
+                            );
                         }
                     }
                 }
@@ -611,22 +600,15 @@ fn matrix_matrix_blocked_f64<T: Numeric>(
                                     panel_width,
                                 );
 
-                                for local_row in 0..row_count {
-                                    let lhs_row = &scratch.lhs_block
-                                        [local_row * k_width..(local_row + 1) * k_width];
-                                    let out_row = &mut out_block[local_row * rhs.cols + col_block
-                                        ..local_row * rhs.cols + col_end];
-
-                                    for (local_k, lhs_value) in lhs_row.iter().copied().enumerate()
-                                    {
-                                        let panel_offset = local_k * panel_width;
-                                        let rhs_row =
-                                            &rhs_panel[panel_offset..panel_offset + panel_width];
-                                        simd::scaled_accumulate_contiguous_f64(
-                                            out_row, rhs_row, lhs_value,
-                                        );
-                                    }
-                                }
+                                simd::matmul_tile_f64(
+                                    &scratch.lhs_block,
+                                    rhs_panel,
+                                    &mut out_block[col_block..],
+                                    rhs.cols,
+                                    row_count,
+                                    k_width,
+                                    panel_width,
+                                );
                             }
                         }
                     });
@@ -663,22 +645,15 @@ fn matrix_matrix_blocked_f64<T: Numeric>(
                                 panel_width,
                             );
 
-                            for local_row in 0..row_count {
-                                let lhs_row = &scratch.lhs_block
-                                    [local_row * k_width..(local_row + 1) * k_width];
-                                let row = row_block + local_row;
-                                let out_row = &mut data_f64
-                                    [row * rhs.cols + col_block..row * rhs.cols + col_end];
-
-                                for (local_k, lhs_value) in lhs_row.iter().copied().enumerate() {
-                                    let panel_offset = local_k * panel_width;
-                                    let rhs_row =
-                                        &rhs_panel[panel_offset..panel_offset + panel_width];
-                                    simd::scaled_accumulate_contiguous_f64(
-                                        out_row, rhs_row, lhs_value,
-                                    );
-                                }
-                            }
+                            simd::matmul_tile_f64(
+                                &scratch.lhs_block,
+                                rhs_panel,
+                                &mut data_f64[row_block * rhs.cols + col_block..],
+                                rhs.cols,
+                                row_count,
+                                k_width,
+                                panel_width,
+                            );
                         }
                     }
                 }
