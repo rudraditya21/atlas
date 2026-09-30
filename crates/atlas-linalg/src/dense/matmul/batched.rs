@@ -5,6 +5,7 @@ use super::{
     dispatch::with_matmul_parallelism_disabled, matrix_matrix::matmul_matrix_refs,
     matrix_vector::matmul_matrix_vector_refs, vector_matrix::matmul_vector_matrix_refs,
 };
+use crate::dense::blas;
 
 const PARALLEL_BATCHED_MATMUL_WORK_THRESHOLD: usize = 1 << 18;
 use crate::{
@@ -48,7 +49,13 @@ pub(super) fn matmul_batched_matrix_matrix<T: Numeric>(
     }
     let batch_output_len = output_len / *lhs_batches;
 
-    if should_parallelize_batched_matmul(*lhs_batches, *lhs_rows, *lhs_columns, *rhs_columns) {
+    let use_blas = blas::should_use_matrix_matrix(
+        batch_matrix_ref(lhs, 0, *lhs_rows, *lhs_columns),
+        batch_matrix_ref(rhs, 0, *rhs_rows, *rhs_columns),
+    );
+    if !use_blas
+        && should_parallelize_batched_matmul(*lhs_batches, *lhs_rows, *lhs_columns, *rhs_columns)
+    {
         data.par_chunks_mut(batch_output_len).enumerate().for_each(|(batch, output)| {
             let result = with_matmul_parallelism_disabled(|| {
                 matmul_matrix_refs(
@@ -107,7 +114,11 @@ pub(super) fn matmul_batched_matrix_vector<T: Numeric>(
     }
     let batch_output_len = output_len / *lhs_batches;
 
-    if should_parallelize_batched_matmul(*lhs_batches, *lhs_rows, *lhs_columns, 1) {
+    let use_blas = blas::should_use_matrix_vector(
+        batch_matrix_ref(lhs, 0, *lhs_rows, *lhs_columns),
+        batch_vector_ref(rhs, 0, *rhs_length),
+    );
+    if !use_blas && should_parallelize_batched_matmul(*lhs_batches, *lhs_rows, *lhs_columns, 1) {
         data.par_chunks_mut(batch_output_len).enumerate().for_each(|(batch, output)| {
             let result = with_matmul_parallelism_disabled(|| {
                 matmul_matrix_vector_refs(
@@ -166,7 +177,11 @@ pub(super) fn matmul_batched_vector_matrix<T: Numeric>(
     }
     let batch_output_len = output_len / *lhs_batches;
 
-    if should_parallelize_batched_matmul(*lhs_batches, 1, *lhs_length, *rhs_columns) {
+    let use_blas = blas::should_use_vector_matrix(
+        batch_vector_ref(lhs, 0, *lhs_length),
+        batch_matrix_ref(rhs, 0, *rhs_rows, *rhs_columns),
+    );
+    if !use_blas && should_parallelize_batched_matmul(*lhs_batches, 1, *lhs_length, *rhs_columns) {
         data.par_chunks_mut(batch_output_len).enumerate().for_each(|(batch, output)| {
             let result = with_matmul_parallelism_disabled(|| {
                 matmul_vector_matrix_refs(

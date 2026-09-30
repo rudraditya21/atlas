@@ -3,7 +3,10 @@ use rayon::prelude::*;
 
 use crate::{
     core::{AtlasLinalgError, AtlasLinalgResult},
-    dense::matmul::{matmul_matrix_vector_refs, should_parallelize_matmul},
+    dense::{
+        blas,
+        matmul::{matmul_matrix_vector_refs, should_parallelize_matmul},
+    },
     internal::dense::{MatrixRef, VectorRef, dot_contiguous},
 };
 
@@ -39,7 +42,8 @@ where
     };
     let coefficients =
         VectorRef { data: coefficients, offset: 0, len: coefficients.len(), stride: 1 };
-    let scores = if should_parallelize_matmul(matrix.rows, matrix.cols, 1) {
+    let use_blas = blas::should_use_matrix_vector(matrix, coefficients);
+    let scores = if !use_blas && should_parallelize_matmul(matrix.rows, matrix.cols, 1) {
         let mut scores = vec![T::zero(); matrix.rows];
         scores.par_iter_mut().enumerate().for_each(|(row, score)| {
             let product = if matrix.is_row_major_contiguous() {

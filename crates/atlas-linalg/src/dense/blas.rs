@@ -51,10 +51,7 @@ pub(crate) fn matrix_vector<T: Numeric>(
     matrix: MatrixRef<'_, T>,
     vector: VectorRef<'_, T>,
 ) -> Option<Vec<T>> {
-    if !available()
-        || matrix.rows.saturating_mul(matrix.cols) < GEMV_MIN_WORK
-        || !vector.is_contiguous()
-    {
+    if !should_use_matrix_vector(matrix, vector) {
         return None;
     }
 
@@ -110,10 +107,7 @@ pub(crate) fn vector_matrix<T: Numeric>(
     vector: VectorRef<'_, T>,
     matrix: MatrixRef<'_, T>,
 ) -> Option<Vec<T>> {
-    if !available()
-        || matrix.rows.saturating_mul(matrix.cols) < GEMV_MIN_WORK
-        || !vector.is_contiguous()
-    {
+    if !should_use_vector_matrix(vector, matrix) {
         return None;
     }
 
@@ -171,7 +165,7 @@ pub(crate) fn matrix_matrix<T: Numeric>(
     lhs: MatrixRef<'_, T>,
     rhs: MatrixRef<'_, T>,
 ) -> Option<Vec<T>> {
-    if !available() || lhs.rows.saturating_mul(lhs.cols).saturating_mul(rhs.cols) < GEMM_MIN_WORK {
+    if !should_use_matrix_matrix(lhs, rhs) {
         return None;
     }
 
@@ -231,8 +225,51 @@ pub(crate) fn matrix_matrix<T: Numeric>(
     None
 }
 
+pub(crate) fn should_use_matrix_vector<T: Numeric>(
+    matrix: MatrixRef<'_, T>,
+    vector: VectorRef<'_, T>,
+) -> bool {
+    available()
+        && supported_dtype::<T>()
+        && vector.is_contiguous()
+        && matrix.rows.saturating_mul(matrix.cols) >= GEMV_MIN_WORK
+        && matrix_parameters(matrix).is_some_and(|(_, rows, cols, leading_dimension)| {
+            dimensions_fit_blas(&[rows, cols, leading_dimension])
+        })
+}
+
+pub(crate) fn should_use_vector_matrix<T: Numeric>(
+    vector: VectorRef<'_, T>,
+    matrix: MatrixRef<'_, T>,
+) -> bool {
+    should_use_matrix_vector(matrix, vector)
+}
+
+pub(crate) fn should_use_matrix_matrix<T: Numeric>(
+    lhs: MatrixRef<'_, T>,
+    rhs: MatrixRef<'_, T>,
+) -> bool {
+    available()
+        && supported_dtype::<T>()
+        && lhs.rows.saturating_mul(lhs.cols).saturating_mul(rhs.cols) >= GEMM_MIN_WORK
+        && matrix_parameters(lhs).is_some_and(|(_, _, _, leading_dimension)| {
+            dimensions_fit_blas(&[lhs.rows, lhs.cols, leading_dimension])
+        })
+        && matrix_parameters(rhs).is_some_and(|(_, _, _, leading_dimension)| {
+            dimensions_fit_blas(&[rhs.rows, rhs.cols, leading_dimension])
+        })
+}
+
 fn available() -> bool {
     cfg!(atlas_blas) && rayon::current_thread_index().is_none()
+}
+
+fn supported_dtype<T: Numeric>() -> bool {
+    simd::is_f32::<T>() || simd::is_f64::<T>()
+}
+
+fn dimensions_fit_blas(dimensions: &[usize]) -> bool {
+    dimensions.iter().all(|&dimension| i32::try_from(dimension).is_ok())
 }
 
 fn matrix_parameters<T: Numeric>(matrix: MatrixRef<'_, T>) -> Option<(i32, usize, usize, usize)> {
