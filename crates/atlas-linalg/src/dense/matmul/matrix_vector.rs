@@ -1,6 +1,10 @@
 use atlas_ndarray::{NDArray, Numeric};
 
-use super::{col_major, generic, row_major};
+use super::{
+    col_major,
+    dispatch::{MatmulBackend, MatmulOperation, select_matmul_backend},
+    generic, row_major,
+};
 use crate::{
     core::{AtlasLinalgError, AtlasLinalgResult, LinalgOperand},
     dense::blas,
@@ -36,8 +40,9 @@ pub(crate) fn matmul_matrix_vector_refs<T: Numeric>(
         return vec![T::zero(); lhs.rows];
     }
 
-    if let Some(data) = blas::matrix_vector(lhs, rhs) {
-        return data;
+    if select_matmul_backend(MatmulOperation::MatrixVector(lhs, rhs)) == MatmulBackend::Blas {
+        return blas::matrix_vector(lhs, rhs)
+            .expect("BLAS backend selection guarantees supported matrix-vector operands");
     }
 
     if lhs.is_row_major_contiguous() && rhs.is_contiguous() {

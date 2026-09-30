@@ -10,7 +10,6 @@ pub use core::{
 
 pub use dense::{
     affine::affine,
-    blas::will_use_blas_matmul,
     condition::condition_number,
     diag::{batched_diag, diag, diag_view},
     distance::squared_euclidean_distance,

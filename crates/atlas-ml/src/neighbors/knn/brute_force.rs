@@ -1,7 +1,6 @@
 use std::mem::size_of;
 
 use atlas_ndarray::{NDArray, OperandMetadata};
-use rayon::prelude::*;
 
 use super::{
     metric::squared_distance_to_row,
@@ -79,43 +78,21 @@ impl BruteForceSearch {
         let query_block_size = query_count.min(QUERY_BLOCK_ROWS);
         let training_block_size =
             distance_training_block_size(sample_count, feature_count, query_block_size);
-        let blas_active = atlas_linalg::will_use_blas_matmul::<f64>(
-            query_block_size,
-            feature_count,
-            training_block_size,
-        );
         let block_starts = (0..query_count).step_by(query_block_size).collect::<Vec<_>>();
-        let blocks = if blas_active {
-            block_starts
-                .into_iter()
-                .map(|block_start| {
-                    self.search_block(
-                        training_features,
-                        queries,
-                        &query_squared_norms,
-                        block_start,
-                        query_block_size,
-                        training_block_size,
-                        k,
-                    )
-                })
-                .collect::<AtlasMlResult<Vec<_>>>()?
-        } else {
-            block_starts
-                .into_par_iter()
-                .map(|block_start| {
-                    self.search_block(
-                        training_features,
-                        queries,
-                        &query_squared_norms,
-                        block_start,
-                        query_block_size,
-                        training_block_size,
-                        k,
-                    )
-                })
-                .collect::<AtlasMlResult<Vec<_>>>()?
-        };
+        let blocks = block_starts
+            .into_iter()
+            .map(|block_start| {
+                self.search_block(
+                    training_features,
+                    queries,
+                    &query_squared_norms,
+                    block_start,
+                    query_block_size,
+                    training_block_size,
+                    k,
+                )
+            })
+            .collect::<AtlasMlResult<Vec<_>>>()?;
 
         Ok(blocks.into_iter().flatten().collect())
     }

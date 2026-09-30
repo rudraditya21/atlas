@@ -5,18 +5,11 @@ use crate::internal::{
     simd,
 };
 
-const DOT_MIN_LENGTH: usize = 256;
-const GEMV_MIN_WORK: usize = 4_096;
-const GEMM_MIN_WORK: usize = 64 * 64 * 64;
-
 const CBLAS_ROW_MAJOR: i32 = 101;
 const CBLAS_NO_TRANS: i32 = 111;
 const CBLAS_TRANS: i32 = 112;
 
 pub(crate) fn dot<T: Numeric>(lhs: &[T], rhs: &[T]) -> Option<T> {
-    if !available() || lhs.len() < DOT_MIN_LENGTH || lhs.len() != rhs.len() {
-        return None;
-    }
     let length = i32::try_from(lhs.len()).ok()?;
 
     if simd::is_f32::<T>() {
@@ -51,10 +44,6 @@ pub(crate) fn matrix_vector<T: Numeric>(
     matrix: MatrixRef<'_, T>,
     vector: VectorRef<'_, T>,
 ) -> Option<Vec<T>> {
-    if !should_use_matrix_vector(matrix, vector) {
-        return None;
-    }
-
     let (transpose, stored_rows, stored_cols, leading_dimension) = matrix_parameters(matrix)?;
     let m = i32::try_from(stored_rows).ok()?;
     let n = i32::try_from(stored_cols).ok()?;
@@ -107,10 +96,6 @@ pub(crate) fn vector_matrix<T: Numeric>(
     vector: VectorRef<'_, T>,
     matrix: MatrixRef<'_, T>,
 ) -> Option<Vec<T>> {
-    if !should_use_vector_matrix(vector, matrix) {
-        return None;
-    }
-
     let (matrix_transpose, stored_rows, stored_cols, leading_dimension) =
         matrix_parameters(matrix)?;
     let transpose = if matrix_transpose == CBLAS_NO_TRANS { CBLAS_TRANS } else { CBLAS_NO_TRANS };
@@ -165,10 +150,6 @@ pub(crate) fn matrix_matrix<T: Numeric>(
     lhs: MatrixRef<'_, T>,
     rhs: MatrixRef<'_, T>,
 ) -> Option<Vec<T>> {
-    if !should_use_matrix_matrix(lhs, rhs) {
-        return None;
-    }
-
     let (lhs_transpose, _, _, lhs_leading_dimension) = matrix_parameters(lhs)?;
     let (rhs_transpose, _, _, rhs_leading_dimension) = matrix_parameters(rhs)?;
     let rows = i32::try_from(lhs.rows).ok()?;
@@ -223,58 +204,6 @@ pub(crate) fn matrix_matrix<T: Numeric>(
     }
 
     None
-}
-
-pub(crate) fn should_use_matrix_vector<T: Numeric>(
-    matrix: MatrixRef<'_, T>,
-    vector: VectorRef<'_, T>,
-) -> bool {
-    available()
-        && supported_dtype::<T>()
-        && vector.is_contiguous()
-        && matrix.rows.saturating_mul(matrix.cols) >= GEMV_MIN_WORK
-        && matrix_parameters(matrix).is_some_and(|(_, rows, cols, leading_dimension)| {
-            dimensions_fit_blas(&[rows, cols, leading_dimension])
-        })
-}
-
-pub(crate) fn should_use_vector_matrix<T: Numeric>(
-    vector: VectorRef<'_, T>,
-    matrix: MatrixRef<'_, T>,
-) -> bool {
-    should_use_matrix_vector(matrix, vector)
-}
-
-pub(crate) fn should_use_matrix_matrix<T: Numeric>(
-    lhs: MatrixRef<'_, T>,
-    rhs: MatrixRef<'_, T>,
-) -> bool {
-    will_use_blas_matmul::<T>(lhs.rows, lhs.cols, rhs.cols)
-        && matrix_parameters(lhs).is_some_and(|(_, _, _, leading_dimension)| {
-            dimensions_fit_blas(&[lhs.rows, lhs.cols, leading_dimension])
-        })
-        && matrix_parameters(rhs).is_some_and(|(_, _, _, leading_dimension)| {
-            dimensions_fit_blas(&[rhs.rows, rhs.cols, leading_dimension])
-        })
-}
-
-pub fn will_use_blas_matmul<T: Numeric>(rows: usize, inner: usize, cols: usize) -> bool {
-    available()
-        && supported_dtype::<T>()
-        && rows.saturating_mul(inner).saturating_mul(cols) >= GEMM_MIN_WORK
-        && dimensions_fit_blas(&[rows, inner, cols])
-}
-
-fn available() -> bool {
-    cfg!(atlas_blas) && rayon::current_thread_index().is_none()
-}
-
-fn supported_dtype<T: Numeric>() -> bool {
-    simd::is_f32::<T>() || simd::is_f64::<T>()
-}
-
-fn dimensions_fit_blas(dimensions: &[usize]) -> bool {
-    dimensions.iter().all(|&dimension| i32::try_from(dimension).is_ok())
 }
 
 fn matrix_parameters<T: Numeric>(matrix: MatrixRef<'_, T>) -> Option<(i32, usize, usize, usize)> {
