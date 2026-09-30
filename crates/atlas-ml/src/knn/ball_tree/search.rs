@@ -3,7 +3,7 @@ use atlas_ndarray::OperandMetadata;
 use super::{node::BallTreeNode, tree::BallTree};
 use crate::{
     AtlasMlError, AtlasMlResult,
-    core::row::copy_logical_row,
+    core::row::LogicalRow,
     knn::{metric::DistanceMetric, neighbor::Neighbor, neighbor_set::BoundedNeighborSet},
 };
 
@@ -24,8 +24,7 @@ impl BallTree {
         validate_search_inputs(self, features, query, k)?;
 
         let mut candidates = BoundedNeighborSet::new(k);
-        let mut row = vec![0.0; self.feature_count()];
-        search_node(self.root(), features, query, metric, &mut row, &mut candidates);
+        search_node(self.root(), features, query, metric, &mut candidates);
 
         Ok(candidates.neighbors().to_vec())
     }
@@ -78,7 +77,6 @@ fn search_node<F, M>(
     features: &F,
     query: &[f64],
     metric: &M,
-    row: &mut [f64],
     candidates: &mut BoundedNeighborSet,
 ) where
     F: OperandMetadata<f64> + ?Sized,
@@ -86,9 +84,10 @@ fn search_node<F, M>(
 {
     if let Some(indices) = node.leaf_indices() {
         for &index in indices {
-            copy_logical_row(features, index, row);
-            candidates
-                .insert(Neighbor { index, distance: metric.distance_same_dimension(row, query) });
+            candidates.insert(Neighbor {
+                index,
+                distance: metric.distance_to_row(LogicalRow::from_operand(features, index), query),
+            });
         }
         return;
     }
@@ -103,14 +102,14 @@ fn search_node<F, M>(
         _ => (left, right, right_bound),
     };
 
-    search_node(near, features, query, metric, row, candidates);
+    search_node(near, features, query, metric, candidates);
 
     let should_visit_far = !candidates.is_full()
         || far_bound.is_none_or(|lower_bound| {
             can_match_candidate(lower_bound, candidates.neighbors().last().unwrap().distance)
         });
     if should_visit_far {
-        search_node(far, features, query, metric, row, candidates);
+        search_node(far, features, query, metric, candidates);
     }
 }
 

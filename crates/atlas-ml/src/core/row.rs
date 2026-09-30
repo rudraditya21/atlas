@@ -1,5 +1,45 @@
 use atlas_ndarray::{ArrayElement, OperandMetadata};
 
+#[derive(Clone, Copy)]
+pub(crate) struct LogicalRow<'a, T> {
+    data: &'a [T],
+    offset: usize,
+    len: usize,
+    stride: usize,
+}
+
+impl<'a, T: ArrayElement> LogicalRow<'a, T> {
+    pub(crate) fn from_operand<O>(operand: &'a O, row_index: usize) -> Self
+    where
+        O: OperandMetadata<T> + ?Sized,
+    {
+        debug_assert_eq!(operand.ndim(), 2);
+        debug_assert!(row_index < operand.shape()[0]);
+
+        Self {
+            data: operand.data(),
+            offset: operand.offset() + row_index * operand.strides()[0],
+            len: operand.shape()[1],
+            stride: operand.strides()[1],
+        }
+    }
+
+    pub(crate) const fn len(self) -> usize {
+        self.len
+    }
+
+    pub(crate) fn value_at(self, column: usize) -> T
+    where
+        T: Copy,
+    {
+        self.data[self.offset + column * self.stride]
+    }
+
+    pub(crate) fn contiguous_slice(self) -> Option<&'a [T]> {
+        (self.stride == 1).then(|| &self.data[self.offset..self.offset + self.len])
+    }
+}
+
 /// Copies one logical row from a rank-2 ndarray operand into `row`.
 ///
 /// Callers validate the operand rank, row index, and destination width.

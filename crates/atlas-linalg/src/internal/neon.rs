@@ -40,6 +40,25 @@ pub(crate) fn dot_f64(lhs: &[f64], rhs: &[f64]) -> f64 {
     total
 }
 
+pub(crate) fn squared_euclidean_f64(lhs: &[f64], rhs: &[f64]) -> f64 {
+    let mut accumulator = unsafe { vdupq_n_f64(0.0) };
+    let mut index = 0;
+    while index + 2 <= lhs.len() {
+        unsafe {
+            let delta =
+                vsubq_f64(vld1q_f64(lhs.as_ptr().add(index)), vld1q_f64(rhs.as_ptr().add(index)));
+            accumulator = vfmaq_f64(accumulator, delta, delta);
+        }
+        index += 2;
+    }
+    let mut total = unsafe { vaddvq_f64(accumulator) };
+    for index in index..lhs.len() {
+        let delta = lhs[index] - rhs[index];
+        total += delta * delta;
+    }
+    total
+}
+
 pub(crate) fn scaled_accumulate_f32(output: &mut [f32], input: &[f32], scale: f32) {
     let scale = unsafe { vdupq_n_f32(scale) };
     let mut index = 0;

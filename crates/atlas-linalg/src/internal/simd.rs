@@ -209,6 +209,34 @@ pub(crate) fn dot_contiguous_f64(lhs: &[f64], rhs: &[f64]) -> f64 {
     lhs.iter().zip(rhs).map(|(&left, &right)| left * right).sum()
 }
 
+pub(crate) fn squared_euclidean_f64(lhs: &[f64], rhs: &[f64]) -> f64 {
+    debug_assert_eq!(lhs.len(), rhs.len());
+
+    #[cfg(target_arch = "aarch64")]
+    return neon::squared_euclidean_f64(lhs, rhs);
+
+    #[cfg(target_arch = "x86_64")]
+    {
+        if std::is_x86_feature_detected!("avx2") && std::is_x86_feature_detected!("fma") {
+            // SAFETY: AVX2 and FMA support are verified at runtime.
+            return unsafe { x86_64::squared_euclidean_f64_fma(lhs, rhs) };
+        }
+
+        if std::is_x86_feature_detected!("avx") {
+            // SAFETY: AVX support is verified at runtime.
+            return unsafe { x86_64::squared_euclidean_f64(lhs, rhs) };
+        }
+    }
+
+    lhs.iter()
+        .zip(rhs)
+        .map(|(&left, &right)| {
+            let delta = left - right;
+            delta * delta
+        })
+        .sum()
+}
+
 pub(crate) fn scaled_accumulate_contiguous_f32(output: &mut [f32], input: &[f32], scale: f32) {
     debug_assert_eq!(output.len(), input.len());
 
@@ -400,6 +428,33 @@ mod x86_64 {
     }
 
     #[target_feature(enable = "avx2,fma")]
+    pub(super) unsafe fn squared_euclidean_f64_fma(lhs: &[f64], rhs: &[f64]) -> f64 {
+        let mut accumulator = _mm256_setzero_pd();
+        let mut index = 0;
+
+        while index + F64_LANES <= lhs.len() {
+            unsafe {
+                let delta = _mm256_sub_pd(
+                    _mm256_loadu_pd(lhs.as_ptr().add(index)),
+                    _mm256_loadu_pd(rhs.as_ptr().add(index)),
+                );
+                accumulator = _mm256_fmadd_pd(delta, delta, accumulator);
+            }
+            index += F64_LANES;
+        }
+
+        let mut lanes = [0.0_f64; F64_LANES];
+        unsafe { _mm256_storeu_pd(lanes.as_mut_ptr(), accumulator) };
+        let mut total = lanes.into_iter().sum();
+        while index < lhs.len() {
+            let delta = lhs[index] - rhs[index];
+            total += delta * delta;
+            index += 1;
+        }
+        total
+    }
+
+    #[target_feature(enable = "avx2,fma")]
     pub(super) unsafe fn scaled_accumulate_f32_fma(output: &mut [f32], input: &[f32], scale: f32) {
         let scale_vector = _mm256_set1_ps(scale);
         let mut index = 0;
@@ -502,6 +557,32 @@ mod x86_64 {
             index += 1;
         }
 
+        total
+    }
+
+    #[target_feature(enable = "avx")]
+    pub(super) unsafe fn squared_euclidean_f64(lhs: &[f64], rhs: &[f64]) -> f64 {
+        let body_len = lhs.len() / F64_LANES * F64_LANES;
+        let mut accumulator = _mm256_setzero_pd();
+        let mut index = 0;
+
+        while index < body_len {
+            let delta = _mm256_sub_pd(
+                _mm256_loadu_pd(lhs.as_ptr().add(index)),
+                _mm256_loadu_pd(rhs.as_ptr().add(index)),
+            );
+            accumulator = _mm256_add_pd(accumulator, _mm256_mul_pd(delta, delta));
+            index += F64_LANES;
+        }
+
+        let mut lanes = [0.0_f64; F64_LANES];
+        _mm256_storeu_pd(lanes.as_mut_ptr(), accumulator);
+        let mut total = lanes.into_iter().sum();
+        while index < lhs.len() {
+            let delta = lhs[index] - rhs[index];
+            total += delta * delta;
+            index += 1;
+        }
         total
     }
 

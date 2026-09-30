@@ -1,8 +1,18 @@
+use crate::core::row::LogicalRow;
 #[cfg(test)]
 use crate::{AtlasMlError, AtlasMlResult};
 
 pub(crate) trait DistanceMetric {
     fn distance_same_dimension(&self, lhs: &[f64], rhs: &[f64]) -> f64;
+
+    fn distance_to_row(&self, lhs: LogicalRow<'_, f64>, rhs: &[f64]) -> f64 {
+        if let Some(lhs) = lhs.contiguous_slice() {
+            self.distance_same_dimension(lhs, rhs)
+        } else {
+            let lhs = (0..lhs.len()).map(|index| lhs.value_at(index)).collect::<Vec<_>>();
+            self.distance_same_dimension(&lhs, rhs)
+        }
+    }
 
     fn axis_distance_lower_bound(&self, _axis_delta: f64) -> Option<f64> {
         None
@@ -37,13 +47,16 @@ pub(crate) struct SquaredEuclideanDistance;
 
 impl DistanceMetric for SquaredEuclideanDistance {
     fn distance_same_dimension(&self, lhs: &[f64], rhs: &[f64]) -> f64 {
-        lhs.iter()
-            .zip(rhs)
-            .map(|(left, right)| {
-                let delta = left - right;
-                delta * delta
-            })
-            .sum()
+        atlas_linalg::squared_euclidean_distance(lhs, rhs)
+            .expect("KNN distance operands have matching dimensions")
+    }
+
+    fn distance_to_row(&self, lhs: LogicalRow<'_, f64>, rhs: &[f64]) -> f64 {
+        if let Some(lhs) = lhs.contiguous_slice() {
+            self.distance_same_dimension(lhs, rhs)
+        } else {
+            distance_to_row_scalar(lhs, rhs)
+        }
     }
 
     fn axis_distance_lower_bound(&self, axis_delta: f64) -> Option<f64> {
@@ -56,6 +69,17 @@ impl DistanceMetric for SquaredEuclideanDistance {
 
         Some(lower_distance * lower_distance)
     }
+}
+
+fn distance_to_row_scalar(lhs: LogicalRow<'_, f64>, rhs: &[f64]) -> f64 {
+    debug_assert_eq!(lhs.len(), rhs.len());
+
+    (0..lhs.len())
+        .map(|index| {
+            let delta = lhs.value_at(index) - rhs[index];
+            delta * delta
+        })
+        .sum()
 }
 
 #[cfg(test)]
