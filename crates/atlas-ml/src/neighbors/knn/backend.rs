@@ -1,204 +1,96 @@
-use std::sync::Arc;
-
 use atlas_ndarray::NDArray;
 
 use super::{
     ball_tree::BallTree,
     config::{AUTO_BRUTE_FORCE_MAX_SAMPLES, KnnSearchAlgorithm},
     kd_tree::KdTree,
-    metric::DistanceMetric,
-    neighbor::Neighbor,
-    search::{brute_force_search, brute_force_search_batch},
 };
 use crate::AtlasMlResult;
 
-pub(crate) trait NeighborSearchBackend: Send + Sync {
-    fn algorithm(&self) -> KnnSearchAlgorithm;
-
-    fn search(
-        &self,
-        query: &[f64],
-        k: usize,
-        metric: &dyn DistanceMetric,
-    ) -> AtlasMlResult<Vec<Neighbor>>;
-
-    fn search_batch(
-        &self,
-        queries: &[&[f64]],
-        k: usize,
-        metric: &dyn DistanceMetric,
-    ) -> AtlasMlResult<Vec<Vec<Neighbor>>> {
-        queries.iter().map(|query| self.search(query, k, metric)).collect()
-    }
+pub(crate) enum NeighborSearchBackend {
+    BruteForce,
+    KdTree(KdTree),
+    BallTree(BallTree),
 }
 
-#[cfg(test)]
-pub(crate) fn build_search_backend(
-    features: Arc<NDArray<f64>>,
-    algorithm: KnnSearchAlgorithm,
-) -> AtlasMlResult<Box<dyn NeighborSearchBackend>> {
-    build_search_backend_with_leaf_size(features, algorithm, 1)
-}
-
-pub(crate) fn build_search_backend_with_leaf_size(
-    features: Arc<NDArray<f64>>,
-    algorithm: KnnSearchAlgorithm,
-    tree_leaf_size: usize,
-) -> AtlasMlResult<Box<dyn NeighborSearchBackend>> {
-    match algorithm {
-        KnnSearchAlgorithm::BruteForce => Ok(Box::new(BruteForceBackend { features })),
-        KnnSearchAlgorithm::KdTree => Ok(Box::new(KdTreeBackend::new(features, tree_leaf_size)?)),
-        KnnSearchAlgorithm::BallTree => {
-            Ok(Box::new(BallTreeBackend::new(features, tree_leaf_size)?))
+impl NeighborSearchBackend {
+    pub(crate) fn new(
+        features: &NDArray<f64>,
+        algorithm: KnnSearchAlgorithm,
+        tree_leaf_size: usize,
+    ) -> AtlasMlResult<Self> {
+        match algorithm {
+            KnnSearchAlgorithm::BruteForce => Ok(Self::BruteForce),
+            KnnSearchAlgorithm::KdTree => {
+                Ok(Self::KdTree(KdTree::build_with_leaf_size(features, tree_leaf_size)?))
+            }
+            KnnSearchAlgorithm::BallTree => {
+                Ok(Self::BallTree(BallTree::build_with_leaf_size(features, tree_leaf_size)?))
+            }
+            KnnSearchAlgorithm::Auto if features.shape()[0] <= AUTO_BRUTE_FORCE_MAX_SAMPLES => {
+                Ok(Self::BruteForce)
+            }
+            KnnSearchAlgorithm::Auto => {
+                Ok(Self::KdTree(KdTree::build_with_leaf_size(features, tree_leaf_size)?))
+            }
         }
-        KnnSearchAlgorithm::Auto if features.shape()[0] <= AUTO_BRUTE_FORCE_MAX_SAMPLES => {
-            Ok(Box::new(BruteForceBackend { features }))
-        }
-        KnnSearchAlgorithm::Auto => Ok(Box::new(KdTreeBackend::new(features, tree_leaf_size)?)),
-    }
-}
-
-struct BruteForceBackend {
-    features: Arc<NDArray<f64>>,
-}
-
-impl NeighborSearchBackend for BruteForceBackend {
-    fn algorithm(&self) -> KnnSearchAlgorithm {
-        KnnSearchAlgorithm::BruteForce
     }
 
-    fn search(
-        &self,
-        query: &[f64],
-        k: usize,
-        metric: &dyn DistanceMetric,
-    ) -> AtlasMlResult<Vec<Neighbor>> {
-        brute_force_search(self.features.as_ref(), query, k, metric)
-    }
-
-    fn search_batch(
-        &self,
-        queries: &[&[f64]],
-        k: usize,
-        metric: &dyn DistanceMetric,
-    ) -> AtlasMlResult<Vec<Vec<Neighbor>>> {
-        brute_force_search_batch(self.features.as_ref(), queries, k, metric)
-    }
-}
-
-struct KdTreeBackend {
-    features: Arc<NDArray<f64>>,
-    tree: KdTree,
-}
-
-impl KdTreeBackend {
-    fn new(features: Arc<NDArray<f64>>, tree_leaf_size: usize) -> AtlasMlResult<Self> {
-        let tree = KdTree::build_with_leaf_size(features.as_ref(), tree_leaf_size)?;
-
-        Ok(Self { features, tree })
-    }
-}
-
-impl NeighborSearchBackend for KdTreeBackend {
-    fn algorithm(&self) -> KnnSearchAlgorithm {
-        KnnSearchAlgorithm::KdTree
-    }
-
-    fn search(
-        &self,
-        query: &[f64],
-        k: usize,
-        metric: &dyn DistanceMetric,
-    ) -> AtlasMlResult<Vec<Neighbor>> {
-        self.tree.search(self.features.as_ref(), query, k, metric)
-    }
-}
-
-struct BallTreeBackend {
-    features: Arc<NDArray<f64>>,
-    tree: BallTree,
-}
-
-impl BallTreeBackend {
-    fn new(features: Arc<NDArray<f64>>, tree_leaf_size: usize) -> AtlasMlResult<Self> {
-        let tree = BallTree::build_with_leaf_size(features.as_ref(), tree_leaf_size)?;
-
-        Ok(Self { features, tree })
-    }
-}
-
-impl NeighborSearchBackend for BallTreeBackend {
-    fn algorithm(&self) -> KnnSearchAlgorithm {
-        KnnSearchAlgorithm::BallTree
-    }
-
-    fn search(
-        &self,
-        query: &[f64],
-        k: usize,
-        metric: &dyn DistanceMetric,
-    ) -> AtlasMlResult<Vec<Neighbor>> {
-        self.tree.search(self.features.as_ref(), query, k, metric)
-    }
-}
-
-#[cfg(test)]
-pub(crate) fn assert_backend_equivalence(
-    backend: &dyn NeighborSearchBackend,
-    features: &NDArray<f64>,
-    queries: &[&[f64]],
-) {
-    use super::{metric::SquaredEuclideanDistance, search::brute_force_search};
-
-    let metric = SquaredEuclideanDistance;
-    for query in queries {
-        for k in 1..=features.shape()[0] {
-            assert_eq!(
-                backend.search(query, k, &metric),
-                brute_force_search(features, query, k, &metric),
-                "backend diverged for query {query:?} and k = {k}"
-            );
+    pub(crate) const fn algorithm(&self) -> KnnSearchAlgorithm {
+        match self {
+            Self::BruteForce => KnnSearchAlgorithm::BruteForce,
+            Self::KdTree(_) => KnnSearchAlgorithm::KdTree,
+            Self::BallTree(_) => KnnSearchAlgorithm::BallTree,
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use atlas_ndarray::NDArray;
 
-    use super::{
-        assert_backend_equivalence, build_search_backend, build_search_backend_with_leaf_size,
+    use super::NeighborSearchBackend;
+    use crate::neighbors::knn::{
+        config::{AUTO_BRUTE_FORCE_MAX_SAMPLES, KnnSearchAlgorithm},
+        metric::SquaredEuclideanDistance,
+        search::brute_force_search,
     };
-    use crate::neighbors::knn::config::{AUTO_BRUTE_FORCE_MAX_SAMPLES, KnnSearchAlgorithm};
 
-    fn assert_all_backends_equivalent(features: Arc<NDArray<f64>>, queries: &[&[f64]]) {
+    fn assert_backend_equivalence(
+        backend: &NeighborSearchBackend,
+        features: &NDArray<f64>,
+        queries: &[&[f64]],
+    ) {
+        for query in queries {
+            for k in 1..=features.shape()[0] {
+                let actual = match backend {
+                    NeighborSearchBackend::BruteForce => {
+                        brute_force_search(features, query, k, &SquaredEuclideanDistance)
+                    }
+                    NeighborSearchBackend::KdTree(tree) => {
+                        tree.search(features, query, k, &SquaredEuclideanDistance)
+                    }
+                    NeighborSearchBackend::BallTree(tree) => {
+                        tree.search(features, query, k, &SquaredEuclideanDistance)
+                    }
+                };
+                assert_eq!(
+                    actual,
+                    brute_force_search(features, query, k, &SquaredEuclideanDistance),
+                    "backend diverged for query {query:?} and k = {k}"
+                );
+            }
+        }
+    }
+
+    fn assert_all_backends_equivalent(features: &NDArray<f64>, queries: &[&[f64]]) {
         for algorithm in [
             KnnSearchAlgorithm::BruteForce,
             KnnSearchAlgorithm::KdTree,
             KnnSearchAlgorithm::BallTree,
         ] {
-            let backend = build_search_backend(Arc::clone(&features), algorithm).unwrap();
-
-            assert_backend_equivalence(backend.as_ref(), features.as_ref(), queries);
-        }
-    }
-
-    fn assert_tree_backends_equivalent(
-        features: Arc<NDArray<f64>>,
-        queries: &[&[f64]],
-        tree_leaf_size: usize,
-    ) {
-        for algorithm in [KnnSearchAlgorithm::KdTree, KnnSearchAlgorithm::BallTree] {
-            let backend = build_search_backend_with_leaf_size(
-                Arc::clone(&features),
-                algorithm,
-                tree_leaf_size,
-            )
-            .unwrap();
-
-            assert_backend_equivalence(backend.as_ref(), features.as_ref(), queries);
+            let backend = NeighborSearchBackend::new(features, algorithm, 1).unwrap();
+            assert_backend_equivalence(&backend, features, queries);
         }
     }
 
@@ -212,74 +104,36 @@ mod tests {
     }
 
     #[test]
-    fn brute_force_backend_satisfies_the_equivalence_contract() {
-        let features = Arc::new(
+    fn explicit_backends_satisfy_the_equivalence_contract() {
+        let features =
             NDArray::from_shape_vec([4, 2], vec![0.0_f64, 0.0, 2.0, 0.0, 0.0, 2.0, 2.0, 2.0])
-                .unwrap(),
-        );
-        let backend =
-            build_search_backend(Arc::clone(&features), KnnSearchAlgorithm::BruteForce).unwrap();
+                .unwrap();
         let queries = [&[0.0_f64, 0.0][..], &[1.0_f64, 1.0][..]];
 
-        assert_eq!(backend.algorithm(), KnnSearchAlgorithm::BruteForce);
-        assert_backend_equivalence(backend.as_ref(), features.as_ref(), &queries);
+        assert_all_backends_equivalent(&features, &queries);
     }
 
     #[test]
-    fn kd_tree_backend_satisfies_the_equivalence_contract() {
-        let features = Arc::new(
-            NDArray::from_shape_vec([3, 2], vec![0.0_f64, 0.0, 2.0, 0.0, 0.0, 2.0]).unwrap(),
-        );
-        let backend =
-            build_search_backend(Arc::clone(&features), KnnSearchAlgorithm::KdTree).unwrap();
-        let queries = [&[0.0_f64, 0.0][..], &[1.0_f64, 1.0][..]];
+    fn automatic_selection_preserves_its_sample_threshold() {
+        let small = NDArray::from_shape_vec(
+            [AUTO_BRUTE_FORCE_MAX_SAMPLES, 1],
+            vec![0.0_f64; AUTO_BRUTE_FORCE_MAX_SAMPLES],
+        )
+        .unwrap();
+        let large_count = AUTO_BRUTE_FORCE_MAX_SAMPLES + 1;
+        let large = NDArray::from_shape_vec(
+            [large_count, 1],
+            (0..large_count).map(|value| value as f64).collect(),
+        )
+        .unwrap();
 
+        assert_eq!(
+            NeighborSearchBackend::new(&small, KnnSearchAlgorithm::Auto, 1).unwrap().algorithm(),
+            KnnSearchAlgorithm::BruteForce
+        );
+        let backend = NeighborSearchBackend::new(&large, KnnSearchAlgorithm::Auto, 1).unwrap();
         assert_eq!(backend.algorithm(), KnnSearchAlgorithm::KdTree);
-        assert_backend_equivalence(backend.as_ref(), features.as_ref(), &queries);
-    }
-
-    #[test]
-    fn ball_tree_backend_satisfies_the_equivalence_contract() {
-        let features = Arc::new(
-            NDArray::from_shape_vec([3, 2], vec![0.0_f64, 0.0, 2.0, 0.0, 0.0, 2.0]).unwrap(),
-        );
-        let backend =
-            build_search_backend(Arc::clone(&features), KnnSearchAlgorithm::BallTree).unwrap();
-        let queries = [&[0.0_f64, 0.0][..], &[1.0_f64, 1.0][..]];
-
-        assert_eq!(backend.algorithm(), KnnSearchAlgorithm::BallTree);
-        assert_backend_equivalence(backend.as_ref(), features.as_ref(), &queries);
-    }
-
-    #[test]
-    fn automatic_selection_uses_brute_force_at_the_threshold() {
-        let features = Arc::new(
-            NDArray::from_shape_vec(
-                [AUTO_BRUTE_FORCE_MAX_SAMPLES, 1],
-                vec![0.0_f64; AUTO_BRUTE_FORCE_MAX_SAMPLES],
-            )
-            .unwrap(),
-        );
-        let backend = build_search_backend(features, KnnSearchAlgorithm::Auto).unwrap();
-
-        assert_eq!(backend.algorithm(), KnnSearchAlgorithm::BruteForce);
-    }
-
-    #[test]
-    fn automatic_selection_uses_a_kd_tree_above_the_threshold() {
-        let sample_count = AUTO_BRUTE_FORCE_MAX_SAMPLES + 1;
-        let features = Arc::new(
-            NDArray::from_shape_vec(
-                [sample_count, 1],
-                (0..sample_count).map(|value| value as f64).collect(),
-            )
-            .unwrap(),
-        );
-        let backend =
-            build_search_backend(Arc::clone(&features), KnnSearchAlgorithm::Auto).unwrap();
-
-        assert_eq!(backend.algorithm(), KnnSearchAlgorithm::KdTree);
-        assert_backend_equivalence(backend.as_ref(), features.as_ref(), &[&[32.5_f64]]);
+        assert_backend_equivalence(&backend, &large, &[&[32.5_f64]]);
     }
 
     #[test]
@@ -288,43 +142,34 @@ mod tests {
         const SAMPLE_COUNT: usize = 17;
 
         for seed in [1_u64, 7, 42, 1_337] {
-            let features = Arc::new(
-                NDArray::from_shape_vec(
-                    [SAMPLE_COUNT, FEATURE_COUNT],
-                    seeded_values(seed, SAMPLE_COUNT * FEATURE_COUNT),
-                )
-                .unwrap(),
-            );
+            let features = NDArray::from_shape_vec(
+                [SAMPLE_COUNT, FEATURE_COUNT],
+                seeded_values(seed, SAMPLE_COUNT * FEATURE_COUNT),
+            )
+            .unwrap();
             let query_values = seeded_values(seed.wrapping_add(1), 4 * FEATURE_COUNT);
             let queries = query_values.chunks_exact(FEATURE_COUNT).collect::<Vec<_>>();
 
-            assert_all_backends_equivalent(features, &queries);
+            assert_all_backends_equivalent(&features, &queries);
         }
     }
 
     #[test]
-    fn backends_handle_single_sample_and_duplicate_zero_distance_queries() {
-        let single_sample = Arc::new(NDArray::from_shape_vec([1, 1], vec![3.0_f64]).unwrap());
-        assert_all_backends_equivalent(single_sample, &[&[3.0_f64]]);
+    fn backends_handle_single_samples_duplicates_and_leaf_sizes() {
+        let single_sample = NDArray::from_shape_vec([1, 1], vec![3.0_f64]).unwrap();
+        assert_all_backends_equivalent(&single_sample, &[&[3.0_f64]]);
 
-        let duplicate_points =
-            Arc::new(NDArray::from_shape_vec([3, 1], vec![0.0_f64, 0.0, 2.0]).unwrap());
-        assert_all_backends_equivalent(duplicate_points, &[&[0.0_f64]]);
-    }
-
-    #[test]
-    fn tree_leaf_sizes_match_brute_force_for_duplicate_points() {
-        let features = Arc::new(
-            NDArray::from_shape_vec(
-                [5, 2],
-                vec![0.0_f64, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 2.0, 0.0],
-            )
-            .unwrap(),
-        );
+        let features = NDArray::from_shape_vec(
+            [5, 2],
+            vec![0.0_f64, 0.0, 0.0, 0.0, 1.0, 0.0, 1.0, 0.0, 2.0, 0.0],
+        )
+        .unwrap();
         let queries = [&[0.0_f64, 0.0][..], &[0.5_f64, 0.0][..], &[2.0_f64, 0.0][..]];
-
-        for tree_leaf_size in 1..=features.shape()[0] + 1 {
-            assert_tree_backends_equivalent(Arc::clone(&features), &queries, tree_leaf_size);
+        for leaf_size in 1..=features.shape()[0] + 1 {
+            for algorithm in [KnnSearchAlgorithm::KdTree, KnnSearchAlgorithm::BallTree] {
+                let backend = NeighborSearchBackend::new(&features, algorithm, leaf_size).unwrap();
+                assert_backend_equivalence(&backend, &features, &queries);
+            }
         }
     }
 }

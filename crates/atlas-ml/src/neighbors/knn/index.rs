@@ -1,14 +1,11 @@
-use std::{mem::size_of, sync::Arc};
+use std::mem::size_of;
 
 use atlas_ndarray::{NDArray, OperandMetadata};
 use rayon::prelude::*;
 
 use super::{
-    backend::{NeighborSearchBackend, build_search_backend_with_leaf_size},
-    config::KnnSearchAlgorithm,
-    metric::DistanceMetric,
-    neighbor::Neighbor,
-    neighbor_set::BoundedNeighborSet,
+    backend::NeighborSearchBackend, config::KnnSearchAlgorithm, metric::DistanceMetric,
+    neighbor::Neighbor, neighbor_set::BoundedNeighborSet, search::brute_force_search,
 };
 use crate::{
     AtlasMlError, AtlasMlResult,
@@ -20,9 +17,9 @@ const QUERY_BLOCK_SIZE: usize = 32;
 const BRUTE_FORCE_OP: &str = "brute_force_knn_search";
 
 pub(crate) struct TrainingIndex {
-    features: Arc<NDArray<f64>>,
+    features: NDArray<f64>,
     training_squared_norms: Box<[f64]>,
-    backend: Box<dyn NeighborSearchBackend>,
+    backend: NeighborSearchBackend,
 }
 
 impl TrainingIndex {
@@ -31,11 +28,9 @@ impl TrainingIndex {
         algorithm: KnnSearchAlgorithm,
         tree_leaf_size: usize,
     ) -> AtlasMlResult<Self> {
-        let features = Arc::new(features);
-        let backend =
-            build_search_backend_with_leaf_size(Arc::clone(&features), algorithm, tree_leaf_size)?;
+        let backend = NeighborSearchBackend::new(&features, algorithm, tree_leaf_size)?;
         let training_squared_norms = if backend.algorithm() == KnnSearchAlgorithm::BruteForce {
-            squared_row_norms(features.as_ref()).into_boxed_slice()
+            squared_row_norms(&features).into_boxed_slice()
         } else {
             Box::default()
         };
@@ -43,7 +38,7 @@ impl TrainingIndex {
         Ok(Self { features, training_squared_norms, backend })
     }
 
-    pub(crate) fn features(&self) -> &Arc<NDArray<f64>> {
+    pub(crate) fn features(&self) -> &NDArray<f64> {
         &self.features
     }
 
@@ -57,17 +52,20 @@ impl TrainingIndex {
         k: usize,
         metric: &dyn DistanceMetric,
     ) -> AtlasMlResult<Vec<Neighbor>> {
-        if self.backend.algorithm() == KnnSearchAlgorithm::BruteForce
-            && metric.supports_squared_euclidean_expansion()
-        {
-            let queries = NDArray::from_shape_vec([1, query.len()], query.to_vec())?;
-            return Ok(self
-                .search_gemm_batch(&queries, k)?
-                .pop()
-                .expect("one query produces one neighbor batch"));
+        match &self.backend {
+            NeighborSearchBackend::BruteForce if metric.supports_squared_euclidean_expansion() => {
+                let queries = NDArray::from_shape_vec([1, query.len()], query.to_vec())?;
+                Ok(self
+                    .search_gemm_batch(&queries, k)?
+                    .pop()
+                    .expect("one query produces one neighbor batch"))
+            }
+            NeighborSearchBackend::BruteForce => {
+                brute_force_search(&self.features, query, k, metric)
+            }
+            NeighborSearchBackend::KdTree(tree) => tree.search(&self.features, query, k, metric),
+            NeighborSearchBackend::BallTree(tree) => tree.search(&self.features, query, k, metric),
         }
-
-        self.backend.search(query, k, metric)
     }
 
     pub(crate) fn search_batch<Q>(
@@ -279,7 +277,7 @@ impl TrainingIndex {
                     &queries.data()[start..start + feature_count]
                 })
                 .collect::<Vec<_>>();
-            self.backend.search_batch(&query_rows, k, metric)
+            query_rows.iter().map(|query| self.search(query, k, metric)).collect()
         } else {
             let block_len = block_end - block_start;
             let mut values = Vec::with_capacity(block_len * feature_count);
@@ -295,7 +293,7 @@ impl TrainingIndex {
                     &values[start..start + feature_count]
                 })
                 .collect::<Vec<_>>();
-            self.backend.search_batch(&query_rows, k, metric)
+            query_rows.iter().map(|query| self.search(query, k, metric)).collect()
         }
     }
 }
@@ -367,8 +365,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-
     use atlas_ndarray::NDArray;
 
     use super::TrainingIndex;
@@ -377,7 +373,7 @@ mod tests {
     };
 
     #[test]
-    fn retains_shared_owned_training_features_and_shape() {
+    fn retains_owned_training_features_and_shape() {
         let index = TrainingIndex::new(
             NDArray::from_shape_vec([2, 3], vec![0.0_f64, 1.0, 2.0, 3.0, 4.0, 5.0]).unwrap(),
             KnnSearchAlgorithm::BruteForce,
@@ -387,7 +383,6 @@ mod tests {
 
         assert_eq!(index.features().shape(), &[2, 3]);
         assert_eq!(index.features().data(), &[0.0, 1.0, 2.0, 3.0, 4.0, 5.0]);
-        assert_eq!(Arc::strong_count(index.features()), 2);
     }
 
     #[test]
