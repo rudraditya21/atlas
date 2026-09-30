@@ -11,7 +11,8 @@ use crate::{
     internal::{parallel::should_parallelize_inference, row::copy_logical_row},
 };
 
-const DISTANCE_BLOCK_TARGET_BYTES: usize = 1024 * 1024;
+const QUERY_BLOCK_ROWS: usize = 64;
+const TRAINING_BLOCK_TARGET_BYTES: usize = 4 * 1024 * 1024;
 const OP: &str = "brute_force_knn_search";
 
 pub(crate) struct BruteForceSearch {
@@ -77,33 +78,13 @@ impl BruteForceSearch {
         let query_count = queries.shape()[0];
         let sample_count = training_features.shape()[0];
         let feature_count = training_features.shape()[1];
-        let thread_count = rayon::current_num_threads();
-        let probe_query_count = query_count.min(32).max(1);
-        let probe_training_count = distance_training_block_size(
-            sample_count,
-            feature_count,
-            probe_query_count,
-            thread_count,
-            false,
-        );
+        let query_block_size = query_count.min(QUERY_BLOCK_ROWS);
+        let training_block_size =
+            distance_training_block_size(sample_count, feature_count, query_block_size);
         let blas_active = atlas_linalg::will_use_blas_matmul::<f64>(
-            probe_query_count,
-            feature_count,
-            probe_training_count,
-        );
-        let query_block_size = distance_query_block_size(
-            query_count,
-            sample_count,
-            feature_count,
-            thread_count,
-            blas_active,
-        );
-        let training_block_size = distance_training_block_size(
-            sample_count,
-            feature_count,
             query_block_size,
-            thread_count,
-            blas_active,
+            feature_count,
+            training_block_size,
         );
         let block_starts = (0..query_count).step_by(query_block_size).collect::<Vec<_>>();
         let work_items = query_count.saturating_mul(sample_count).saturating_mul(feature_count);
@@ -271,42 +252,14 @@ where
     Ok(())
 }
 
-fn distance_query_block_size(
-    query_count: usize,
-    training_count: usize,
-    feature_count: usize,
-    thread_count: usize,
-    blas_active: bool,
-) -> usize {
-    let blocks_per_thread = if blas_active { 1 } else { 4 };
-    let target_block_count = thread_count.max(1).saturating_mul(blocks_per_thread);
-    let parallel_block_size = query_count.div_ceil(target_block_count);
-    let work_per_query = training_count.saturating_mul(feature_count).max(1);
-    let work_block_size = (1_usize << 20).div_ceil(work_per_query).clamp(1, 128);
-
-    if blas_active {
-        parallel_block_size.max(work_block_size).clamp(1, 128).min(query_count)
-    } else {
-        parallel_block_size.min(work_block_size).clamp(1, 64).min(query_count)
-    }
-}
-
 fn distance_training_block_size(
     training_count: usize,
     feature_count: usize,
     query_count: usize,
-    thread_count: usize,
-    blas_active: bool,
 ) -> usize {
-    let target_bytes = if blas_active {
-        DISTANCE_BLOCK_TARGET_BYTES * 4
-    } else {
-        (DISTANCE_BLOCK_TARGET_BYTES * 4 / thread_count.max(1))
-            .clamp(DISTANCE_BLOCK_TARGET_BYTES / 4, DISTANCE_BLOCK_TARGET_BYTES)
-    };
     let bytes_per_training_sample =
         feature_count.saturating_add(query_count).saturating_mul(size_of::<f64>());
-    target_bytes
+    TRAINING_BLOCK_TARGET_BYTES
         .checked_div(bytes_per_training_sample)
         .unwrap_or(1)
         .max(1)
