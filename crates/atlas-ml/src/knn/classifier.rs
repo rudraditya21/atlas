@@ -548,6 +548,31 @@ mod tests {
     }
 
     #[test]
+    fn every_backend_preserves_uniform_and_distance_weighting() {
+        let features = NDArray::from_shape_vec([3, 1], vec![1.0_f64, 2.0, 0.1]).unwrap();
+        let labels = NDArray::from_shape_vec([3], vec![0_usize, 0, 1]).unwrap();
+        let queries = NDArray::from_shape_vec([1, 1], vec![0.0_f64]).unwrap();
+
+        for algorithm in [
+            KnnSearchAlgorithm::BruteForce,
+            KnnSearchAlgorithm::KdTree,
+            KnnSearchAlgorithm::BallTree,
+        ] {
+            let config = KnnConfig::new(3).unwrap().with_search_algorithm(algorithm).unwrap();
+            let uniform = KnnClassifier::fit(features.clone(), labels.clone(), config).unwrap();
+            let distance = KnnClassifier::fit(
+                features.clone(),
+                labels.clone(),
+                config.with_weighting(KnnWeighting::Distance),
+            )
+            .unwrap();
+
+            assert_eq!(uniform.predict(&queries).unwrap().data(), &[0]);
+            assert_eq!(distance.predict(&queries).unwrap().data(), &[1]);
+        }
+    }
+
+    #[test]
     fn reports_explicit_search_backend_selection() {
         for algorithm in [
             KnnSearchAlgorithm::BruteForce,

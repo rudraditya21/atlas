@@ -405,4 +405,54 @@ mod tests {
             Ok(vec![Neighbor { index: 0, distance: 1.0 }])
         );
     }
+
+    #[test]
+    fn backends_preserve_batch_ties_views_empty_results_and_errors() {
+        let query_source =
+            NDArray::from_shape_vec([2, 3], vec![0.0_f64, 0.5, 99.0, 0.0, 0.0, 99.0]).unwrap();
+        let queries = query_source.view().transpose().slice([0, 0], [2, 2]).unwrap();
+        let empty_queries = NDArray::<f64>::zeros([0, 2]).unwrap();
+        let invalid_queries = NDArray::from_shape_vec([1, 1], vec![0.0_f64]).unwrap();
+        let expected = vec![
+            vec![Neighbor { index: 0, distance: 1.0 }, Neighbor { index: 1, distance: 1.0 }],
+            vec![Neighbor { index: 1, distance: 0.25 }, Neighbor { index: 0, distance: 2.25 }],
+        ];
+
+        for algorithm in [
+            KnnSearchAlgorithm::BruteForce,
+            KnnSearchAlgorithm::KdTree,
+            KnnSearchAlgorithm::BallTree,
+        ] {
+            let error_op = match algorithm {
+                KnnSearchAlgorithm::BruteForce => "brute_force_knn_search",
+                KnnSearchAlgorithm::KdTree => "kd_tree_search",
+                KnnSearchAlgorithm::BallTree => "ball_tree_search",
+                KnnSearchAlgorithm::Auto => unreachable!(),
+            };
+            let index = TrainingIndex::new(
+                NDArray::from_shape_vec([3, 2], vec![-1.0_f64, 0.0, 1.0, 0.0, 0.0, 2.0]).unwrap(),
+                algorithm,
+                1,
+            )
+            .unwrap();
+
+            assert_eq!(
+                index.search_batch(&queries, 2, &SquaredEuclideanDistance),
+                Ok(expected.clone())
+            );
+            assert_eq!(
+                index.search_batch(&empty_queries, 2, &SquaredEuclideanDistance),
+                Ok(Vec::new())
+            );
+            assert_eq!(
+                index.search_batch(&invalid_queries, 2, &SquaredEuclideanDistance),
+                Err(crate::AtlasMlError::ShapeMismatch {
+                    op: error_op,
+                    left: vec![2],
+                    right: vec![1],
+                    reason: "feature dimensions must match",
+                })
+            );
+        }
+    }
 }

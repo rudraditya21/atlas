@@ -262,6 +262,33 @@ mod tests {
     }
 
     #[test]
+    fn blas_eligible_matmul_matches_the_native_f64_kernel() {
+        let rows = 72;
+        let inner = 80;
+        let cols = 68;
+        let lhs = NDArray::from_shape_vec(
+            [rows, inner],
+            (0..rows * inner).map(|index| ((index * 17 % 101) as f64 - 50.0) / 101.0).collect(),
+        )
+        .unwrap();
+        let rhs = NDArray::from_shape_vec(
+            [inner, cols],
+            (0..inner * cols).map(|index| ((index * 29 % 103) as f64 - 51.0) / 103.0).collect(),
+        )
+        .unwrap();
+        let lhs_operand = LinalgOperand::from(&lhs);
+        let rhs_operand = LinalgOperand::from(&rhs);
+
+        let native =
+            matmul_matrix_matrix_row_major(matrix_ref(&lhs_operand), matrix_ref(&rhs_operand));
+        let dispatched = matmul(&lhs, &rhs).unwrap();
+
+        assert!(dispatched.data().iter().zip(&native).all(|(&actual, &expected)| {
+            (actual - expected).abs() <= 1e-10 * expected.abs().max(1.0)
+        }));
+    }
+
+    #[test]
     fn matrix_matrix_row_major_blocked_path_handles_tail_tiles() {
         let side = 97;
         let lhs_values: Vec<i32> = (0..side * side).map(|index| (index % 11) as i32 - 5).collect();
