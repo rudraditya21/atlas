@@ -1,0 +1,394 @@
+use std::mem::size_of;
+
+use atlas_ndarray::{NDArray, OperandMetadata};
+use rayon::prelude::*;
+
+use super::{
+    metric::squared_distance_to_row, neighbor::Neighbor, neighbor_set::BoundedNeighborSet,
+};
+use crate::{
+    AtlasMlError, AtlasMlResult,
+    internal::{parallel::should_parallelize_inference, row::copy_logical_row},
+};
+
+const DISTANCE_BLOCK_TARGET_BYTES: usize = 1024 * 1024;
+const OP: &str = "brute_force_knn_search";
+
+pub(crate) struct BruteForceSearch {
+    training_squared_norms: Box<[f64]>,
+}
+
+impl BruteForceSearch {
+    pub(crate) fn new(training_features: &NDArray<f64>) -> Self {
+        Self { training_squared_norms: squared_row_norms(training_features).into_boxed_slice() }
+    }
+
+    pub(crate) fn search(
+        &self,
+        training_features: &NDArray<f64>,
+        query: &[f64],
+        k: usize,
+    ) -> AtlasMlResult<Vec<Neighbor>> {
+        validate_search(training_features, query.len(), k)?;
+        Ok(scalar_search(training_features, query, k))
+    }
+
+    pub(crate) fn search_batch<Q>(
+        &self,
+        training_features: &NDArray<f64>,
+        queries: &Q,
+        k: usize,
+    ) -> AtlasMlResult<Vec<Vec<Neighbor>>>
+    where
+        Q: OperandMetadata<f64> + Sync + ?Sized,
+    {
+        if queries.ndim() != 2 {
+            return Err(AtlasMlError::InvalidInputRank {
+                op: OP,
+                expected: "a rank-2 [samples, features] matrix",
+                rank: queries.ndim(),
+            });
+        }
+        validate_search(training_features, queries.shape()[1], k)?;
+
+        let query_count = queries.shape()[0];
+        if query_count == 0 {
+            return Ok(Vec::new());
+        }
+        if query_count == 1 {
+            let mut query = vec![0.0; queries.shape()[1]];
+            copy_logical_row(queries, 0, &mut query);
+            return Ok(vec![scalar_search(training_features, &query, k)]);
+        }
+
+        self.search_blocked(training_features, queries, k)
+    }
+
+    fn search_blocked<Q>(
+        &self,
+        training_features: &NDArray<f64>,
+        queries: &Q,
+        k: usize,
+    ) -> AtlasMlResult<Vec<Vec<Neighbor>>>
+    where
+        Q: OperandMetadata<f64> + Sync + ?Sized,
+    {
+        let query_squared_norms = squared_row_norms(queries);
+        let query_count = queries.shape()[0];
+        let sample_count = training_features.shape()[0];
+        let feature_count = training_features.shape()[1];
+        let thread_count = rayon::current_num_threads();
+        let probe_query_count = query_count.min(32).max(1);
+        let probe_training_count = distance_training_block_size(
+            sample_count,
+            feature_count,
+            probe_query_count,
+            thread_count,
+            false,
+        );
+        let blas_active = atlas_linalg::will_use_blas_matmul::<f64>(
+            probe_query_count,
+            feature_count,
+            probe_training_count,
+        );
+        let query_block_size = distance_query_block_size(
+            query_count,
+            sample_count,
+            feature_count,
+            thread_count,
+            blas_active,
+        );
+        let training_block_size = distance_training_block_size(
+            sample_count,
+            feature_count,
+            query_block_size,
+            thread_count,
+            blas_active,
+        );
+        let block_starts = (0..query_count).step_by(query_block_size).collect::<Vec<_>>();
+        let work_items = query_count.saturating_mul(sample_count).saturating_mul(feature_count);
+
+        let blocks = if !blas_active && should_parallelize_inference(block_starts.len(), work_items)
+        {
+            block_starts
+                .into_par_iter()
+                .map(|block_start| {
+                    self.search_block(
+                        training_features,
+                        queries,
+                        &query_squared_norms,
+                        block_start,
+                        query_block_size,
+                        training_block_size,
+                        k,
+                    )
+                })
+                .collect::<AtlasMlResult<Vec<_>>>()?
+        } else {
+            block_starts
+                .into_iter()
+                .map(|block_start| {
+                    self.search_block(
+                        training_features,
+                        queries,
+                        &query_squared_norms,
+                        block_start,
+                        query_block_size,
+                        training_block_size,
+                        k,
+                    )
+                })
+                .collect::<AtlasMlResult<Vec<_>>>()?
+        };
+
+        Ok(blocks.into_iter().flatten().collect())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn search_block<Q>(
+        &self,
+        training_features: &NDArray<f64>,
+        queries: &Q,
+        query_squared_norms: &[f64],
+        block_start: usize,
+        query_block_size: usize,
+        training_block_size: usize,
+        k: usize,
+    ) -> AtlasMlResult<Vec<Vec<Neighbor>>>
+    where
+        Q: OperandMetadata<f64> + ?Sized,
+    {
+        let feature_count = queries.shape()[1];
+        let block_end = (block_start + query_block_size).min(queries.shape()[0]);
+        let block_len = block_end - block_start;
+        let mut query_values = vec![0.0; block_len * feature_count];
+        for (block_row, query_index) in (block_start..block_end).enumerate() {
+            let row_start = block_row * feature_count;
+            copy_logical_row(
+                queries,
+                query_index,
+                &mut query_values[row_start..row_start + feature_count],
+            );
+        }
+
+        let query_block = NDArray::from_shape_vec([block_len, feature_count], query_values)?;
+        let sample_count = training_features.shape()[0];
+        let mut neighbor_sets =
+            (0..block_len).map(|_| BoundedNeighborSet::new(k)).collect::<Vec<_>>();
+
+        for training_start in (0..sample_count).step_by(training_block_size) {
+            let training_len = training_block_size.min(sample_count - training_start);
+            let training_block = training_features
+                .view()
+                .slice([training_start, 0], [training_len, feature_count])?;
+            let products = atlas_linalg::matmul(&query_block, training_block.transpose())?;
+
+            for (block_row, neighbors) in neighbor_sets.iter_mut().enumerate() {
+                let query_norm = query_squared_norms[block_start + block_row];
+                let product_row =
+                    &products.data()[block_row * training_len..(block_row + 1) * training_len];
+                let training_norms =
+                    &self.training_squared_norms[training_start..training_start + training_len];
+                for (training_offset, (&training_norm, &product)) in
+                    training_norms.iter().zip(product_row).enumerate()
+                {
+                    let distance = query_norm + training_norm - 2.0 * product;
+                    neighbors.insert(Neighbor {
+                        index: training_start + training_offset,
+                        distance: if distance < 0.0 { 0.0 } else { distance },
+                    });
+                }
+            }
+        }
+
+        Ok(neighbor_sets.into_iter().map(|neighbors| neighbors.neighbors().to_vec()).collect())
+    }
+}
+
+pub(crate) fn brute_force_search<F>(
+    training_features: &F,
+    query: &[f64],
+    k: usize,
+) -> AtlasMlResult<Vec<Neighbor>>
+where
+    F: OperandMetadata<f64> + ?Sized,
+{
+    validate_search(training_features, query.len(), k)?;
+    Ok(scalar_search(training_features, query, k))
+}
+
+fn scalar_search<F>(training_features: &F, query: &[f64], k: usize) -> Vec<Neighbor>
+where
+    F: OperandMetadata<f64> + ?Sized,
+{
+    let mut neighbors = BoundedNeighborSet::new(k);
+    for sample_index in 0..training_features.shape()[0] {
+        neighbors.insert(Neighbor {
+            index: sample_index,
+            distance: squared_distance_to_row(
+                crate::internal::row::LogicalRow::from_operand(training_features, sample_index),
+                query,
+            ),
+        });
+    }
+    neighbors.neighbors().to_vec()
+}
+
+fn validate_search<F>(
+    training_features: &F,
+    query_feature_count: usize,
+    k: usize,
+) -> AtlasMlResult<()>
+where
+    F: OperandMetadata<f64> + ?Sized,
+{
+    if training_features.ndim() != 2 {
+        return Err(AtlasMlError::InvalidInputRank {
+            op: OP,
+            expected: "a rank-2 [samples, features] matrix",
+            rank: training_features.ndim(),
+        });
+    }
+
+    let sample_count = training_features.shape()[0];
+    if k == 0 || k > sample_count {
+        return Err(AtlasMlError::InvalidArgument {
+            op: OP,
+            reason: "k must be between 1 and the number of training samples",
+        });
+    }
+
+    let feature_count = training_features.shape()[1];
+    if query_feature_count != feature_count {
+        return Err(AtlasMlError::ShapeMismatch {
+            op: OP,
+            left: vec![feature_count],
+            right: vec![query_feature_count],
+            reason: "feature dimensions must match",
+        });
+    }
+
+    Ok(())
+}
+
+fn distance_query_block_size(
+    query_count: usize,
+    training_count: usize,
+    feature_count: usize,
+    thread_count: usize,
+    blas_active: bool,
+) -> usize {
+    let blocks_per_thread = if blas_active { 1 } else { 4 };
+    let target_block_count = thread_count.max(1).saturating_mul(blocks_per_thread);
+    let parallel_block_size = query_count.div_ceil(target_block_count);
+    let work_per_query = training_count.saturating_mul(feature_count).max(1);
+    let work_block_size = (1_usize << 20).div_ceil(work_per_query).clamp(1, 128);
+
+    if blas_active {
+        parallel_block_size.max(work_block_size).clamp(1, 128).min(query_count)
+    } else {
+        parallel_block_size.min(work_block_size).clamp(1, 64).min(query_count)
+    }
+}
+
+fn distance_training_block_size(
+    training_count: usize,
+    feature_count: usize,
+    query_count: usize,
+    thread_count: usize,
+    blas_active: bool,
+) -> usize {
+    let target_bytes = if blas_active {
+        DISTANCE_BLOCK_TARGET_BYTES * 4
+    } else {
+        (DISTANCE_BLOCK_TARGET_BYTES * 4 / thread_count.max(1))
+            .clamp(DISTANCE_BLOCK_TARGET_BYTES / 4, DISTANCE_BLOCK_TARGET_BYTES)
+    };
+    let bytes_per_training_sample =
+        feature_count.saturating_add(query_count).saturating_mul(size_of::<f64>());
+    target_bytes
+        .checked_div(bytes_per_training_sample)
+        .unwrap_or(1)
+        .max(1)
+        .min(training_count.max(1))
+}
+
+fn squared_row_norms<O>(values: &O) -> Vec<f64>
+where
+    O: OperandMetadata<f64> + ?Sized,
+{
+    let row_count = values.shape()[0];
+    let column_count = values.shape()[1];
+    (0..row_count)
+        .map(|row| {
+            let row_offset = values.offset() + row * values.strides()[0];
+            (0..column_count)
+                .map(|column| {
+                    let value = values.data()[row_offset + column * values.strides()[1]];
+                    value * value
+                })
+                .sum()
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use atlas_ndarray::NDArray;
+
+    use super::brute_force_search;
+    use crate::neighbors::knn::neighbor::Neighbor;
+
+    fn neighbor(index: usize, distance: f64) -> Neighbor {
+        Neighbor { index, distance }
+    }
+
+    #[test]
+    fn finds_exact_nearest_neighbors() {
+        let training =
+            NDArray::from_shape_vec([4, 2], vec![0.0_f64, 0.0, 1.0, 1.0, 3.0, 3.0, 5.0, 5.0])
+                .unwrap();
+
+        assert_eq!(
+            brute_force_search(&training, &[1.5, 1.5], 2),
+            Ok(vec![neighbor(1, 0.5), neighbor(0, 4.5)])
+        );
+    }
+
+    #[test]
+    fn searches_logical_rows_of_transposed_views() {
+        let values =
+            NDArray::from_shape_vec([2, 3], vec![0.0_f64, 2.0, 8.0, 0.0, 2.0, 8.0]).unwrap();
+        let training = values.view().transpose();
+
+        assert_eq!(
+            brute_force_search(&training, &[1.5, 1.5], 2),
+            Ok(vec![neighbor(1, 0.5), neighbor(0, 4.5)])
+        );
+    }
+
+    #[test]
+    fn resolves_equal_distances_by_training_index() {
+        let training =
+            NDArray::from_shape_vec([3, 2], vec![-1.0_f64, 0.0, 1.0, 0.0, 0.0, 2.0]).unwrap();
+
+        assert_eq!(
+            brute_force_search(&training, &[0.0, 0.0], 2),
+            Ok(vec![neighbor(0, 1.0), neighbor(1, 1.0)])
+        );
+    }
+
+    #[test]
+    fn returns_each_valid_neighbor_count() {
+        let training = NDArray::from_shape_vec([3, 1], vec![3.0_f64, 1.0, 2.0]).unwrap();
+        let expected = [
+            vec![neighbor(1, 1.0)],
+            vec![neighbor(1, 1.0), neighbor(2, 4.0)],
+            vec![neighbor(1, 1.0), neighbor(2, 4.0), neighbor(0, 9.0)],
+        ];
+
+        for (k, neighbors) in (1..=3).zip(expected) {
+            assert_eq!(brute_force_search(&training, &[0.0], k), Ok(neighbors));
+        }
+    }
+}

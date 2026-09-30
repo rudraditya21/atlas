@@ -1,24 +1,13 @@
-use std::mem::size_of;
-
 use atlas_ndarray::{NDArray, OperandMetadata};
 use rayon::prelude::*;
 
-use super::{
-    backend::NeighborSearchBackend, config::KnnSearchAlgorithm, neighbor::Neighbor,
-    neighbor_set::BoundedNeighborSet,
-};
-use crate::{
-    AtlasMlError, AtlasMlResult,
-    internal::{parallel::should_parallelize_inference, row::copy_logical_row},
-};
+use super::{backend::NeighborSearchBackend, config::KnnSearchAlgorithm, neighbor::Neighbor};
+use crate::{AtlasMlResult, internal::parallel::should_parallelize_inference};
 
-const DISTANCE_BLOCK_TARGET_BYTES: usize = 1024 * 1024;
 const QUERY_BLOCK_SIZE: usize = 32;
-const BRUTE_FORCE_OP: &str = "brute_force_knn_search";
 
 pub(crate) struct TrainingIndex {
     features: NDArray<f64>,
-    training_squared_norms: Box<[f64]>,
     backend: NeighborSearchBackend,
 }
 
@@ -29,13 +18,7 @@ impl TrainingIndex {
         tree_leaf_size: usize,
     ) -> AtlasMlResult<Self> {
         let backend = NeighborSearchBackend::new(&features, algorithm, tree_leaf_size)?;
-        let training_squared_norms = if backend.algorithm() == KnnSearchAlgorithm::BruteForce {
-            squared_row_norms(&features).into_boxed_slice()
-        } else {
-            Box::default()
-        };
-
-        Ok(Self { features, training_squared_norms, backend })
+        Ok(Self { features, backend })
     }
 
     pub(crate) fn features(&self) -> &NDArray<f64> {
@@ -48,13 +31,7 @@ impl TrainingIndex {
 
     pub(crate) fn search(&self, query: &[f64], k: usize) -> AtlasMlResult<Vec<Neighbor>> {
         match &self.backend {
-            NeighborSearchBackend::BruteForce => {
-                let queries = NDArray::from_shape_vec([1, query.len()], query.to_vec())?;
-                Ok(self
-                    .search_gemm_batch(&queries, k)?
-                    .pop()
-                    .expect("one query produces one neighbor batch"))
-            }
+            NeighborSearchBackend::BruteForce(search) => search.search(&self.features, query, k),
             NeighborSearchBackend::KdTree(tree) => tree.search(&self.features, query, k),
             NeighborSearchBackend::BallTree(tree) => tree.search(&self.features, query, k),
         }
@@ -64,8 +41,8 @@ impl TrainingIndex {
     where
         Q: OperandMetadata<f64> + Sync + ?Sized,
     {
-        if self.backend.algorithm() == KnnSearchAlgorithm::BruteForce {
-            return self.search_gemm_batch(queries, k);
+        if let NeighborSearchBackend::BruteForce(search) = &self.backend {
+            return search.search_batch(&self.features, queries, k);
         }
 
         let query_count = queries.shape()[0];
@@ -87,160 +64,6 @@ impl TrainingIndex {
         };
 
         Ok(blocks.into_iter().flatten().collect())
-    }
-
-    fn search_gemm_batch<Q>(&self, queries: &Q, k: usize) -> AtlasMlResult<Vec<Vec<Neighbor>>>
-    where
-        Q: OperandMetadata<f64> + Sync + ?Sized,
-    {
-        if queries.ndim() != 2 {
-            return Err(AtlasMlError::InvalidInputRank {
-                op: BRUTE_FORCE_OP,
-                expected: "a rank-2 [samples, features] matrix",
-                rank: queries.ndim(),
-            });
-        }
-
-        let sample_count = self.features.shape()[0];
-        if k == 0 || k > sample_count {
-            return Err(AtlasMlError::InvalidArgument {
-                op: BRUTE_FORCE_OP,
-                reason: "k must be between 1 and the number of training samples",
-            });
-        }
-
-        let feature_count = self.features.shape()[1];
-        if queries.shape()[1] != feature_count {
-            return Err(AtlasMlError::ShapeMismatch {
-                op: BRUTE_FORCE_OP,
-                left: vec![feature_count],
-                right: vec![queries.shape()[1]],
-                reason: "feature dimensions must match",
-            });
-        }
-
-        let query_squared_norms = squared_row_norms(queries);
-        let query_count = queries.shape()[0];
-        let thread_count = rayon::current_num_threads();
-        let probe_query_count = query_count.min(32).max(1);
-        let probe_training_count = distance_training_block_size(
-            sample_count,
-            feature_count,
-            probe_query_count,
-            thread_count,
-            false,
-        );
-        let blas_active = atlas_linalg::will_use_blas_matmul::<f64>(
-            probe_query_count,
-            feature_count,
-            probe_training_count,
-        );
-        let query_block_size = distance_query_block_size(
-            query_count,
-            sample_count,
-            feature_count,
-            thread_count,
-            blas_active,
-        );
-        let training_block_size = distance_training_block_size(
-            sample_count,
-            feature_count,
-            query_block_size,
-            thread_count,
-            blas_active,
-        );
-        let block_starts = (0..query_count).step_by(query_block_size).collect::<Vec<_>>();
-        let work_items = query_count.saturating_mul(sample_count).saturating_mul(feature_count);
-
-        let blocks = if !blas_active && should_parallelize_inference(block_starts.len(), work_items)
-        {
-            block_starts
-                .into_par_iter()
-                .map(|block_start| {
-                    self.search_gemm_block(
-                        queries,
-                        &query_squared_norms,
-                        block_start,
-                        query_block_size,
-                        training_block_size,
-                        k,
-                    )
-                })
-                .collect::<AtlasMlResult<Vec<_>>>()?
-        } else {
-            block_starts
-                .into_iter()
-                .map(|block_start| {
-                    self.search_gemm_block(
-                        queries,
-                        &query_squared_norms,
-                        block_start,
-                        query_block_size,
-                        training_block_size,
-                        k,
-                    )
-                })
-                .collect::<AtlasMlResult<Vec<_>>>()?
-        };
-
-        Ok(blocks.into_iter().flatten().collect())
-    }
-
-    fn search_gemm_block<Q>(
-        &self,
-        queries: &Q,
-        query_squared_norms: &[f64],
-        block_start: usize,
-        query_block_size: usize,
-        training_block_size: usize,
-        k: usize,
-    ) -> AtlasMlResult<Vec<Vec<Neighbor>>>
-    where
-        Q: OperandMetadata<f64> + ?Sized,
-    {
-        let feature_count = queries.shape()[1];
-        let block_end = (block_start + query_block_size).min(queries.shape()[0]);
-        let block_len = block_end - block_start;
-        let mut query_values = vec![0.0; block_len * feature_count];
-        for (block_row, query_index) in (block_start..block_end).enumerate() {
-            let row_start = block_row * feature_count;
-            copy_logical_row(
-                queries,
-                query_index,
-                &mut query_values[row_start..row_start + feature_count],
-            );
-        }
-
-        let query_block = NDArray::from_shape_vec([block_len, feature_count], query_values)?;
-        let sample_count = self.features.shape()[0];
-        let mut neighbor_sets =
-            (0..block_len).map(|_| BoundedNeighborSet::new(k)).collect::<Vec<_>>();
-
-        for training_start in (0..sample_count).step_by(training_block_size) {
-            let training_len = training_block_size.min(sample_count - training_start);
-            let training_block =
-                self.features.view().slice([training_start, 0], [training_len, feature_count])?;
-            let products = atlas_linalg::matmul(&query_block, training_block.transpose())?;
-
-            for (block_row, neighbors) in neighbor_sets.iter_mut().enumerate() {
-                let query_norm = query_squared_norms[block_start + block_row];
-                let product_row =
-                    &products.data()[block_row * training_len..(block_row + 1) * training_len];
-                let training_norms =
-                    &self.training_squared_norms[training_start..training_start + training_len];
-                for (training_offset, (&training_norm, &product)) in
-                    training_norms.iter().zip(product_row).enumerate()
-                {
-                    let distance = query_norm + training_norm - 2.0 * product;
-                    neighbors.insert(Neighbor {
-                        index: training_start + training_offset,
-                        distance: if distance < 0.0 { 0.0 } else { distance },
-                    });
-                }
-            }
-        }
-
-        Ok(neighbor_sets.into_iter().map(|neighbors| neighbors.neighbors().to_vec()).collect())
     }
 
     fn search_block<Q>(
@@ -280,71 +103,6 @@ impl TrainingIndex {
             query_rows.iter().map(|query| self.search(query, k)).collect()
         }
     }
-}
-
-fn distance_query_block_size(
-    query_count: usize,
-    training_count: usize,
-    feature_count: usize,
-    thread_count: usize,
-    blas_active: bool,
-) -> usize {
-    if query_count == 0 {
-        return 1;
-    }
-
-    let blocks_per_thread = if blas_active { 1 } else { 4 };
-    let target_block_count = thread_count.max(1).saturating_mul(blocks_per_thread);
-    let parallel_block_size = query_count.div_ceil(target_block_count);
-    let work_per_query = training_count.saturating_mul(feature_count).max(1);
-    let work_block_size = (1_usize << 20).div_ceil(work_per_query).clamp(1, 128);
-
-    if blas_active {
-        parallel_block_size.max(work_block_size).clamp(1, 128).min(query_count)
-    } else {
-        parallel_block_size.min(work_block_size).clamp(1, 64).min(query_count)
-    }
-}
-
-fn distance_training_block_size(
-    training_count: usize,
-    feature_count: usize,
-    query_count: usize,
-    thread_count: usize,
-    blas_active: bool,
-) -> usize {
-    let target_bytes = if blas_active {
-        DISTANCE_BLOCK_TARGET_BYTES * 4
-    } else {
-        (DISTANCE_BLOCK_TARGET_BYTES * 4 / thread_count.max(1))
-            .clamp(DISTANCE_BLOCK_TARGET_BYTES / 4, DISTANCE_BLOCK_TARGET_BYTES)
-    };
-    let bytes_per_training_sample =
-        feature_count.saturating_add(query_count).saturating_mul(size_of::<f64>());
-    target_bytes
-        .checked_div(bytes_per_training_sample)
-        .unwrap_or(1)
-        .max(1)
-        .min(training_count.max(1))
-}
-
-fn squared_row_norms<O>(values: &O) -> Vec<f64>
-where
-    O: OperandMetadata<f64> + ?Sized,
-{
-    let row_count = values.shape()[0];
-    let column_count = values.shape()[1];
-    (0..row_count)
-        .map(|row| {
-            let row_offset = values.offset() + row * values.strides()[0];
-            (0..column_count)
-                .map(|column| {
-                    let value = values.data()[row_offset + column * values.strides()[1]];
-                    value * value
-                })
-                .sum()
-        })
-        .collect()
 }
 
 #[cfg(test)]

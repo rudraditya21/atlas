@@ -2,13 +2,14 @@ use atlas_ndarray::NDArray;
 
 use super::{
     ball_tree::BallTree,
+    brute_force::BruteForceSearch,
     config::{AUTO_BRUTE_FORCE_MAX_SAMPLES, KnnSearchAlgorithm},
     kd_tree::KdTree,
 };
 use crate::AtlasMlResult;
 
 pub(crate) enum NeighborSearchBackend {
-    BruteForce,
+    BruteForce(BruteForceSearch),
     KdTree(KdTree),
     BallTree(BallTree),
 }
@@ -20,7 +21,7 @@ impl NeighborSearchBackend {
         tree_leaf_size: usize,
     ) -> AtlasMlResult<Self> {
         match algorithm {
-            KnnSearchAlgorithm::BruteForce => Ok(Self::BruteForce),
+            KnnSearchAlgorithm::BruteForce => Ok(Self::BruteForce(BruteForceSearch::new(features))),
             KnnSearchAlgorithm::KdTree => {
                 Ok(Self::KdTree(KdTree::build_with_leaf_size(features, tree_leaf_size)?))
             }
@@ -28,7 +29,7 @@ impl NeighborSearchBackend {
                 Ok(Self::BallTree(BallTree::build_with_leaf_size(features, tree_leaf_size)?))
             }
             KnnSearchAlgorithm::Auto if features.shape()[0] <= AUTO_BRUTE_FORCE_MAX_SAMPLES => {
-                Ok(Self::BruteForce)
+                Ok(Self::BruteForce(BruteForceSearch::new(features)))
             }
             KnnSearchAlgorithm::Auto => {
                 Ok(Self::KdTree(KdTree::build_with_leaf_size(features, tree_leaf_size)?))
@@ -38,7 +39,7 @@ impl NeighborSearchBackend {
 
     pub(crate) const fn algorithm(&self) -> KnnSearchAlgorithm {
         match self {
-            Self::BruteForce => KnnSearchAlgorithm::BruteForce,
+            Self::BruteForce(_) => KnnSearchAlgorithm::BruteForce,
             Self::KdTree(_) => KnnSearchAlgorithm::KdTree,
             Self::BallTree(_) => KnnSearchAlgorithm::BallTree,
         }
@@ -51,8 +52,8 @@ mod tests {
 
     use super::NeighborSearchBackend;
     use crate::neighbors::knn::{
+        brute_force::brute_force_search,
         config::{AUTO_BRUTE_FORCE_MAX_SAMPLES, KnnSearchAlgorithm},
-        search::brute_force_search,
     };
 
     fn assert_backend_equivalence(
@@ -63,7 +64,7 @@ mod tests {
         for query in queries {
             for k in 1..=features.shape()[0] {
                 let actual = match backend {
-                    NeighborSearchBackend::BruteForce => brute_force_search(features, query, k),
+                    NeighborSearchBackend::BruteForce(search) => search.search(features, query, k),
                     NeighborSearchBackend::KdTree(tree) => tree.search(features, query, k),
                     NeighborSearchBackend::BallTree(tree) => tree.search(features, query, k),
                 };

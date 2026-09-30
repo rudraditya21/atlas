@@ -210,7 +210,7 @@ mod tests {
     use atlas_ndarray::NDArray;
 
     use super::{KdTree, KdTreeNode};
-    use crate::neighbors::knn::search::brute_force_search;
+    use crate::neighbors::knn::brute_force::brute_force_search;
 
     #[test]
     fn builds_a_single_point_as_a_leaf() {

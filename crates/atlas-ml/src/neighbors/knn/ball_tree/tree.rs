@@ -298,7 +298,7 @@ mod tests {
     use atlas_ndarray::NDArray;
 
     use super::{BallTree, BallTreeNode};
-    use crate::neighbors::knn::search::brute_force_search;
+    use crate::neighbors::knn::brute_force::brute_force_search;
 
     #[test]
     fn partitions_duplicate_points_deterministically() {
