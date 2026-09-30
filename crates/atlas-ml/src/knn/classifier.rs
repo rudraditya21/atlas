@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, BTreeSet};
+use std::{cell::RefCell, collections::BTreeSet};
 
 use atlas_ndarray::{NDArray, OperandMetadata};
 
@@ -21,10 +21,35 @@ const PREDICT_ONE_OP: &str = "knn_classifier_predict_one";
 const PREDICT_PROBA_OP: &str = "knn_classifier_predict_proba";
 
 #[derive(Default)]
-struct ClassVote {
-    count: usize,
-    weight: f64,
-    total_distance: f64,
+struct VoteScratch {
+    counts: Vec<usize>,
+    weights: Vec<f64>,
+    total_distances: Vec<f64>,
+    touched: Vec<usize>,
+}
+
+impl VoteScratch {
+    fn reset(&mut self, class_count: usize) {
+        while let Some(class_index) = self.touched.pop() {
+            self.counts[class_index] = 0;
+            self.weights[class_index] = 0.0;
+            self.total_distances[class_index] = 0.0;
+        }
+        self.counts.resize(class_count, 0);
+        self.weights.resize(class_count, 0.0);
+        self.total_distances.resize(class_count, 0.0);
+    }
+}
+
+thread_local! {
+    static VOTE_SCRATCH: RefCell<VoteScratch> = const {
+        RefCell::new(VoteScratch {
+            counts: Vec::new(),
+            weights: Vec::new(),
+            total_distances: Vec::new(),
+            touched: Vec::new(),
+        })
+    };
 }
 
 pub struct KnnClassifier {
@@ -32,6 +57,7 @@ pub struct KnnClassifier {
     index: TrainingIndex,
     labels: NDArray<usize>,
     classes: Box<[usize]>,
+    label_class_indices: Box<[usize]>,
 }
 
 impl KnnClassifier {
@@ -45,6 +71,11 @@ impl KnnClassifier {
         config.validate(features.shape()[0])?;
         let classes: Box<[usize]> =
             labels.data().iter().copied().collect::<BTreeSet<_>>().into_iter().collect();
+        let label_class_indices = labels
+            .data()
+            .iter()
+            .map(|label| classes.binary_search(label).expect("training labels define classes"))
+            .collect();
 
         Ok(Self {
             config,
@@ -55,6 +86,7 @@ impl KnnClassifier {
             )?,
             labels,
             classes,
+            label_class_indices,
         })
     }
 
@@ -98,7 +130,7 @@ impl KnnClassifier {
         for neighbors in
             self.index.search_batch(queries, self.config.k(), &SquaredEuclideanDistance)?
         {
-            predictions.push(self.class_from_votes(self.votes_from_neighbors(&neighbors)));
+            predictions.push(self.class_from_neighbors(&neighbors));
         }
 
         Ok(NDArray::from_shape_vec([query_count], predictions)?)
@@ -119,8 +151,7 @@ impl KnnClassifier {
         for neighbors in
             self.index.search_batch(queries, self.config.k(), &SquaredEuclideanDistance)?
         {
-            probabilities
-                .extend(self.probabilities_from_votes(self.votes_from_neighbors(&neighbors)));
+            self.append_probabilities(&neighbors, &mut probabilities);
         }
 
         Ok(NDArray::from_shape_vec([query_count, self.classes.len()], probabilities)?)
@@ -130,72 +161,88 @@ impl KnnClassifier {
     pub fn predict_one(&self, query: &[f64]) -> AtlasMlResult<usize> {
         validate_prediction_feature_row(query, self.feature_count(), PREDICT_ONE_OP)?;
 
-        Ok(self.class_from_votes(self.votes_for(query)?))
-    }
-
-    fn votes_for(&self, query: &[f64]) -> AtlasMlResult<BTreeMap<usize, ClassVote>> {
         let neighbors = self.index.search(query, self.config.k(), &SquaredEuclideanDistance)?;
-        Ok(self.votes_from_neighbors(&neighbors))
+        Ok(self.class_from_neighbors(&neighbors))
     }
 
-    fn votes_from_neighbors(
+    fn with_votes<R>(
         &self,
         neighbors: &[super::neighbor::Neighbor],
-    ) -> BTreeMap<usize, ClassVote> {
+        operation: impl FnOnce(&VoteScratch) -> R,
+    ) -> R {
         let exact_matches = self.config.weighting() == KnnWeighting::Distance
             && neighbors.iter().any(|neighbor| neighbor.distance == 0.0);
-        let mut votes = BTreeMap::new();
-        for neighbor in neighbors {
-            if exact_matches && neighbor.distance != 0.0 {
-                continue;
+
+        VOTE_SCRATCH.with(|storage| {
+            let mut votes = storage.borrow_mut();
+            votes.reset(self.classes.len());
+            for neighbor in neighbors {
+                if exact_matches && neighbor.distance != 0.0 {
+                    continue;
+                }
+
+                let class_index = self.label_class_indices[neighbor.index];
+                if votes.counts[class_index] == 0 {
+                    votes.touched.push(class_index);
+                }
+                votes.counts[class_index] += 1;
+                votes.weights[class_index] += match self.config.weighting() {
+                    KnnWeighting::Uniform => 1.0,
+                    KnnWeighting::Distance if exact_matches => 1.0,
+                    KnnWeighting::Distance => neighbor.distance.sqrt().recip(),
+                };
+                votes.total_distances[class_index] += neighbor.distance;
             }
 
-            let vote =
-                votes.entry(self.labels.data()[neighbor.index]).or_insert_with(ClassVote::default);
-            vote.count += 1;
-            vote.weight += match self.config.weighting() {
-                KnnWeighting::Uniform => 1.0,
-                KnnWeighting::Distance if exact_matches => 1.0,
-                KnnWeighting::Distance => neighbor.distance.sqrt().recip(),
+            operation(&votes)
+        })
+    }
+
+    fn class_from_neighbors(&self, neighbors: &[super::neighbor::Neighbor]) -> usize {
+        self.with_votes(neighbors, |votes| {
+            let mut best = *votes
+                .touched
+                .first()
+                .expect("a fitted classifier always has at least one neighbor");
+            for &candidate in &votes.touched[1..] {
+                let ordering = votes.weights[candidate]
+                    .total_cmp(&votes.weights[best])
+                    .then_with(|| {
+                        votes.total_distances[best].total_cmp(&votes.total_distances[candidate])
+                    })
+                    .then_with(|| self.classes[best].cmp(&self.classes[candidate]));
+                if ordering.is_gt() {
+                    best = candidate;
+                }
+            }
+            self.classes[best]
+        })
+    }
+
+    fn append_probabilities(
+        &self,
+        neighbors: &[super::neighbor::Neighbor],
+        probabilities: &mut Vec<f64>,
+    ) {
+        self.with_votes(neighbors, |votes| {
+            let total_weight = votes.touched.iter().map(|&index| votes.weights[index]).sum::<f64>();
+            let fallback_to_counts = total_weight == 0.0;
+            let normalizer = if fallback_to_counts {
+                votes.touched.iter().map(|&index| votes.counts[index]).sum::<usize>() as f64
+            } else {
+                total_weight
             };
-            vote.total_distance += neighbor.distance;
-        }
-
-        votes
-    }
-
-    fn class_from_votes(&self, votes: BTreeMap<usize, ClassVote>) -> usize {
-        votes
-            .into_iter()
-            .max_by(|(left_label, left_vote), (right_label, right_vote)| {
-                left_vote
-                    .weight
-                    .total_cmp(&right_vote.weight)
-                    .then_with(|| right_vote.total_distance.total_cmp(&left_vote.total_distance))
-                    .then_with(|| right_label.cmp(left_label))
-            })
-            .expect("a fitted classifier always has at least one neighbor")
-            .0
-    }
-
-    fn probabilities_from_votes(&self, votes: BTreeMap<usize, ClassVote>) -> Vec<f64> {
-        let total_weight = votes.values().map(|vote| vote.weight).sum::<f64>();
-        let fallback_to_counts = total_weight == 0.0;
-        let normalizer = if fallback_to_counts {
-            votes.values().map(|vote| vote.count).sum::<usize>() as f64
-        } else {
-            total_weight
-        };
-
-        self.classes
-            .iter()
-            .map(|class| {
-                votes.get(class).map_or(0.0, |vote| {
-                    let weight = if fallback_to_counts { vote.count as f64 } else { vote.weight };
-                    weight / normalizer
-                })
-            })
-            .collect()
+            let output_start = probabilities.len();
+            probabilities.resize(output_start + self.classes.len(), 0.0);
+            for &class_index in &votes.touched {
+                let weight = if fallback_to_counts {
+                    votes.counts[class_index] as f64
+                } else {
+                    votes.weights[class_index]
+                };
+                probabilities[output_start + class_index] = weight / normalizer;
+            }
+        });
     }
 }
 
