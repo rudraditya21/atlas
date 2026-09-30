@@ -1,7 +1,5 @@
 //! Machine-learning algorithms built on Atlas arrays.
 
-mod decision_stump;
-mod decision_tree;
 mod error;
 mod gaussian_naive_bayes;
 mod internal;
@@ -11,9 +9,8 @@ mod metrics;
 mod model_selection;
 mod nearest_centroid;
 mod preprocessing;
+mod tree;
 
-pub use decision_stump::DecisionStumpClassifier;
-pub use decision_tree::{BinaryGiniSplit, evaluate_binary_gini_split};
 pub use error::{AtlasMlError, AtlasMlResult};
 pub use gaussian_naive_bayes::{GaussianNaiveBayes, GaussianNaiveBayesConfig};
 pub use knn::{
@@ -36,3 +33,4 @@ pub use model_selection::{
 };
 pub use nearest_centroid::NearestCentroidClassifier;
 pub use preprocessing::{LabelEncoder, MinMaxScaler, StandardScaler};
+pub use tree::{BinaryGiniSplit, DecisionStumpClassifier, evaluate_binary_gini_split};
