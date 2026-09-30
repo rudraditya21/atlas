@@ -1,34 +1,31 @@
 use std::collections::HashSet;
 
-use atlas_ndarray::{ArrayElement, NDArray};
-use numpy::Element;
 use pyo3::{
     exceptions::{PyTypeError, PyValueError},
     prelude::*,
-    types::{PyDict, PyList, PyModule},
+    types::{PyList, PyModule},
 };
 
-use crate::support::{arrays as array, dtypes::with_dtype};
+use crate::support::arrays as array;
 
 pub(crate) fn to_arrow_primitive(
     py: Python<'_>,
     value: &Bound<'_, PyAny>,
 ) -> crate::support::results::PyObjectResult {
-    let dtype = array::source_dtype(py, value)?;
+    array::source_dtype(py, value)?;
+    let rank = value.getattr("ndim")?.extract::<usize>()?;
+    if rank != 1 {
+        return Err(crate::support::errors::arrow(
+            py,
+            atlas_arrow::AtlasArrowError::InvalidInputRank {
+                op: "to_arrow_primitive",
+                expected: "rank-1 array",
+                rank,
+            },
+        ));
+    }
 
-    with_dtype!(
-        dtype,
-        all | T | {
-            let value = array::from_numpy(array::readonly_from_python::<T>(py, value)?)?;
-            let arrow = atlas_arrow::to_arrow_primitive::<T, _>(&value)
-                .map_err(|error| crate::support::errors::arrow(py, error))?;
-            let values = atlas_arrow::from_arrow_primitive::<T>(&arrow)
-                .map_err(|error| crate::support::errors::arrow(py, error))?;
-            let values = array::to_numpy_owned(py, values)?.into_any();
-
-            Ok(PyModule::import(py, "pyarrow")?.getattr("array")?.call1((values,))?.unbind())
-        }
-    )
+    PyModule::import(py, "pyarrow")?.getattr("array")?.call1((value,)).map(|values| values.unbind())
 }
 
 pub(crate) fn from_arrow_primitive(
@@ -47,20 +44,8 @@ pub(crate) fn from_arrow_primitive(
     }
 
     let values = value.call_method1("to_numpy", (false,))?;
-    let dtype = array::source_dtype(py, &values)?;
-
-    with_dtype!(
-        dtype,
-        all | T | {
-            let values = array::from_numpy(array::readonly_from_python::<T>(py, &values)?)?;
-            let arrow = atlas_arrow::to_arrow_primitive::<T, _>(&values)
-                .map_err(|error| crate::support::errors::arrow(py, error))?;
-            let values = atlas_arrow::from_arrow_primitive::<T>(&arrow)
-                .map_err(|error| crate::support::errors::arrow(py, error))?;
-
-            Ok(array::to_numpy_owned(py, values)?.into_any().unbind())
-        }
-    )
+    array::source_dtype(py, &values)?;
+    Ok(values.unbind())
 }
 
 pub(crate) fn to_arrow_record_batch(
@@ -73,21 +58,49 @@ pub(crate) fn to_arrow_record_batch(
         return Err(PyValueError::new_err("Arrow record batch column names must be unique"));
     }
 
-    let dtype = array::source_dtype(py, matrix)?;
+    array::source_dtype(py, matrix)?;
+    let shape = matrix.getattr("shape")?.extract::<Vec<usize>>()?;
+    if shape.len() != 2 {
+        return Err(crate::support::errors::arrow(
+            py,
+            atlas_arrow::AtlasArrowError::InvalidInputRank {
+                op: "to_arrow_record_batch",
+                expected: "rank-2 matrix",
+                rank: shape.len(),
+            },
+        ));
+    }
+    if column_names.len() != shape[1] {
+        return Err(crate::support::errors::arrow(
+            py,
+            atlas_arrow::AtlasArrowError::ColumnNameCountMismatch {
+                op: "to_arrow_record_batch",
+                expected: shape[1],
+                actual: column_names.len(),
+            },
+        ));
+    }
 
-    with_dtype!(
-        dtype,
-        all | T | {
-            let matrix = array::from_numpy(array::readonly_from_python::<T>(py, matrix)?)?;
-            let names = column_names.iter().map(String::as_str).collect::<Vec<_>>();
-            let batch = atlas_arrow::to_arrow_record_batch(&matrix, &names)
-                .map_err(|error| crate::support::errors::arrow(py, error))?;
-            let matrix = atlas_arrow::from_arrow_record_batch::<T>(&batch)
-                .map_err(|error| crate::support::errors::arrow(py, error))?;
+    let pyarrow = PyModule::import(py, "pyarrow")?;
+    let columns = PyList::empty(py);
+    let fields = PyList::empty(py);
+    let transposed = matrix.getattr("T")?;
+    for (column_index, name) in column_names.iter().enumerate() {
+        let column = pyarrow.getattr("array")?.call1((transposed.get_item(column_index)?,))?;
+        fields.append(pyarrow.getattr("field")?.call1((
+            name,
+            column.getattr("type")?,
+            false,
+        ))?)?;
+        columns.append(column)?;
+    }
 
-            record_batch_from_matrix(py, &matrix, &column_names)
-        }
-    )
+    let schema = pyarrow.getattr("schema")?.call1((fields,))?;
+    pyarrow
+        .getattr("RecordBatch")?
+        .getattr("from_arrays")?
+        .call1((columns, py.None(), schema))
+        .map(|batch| batch.unbind())
 }
 
 pub(crate) fn from_arrow_record_batch(
@@ -132,51 +145,6 @@ pub(crate) fn from_arrow_record_batch(
     }
 
     let matrix = PyModule::import(py, "numpy")?.getattr("column_stack")?.call1((columns,))?;
-    let dtype = array::source_dtype(py, &matrix)?;
-    let names = (0..column_count).map(|index| format!("column_{index}")).collect::<Vec<_>>();
-
-    with_dtype!(
-        dtype,
-        all | T | {
-            let matrix = array::from_numpy(array::readonly_from_python::<T>(py, &matrix)?)?;
-            let names = names.iter().map(String::as_str).collect::<Vec<_>>();
-            let batch = atlas_arrow::to_arrow_record_batch(&matrix, &names)
-                .map_err(|error| crate::support::errors::arrow(py, error))?;
-            let matrix = atlas_arrow::from_arrow_record_batch::<T>(&batch)
-                .map_err(|error| crate::support::errors::arrow(py, error))?;
-
-            Ok(array::to_numpy_owned(py, matrix)?.into_any().unbind())
-        }
-    )
-}
-
-fn record_batch_from_matrix<T>(
-    py: Python<'_>,
-    matrix: &NDArray<T>,
-    column_names: &[String],
-) -> crate::support::results::PyObjectResult
-where
-    T: ArrayElement + Element,
-{
-    let pyarrow = PyModule::import(py, "pyarrow")?;
-    let columns = PyDict::new(py);
-    for column_index in 0..matrix.shape()[1] {
-        let values = (0..matrix.shape()[0])
-            .map(|row_index| matrix.data()[row_index * matrix.shape()[1] + column_index])
-            .collect();
-        let values = array::to_numpy_owned(
-            py,
-            NDArray::from_shape_vec([matrix.shape()[0]], values)
-                .map_err(|error| crate::support::errors::ndarray(py, error))?,
-        )?
-        .into_any();
-        columns
-            .set_item(&column_names[column_index], pyarrow.getattr("array")?.call1((values,))?)?;
-    }
-
-    pyarrow
-        .getattr("RecordBatch")?
-        .getattr("from_pydict")?
-        .call1((columns,))
-        .map(|batch| batch.unbind())
+    array::source_dtype(py, &matrix)?;
+    Ok(matrix.unbind())
 }
