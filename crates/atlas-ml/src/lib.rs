@@ -6,14 +6,11 @@ mod error;
 mod gaussian_naive_bayes;
 mod internal;
 mod knn;
-mod linear_regression;
-mod logistic_regression;
+mod linear_model;
 mod metrics;
 mod model_selection;
 mod nearest_centroid;
-mod perceptron;
 mod preprocessing;
-mod ridge_regression;
 
 pub use decision_stump::DecisionStumpClassifier;
 pub use decision_tree::{BinaryGiniSplit, evaluate_binary_gini_split};
@@ -24,8 +21,10 @@ pub use knn::{
     config::{AUTO_BRUTE_FORCE_MAX_SAMPLES, KnnConfig, KnnSearchAlgorithm, KnnWeighting},
     regressor::KnnRegressor,
 };
-pub use linear_regression::LinearRegression;
-pub use logistic_regression::{BinaryLogisticRegression, LogisticRegressionConfig};
+pub use linear_model::{
+    BinaryLogisticRegression, BinaryPerceptron, LinearRegression, LogisticRegressionConfig,
+    PerceptronConfig, PerceptronShufflePolicy, RidgeRegression, RidgeRegressionConfig,
+};
 pub use metrics::{
     ClassificationReport, ConfusionMatrix, binary_log_loss, classification_accuracy,
     classification_report, coefficient_of_determination, confusion_matrix, mean_absolute_error,
@@ -36,6 +35,4 @@ pub use model_selection::{
     stratified_train_test_split, train_test_split,
 };
 pub use nearest_centroid::NearestCentroidClassifier;
-pub use perceptron::{BinaryPerceptron, PerceptronConfig, PerceptronShufflePolicy};
 pub use preprocessing::{LabelEncoder, MinMaxScaler, StandardScaler};
-pub use ridge_regression::{RidgeRegression, RidgeRegressionConfig};
