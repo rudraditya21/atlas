@@ -12,9 +12,10 @@
 //!
 //! ## Ownership
 //!
-//! Conversions allocate exactly one destination buffer per converted array or column. Arrow
-//! offsets are read through their logical values, while RecordBatches remain independent chunks
-//! that callers convert individually.
+//! Owned primitive arrays transfer compatible buffers directly to Arrow. Views and record-batch
+//! columns allocate one destination buffer per converted array or column. Arrow offsets are read
+//! through their logical values, while RecordBatches remain independent chunks that callers
+//! convert individually.
 
 #![forbid(unsafe_code)]
 
@@ -25,5 +26,7 @@ mod record_batch;
 
 pub use dtype::InterchangeDType;
 pub use error::{AtlasArrowError, AtlasArrowResult};
-pub use primitive::{ArrowPrimitive, from_arrow_primitive, to_arrow_primitive};
+pub use primitive::{
+    ArrowPrimitive, ArrowPrimitiveInput, from_arrow_primitive, to_arrow_primitive,
+};
 pub use record_batch::{from_arrow_record_batch, to_arrow_record_batch};

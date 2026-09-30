@@ -9,28 +9,59 @@ use atlas_ndarray::{NDArray, OperandMetadata};
 
 use crate::{AtlasArrowError, AtlasArrowResult, InterchangeDType};
 
-/// Converts a rank-1 Atlas array or view into a newly allocated Arrow primitive array.
+/// Converts a rank-1 Atlas array or view into an Arrow primitive array.
 ///
-/// The conversion always copies values: Atlas retains ownership of its storage and the returned
-/// Arrow array owns an independent buffer. Platform-sized integers are intentionally excluded
-/// because Arrow interchange requires a fixed-width integer representation.
-pub fn to_arrow_primitive<T, O>(array: &O) -> AtlasArrowResult<T::Array>
+/// Owned numeric arrays transfer their allocation to Arrow. Borrowed arrays and views are copied,
+/// while booleans are packed into Arrow's bitmap representation. Platform-sized integers are
+/// intentionally excluded because Arrow interchange requires a fixed-width representation.
+pub fn to_arrow_primitive<T, O>(array: O) -> AtlasArrowResult<T::Array>
+where
+    T: ArrowPrimitive,
+    O: ArrowPrimitiveInput<T>,
+{
+    array.into_arrow_primitive()
+}
+
+/// Input accepted by [`to_arrow_primitive`].
+#[doc(hidden)]
+pub trait ArrowPrimitiveInput<T: ArrowPrimitive> {
+    fn into_arrow_primitive(self) -> AtlasArrowResult<T::Array>;
+}
+
+impl<T: ArrowPrimitive> ArrowPrimitiveInput<T> for NDArray<T> {
+    fn into_arrow_primitive(self) -> AtlasArrowResult<T::Array> {
+        if self.ndim() != 1 {
+            return Err(AtlasArrowError::InvalidInputRank {
+                op: "to_arrow_primitive",
+                expected: "rank-1 vector",
+                rank: self.ndim(),
+            });
+        }
+
+        let (values, _) = self.into_raw_parts();
+        Ok(T::to_arrow(values))
+    }
+}
+
+impl<T, O> ArrowPrimitiveInput<T> for &O
 where
     T: ArrowPrimitive,
     O: OperandMetadata<T> + ?Sized,
 {
-    if array.ndim() != 1 {
-        return Err(AtlasArrowError::InvalidInputRank {
-            op: "to_arrow_primitive",
-            expected: "rank-1 vector",
-            rank: array.ndim(),
-        });
-    }
+    fn into_arrow_primitive(self) -> AtlasArrowResult<T::Array> {
+        if self.ndim() != 1 {
+            return Err(AtlasArrowError::InvalidInputRank {
+                op: "to_arrow_primitive",
+                expected: "rank-1 vector",
+                rank: self.ndim(),
+            });
+        }
 
-    let values = (0..array.shape()[0])
-        .map(|index| array.data()[array.offset() + index * array.strides()[0]])
-        .collect();
-    Ok(T::to_arrow(values))
+        let values = (0..self.shape()[0])
+            .map(|index| self.data()[self.offset() + index * self.strides()[0]])
+            .collect();
+        Ok(T::to_arrow(values))
+    }
 }
 
 /// Converts an Arrow primitive array into a newly allocated rank-1 Atlas array.
