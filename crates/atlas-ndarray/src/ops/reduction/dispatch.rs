@@ -1,5 +1,7 @@
 use std::cell::RefCell;
 
+use crate::scratch_support::with_thread_local_buffer;
+
 pub(super) const PARALLEL_REDUCTION_THRESHOLD: usize = 1 << 20;
 const PARALLEL_REDUCTION_CHUNK_LEN: usize = 1 << 14;
 const PARALLEL_REDUCTION_MIN_CHUNKS_PER_THREAD: usize = 2;
@@ -13,28 +15,14 @@ pub(super) fn with_reduction_scratch_f32<R>(
     len: usize,
     operation: impl FnOnce(&mut [f32]) -> R,
 ) -> R {
-    REDUCTION_SCRATCH_F32.with(|storage| {
-        let mut scratch = storage.take();
-        scratch.resize(len, 0.0);
-        let result = operation(&mut scratch);
-        scratch.clear();
-        storage.replace(scratch);
-        result
-    })
+    with_thread_local_buffer(&REDUCTION_SCRATCH_F32, len, 0.0, |scratch| operation(scratch))
 }
 
 pub(super) fn with_reduction_scratch_f64<R>(
     len: usize,
     operation: impl FnOnce(&mut [f64]) -> R,
 ) -> R {
-    REDUCTION_SCRATCH_F64.with(|storage| {
-        let mut scratch = storage.take();
-        scratch.resize(len, 0.0);
-        let result = operation(&mut scratch);
-        scratch.clear();
-        storage.replace(scratch);
-        result
-    })
+    with_thread_local_buffer(&REDUCTION_SCRATCH_F64, len, 0.0, |scratch| operation(scratch))
 }
 
 pub(super) const fn parallel_reduction_chunk_len() -> usize {

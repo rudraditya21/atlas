@@ -20,6 +20,8 @@ pub(crate) mod internal;
 mod layout;
 mod ops;
 #[doc(hidden)]
+pub mod scratch_support;
+#[doc(hidden)]
 pub mod simd_support;
 mod view;
 

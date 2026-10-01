@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use atlas_ndarray::Numeric;
+use atlas_ndarray::{Numeric, scratch_support::with_thread_local_buffer};
 use rayon::prelude::*;
 
 use super::{
@@ -83,12 +83,9 @@ fn with_packed_rhs_f32<R>(
     block: usize,
     operation: impl FnOnce(&[f32]) -> R,
 ) -> R {
-    ROW_MAJOR_PACKED_RHS_F32.with(|storage| {
-        let mut packed = storage.take();
-        pack_rhs_panels_into(rhs, rows, cols, block, &mut packed);
-        let result = operation(&packed);
-        storage.replace(packed);
-        result
+    with_thread_local_buffer(&ROW_MAJOR_PACKED_RHS_F32, 0, 0.0, |packed| {
+        pack_rhs_panels_into(rhs, rows, cols, block, packed);
+        operation(packed)
     })
 }
 
@@ -99,12 +96,9 @@ fn with_packed_rhs_f64<R>(
     block: usize,
     operation: impl FnOnce(&[f64]) -> R,
 ) -> R {
-    ROW_MAJOR_PACKED_RHS_F64.with(|storage| {
-        let mut packed = storage.take();
-        pack_rhs_panels_into(rhs, rows, cols, block, &mut packed);
-        let result = operation(&packed);
-        storage.replace(packed);
-        result
+    with_thread_local_buffer(&ROW_MAJOR_PACKED_RHS_F64, 0, 0.0, |packed| {
+        pack_rhs_panels_into(rhs, rows, cols, block, packed);
+        operation(packed)
     })
 }
 
