@@ -5,7 +5,12 @@ rust-version.workspace = true
 version.workspace = true
 
 [features]
-openblas = ["atlas-blas/openblas"]
+accelerate = ["atlas-blas/accelerate"]
+blis-system = ["atlas-blas/blis-system"]
+mkl-system = ["atlas-blas/mkl-system"]
+native = ["atlas-blas/native"]
+openblas-static = ["atlas-blas/openblas-static"]
+openblas-system = ["atlas-blas/openblas-system"]
 
 [dependencies]
 atlas-blas.workspace = true

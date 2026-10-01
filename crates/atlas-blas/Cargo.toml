@@ -5,7 +5,12 @@ rust-version.workspace = true
 version.workspace = true
 
 [features]
-openblas = []
+accelerate = []
+blis-system = []
+mkl-system = []
+native = []
+openblas-static = []
+openblas-system = []
 
 [lints.rust]
 rust_2018_idioms = { level = "warn", priority = -1 }
