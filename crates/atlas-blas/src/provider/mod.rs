@@ -24,6 +24,24 @@ pub enum Provider {
     OpenBlas,
 }
 
+impl Provider {
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Accelerate => "accelerate",
+            Self::Blis => "blis",
+            Self::OneMkl => "onemkl",
+            Self::OpenBlas => "openblas",
+        }
+    }
+
+    pub const fn thread_control_available(self) -> bool {
+        match self {
+            Self::Accelerate | Self::OneMkl | Self::OpenBlas => true,
+            Self::Blis => false,
+        }
+    }
+}
+
 #[cfg(atlas_blas_accelerate)]
 const ACTIVE_PROVIDER: Option<Provider> = Some(Provider::Accelerate);
 #[cfg(atlas_blas_openblas)]

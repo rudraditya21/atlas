@@ -19,6 +19,12 @@ from ._exports import (
 __version__ = _native.version()
 
 
+def show_config() -> dict[str, object]:
+    """Return the active numerical backend configuration."""
+
+    return _native._backend_config()
+
+
 def _with_keepdims(function):
     def wrapper(value, axis=None, *, keepdims=False):
         if keepdims and axis is None:
@@ -56,6 +62,7 @@ _DOMAIN_EXPORTS = (
 __all__ = sorted(
     (
         "__version__",
+        "show_config",
         *NUMPY_COMPATIBILITY_ALIASES,
         *(name for _, names in _DOMAIN_EXPORTS for name in names),
     )

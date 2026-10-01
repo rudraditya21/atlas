@@ -19,6 +19,7 @@ test-support = []
 
 [dependencies]
 atlas-arrow.workspace = true
+atlas-blas.workspace = true
 atlas-linalg.workspace = true
 atlas-ml.workspace = true
 atlas-ndarray.workspace = true

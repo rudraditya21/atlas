@@ -50,6 +50,42 @@ pub enum BlasError {
 
 pub type BlasResult<T> = Result<T, BlasError>;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct BackendConfiguration {
+    provider_name: &'static str,
+    integer_width: Option<u8>,
+    thread_control_available: bool,
+}
+
+impl BackendConfiguration {
+    pub const fn provider_name(self) -> &'static str {
+        self.provider_name
+    }
+
+    pub const fn integer_width(self) -> Option<u8> {
+        self.integer_width
+    }
+
+    pub const fn thread_control_available(self) -> bool {
+        self.thread_control_available
+    }
+}
+
+pub const fn backend_configuration() -> BackendConfiguration {
+    match active_provider() {
+        Some(provider) => BackendConfiguration {
+            provider_name: provider.name(),
+            integer_width: Some(32),
+            thread_control_available: provider.thread_control_available(),
+        },
+        None => BackendConfiguration {
+            provider_name: "native",
+            integer_width: None,
+            thread_control_available: false,
+        },
+    }
+}
+
 pub const fn is_available() -> bool {
     active_provider().is_some()
 }

@@ -197,6 +197,7 @@ name = "atlas-python"
 version = "0.1.0"
 dependencies = [
  "atlas-arrow",
+ "atlas-blas",
  "atlas-linalg",
  "atlas-ml",
  "atlas-ndarray",
