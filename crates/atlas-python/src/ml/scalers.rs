@@ -43,9 +43,11 @@ impl StandardScaler {
         py: Python<'_>,
         features: &Bound<'_, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let features = array::feature_matrix_f64(py, features)?;
-        let model = gil::without_gil(py, move || atlas_ml::StandardScaler::fit(&features))
-            .map_err(|error| crate::support::errors::ml(py, error))?;
+        let features = array::readonly_from_python::<f64>(py, features)?;
+        let model = array::with_numpy_operand(features, |features| {
+            gil::without_gil(py, || atlas_ml::StandardScaler::fit(features))
+        })?
+        .map_err(|error| crate::support::errors::ml(py, error))?;
 
         slf.model.replace(model);
         Ok(slf)
@@ -56,10 +58,11 @@ impl StandardScaler {
         py: Python<'_>,
         features: &Bound<'_, PyAny>,
     ) -> crate::support::results::PyObjectResult {
-        let features = array::feature_matrix_f64(py, features)?;
-        let (model, transformed) =
-            gil::without_gil(py, move || atlas_ml::StandardScaler::fit_transform(&features))
-                .map_err(|error| crate::support::errors::ml(py, error))?;
+        let features = array::readonly_from_python::<f64>(py, features)?;
+        let (model, transformed) = array::with_numpy_operand(features, |features| {
+            gil::without_gil(py, || atlas_ml::StandardScaler::fit_transform(features))
+        })?
+        .map_err(|error| crate::support::errors::ml(py, error))?;
 
         self.model.replace(model);
         Ok(array::to_numpy_owned(py, transformed)?.into_any().unbind())
@@ -178,12 +181,14 @@ impl MinMaxScaler {
         py: Python<'_>,
         features: &Bound<'_, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let features = array::feature_matrix_f64(py, features)?;
+        let features = array::readonly_from_python::<f64>(py, features)?;
         let output_minimum = slf.output_minimum;
         let output_maximum = slf.output_maximum;
-        let model = gil::without_gil(py, move || {
-            atlas_ml::MinMaxScaler::fit_with_range(&features, output_minimum, output_maximum)
-        })
+        let model = array::with_numpy_operand(features, |features| {
+            gil::without_gil(py, || {
+                atlas_ml::MinMaxScaler::fit_with_range(features, output_minimum, output_maximum)
+            })
+        })?
         .map_err(|error| crate::support::errors::ml(py, error))?;
 
         slf.model.replace(model);
@@ -195,15 +200,20 @@ impl MinMaxScaler {
         py: Python<'_>,
         features: &Bound<'_, PyAny>,
     ) -> crate::support::results::PyObjectResult {
-        let features = array::feature_matrix_f64(py, features)?;
+        let features = array::readonly_from_python::<f64>(py, features)?;
         let output_minimum = self.output_minimum;
         let output_maximum = self.output_maximum;
-        let (model, transformed) = gil::without_gil(py, move || {
-            let model =
-                atlas_ml::MinMaxScaler::fit_with_range(&features, output_minimum, output_maximum)?;
-            let transformed = model.transform(&features)?;
-            Ok::<_, atlas_ml::AtlasMlError>((model, transformed))
-        })
+        let (model, transformed) = array::with_numpy_operand(features, |features| {
+            gil::without_gil(py, || {
+                let model = atlas_ml::MinMaxScaler::fit_with_range(
+                    features,
+                    output_minimum,
+                    output_maximum,
+                )?;
+                let transformed = model.transform(features)?;
+                Ok::<_, atlas_ml::AtlasMlError>((model, transformed))
+            })
+        })?
         .map_err(|error| crate::support::errors::ml(py, error))?;
 
         self.model.replace(model);
@@ -248,14 +258,16 @@ fn transform<T: Sync>(
     operation: &'static str,
     operation_fn: impl FnOnce(
         &T,
-        &atlas_ndarray::NDArray<f64>,
+        &(dyn atlas_ndarray::OperandMetadata<f64> + Sync),
     ) -> atlas_ml::AtlasMlResult<atlas_ndarray::NDArray<f64>>
     + Send,
 ) -> crate::support::results::PyObjectResult {
-    let features = super::model::predict_features(py, features, operation)?;
     let model = model.fitted(py, operation)?;
-    let transformed = gil::without_gil(py, move || operation_fn(model, &features))
-        .map_err(|error| crate::support::errors::ml(py, error))?;
+    let features = array::readonly_from_python::<f64>(py, features)?;
+    let transformed = array::with_numpy_operand(features, |features| {
+        gil::without_gil(py, || operation_fn(model, features))
+    })?
+    .map_err(|error| crate::support::errors::ml(py, error))?;
 
     Ok(array::to_numpy_owned(py, transformed)?.into_any().unbind())
 }

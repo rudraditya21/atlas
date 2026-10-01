@@ -1,4 +1,4 @@
-use atlas_ndarray::{ArrayElement, NDArray, RuntimeScalar};
+use atlas_ndarray::{ArrayElement, BorrowedArray, NDArray, OperandMetadata, RuntimeScalar};
 use numpy::{
     Element, PyArray1, PyArrayDescr, PyArrayDescrMethods, PyArrayDyn, PyArrayMethods,
     PyReadonlyArrayDyn, PyReadwriteArrayDyn, PyUntypedArrayMethods, dtype,
@@ -31,6 +31,84 @@ where
 
     NDArray::from_shape_vec(shape, data)
         .map_err(|error| Python::attach(|py| crate::support::errors::ndarray(py, error)))
+}
+
+pub(crate) fn with_numpy_operand<T, R>(
+    array: PyReadonlyArrayDyn<'_, T>,
+    operation: impl FnOnce(&(dyn OperandMetadata<T> + Sync)) -> R,
+) -> PyResult<R>
+where
+    T: ArrayElement + Element,
+{
+    let view = array.as_array();
+    let shape = view.shape().to_vec();
+    let strides = positive_element_strides(view.strides(), &shape);
+
+    if let Some(strides) = strides {
+        let span_len = storage_span_len(&shape, &strides).ok_or_else(|| {
+            Python::attach(|py| {
+                crate::support::errors::ndarray(
+                    py,
+                    atlas_ndarray::AtlasNdError::ShapeOverflow {
+                        op: "borrowed NumPy input",
+                        shape: shape.clone(),
+                    },
+                )
+            })
+        })?;
+        let data = if span_len == 0 {
+            &[]
+        } else {
+            // SAFETY: the NumPy read guard keeps the allocation immutably borrowed, and positive
+            // strides make every logical address fall between the first element and this span's
+            // final element.
+            unsafe { std::slice::from_raw_parts(view.as_ptr(), span_len) }
+        };
+        let operand = BorrowedArray::from_parts(data, &shape, &strides, 0)
+            .map_err(|error| Python::attach(|py| crate::support::errors::ndarray(py, error)))?;
+
+        return Ok(operation(&operand));
+    }
+
+    let owned = from_numpy(array)?;
+    Ok(operation(&owned))
+}
+
+pub(crate) fn copy_operand<T, O>(operand: &O) -> atlas_ndarray::AtlasNdResult<NDArray<T>>
+where
+    T: ArrayElement,
+    O: OperandMetadata<T> + ?Sized,
+{
+    let mut data = Vec::with_capacity(atlas_ndarray::checked_element_count(operand.shape())?);
+    atlas_ndarray::try_for_each_logical_span(operand, |span| {
+        data.extend_from_slice(span);
+        Ok::<(), atlas_ndarray::AtlasNdError>(())
+    })?;
+    NDArray::from_shape_vec(operand.shape(), data)
+}
+
+fn positive_element_strides(strides: &[isize], shape: &[usize]) -> Option<Vec<usize>> {
+    strides
+        .iter()
+        .zip(shape)
+        .map(|(&stride, &dimension)| {
+            if stride < 0 || (dimension > 1 && stride == 0) {
+                None
+            } else {
+                usize::try_from(stride).ok()
+            }
+        })
+        .collect()
+}
+
+fn storage_span_len(shape: &[usize], strides: &[usize]) -> Option<usize> {
+    if shape.iter().contains(&0) {
+        return Some(0);
+    }
+
+    shape.iter().zip(strides).try_fold(1usize, |span, (&dimension, &stride)| {
+        dimension.saturating_sub(1).checked_mul(stride).and_then(|extent| span.checked_add(extent))
+    })
 }
 
 pub(crate) fn from_numpy_promoted<T>(

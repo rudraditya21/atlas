@@ -102,7 +102,8 @@ impl KnnClassifier {
         features: &Bound<'_, PyAny>,
         labels: &Bound<'_, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let (features, labels) = super::model::classifier_fit_inputs(py, features, labels, FIT_OP)?;
+        let (features, labels) =
+            super::model::owned_classifier_fit_inputs(py, features, labels, FIT_OP)?;
         let config = slf.config;
         let model =
             gil::without_gil(py, move || atlas_ml::KnnClassifier::fit(features, labels, config))
@@ -117,10 +118,11 @@ impl KnnClassifier {
         py: Python<'_>,
         features: &Bound<'_, PyAny>,
     ) -> crate::support::results::PyObjectResult {
-        let features = super::model::predict_features(py, features, PREDICT_PROBA_OP)?;
         let model = self.model.fitted(py, PREDICT_PROBA_OP)?;
-        let probabilities = gil::without_gil(py, move || model.predict_proba(&features))
-            .map_err(|error| crate::support::errors::ml(py, error))?;
+        let probabilities =
+            super::model::with_predict_features(py, features, PREDICT_PROBA_OP, |features| {
+                gil::without_gil(py, || model.predict_proba(features))
+            })?;
 
         Ok(array::to_numpy_owned(py, probabilities)?.into_any().unbind())
     }
@@ -130,10 +132,11 @@ impl KnnClassifier {
         py: Python<'_>,
         features: &Bound<'_, PyAny>,
     ) -> crate::support::results::PyObjectResult {
-        let features = super::model::predict_features(py, features, PREDICT_OP)?;
         let model = self.model.fitted(py, PREDICT_OP)?;
-        let predictions = gil::without_gil(py, move || model.predict(&features))
-            .map_err(|error| crate::support::errors::ml(py, error))?;
+        let predictions =
+            super::model::with_predict_features(py, features, PREDICT_OP, |features| {
+                gil::without_gil(py, || model.predict(features))
+            })?;
 
         Ok(array::to_numpy_owned(py, predictions)?.into_any().unbind())
     }
@@ -144,14 +147,23 @@ impl KnnClassifier {
         features: &Bound<'_, PyAny>,
         labels: &Bound<'_, PyAny>,
     ) -> crate::support::results::PyObjectResult {
-        let (features, labels) = super::model::classifier_fit_inputs(py, features, labels, FIT_OP)?;
-        let queries = features.clone();
         let config = slf.config;
-        let model =
-            gil::without_gil(py, move || atlas_ml::KnnClassifier::fit(features, labels, config))
-                .map_err(|error| crate::support::errors::ml(py, error))?;
-        let predictions = gil::without_gil(py, || model.predict(&queries))
-            .map_err(|error| crate::support::errors::ml(py, error))?;
+        let (model, predictions) = super::model::with_classifier_fit_inputs(
+            py,
+            features,
+            labels,
+            FIT_OP,
+            |features, labels| {
+                gil::without_gil(py, || {
+                    let training_features = array::copy_operand(features)?;
+                    let training_labels = array::copy_operand(labels)?;
+                    let model =
+                        atlas_ml::KnnClassifier::fit(training_features, training_labels, config)?;
+                    let predictions = model.predict(features)?;
+                    Ok((model, predictions))
+                })
+            },
+        )?;
         slf.model.replace(model);
         Ok(array::to_numpy_owned(py, predictions)?.into_any().unbind())
     }

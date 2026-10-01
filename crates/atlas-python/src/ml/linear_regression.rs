@@ -43,11 +43,15 @@ impl LinearRegression {
         features: &Bound<'_, PyAny>,
         targets: &Bound<'_, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let (features, targets) =
-            super::model::regression_fit_inputs(py, features, targets, FIT_OP)?;
-        let model =
-            gil::without_gil(py, move || atlas_ml::LinearRegression::fit(&features, &targets))
-                .map_err(|error| crate::support::errors::ml(py, error))?;
+        let model = super::model::with_regression_fit_inputs(
+            py,
+            features,
+            targets,
+            FIT_OP,
+            |features, targets| {
+                gil::without_gil(py, || atlas_ml::LinearRegression::fit(features, targets))
+            },
+        )?;
 
         slf.model.replace(model);
         Ok(slf)
@@ -58,10 +62,11 @@ impl LinearRegression {
         py: Python<'_>,
         features: &Bound<'_, PyAny>,
     ) -> crate::support::results::PyObjectResult {
-        let features = super::model::predict_features(py, features, PREDICT_OP)?;
         let model = self.model.fitted(py, PREDICT_OP)?;
-        let predictions = gil::without_gil(py, move || model.predict(&features))
-            .map_err(|error| crate::support::errors::ml(py, error))?;
+        let predictions =
+            super::model::with_predict_features(py, features, PREDICT_OP, |features| {
+                gil::without_gil(py, || model.predict(features))
+            })?;
 
         Ok(array::to_numpy_owned(py, predictions)?.into_any().unbind())
     }
@@ -72,10 +77,13 @@ impl LinearRegression {
         features: &Bound<'_, PyAny>,
         targets: &Bound<'_, PyAny>,
     ) -> PyResult<f64> {
-        let (features, targets) =
-            super::model::regression_fit_inputs(py, features, targets, PREDICT_OP)?;
         let model = self.model.fitted(py, PREDICT_OP)?;
-        gil::without_gil(py, move || model.score(&features, &targets))
-            .map_err(|error| crate::support::errors::ml(py, error))
+        super::model::with_regression_fit_inputs(
+            py,
+            features,
+            targets,
+            PREDICT_OP,
+            |features, targets| gil::without_gil(py, || model.score(features, targets)),
+        )
     }
 }

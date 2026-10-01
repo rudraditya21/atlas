@@ -43,11 +43,15 @@ impl NearestCentroidClassifier {
         features: &Bound<'_, PyAny>,
         labels: &Bound<'_, PyAny>,
     ) -> PyResult<PyRefMut<'py, Self>> {
-        let (features, labels) = super::model::classifier_fit_inputs(py, features, labels, FIT_OP)?;
-        let model = gil::without_gil(py, move || {
-            atlas_ml::NearestCentroidClassifier::fit(&features, &labels)
-        })
-        .map_err(|error| crate::support::errors::ml(py, error))?;
+        let model = super::model::with_classifier_fit_inputs(
+            py,
+            features,
+            labels,
+            FIT_OP,
+            |features, labels| {
+                gil::without_gil(py, || atlas_ml::NearestCentroidClassifier::fit(features, labels))
+            },
+        )?;
 
         slf.model.replace(model);
         Ok(slf)
@@ -58,10 +62,11 @@ impl NearestCentroidClassifier {
         py: Python<'_>,
         features: &Bound<'_, PyAny>,
     ) -> crate::support::results::PyObjectResult {
-        let features = super::model::predict_features(py, features, PREDICT_OP)?;
         let model = self.model.fitted(py, PREDICT_OP)?;
-        let predictions = gil::without_gil(py, move || model.predict(&features))
-            .map_err(|error| crate::support::errors::ml(py, error))?;
+        let predictions =
+            super::model::with_predict_features(py, features, PREDICT_OP, |features| {
+                gil::without_gil(py, || model.predict(features))
+            })?;
 
         Ok(array::to_numpy_owned(py, predictions)?.into_any().unbind())
     }
@@ -72,12 +77,19 @@ impl NearestCentroidClassifier {
         features: &Bound<'_, PyAny>,
         labels: &Bound<'_, PyAny>,
     ) -> crate::support::results::PyObjectResult {
-        let (features, labels) = super::model::classifier_fit_inputs(py, features, labels, FIT_OP)?;
-        let model =
-            gil::without_gil(py, || atlas_ml::NearestCentroidClassifier::fit(&features, &labels))
-                .map_err(|error| crate::support::errors::ml(py, error))?;
-        let predictions = gil::without_gil(py, || model.predict(&features))
-            .map_err(|error| crate::support::errors::ml(py, error))?;
+        let (model, predictions) = super::model::with_classifier_fit_inputs(
+            py,
+            features,
+            labels,
+            FIT_OP,
+            |features, labels| {
+                let model = gil::without_gil(py, || {
+                    atlas_ml::NearestCentroidClassifier::fit(features, labels)
+                })?;
+                let predictions = gil::without_gil(py, || model.predict(features))?;
+                Ok((model, predictions))
+            },
+        )?;
         slf.model.replace(model);
         Ok(array::to_numpy_owned(py, predictions)?.into_any().unbind())
     }
