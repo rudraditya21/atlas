@@ -4,10 +4,12 @@ use rayon::prelude::*;
 use super::dispatch::should_parallelize_matmul;
 use crate::internal::dense::{MatrixRef, VectorRef};
 
-pub(super) fn vector_matrix<T: Numeric>(lhs: VectorRef<'_, T>, rhs: MatrixRef<'_, T>) -> Vec<T> {
-    let mut data = vec![T::zero(); rhs.cols];
-
-    for (col, output) in data.iter_mut().enumerate() {
+pub(super) fn vector_matrix_into<T: Numeric>(
+    lhs: VectorRef<'_, T>,
+    rhs: MatrixRef<'_, T>,
+    output: &mut [T],
+) {
+    for (col, output) in output.iter_mut().enumerate() {
         let mut total = T::zero();
 
         for k in 0..lhs.len {
@@ -16,14 +18,14 @@ pub(super) fn vector_matrix<T: Numeric>(lhs: VectorRef<'_, T>, rhs: MatrixRef<'_
 
         *output = total;
     }
-
-    data
 }
 
-pub(super) fn matrix_vector<T: Numeric>(lhs: MatrixRef<'_, T>, rhs: VectorRef<'_, T>) -> Vec<T> {
-    let mut data = vec![T::zero(); lhs.rows];
-
-    for (row, output) in data.iter_mut().enumerate() {
+pub(super) fn matrix_vector_into<T: Numeric>(
+    lhs: MatrixRef<'_, T>,
+    rhs: VectorRef<'_, T>,
+    output: &mut [T],
+) {
+    for (row, output) in output.iter_mut().enumerate() {
         let mut total = T::zero();
 
         for k in 0..lhs.cols {
@@ -32,15 +34,15 @@ pub(super) fn matrix_vector<T: Numeric>(lhs: MatrixRef<'_, T>, rhs: VectorRef<'_
 
         *output = total;
     }
-
-    data
 }
 
-pub(super) fn matrix_matrix<T: Numeric>(lhs: MatrixRef<'_, T>, rhs: MatrixRef<'_, T>) -> Vec<T> {
-    let mut data = vec![T::zero(); lhs.rows * rhs.cols];
-
+pub(super) fn matrix_matrix_into<T: Numeric>(
+    lhs: MatrixRef<'_, T>,
+    rhs: MatrixRef<'_, T>,
+    output: &mut [T],
+) {
     if should_parallelize_matmul(lhs.rows, lhs.cols, rhs.cols) {
-        data.par_chunks_mut(rhs.cols).enumerate().for_each(|(row, out_row)| {
+        output.par_chunks_mut(rhs.cols).enumerate().for_each(|(row, out_row)| {
             for (col, output) in out_row.iter_mut().enumerate() {
                 let mut total = T::zero();
 
@@ -53,7 +55,7 @@ pub(super) fn matrix_matrix<T: Numeric>(lhs: MatrixRef<'_, T>, rhs: MatrixRef<'_
         });
     } else {
         for row in 0..lhs.rows {
-            let out_row = &mut data[row * rhs.cols..(row + 1) * rhs.cols];
+            let out_row = &mut output[row * rhs.cols..(row + 1) * rhs.cols];
 
             for (col, output) in out_row.iter_mut().enumerate() {
                 let mut total = T::zero();
@@ -66,6 +68,4 @@ pub(super) fn matrix_matrix<T: Numeric>(lhs: MatrixRef<'_, T>, rhs: MatrixRef<'_
             }
         }
     }
-
-    data
 }

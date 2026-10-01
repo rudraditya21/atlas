@@ -27,53 +27,69 @@ pub(super) fn matmul_vector_matrix<T: Numeric>(
         });
     }
 
-    let data = matmul_vector_matrix_refs(lhs, rhs);
+    let mut data = vec![T::zero(); rhs.cols];
+    matmul_vector_matrix_refs_into(lhs, rhs, &mut data);
 
     Ok(NDArray::from_shape_vec([rhs.cols], data)?)
 }
 
-pub(super) fn matmul_vector_matrix_refs<T: Numeric>(
+pub(super) fn matmul_vector_matrix_refs_into<T: Numeric>(
     lhs: VectorRef<'_, T>,
     rhs: MatrixRef<'_, T>,
-) -> Vec<T> {
-    if rhs.cols == 0 {
-        return Vec::new();
+    output: &mut [T],
+) {
+    debug_assert_eq!(output.len(), rhs.cols);
+    if output.is_empty() {
+        return;
     }
     if lhs.len == 0 {
-        return vec![T::zero(); rhs.cols];
+        output.fill(T::zero());
+        return;
     }
 
     if select_matmul_backend(MatmulOperation::VectorMatrix(lhs, rhs)) == MatmulBackend::Blas {
-        return blas::vector_matrix(lhs, rhs)
-            .expect("BLAS backend selection guarantees supported vector-matrix operands");
+        assert!(
+            blas::gemv_into(rhs, lhs, true, output),
+            "BLAS backend selection guarantees supported vector-matrix operands"
+        );
+        return;
     }
 
     if lhs.is_contiguous() && rhs.is_row_major_contiguous() {
-        matmul_vector_matrix_row_major(lhs, rhs)
+        row_major::vector_matrix_into(lhs, rhs, output);
     } else if lhs.is_contiguous() && rhs.is_col_major_contiguous() {
-        matmul_vector_matrix_col_major(lhs, rhs)
+        col_major::vector_matrix_into(lhs, rhs, output);
     } else {
-        matmul_vector_matrix_generic(lhs, rhs)
+        generic::vector_matrix_into(lhs, rhs, output);
     }
 }
 
+#[cfg(test)]
 pub(super) fn matmul_vector_matrix_row_major<T: Numeric>(
     lhs: VectorRef<'_, T>,
     rhs: MatrixRef<'_, T>,
 ) -> Vec<T> {
-    row_major::vector_matrix(lhs, rhs)
+    let mut output = vec![T::zero(); rhs.cols];
+    row_major::vector_matrix_into(lhs, rhs, &mut output);
+    output
 }
 
+#[cfg(test)]
 pub(super) fn matmul_vector_matrix_col_major<T: Numeric>(
     lhs: VectorRef<'_, T>,
     rhs: MatrixRef<'_, T>,
 ) -> Vec<T> {
-    col_major::vector_matrix(lhs, rhs)
+    let mut output = vec![T::zero(); rhs.cols];
+    col_major::vector_matrix_into(lhs, rhs, &mut output);
+    output
 }
 
+#[cfg(test)]
 pub(super) fn matmul_vector_matrix_generic<T: Numeric>(
     lhs: VectorRef<'_, T>,
     rhs: MatrixRef<'_, T>,
 ) -> Vec<T> {
-    generic::vector_matrix(lhs, rhs)
+    let mut output = vec![T::zero(); rhs.cols];
+    generic::vector_matrix_into(lhs, rhs, &mut output);
+    output
 }

@@ -27,60 +27,81 @@ pub(super) fn matmul_matrix_matrix<T: Numeric>(
         });
     }
 
-    Ok(NDArray::from_shape_vec([lhs.rows, rhs.cols], matmul_matrix_refs(lhs, rhs))?)
+    let mut data = vec![T::zero(); lhs.rows * rhs.cols];
+    matmul_matrix_refs_into(lhs, rhs, &mut data);
+
+    Ok(NDArray::from_shape_vec([lhs.rows, rhs.cols], data)?)
 }
 
-pub(super) fn matmul_matrix_refs<T: Numeric>(
+pub(super) fn matmul_matrix_refs_into<T: Numeric>(
     lhs: MatrixRef<'_, T>,
     rhs: MatrixRef<'_, T>,
-) -> Vec<T> {
-    if lhs.rows == 0 || rhs.cols == 0 {
-        return Vec::new();
+    output: &mut [T],
+) {
+    debug_assert_eq!(output.len(), lhs.rows * rhs.cols);
+    if output.is_empty() {
+        return;
     }
     if lhs.cols == 0 {
-        return vec![T::zero(); lhs.rows * rhs.cols];
+        output.fill(T::zero());
+        return;
     }
 
     if select_matmul_backend(MatmulOperation::MatrixMatrix(lhs, rhs)) == MatmulBackend::Blas {
-        return blas::matrix_matrix(lhs, rhs)
-            .expect("BLAS backend selection guarantees supported matrix operands");
+        assert!(
+            blas::gemm_into(lhs, rhs, output),
+            "BLAS backend selection guarantees supported matrix operands"
+        );
+        return;
     }
 
     if lhs.is_row_major_contiguous() && rhs.is_row_major_contiguous() {
-        matmul_matrix_matrix_row_major(lhs, rhs)
+        row_major::matrix_matrix_into(lhs, rhs, output);
     } else if lhs.is_col_major_contiguous() && rhs.is_row_major_contiguous() {
-        matmul_matrix_matrix_lhs_col_major(lhs, rhs)
+        col_major::matrix_matrix_lhs_into(lhs, rhs, output);
     } else if lhs.is_row_major_contiguous() && rhs.is_col_major_contiguous() {
-        matmul_matrix_matrix_rhs_col_major(lhs, rhs)
+        col_major::matrix_matrix_rhs_into(lhs, rhs, output);
     } else {
-        matmul_matrix_matrix_generic(lhs, rhs)
+        generic::matrix_matrix_into(lhs, rhs, output);
     }
 }
 
+#[cfg(test)]
 pub(super) fn matmul_matrix_matrix_row_major<T: Numeric>(
     lhs: MatrixRef<'_, T>,
     rhs: MatrixRef<'_, T>,
 ) -> Vec<T> {
-    row_major::matrix_matrix(lhs, rhs)
+    let mut output = vec![T::zero(); lhs.rows * rhs.cols];
+    row_major::matrix_matrix_into(lhs, rhs, &mut output);
+    output
 }
 
+#[cfg(test)]
 pub(super) fn matmul_matrix_matrix_lhs_col_major<T: Numeric>(
     lhs: MatrixRef<'_, T>,
     rhs: MatrixRef<'_, T>,
 ) -> Vec<T> {
-    col_major::matrix_matrix_lhs(lhs, rhs)
+    let mut output = vec![T::zero(); lhs.rows * rhs.cols];
+    col_major::matrix_matrix_lhs_into(lhs, rhs, &mut output);
+    output
 }
 
+#[cfg(test)]
 pub(super) fn matmul_matrix_matrix_rhs_col_major<T: Numeric>(
     lhs: MatrixRef<'_, T>,
     rhs: MatrixRef<'_, T>,
 ) -> Vec<T> {
-    col_major::matrix_matrix_rhs(lhs, rhs)
+    let mut output = vec![T::zero(); lhs.rows * rhs.cols];
+    col_major::matrix_matrix_rhs_into(lhs, rhs, &mut output);
+    output
 }
 
+#[cfg(test)]
 pub(super) fn matmul_matrix_matrix_generic<T: Numeric>(
     lhs: MatrixRef<'_, T>,
     rhs: MatrixRef<'_, T>,
 ) -> Vec<T> {
-    generic::matrix_matrix(lhs, rhs)
+    let mut output = vec![T::zero(); lhs.rows * rhs.cols];
+    generic::matrix_matrix_into(lhs, rhs, &mut output);
+    output
 }

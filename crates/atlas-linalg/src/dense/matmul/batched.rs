@@ -5,9 +5,9 @@ use super::{
     dispatch::{
         MatmulBackend, MatmulOperation, select_matmul_backend, with_matmul_parallelism_disabled,
     },
-    matrix_matrix::matmul_matrix_refs,
-    matrix_vector::matmul_matrix_vector_refs,
-    vector_matrix::matmul_vector_matrix_refs,
+    matrix_matrix::matmul_matrix_refs_into,
+    matrix_vector::matmul_matrix_vector_refs_into,
+    vector_matrix::matmul_vector_matrix_refs_into,
 };
 
 const PARALLEL_BATCHED_MATMUL_WORK_THRESHOLD: usize = 1 << 18;
@@ -60,21 +60,21 @@ pub(super) fn matmul_batched_matrix_matrix<T: Numeric>(
         && should_parallelize_batched_matmul(*lhs_batches, *lhs_rows, *lhs_columns, *rhs_columns)
     {
         data.par_chunks_mut(batch_output_len).enumerate().for_each(|(batch, output)| {
-            let result = with_matmul_parallelism_disabled(|| {
-                matmul_matrix_refs(
+            with_matmul_parallelism_disabled(|| {
+                matmul_matrix_refs_into(
                     batch_matrix_ref(lhs, batch, *lhs_rows, *lhs_columns),
                     batch_matrix_ref(rhs, batch, *rhs_rows, *rhs_columns),
+                    output,
                 )
             });
-            output.copy_from_slice(&result);
         });
     } else {
         for (batch, output) in data.chunks_exact_mut(batch_output_len).enumerate() {
-            let result = matmul_matrix_refs(
+            matmul_matrix_refs_into(
                 batch_matrix_ref(lhs, batch, *lhs_rows, *lhs_columns),
                 batch_matrix_ref(rhs, batch, *rhs_rows, *rhs_columns),
+                output,
             );
-            output.copy_from_slice(&result);
         }
     }
 
@@ -123,21 +123,21 @@ pub(super) fn matmul_batched_matrix_vector<T: Numeric>(
     )) == MatmulBackend::Blas;
     if !use_blas && should_parallelize_batched_matmul(*lhs_batches, *lhs_rows, *lhs_columns, 1) {
         data.par_chunks_mut(batch_output_len).enumerate().for_each(|(batch, output)| {
-            let result = with_matmul_parallelism_disabled(|| {
-                matmul_matrix_vector_refs(
+            with_matmul_parallelism_disabled(|| {
+                matmul_matrix_vector_refs_into(
                     batch_matrix_ref(lhs, batch, *lhs_rows, *lhs_columns),
                     batch_vector_ref(rhs, batch, *rhs_length),
+                    output,
                 )
             });
-            output.copy_from_slice(&result);
         });
     } else {
         for (batch, output) in data.chunks_exact_mut(batch_output_len).enumerate() {
-            let result = matmul_matrix_vector_refs(
+            matmul_matrix_vector_refs_into(
                 batch_matrix_ref(lhs, batch, *lhs_rows, *lhs_columns),
                 batch_vector_ref(rhs, batch, *rhs_length),
+                output,
             );
-            output.copy_from_slice(&result);
         }
     }
 
@@ -186,21 +186,21 @@ pub(super) fn matmul_batched_vector_matrix<T: Numeric>(
     )) == MatmulBackend::Blas;
     if !use_blas && should_parallelize_batched_matmul(*lhs_batches, 1, *lhs_length, *rhs_columns) {
         data.par_chunks_mut(batch_output_len).enumerate().for_each(|(batch, output)| {
-            let result = with_matmul_parallelism_disabled(|| {
-                matmul_vector_matrix_refs(
+            with_matmul_parallelism_disabled(|| {
+                matmul_vector_matrix_refs_into(
                     batch_vector_ref(lhs, batch, *lhs_length),
                     batch_matrix_ref(rhs, batch, *rhs_rows, *rhs_columns),
+                    output,
                 )
             });
-            output.copy_from_slice(&result);
         });
     } else {
         for (batch, output) in data.chunks_exact_mut(batch_output_len).enumerate() {
-            let result = matmul_vector_matrix_refs(
+            matmul_vector_matrix_refs_into(
                 batch_vector_ref(lhs, batch, *lhs_length),
                 batch_matrix_ref(rhs, batch, *rhs_rows, *rhs_columns),
+                output,
             );
-            output.copy_from_slice(&result);
         }
     }
 

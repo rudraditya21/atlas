@@ -91,6 +91,16 @@ pub(crate) fn matrix_ref<'a, T: Numeric>(operand: &'a LinalgOperand<'a, T>) -> M
 }
 
 pub(crate) fn dot_kernel<T: Numeric>(lhs: VectorRef<'_, T>, rhs: VectorRef<'_, T>) -> T {
+    let mut output = T::zero();
+    dot_kernel_into(lhs, rhs, &mut output);
+    output
+}
+
+pub(crate) fn dot_kernel_into<T: Numeric>(
+    lhs: VectorRef<'_, T>,
+    rhs: VectorRef<'_, T>,
+    output: &mut T,
+) {
     if lhs.is_contiguous() && rhs.is_contiguous() {
         let backend = crate::dense::matmul::select_matmul_backend(
             crate::dense::matmul::MatmulOperation::Dot(lhs, rhs),
@@ -99,13 +109,15 @@ pub(crate) fn dot_kernel<T: Numeric>(lhs: VectorRef<'_, T>, rhs: VectorRef<'_, T
         let rhs = rhs.contiguous_slice();
 
         if backend == crate::dense::matmul::MatmulBackend::Blas {
-            crate::dense::blas::dot(lhs, rhs)
-                .expect("BLAS backend selection guarantees supported dot operands")
+            assert!(
+                crate::dense::blas::dot_into(lhs, rhs, output),
+                "BLAS backend selection guarantees supported dot operands"
+            );
         } else {
-            dot_contiguous(lhs, rhs)
+            *output = dot_contiguous(lhs, rhs);
         }
     } else {
-        dot_strided(lhs, rhs)
+        *output = dot_strided(lhs, rhs);
     }
 }
 

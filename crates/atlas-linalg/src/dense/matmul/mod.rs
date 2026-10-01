@@ -13,7 +13,7 @@ use atlas_ndarray::{NDArray, Numeric};
 pub(crate) use dispatch::{
     MatmulBackend, MatmulOperation, select_matmul_backend, should_parallelize_matmul,
 };
-pub(crate) use matrix_vector::matmul_matrix_vector_refs;
+pub(crate) use matrix_vector::matmul_matrix_vector_refs_into;
 
 use crate::core::{AtlasLinalgResult, LinalgOperand};
 

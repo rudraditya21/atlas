@@ -6,9 +6,9 @@ use crate::internal::{
     simd,
 };
 
-pub(crate) fn dot<T: Numeric>(lhs: &[T], rhs: &[T]) -> Option<T> {
+pub(crate) fn dot_into<T: Numeric>(lhs: &[T], rhs: &[T], output: &mut T) -> bool {
     if simd::is_f32::<T>() {
-        return execute(|| {
+        let Some(value) = execute(|| {
             atlas_blas::dot_f32(
                 simd::cast_slice::<T, f32>(lhs),
                 1,
@@ -17,11 +17,14 @@ pub(crate) fn dot<T: Numeric>(lhs: &[T], rhs: &[T]) -> Option<T> {
                 lhs.len(),
             )
         })
-        .ok()
-        .map(simd::cast_value);
+        .ok() else {
+            return false;
+        };
+        *output = simd::cast_value(value);
+        return true;
     }
     if simd::is_f64::<T>() {
-        return execute(|| {
+        let Some(value) = execute(|| {
             atlas_blas::dot_f64(
                 simd::cast_slice::<T, f64>(lhs),
                 1,
@@ -30,78 +33,37 @@ pub(crate) fn dot<T: Numeric>(lhs: &[T], rhs: &[T]) -> Option<T> {
                 lhs.len(),
             )
         })
-        .ok()
-        .map(simd::cast_value);
+        .ok() else {
+            return false;
+        };
+        *output = simd::cast_value(value);
+        return true;
     }
 
-    None
+    false
 }
 
-pub(crate) fn matrix_vector<T: Numeric>(
+pub(crate) fn gemv_into<T: Numeric>(
     matrix: MatrixRef<'_, T>,
     vector: VectorRef<'_, T>,
-) -> Option<Vec<T>> {
-    let (transpose, stored_rows, stored_cols, leading_dimension) = matrix_parameters(matrix)?;
-    let mut output = vec![T::zero(); matrix.rows];
-
-    if simd::is_f32::<T>() {
-        execute(|| {
-            atlas_blas::gemv_f32(
-                Layout::RowMajor,
-                transpose,
-                stored_rows,
-                stored_cols,
-                1.0,
-                simd::cast_slice::<T, f32>(&matrix.data[matrix.offset..]),
-                leading_dimension,
-                simd::cast_slice::<T, f32>(vector.contiguous_slice()),
-                1,
-                0.0,
-                simd::cast_mut_slice::<T, f32>(&mut output),
-                1,
-            )
-        })
-        .ok()?;
-        return Some(output);
-    }
-    if simd::is_f64::<T>() {
-        execute(|| {
-            atlas_blas::gemv_f64(
-                Layout::RowMajor,
-                transpose,
-                stored_rows,
-                stored_cols,
-                1.0,
-                simd::cast_slice::<T, f64>(&matrix.data[matrix.offset..]),
-                leading_dimension,
-                simd::cast_slice::<T, f64>(vector.contiguous_slice()),
-                1,
-                0.0,
-                simd::cast_mut_slice::<T, f64>(&mut output),
-                1,
-            )
-        })
-        .ok()?;
-        return Some(output);
-    }
-
-    None
-}
-
-pub(crate) fn vector_matrix<T: Numeric>(
-    vector: VectorRef<'_, T>,
-    matrix: MatrixRef<'_, T>,
-) -> Option<Vec<T>> {
-    let (matrix_transpose, stored_rows, stored_cols, leading_dimension) =
-        matrix_parameters(matrix)?;
-    let transpose = match matrix_transpose {
-        Transpose::None => Transpose::Transpose,
-        Transpose::Transpose => Transpose::None,
+    vector_matrix: bool,
+    output: &mut [T],
+) -> bool {
+    let Some((transpose, stored_rows, stored_cols, leading_dimension)) = matrix_parameters(matrix)
+    else {
+        return false;
     };
-    let mut output = vec![T::zero(); matrix.cols];
+    let transpose = if vector_matrix {
+        match transpose {
+            Transpose::None => Transpose::Transpose,
+            Transpose::Transpose => Transpose::None,
+        }
+    } else {
+        transpose
+    };
 
     if simd::is_f32::<T>() {
-        execute(|| {
+        return execute(|| {
             atlas_blas::gemv_f32(
                 Layout::RowMajor,
                 transpose,
@@ -113,15 +75,14 @@ pub(crate) fn vector_matrix<T: Numeric>(
                 simd::cast_slice::<T, f32>(vector.contiguous_slice()),
                 1,
                 0.0,
-                simd::cast_mut_slice::<T, f32>(&mut output),
+                simd::cast_mut_slice::<T, f32>(output),
                 1,
             )
         })
-        .ok()?;
-        return Some(output);
+        .is_ok();
     }
     if simd::is_f64::<T>() {
-        execute(|| {
+        return execute(|| {
             atlas_blas::gemv_f64(
                 Layout::RowMajor,
                 transpose,
@@ -133,27 +94,30 @@ pub(crate) fn vector_matrix<T: Numeric>(
                 simd::cast_slice::<T, f64>(vector.contiguous_slice()),
                 1,
                 0.0,
-                simd::cast_mut_slice::<T, f64>(&mut output),
+                simd::cast_mut_slice::<T, f64>(output),
                 1,
             )
         })
-        .ok()?;
-        return Some(output);
+        .is_ok();
     }
 
-    None
+    false
 }
 
-pub(crate) fn matrix_matrix<T: Numeric>(
+pub(crate) fn gemm_into<T: Numeric>(
     lhs: MatrixRef<'_, T>,
     rhs: MatrixRef<'_, T>,
-) -> Option<Vec<T>> {
-    let (lhs_transpose, _, _, lhs_leading_dimension) = matrix_parameters(lhs)?;
-    let (rhs_transpose, _, _, rhs_leading_dimension) = matrix_parameters(rhs)?;
-    let mut output = vec![T::zero(); lhs.rows.checked_mul(rhs.cols)?];
+    output: &mut [T],
+) -> bool {
+    let Some((lhs_transpose, _, _, lhs_leading_dimension)) = matrix_parameters(lhs) else {
+        return false;
+    };
+    let Some((rhs_transpose, _, _, rhs_leading_dimension)) = matrix_parameters(rhs) else {
+        return false;
+    };
 
     if simd::is_f32::<T>() {
-        execute(|| {
+        return execute(|| {
             atlas_blas::gemm_f32(
                 Layout::RowMajor,
                 lhs_transpose,
@@ -167,15 +131,14 @@ pub(crate) fn matrix_matrix<T: Numeric>(
                 simd::cast_slice::<T, f32>(&rhs.data[rhs.offset..]),
                 rhs_leading_dimension,
                 0.0,
-                simd::cast_mut_slice::<T, f32>(&mut output),
+                simd::cast_mut_slice::<T, f32>(output),
                 rhs.cols,
             )
         })
-        .ok()?;
-        return Some(output);
+        .is_ok();
     }
     if simd::is_f64::<T>() {
-        execute(|| {
+        return execute(|| {
             atlas_blas::gemm_f64(
                 Layout::RowMajor,
                 lhs_transpose,
@@ -189,15 +152,14 @@ pub(crate) fn matrix_matrix<T: Numeric>(
                 simd::cast_slice::<T, f64>(&rhs.data[rhs.offset..]),
                 rhs_leading_dimension,
                 0.0,
-                simd::cast_mut_slice::<T, f64>(&mut output),
+                simd::cast_mut_slice::<T, f64>(output),
                 rhs.cols,
             )
         })
-        .ok()?;
-        return Some(output);
+        .is_ok();
     }
 
-    None
+    false
 }
 
 fn execute<R>(operation: impl FnOnce() -> R) -> R {

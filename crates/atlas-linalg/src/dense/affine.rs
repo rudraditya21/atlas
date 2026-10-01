@@ -4,7 +4,7 @@ use rayon::prelude::*;
 use crate::{
     core::{AtlasLinalgError, AtlasLinalgResult},
     dense::matmul::{
-        MatmulBackend, MatmulOperation, matmul_matrix_vector_refs, select_matmul_backend,
+        MatmulBackend, MatmulOperation, matmul_matrix_vector_refs_into, select_matmul_backend,
         should_parallelize_matmul,
     },
     internal::dense::{MatrixRef, VectorRef, dot_contiguous},
@@ -58,7 +58,8 @@ where
         });
         scores
     } else {
-        let mut scores = matmul_matrix_vector_refs(matrix, coefficients);
+        let mut scores = vec![T::zero(); matrix.rows];
+        matmul_matrix_vector_refs_into(matrix, coefficients, &mut scores);
         scores.iter_mut().for_each(|score| *score += intercept);
         scores
     };
