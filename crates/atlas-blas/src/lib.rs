@@ -1,206 +1,285 @@
 //! Typed CPU BLAS bindings used by Atlas linear algebra.
 
 const CBLAS_ROW_MAJOR: i32 = 101;
+const CBLAS_COL_MAJOR: i32 = 102;
 const CBLAS_NO_TRANS: i32 = 111;
 const CBLAS_TRANS: i32 = 112;
 
-#[derive(Clone, Copy)]
-pub struct Matrix<'a, T> {
-    data: &'a [T],
-    offset: usize,
-    rows: usize,
-    cols: usize,
-    row_stride: usize,
-    col_stride: usize,
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Layout {
+    RowMajor,
+    ColumnMajor,
 }
 
-impl<'a, T> Matrix<'a, T> {
-    pub fn new(
-        data: &'a [T],
-        offset: usize,
-        rows: usize,
-        cols: usize,
-        row_stride: usize,
-        col_stride: usize,
-    ) -> Option<Self> {
-        let in_bounds = if rows == 0 || cols == 0 {
-            offset <= data.len()
-        } else {
-            let last_row = offset.checked_add((rows - 1).checked_mul(row_stride)?)?;
-            last_row
-                .checked_add((cols - 1).checked_mul(col_stride)?)
-                .is_some_and(|last| last < data.len())
-        };
-
-        in_bounds.then_some(Self { data, offset, rows, cols, row_stride, col_stride })
-    }
-
-    fn parameters(self) -> Option<(i32, usize, usize, usize)> {
-        if self.col_stride == 1 && self.row_stride == self.cols {
-            Some((CBLAS_NO_TRANS, self.rows, self.cols, self.cols))
-        } else if self.row_stride == 1 && self.col_stride == self.rows {
-            Some((CBLAS_TRANS, self.cols, self.rows, self.rows))
-        } else {
-            None
+impl Layout {
+    const fn cblas_value(self) -> i32 {
+        match self {
+            Self::RowMajor => CBLAS_ROW_MAJOR,
+            Self::ColumnMajor => CBLAS_COL_MAJOR,
         }
     }
+}
 
-    fn as_ptr(self) -> *const T {
-        self.data[self.offset..].as_ptr()
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Transpose {
+    None,
+    Transpose,
+}
+
+impl Transpose {
+    const fn cblas_value(self) -> i32 {
+        match self {
+            Self::None => CBLAS_NO_TRANS,
+            Self::Transpose => CBLAS_TRANS,
+        }
     }
 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum BlasError {
+    Unavailable,
+    DimensionOverflow,
+    InvalidStride,
+    InvalidLeadingDimension,
+    BufferTooSmall,
+}
+
+pub type BlasResult<T> = Result<T, BlasError>;
 
 pub const fn is_available() -> bool {
     cfg!(atlas_blas)
 }
 
 macro_rules! typed_blas {
-    (
-        $dot:ident,
-        $matrix_vector:ident,
-        $vector_matrix:ident,
-        $matrix_matrix:ident,
-        $ty:ty,
-        $ffi_dot:ident,
-        $ffi_gemv:ident,
-        $ffi_gemm:ident
-    ) => {
-        pub fn $dot(lhs: &[$ty], rhs: &[$ty]) -> Option<$ty> {
-            if !is_available() || lhs.len() != rhs.len() {
-                return None;
+    ($dot:ident, $gemv:ident, $gemm:ident, $ty:ty, $ffi_dot:ident, $ffi_gemv:ident, $ffi_gemm:ident) => {
+        pub fn $dot(
+            lhs: &[$ty],
+            lhs_stride: usize,
+            rhs: &[$ty],
+            rhs_stride: usize,
+            length: usize,
+        ) -> BlasResult<$ty> {
+            validate_vector(lhs.len(), length, lhs_stride)?;
+            validate_vector(rhs.len(), length, rhs_stride)?;
+            if length == 0 {
+                return Ok(0.0);
             }
-            let length = i32::try_from(lhs.len()).ok()?;
+            ensure_available()?;
 
-            Some(unsafe { ffi::$ffi_dot(length, lhs.as_ptr(), 1, rhs.as_ptr(), 1) })
+            Ok(unsafe {
+                ffi::$ffi_dot(
+                    blas_int(length)?,
+                    lhs.as_ptr(),
+                    blas_int(lhs_stride)?,
+                    rhs.as_ptr(),
+                    blas_int(rhs_stride)?,
+                )
+            })
         }
 
-        pub fn $matrix_vector(
-            matrix: Matrix<'_, $ty>,
+        #[allow(clippy::too_many_arguments)]
+        pub fn $gemv(
+            layout: Layout,
+            transpose: Transpose,
+            rows: usize,
+            cols: usize,
+            alpha: $ty,
+            matrix: &[$ty],
+            leading_dimension: usize,
             vector: &[$ty],
+            vector_stride: usize,
+            beta: $ty,
             output: &mut [$ty],
-        ) -> Option<()> {
-            if !is_available() || vector.len() != matrix.cols || output.len() != matrix.rows {
-                return None;
+            output_stride: usize,
+        ) -> BlasResult<()> {
+            validate_matrix(matrix.len(), layout, rows, cols, leading_dimension)?;
+            let (input_length, output_length) = match transpose {
+                Transpose::None => (cols, rows),
+                Transpose::Transpose => (rows, cols),
+            };
+            validate_vector(vector.len(), input_length, vector_stride)?;
+            validate_vector(output.len(), output_length, output_stride)?;
+            if output_length == 0 {
+                return Ok(());
             }
-            let (transpose, stored_rows, stored_cols, leading_dimension) = matrix.parameters()?;
-            let m = i32::try_from(stored_rows).ok()?;
-            let n = i32::try_from(stored_cols).ok()?;
-            let lda = i32::try_from(leading_dimension).ok()?;
+            if input_length == 0 {
+                scale_vector(output, output_length, output_stride, beta);
+                return Ok(());
+            }
+            ensure_available()?;
+
             unsafe {
                 ffi::$ffi_gemv(
-                    CBLAS_ROW_MAJOR,
-                    transpose,
-                    m,
-                    n,
-                    1.0,
+                    layout.cblas_value(),
+                    transpose.cblas_value(),
+                    blas_int(rows)?,
+                    blas_int(cols)?,
+                    alpha,
                     matrix.as_ptr(),
-                    lda,
+                    blas_int(leading_dimension)?,
                     vector.as_ptr(),
-                    1,
-                    0.0,
+                    blas_int(vector_stride)?,
+                    beta,
                     output.as_mut_ptr(),
-                    1,
+                    blas_int(output_stride)?,
                 );
             }
-            Some(())
+            Ok(())
         }
 
-        pub fn $vector_matrix(
-            vector: &[$ty],
-            matrix: Matrix<'_, $ty>,
+        #[allow(clippy::too_many_arguments)]
+        pub fn $gemm(
+            layout: Layout,
+            lhs_transpose: Transpose,
+            rhs_transpose: Transpose,
+            rows: usize,
+            cols: usize,
+            inner: usize,
+            alpha: $ty,
+            lhs: &[$ty],
+            lhs_leading_dimension: usize,
+            rhs: &[$ty],
+            rhs_leading_dimension: usize,
+            beta: $ty,
             output: &mut [$ty],
-        ) -> Option<()> {
-            if !is_available() || vector.len() != matrix.rows || output.len() != matrix.cols {
-                return None;
+            output_leading_dimension: usize,
+        ) -> BlasResult<()> {
+            let (lhs_rows, lhs_cols) = stored_dimensions(lhs_transpose, rows, inner);
+            let (rhs_rows, rhs_cols) = stored_dimensions(rhs_transpose, inner, cols);
+            validate_matrix(lhs.len(), layout, lhs_rows, lhs_cols, lhs_leading_dimension)?;
+            validate_matrix(rhs.len(), layout, rhs_rows, rhs_cols, rhs_leading_dimension)?;
+            validate_matrix(output.len(), layout, rows, cols, output_leading_dimension)?;
+            if rows == 0 || cols == 0 {
+                return Ok(());
             }
-            let (matrix_transpose, stored_rows, stored_cols, leading_dimension) =
-                matrix.parameters()?;
-            let transpose =
-                if matrix_transpose == CBLAS_NO_TRANS { CBLAS_TRANS } else { CBLAS_NO_TRANS };
-            let m = i32::try_from(stored_rows).ok()?;
-            let n = i32::try_from(stored_cols).ok()?;
-            let lda = i32::try_from(leading_dimension).ok()?;
-            unsafe {
-                ffi::$ffi_gemv(
-                    CBLAS_ROW_MAJOR,
-                    transpose,
-                    m,
-                    n,
-                    1.0,
-                    matrix.as_ptr(),
-                    lda,
-                    vector.as_ptr(),
-                    1,
-                    0.0,
-                    output.as_mut_ptr(),
-                    1,
-                );
+            if inner == 0 {
+                scale_matrix(output, layout, rows, cols, output_leading_dimension, beta);
+                return Ok(());
             }
-            Some(())
-        }
+            ensure_available()?;
 
-        pub fn $matrix_matrix(
-            lhs: Matrix<'_, $ty>,
-            rhs: Matrix<'_, $ty>,
-            output: &mut [$ty],
-        ) -> Option<()> {
-            if !is_available()
-                || lhs.cols != rhs.rows
-                || output.len() != lhs.rows.checked_mul(rhs.cols)?
-            {
-                return None;
-            }
-            let (lhs_transpose, _, _, lhs_leading_dimension) = lhs.parameters()?;
-            let (rhs_transpose, _, _, rhs_leading_dimension) = rhs.parameters()?;
-            let rows = i32::try_from(lhs.rows).ok()?;
-            let cols = i32::try_from(rhs.cols).ok()?;
-            let inner = i32::try_from(lhs.cols).ok()?;
-            let lhs_lda = i32::try_from(lhs_leading_dimension).ok()?;
-            let rhs_lda = i32::try_from(rhs_leading_dimension).ok()?;
-            let output_lda = i32::try_from(rhs.cols).ok()?;
             unsafe {
                 ffi::$ffi_gemm(
-                    CBLAS_ROW_MAJOR,
-                    lhs_transpose,
-                    rhs_transpose,
-                    rows,
-                    cols,
-                    inner,
-                    1.0,
+                    layout.cblas_value(),
+                    lhs_transpose.cblas_value(),
+                    rhs_transpose.cblas_value(),
+                    blas_int(rows)?,
+                    blas_int(cols)?,
+                    blas_int(inner)?,
+                    alpha,
                     lhs.as_ptr(),
-                    lhs_lda,
+                    blas_int(lhs_leading_dimension)?,
                     rhs.as_ptr(),
-                    rhs_lda,
-                    0.0,
+                    blas_int(rhs_leading_dimension)?,
+                    beta,
                     output.as_mut_ptr(),
-                    output_lda,
+                    blas_int(output_leading_dimension)?,
                 );
             }
-            Some(())
+            Ok(())
         }
     };
 }
 
-typed_blas!(
-    dot_f32,
-    matrix_vector_f32,
-    vector_matrix_f32,
-    matrix_matrix_f32,
-    f32,
-    cblas_sdot,
-    cblas_sgemv,
-    cblas_sgemm
-);
-typed_blas!(
-    dot_f64,
-    matrix_vector_f64,
-    vector_matrix_f64,
-    matrix_matrix_f64,
-    f64,
-    cblas_ddot,
-    cblas_dgemv,
-    cblas_dgemm
-);
+typed_blas!(dot_f32, gemv_f32, gemm_f32, f32, cblas_sdot, cblas_sgemv, cblas_sgemm);
+typed_blas!(dot_f64, gemv_f64, gemm_f64, f64, cblas_ddot, cblas_dgemv, cblas_dgemm);
+
+fn ensure_available() -> BlasResult<()> {
+    is_available().then_some(()).ok_or(BlasError::Unavailable)
+}
+
+fn blas_int(value: usize) -> BlasResult<i32> {
+    i32::try_from(value).map_err(|_| BlasError::DimensionOverflow)
+}
+
+fn validate_vector(buffer_length: usize, length: usize, stride: usize) -> BlasResult<()> {
+    if stride == 0 {
+        return Err(BlasError::InvalidStride);
+    }
+    let required = if length == 0 {
+        0
+    } else {
+        (length - 1)
+            .checked_mul(stride)
+            .and_then(|offset| offset.checked_add(1))
+            .ok_or(BlasError::DimensionOverflow)?
+    };
+    if buffer_length < required {
+        return Err(BlasError::BufferTooSmall);
+    }
+
+    Ok(())
+}
+
+fn validate_matrix(
+    buffer_length: usize,
+    layout: Layout,
+    rows: usize,
+    cols: usize,
+    leading_dimension: usize,
+) -> BlasResult<()> {
+    let (major, minor) = match layout {
+        Layout::RowMajor => (rows, cols),
+        Layout::ColumnMajor => (cols, rows),
+    };
+    if leading_dimension < minor.max(1) {
+        return Err(BlasError::InvalidLeadingDimension);
+    }
+    let required = if major == 0 || minor == 0 {
+        0
+    } else {
+        (major - 1)
+            .checked_mul(leading_dimension)
+            .and_then(|offset| offset.checked_add(minor))
+            .ok_or(BlasError::DimensionOverflow)?
+    };
+    if buffer_length < required {
+        return Err(BlasError::BufferTooSmall);
+    }
+
+    Ok(())
+}
+
+fn stored_dimensions(
+    transpose: Transpose,
+    operation_rows: usize,
+    operation_cols: usize,
+) -> (usize, usize) {
+    match transpose {
+        Transpose::None => (operation_rows, operation_cols),
+        Transpose::Transpose => (operation_cols, operation_rows),
+    }
+}
+
+fn scale_vector<T>(output: &mut [T], length: usize, stride: usize, beta: T)
+where
+    T: Copy + std::ops::Mul<Output = T>,
+{
+    for index in 0..length {
+        output[index * stride] = output[index * stride] * beta;
+    }
+}
+
+fn scale_matrix<T>(
+    output: &mut [T],
+    layout: Layout,
+    rows: usize,
+    cols: usize,
+    leading_dimension: usize,
+    beta: T,
+) where
+    T: Copy + std::ops::Mul<Output = T>,
+{
+    for row in 0..rows {
+        for col in 0..cols {
+            let index = match layout {
+                Layout::RowMajor => row * leading_dimension + col,
+                Layout::ColumnMajor => col * leading_dimension + row,
+            };
+            output[index] = output[index] * beta;
+        }
+    }
+}
 
 #[cfg(atlas_blas)]
 mod ffi {
