@@ -25,6 +25,8 @@ fn main() {
     {
         println!("cargo:rerun-if-env-changed=CARGO_FEATURE_{feature}");
     }
+    println!("cargo:rerun-if-env-changed=ATLAS_OPENBLAS_LIBRARY_DIR");
+    println!("cargo:rerun-if-env-changed=OPENBLAS_DYNAMIC_ARCH");
 
     let target = env::var("TARGET").unwrap_or_default();
     let is_macos = target.contains("apple-darwin");
@@ -54,6 +56,12 @@ fn main() {
             enable_provider("atlas_blas_openblas");
         }
         Some(Selection::OpenBlasStatic) => {
+            if env::var("OPENBLAS_DYNAMIC_ARCH").unwrap_or_default() != "1" {
+                panic!("openblas-static requires an OpenBLAS library built with DYNAMIC_ARCH=1");
+            }
+            if let Some(directory) = env::var_os("ATLAS_OPENBLAS_LIBRARY_DIR") {
+                println!("cargo:rustc-link-search=native={}", directory.to_string_lossy());
+            }
             println!("cargo:rustc-link-lib=static=openblas");
             enable_provider("atlas_blas_openblas");
         }
