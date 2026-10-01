@@ -1,4 +1,4 @@
-use crate::internal::row::LogicalRow;
+use crate::internal::LogicalRow;
 
 pub(crate) fn squared_distance(lhs: &[f64], rhs: &[f64]) -> f64 {
     debug_assert_eq!(lhs.len(), rhs.len());
@@ -41,7 +41,7 @@ mod tests {
         axis_squared_distance_lower_bound, ball_squared_distance_lower_bound, squared_distance,
         squared_distance_to_row,
     };
-    use crate::internal::row::LogicalRow;
+    use crate::internal::LogicalRow;
 
     #[test]
     fn squared_distance_handles_equal_known_and_high_dimensional_points() {

@@ -115,7 +115,7 @@ impl NeighborSearchBackend {
             let mut query = vec![0.0; feature_count];
             (block_start..block_end)
                 .map(|query_index| {
-                    crate::internal::row::copy_logical_row(queries, query_index, &mut query);
+                    crate::internal::copy_logical_row(queries, query_index, &mut query);
                     self.search(features, &query, k)
                 })
                 .collect()

@@ -1,10 +1,14 @@
-pub(crate) mod backend;
-pub(crate) mod ball_tree;
-pub(crate) mod brute_force;
-pub(crate) mod classifier;
-pub(crate) mod config;
-pub(crate) mod index;
-pub(crate) mod kd_tree;
-pub(crate) mod metric;
-pub(crate) mod regressor;
-pub(crate) mod top_k;
+mod backend;
+mod ball_tree;
+mod brute_force;
+mod classifier;
+mod config;
+mod index;
+mod kd_tree;
+mod metric;
+mod regressor;
+mod top_k;
+
+pub use classifier::KnnClassifier;
+pub use config::{AUTO_BRUTE_FORCE_MAX_SAMPLES, KnnConfig, KnnSearchAlgorithm, KnnWeighting};
+pub use regressor::KnnRegressor;

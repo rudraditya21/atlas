@@ -3,7 +3,7 @@ use atlas_ndarray::OperandMetadata;
 use super::node::BallTreeNode;
 use crate::{
     AtlasMlError, AtlasMlResult,
-    internal::row::LogicalRow,
+    internal::LogicalRow,
     neighbors::knn::{
         metric::{ball_squared_distance_lower_bound, squared_distance_to_row},
         top_k::{BoundedNeighborSet, Neighbor},

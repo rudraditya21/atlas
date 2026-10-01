@@ -9,7 +9,7 @@ use super::{
 };
 use crate::{
     AtlasMlResult,
-    internal::validation::{
+    internal::{
         validate_finite_feature_values, validate_prediction_feature_inputs,
         validate_prediction_feature_row, validate_supervised_training_inputs,
     },

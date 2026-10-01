@@ -6,7 +6,10 @@ use super::{
     metric::squared_distance_to_row,
     top_k::{BoundedNeighborSet, Neighbor},
 };
-use crate::{AtlasMlError, AtlasMlResult, internal::row::copy_logical_row};
+use crate::{
+    AtlasMlError, AtlasMlResult,
+    internal::{LogicalRow, copy_logical_row},
+};
 
 const QUERY_BLOCK_ROWS: usize = 64;
 const TRAINING_BLOCK_TARGET_BYTES: usize = 4 * 1024 * 1024;
@@ -177,7 +180,7 @@ where
         0,
         (0..training_features.shape()[0]).map(|sample_index| {
             squared_distance_to_row(
-                crate::internal::row::LogicalRow::from_operand(training_features, sample_index),
+                LogicalRow::from_operand(training_features, sample_index),
                 query,
             )
         }),

@@ -1,9 +1,8 @@
-pub(crate) mod knn;
+mod knn;
 mod nearest_centroid;
 
 pub use knn::{
-    classifier::KnnClassifier,
-    config::{AUTO_BRUTE_FORCE_MAX_SAMPLES, KnnConfig, KnnSearchAlgorithm, KnnWeighting},
-    regressor::KnnRegressor,
+    AUTO_BRUTE_FORCE_MAX_SAMPLES, KnnClassifier, KnnConfig, KnnRegressor, KnnSearchAlgorithm,
+    KnnWeighting,
 };
 pub use nearest_centroid::NearestCentroidClassifier;

@@ -2,9 +2,7 @@ use std::collections::BTreeMap;
 
 use atlas_ndarray::OperandMetadata;
 
-use crate::{
-    AtlasMlError, AtlasMlResult, internal::validation::validate_supervised_training_inputs,
-};
+use crate::{AtlasMlError, AtlasMlResult, internal::validate_supervised_training_inputs};
 
 const OP: &str = "k_fold_split";
 const STRATIFIED_OP: &str = "stratified_k_fold_split";

@@ -4,11 +4,8 @@ use rayon::prelude::*;
 use crate::{
     AtlasMlError, AtlasMlResult, LabelEncoder,
     internal::{
-        parallel::should_parallelize_inference,
-        validation::{
-            validate_finite_feature_values, validate_prediction_feature_inputs,
-            validate_supervised_training_inputs,
-        },
+        should_parallelize_inference, validate_finite_feature_values,
+        validate_prediction_feature_inputs, validate_supervised_training_inputs,
     },
 };
 

@@ -1,6 +1,6 @@
 use atlas_ndarray::OperandMetadata;
 
-use crate::{AtlasMlError, AtlasMlResult, internal::validation::validate_finite_feature_values};
+use crate::{AtlasMlError, AtlasMlResult, internal::validate_finite_feature_values};
 
 const MAE_OP: &str = "mean_absolute_error";
 const MSE_OP: &str = "mean_squared_error";

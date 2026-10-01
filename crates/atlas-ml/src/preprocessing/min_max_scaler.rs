@@ -2,7 +2,7 @@ use atlas_ndarray::{NDArray, OperandMetadata};
 
 use crate::{
     AtlasMlError, AtlasMlResult,
-    internal::validation::{validate_finite_feature_values, validate_prediction_feature_inputs},
+    internal::{validate_finite_feature_values, validate_prediction_feature_inputs},
 };
 
 const FIT_OP: &str = "min_max_scaler_fit";

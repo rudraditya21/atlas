@@ -4,7 +4,7 @@ use atlas_ndarray::{ArrayElement, NDArray, OperandMetadata};
 
 use crate::{
     AtlasMlError, AtlasMlResult,
-    internal::{row::copy_logical_row, validation::validate_supervised_training_inputs},
+    internal::{copy_logical_row, validate_supervised_training_inputs},
 };
 
 const OP: &str = "train_test_split";

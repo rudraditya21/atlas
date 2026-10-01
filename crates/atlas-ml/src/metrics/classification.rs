@@ -1,6 +1,6 @@
 use atlas_ndarray::{ArrayElement, OperandMetadata};
 
-use crate::{AtlasMlError, AtlasMlResult, internal::validation::validate_binary_labels};
+use crate::{AtlasMlError, AtlasMlResult, internal::validate_binary_labels};
 
 const ACCURACY_OP: &str = "classification_accuracy";
 const BINARY_LOG_LOSS_OP: &str = "binary_log_loss";
