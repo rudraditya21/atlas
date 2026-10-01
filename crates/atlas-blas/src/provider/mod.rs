@@ -24,6 +24,12 @@ pub enum Provider {
     OpenBlas,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Threading {
+    ProviderDefault,
+    SingleThreaded,
+}
+
 impl Provider {
     pub const fn name(self) -> &'static str {
         match self {
@@ -35,10 +41,7 @@ impl Provider {
     }
 
     pub const fn thread_control_available(self) -> bool {
-        match self {
-            Self::Accelerate | Self::OneMkl | Self::OpenBlas => true,
-            Self::Blis => false,
-        }
+        true
     }
 }
 
@@ -55,4 +58,9 @@ const ACTIVE_PROVIDER: Option<Provider> = None;
 
 pub const fn active_provider() -> Option<Provider> {
     ACTIVE_PROVIDER
+}
+
+#[cfg(not(any(atlas_blas_accelerate, atlas_blas_blis, atlas_blas_mkl, atlas_blas_openblas)))]
+pub(crate) fn with_threading<R>(_: Threading, operation: impl FnOnce() -> R) -> R {
+    operation()
 }

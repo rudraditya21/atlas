@@ -1,4 +1,37 @@
+use std::sync::Mutex;
+
+use super::Threading;
+
+static THREAD_CONTROL: Mutex<()> = Mutex::new(());
+
+pub(crate) fn with_threading<R>(threading: Threading, operation: impl FnOnce() -> R) -> R {
+    let _lock = THREAD_CONTROL.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    if threading == Threading::ProviderDefault {
+        return operation();
+    }
+
+    struct Restore(i32);
+
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            unsafe {
+                openblas_set_num_threads(self.0);
+            }
+        }
+    }
+
+    let previous = unsafe { openblas_get_num_threads() };
+    unsafe {
+        openblas_set_num_threads(1);
+    }
+    let _restore = Restore(previous);
+    operation()
+}
+
 unsafe extern "C" {
+    fn openblas_get_num_threads() -> i32;
+    fn openblas_set_num_threads(thread_count: i32);
+
     pub(crate) fn cblas_sdot(n: i32, x: *const f32, inc_x: i32, y: *const f32, inc_y: i32) -> f32;
     pub(crate) fn cblas_ddot(n: i32, x: *const f64, inc_x: i32, y: *const f64, inc_y: i32) -> f64;
     pub(crate) fn cblas_sgemv(

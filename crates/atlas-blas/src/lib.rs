@@ -2,7 +2,7 @@
 
 mod provider;
 
-pub use provider::{Provider, active_provider};
+pub use provider::{Provider, Threading, active_provider};
 
 const CBLAS_ROW_MAJOR: i32 = 101;
 const CBLAS_COL_MAJOR: i32 = 102;
@@ -88,6 +88,10 @@ pub const fn backend_configuration() -> BackendConfiguration {
 
 pub const fn is_available() -> bool {
     active_provider().is_some()
+}
+
+pub fn with_threading<R>(threading: Threading, operation: impl FnOnce() -> R) -> R {
+    provider::with_threading(threading, operation)
 }
 
 macro_rules! typed_blas {

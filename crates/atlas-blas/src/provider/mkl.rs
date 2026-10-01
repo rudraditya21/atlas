@@ -1,4 +1,28 @@
+use super::Threading;
+
+pub(crate) fn with_threading<R>(threading: Threading, operation: impl FnOnce() -> R) -> R {
+    if threading == Threading::ProviderDefault {
+        return operation();
+    }
+
+    struct Restore(i32);
+
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            unsafe {
+                mkl_set_num_threads_local(self.0);
+            }
+        }
+    }
+
+    let previous = unsafe { mkl_set_num_threads_local(1) };
+    let _restore = Restore(previous);
+    operation()
+}
+
 unsafe extern "C" {
+    fn mkl_set_num_threads_local(thread_count: i32) -> i32;
+
     pub(crate) fn cblas_sdot(n: i32, x: *const f32, inc_x: i32, y: *const f32, inc_y: i32) -> f32;
     pub(crate) fn cblas_ddot(n: i32, x: *const f64, inc_x: i32, y: *const f64, inc_y: i32) -> f64;
     pub(crate) fn cblas_sgemv(
