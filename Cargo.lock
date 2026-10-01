@@ -143,6 +143,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "atlas-blas"
+version = "0.1.0"
+
+[[package]]
 name = "atlas-constants"
 version = "0.1.0"
 
@@ -150,6 +154,7 @@ version = "0.1.0"
 name = "atlas-linalg"
 version = "0.1.0"
 dependencies = [
+ "atlas-blas",
  "atlas-ndarray",
  "num-traits",
  "rayon",

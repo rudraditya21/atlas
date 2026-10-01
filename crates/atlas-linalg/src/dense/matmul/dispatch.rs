@@ -79,7 +79,7 @@ pub(crate) fn select_matmul_backend<T: Numeric>(
 }
 
 fn blas_supported<T: Numeric>(operation: MatmulOperation<'_, T>) -> bool {
-    if !cfg!(atlas_blas)
+    if !atlas_blas::is_available()
         || rayon::current_thread_index().is_some()
         || !(simd::is_f32::<T>() || simd::is_f64::<T>())
     {

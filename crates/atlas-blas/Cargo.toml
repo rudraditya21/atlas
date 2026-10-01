@@ -1,18 +1,11 @@
 [package]
-name = "atlas-linalg"
+name = "atlas-blas"
 edition.workspace = true
 rust-version.workspace = true
 version.workspace = true
 
 [features]
-openblas = ["atlas-blas/openblas"]
-
-[dependencies]
-atlas-blas.workspace = true
-atlas-ndarray.workspace = true
-num-traits.workspace = true
-rayon.workspace = true
-thiserror.workspace = true
+openblas = []
 
 [lints.rust]
 rust_2018_idioms = { level = "warn", priority = -1 }
