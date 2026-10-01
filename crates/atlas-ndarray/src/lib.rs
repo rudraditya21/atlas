@@ -29,6 +29,7 @@ pub use core::{
     array::NDArray,
     asarray::AsArray,
     axis::AxisIndex,
+    borrowed::BorrowedArray,
     dtype::{
         ArithmeticPromote, CastMode, CastPolicy, DType, ReductionOp, RuntimeDType, RuntimeScalar,
         ScalarValue, infer_scalar_dtype,

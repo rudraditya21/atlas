@@ -37,6 +37,30 @@ pub(crate) fn is_contiguous_layout(shape: &[usize], strides: &[usize]) -> bool {
     true
 }
 
+pub(crate) fn is_fortran_contiguous_layout(shape: &[usize], strides: &[usize]) -> bool {
+    debug_assert_eq!(shape.len(), strides.len());
+    if shape.is_empty() || element_count(shape) == 0 {
+        return true;
+    }
+
+    let mut expected_stride = 1usize;
+
+    for axis in 0..shape.len() {
+        let dim = shape[axis];
+        if dim <= 1 {
+            continue;
+        }
+
+        if strides[axis] != expected_stride {
+            return false;
+        }
+
+        expected_stride = expected_stride.saturating_mul(dim);
+    }
+
+    true
+}
+
 pub(crate) fn is_storage_dense_layout(shape: &[usize], strides: &[usize]) -> bool {
     debug_assert_eq!(shape.len(), strides.len());
 
