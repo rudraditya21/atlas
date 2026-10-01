@@ -297,7 +297,7 @@ mod tests {
     use atlas_ndarray::NDArray;
 
     use super::{BallTree, BallTreeNode};
-    use crate::neighbors::knn::brute_force::brute_force_search;
+    use crate::neighbors::knn::brute_force::scalar_search;
 
     #[test]
     fn partitions_duplicate_points_deterministically() {
@@ -353,7 +353,7 @@ mod tests {
             for k in 1..=features.shape()[0] {
                 assert_eq!(
                     tree.search(&features, query, k),
-                    brute_force_search(&features, query, k)
+                    Ok(scalar_search(&features, query, k))
                 );
             }
         }
@@ -368,7 +368,7 @@ mod tests {
         let query = [1.5_f64, 1.5];
 
         for k in 1..=features.shape()[0] {
-            assert_eq!(tree.search(&features, &query, k), brute_force_search(&features, &query, k));
+            assert_eq!(tree.search(&features, &query, k), Ok(scalar_search(&features, &query, k)));
         }
     }
 
@@ -379,7 +379,7 @@ mod tests {
         let tree = BallTree::build(&features).unwrap();
         let query = [1.0_f64, 1.0];
 
-        assert_eq!(tree.search(&features, &query, 2), brute_force_search(&features, &query, 2));
+        assert_eq!(tree.search(&features, &query, 2), Ok(scalar_search(&features, &query, 2)));
     }
 
     fn leaf_indices(node: &BallTreeNode) -> Vec<usize> {

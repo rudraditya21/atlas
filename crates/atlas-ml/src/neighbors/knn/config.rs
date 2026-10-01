@@ -58,7 +58,6 @@ impl KnnConfig {
         mut self,
         search_algorithm: KnnSearchAlgorithm,
     ) -> AtlasMlResult<Self> {
-        validate_search_algorithm(search_algorithm)?;
         self.search_algorithm = search_algorithm;
         Ok(self)
     }
@@ -90,7 +89,6 @@ impl KnnConfig {
     }
 
     pub fn validate(&self, training_samples: usize) -> AtlasMlResult<()> {
-        validate_search_algorithm(self.search_algorithm)?;
         if self.k > training_samples {
             return Err(AtlasMlError::InvalidArgument {
                 op: "knn_config",
@@ -99,15 +97,6 @@ impl KnnConfig {
         }
 
         Ok(())
-    }
-}
-
-fn validate_search_algorithm(algorithm: KnnSearchAlgorithm) -> AtlasMlResult<()> {
-    match algorithm {
-        KnnSearchAlgorithm::BruteForce
-        | KnnSearchAlgorithm::KdTree
-        | KnnSearchAlgorithm::BallTree
-        | KnnSearchAlgorithm::Auto => Ok(()),
     }
 }
 

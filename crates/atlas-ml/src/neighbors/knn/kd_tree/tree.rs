@@ -209,7 +209,7 @@ mod tests {
     use atlas_ndarray::NDArray;
 
     use super::{KdTree, KdTreeNode};
-    use crate::neighbors::knn::brute_force::brute_force_search;
+    use crate::neighbors::knn::brute_force::scalar_search;
 
     #[test]
     fn builds_a_single_point_as_a_leaf() {
@@ -272,7 +272,7 @@ mod tests {
             for k in 1..=features.shape()[0] {
                 assert_eq!(
                     tree.search(&features, query, k),
-                    brute_force_search(&features, query, k)
+                    Ok(scalar_search(&features, query, k))
                 );
             }
         }
@@ -287,7 +287,7 @@ mod tests {
         let query = [1.5_f64, 1.5];
 
         for k in 1..=features.shape()[0] {
-            assert_eq!(tree.search(&features, &query, k), brute_force_search(&features, &query, k));
+            assert_eq!(tree.search(&features, &query, k), Ok(scalar_search(&features, &query, k)));
         }
     }
 

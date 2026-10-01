@@ -159,19 +159,7 @@ impl BruteForceSearch {
     }
 }
 
-pub(crate) fn brute_force_search<F>(
-    training_features: &F,
-    query: &[f64],
-    k: usize,
-) -> AtlasMlResult<Vec<Neighbor>>
-where
-    F: OperandMetadata<f64> + ?Sized,
-{
-    validate_search(training_features, query.len(), k)?;
-    Ok(scalar_search(training_features, query, k))
-}
-
-fn scalar_search<F>(training_features: &F, query: &[f64], k: usize) -> Vec<Neighbor>
+pub(super) fn scalar_search<F>(training_features: &F, query: &[f64], k: usize) -> Vec<Neighbor>
 where
     F: OperandMetadata<f64> + ?Sized,
 {
@@ -262,7 +250,7 @@ where
 mod tests {
     use atlas_ndarray::NDArray;
 
-    use super::brute_force_search;
+    use super::scalar_search;
     use crate::neighbors::knn::top_k::Neighbor;
 
     fn neighbor(index: usize, distance: f64) -> Neighbor {
@@ -276,8 +264,8 @@ mod tests {
                 .unwrap();
 
         assert_eq!(
-            brute_force_search(&training, &[1.5, 1.5], 2),
-            Ok(vec![neighbor(1, 0.5), neighbor(0, 4.5)])
+            scalar_search(&training, &[1.5, 1.5], 2),
+            vec![neighbor(1, 0.5), neighbor(0, 4.5)]
         );
     }
 
@@ -288,8 +276,8 @@ mod tests {
         let training = values.view().transpose();
 
         assert_eq!(
-            brute_force_search(&training, &[1.5, 1.5], 2),
-            Ok(vec![neighbor(1, 0.5), neighbor(0, 4.5)])
+            scalar_search(&training, &[1.5, 1.5], 2),
+            vec![neighbor(1, 0.5), neighbor(0, 4.5)]
         );
     }
 
@@ -299,8 +287,8 @@ mod tests {
             NDArray::from_shape_vec([3, 2], vec![-1.0_f64, 0.0, 1.0, 0.0, 0.0, 2.0]).unwrap();
 
         assert_eq!(
-            brute_force_search(&training, &[0.0, 0.0], 2),
-            Ok(vec![neighbor(0, 1.0), neighbor(1, 1.0)])
+            scalar_search(&training, &[0.0, 0.0], 2),
+            vec![neighbor(0, 1.0), neighbor(1, 1.0)]
         );
     }
 
@@ -314,7 +302,7 @@ mod tests {
         ];
 
         for (k, neighbors) in (1..=3).zip(expected) {
-            assert_eq!(brute_force_search(&training, &[0.0], k), Ok(neighbors));
+            assert_eq!(scalar_search(&training, &[0.0], k), neighbors);
         }
     }
 }

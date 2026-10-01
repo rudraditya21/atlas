@@ -18,11 +18,6 @@ impl TrainingIndex {
         Ok(Self { features, backend })
     }
 
-    #[cfg(test)]
-    pub(crate) fn features(&self) -> &NDArray<f64> {
-        &self.features
-    }
-
     pub(crate) fn feature_count(&self) -> usize {
         self.features.shape()[1]
     }
@@ -86,8 +81,8 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(index.features().shape(), &[2, 3]);
-        assert_eq!(index.features().data(), &[0.0, 1.0, 2.0, 3.0, 4.0, 5.0]);
+        assert_eq!(index.features.shape(), &[2, 3]);
+        assert_eq!(index.features.data(), &[0.0, 1.0, 2.0, 3.0, 4.0, 5.0]);
     }
 
     #[test]
