@@ -1,13 +1,17 @@
 #[cfg(atlas_blas_accelerate)]
 mod accelerate;
-#[cfg(any(atlas_blas_blis, atlas_blas_mkl))]
+#[cfg(atlas_blas_blis)]
+mod blis;
+#[cfg(atlas_blas_mkl)]
 mod linked;
 #[cfg(atlas_blas_openblas)]
 mod openblas;
 
 #[cfg(atlas_blas_accelerate)]
 pub(crate) use accelerate::*;
-#[cfg(any(atlas_blas_blis, atlas_blas_mkl))]
+#[cfg(atlas_blas_blis)]
+pub(crate) use blis::*;
+#[cfg(atlas_blas_mkl)]
 pub(crate) use linked::*;
 #[cfg(atlas_blas_openblas)]
 pub(crate) use openblas::*;
